@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (Windows / .NET 9)
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        run: dotnet restore src/YariZan.sln
+
+      # The launcher embeds secrets/public.pem and secrets/master.key. They are
+      # gitignored, so we generate ephemeral ones for this run. They live only in
+      # the runner sandbox and are discarded when the job finishes.
+      - name: Generate ephemeral keys
+        run: dotnet run --project src/YariZan.SerialGen --no-restore -- init
+
+      - name: Pack sample games
+        run: dotnet run --project src/YariZan.Packer --no-restore
+
+      - name: Build (Release)
+        run: dotnet build src/YariZan.sln --configuration Release --no-restore
+
+      # Future: when tests exist, add:
+      # - name: Test
+      #   run: dotnet test src/YariZan.sln --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+
+      - name: Smoke-verify the launcher binary exists
+        shell: pwsh
+        run: |
+          $exe = "src/YariZan.App/bin/Release/net9.0-windows/YariZan.exe"
+          if (-not (Test-Path $exe)) { throw "Build did not produce $exe" }
+          Write-Host "OK: $exe ($([Math]::Round((Get-Item $exe).Length / 1KB)) KB)"

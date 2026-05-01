@@ -33,20 +33,22 @@ YariZan/
 | `AppKeys.cs` | Loads embedded `public.pem` and `master.key` from the running assembly |
 
 ### `YariZan.App` (WPF)
-- `Views/MainWindow.xaml` — single window, page swap with rotate+fade transition
-- `Views/CoverPage.xaml` — closed leather book; tap to enter
-- `Views/LockPage.xaml` — HWID display, copy button, serial entry, validate & save
-- `Views/InfoPage.xaml` — two-page spread: logo+title left, about+author right
-- `Views/GamesBookPage.xaml` — grade picker, two-page spread, 3×3 tile grid per page, page-flip animation
-- `Services/AppPaths.cs` — resolves `games_encrypted/` next to the running exe
-- `Services/GameLibrary.cs` — loads `manifest.json` and exposes per-grade game lists
-- `Resources/Theme.xaml` — colors, brushes, button & textbox styles, Shabnam font lookup
+- `Views/MainWindow.xaml` — single window, page swap with rotate+fade transition. Starts maximized; carries a custom minimize button (top-right visually) on every page.
+- `Views/CoverPage.xaml` — closed leather book; tap to enter. Always shown first, even after activation.
+- `Views/LockPage.xaml` — HWID display, copy button, serial entry, "فعال‌سازی" / "بازگشت" / "خروج". Only reachable when the saved `activation.dat` is missing or invalid for this PC.
+- `Views/InfoPage.xaml` — two-page spread: icon+title on the right (first reading page in RTL), about+author+vertical button stack on the left.
+- `Views/GamesBookPage.xaml` — grade picker (`همه` + ۱..۶), 3×2 landscape tile grid per page, info modal popup, navigation buttons swapped for RTL reading direction.
+- `Services/AppPaths.cs` — resolves `games_encrypted/` next to the running exe.
+- `Services/GameLibrary.cs` — loads `manifest.json` and exposes per-grade game lists.
+- `Resources/Theme.xaml` — colors, brushes, `GoldButton`, `ExitButton`, `GradeChip` styles, Shabnam font lookup.
 
 ### `YariZan.SerialGen`
 Three commands: `init` (generate keys + master.key into `secrets/`), `hwid` (print this machine's), `sign <HWID>`.
 
 ### `YariZan.Packer`
-Walks `miniApps/1` … `miniApps/6`, encrypts each `.exe` to `g<grade>_<hash>.dat`, copies the matching image (PNG/JPG) untouched, writes `manifest.json`. Output dir is wiped first.
+Walks `miniApps/1` … `miniApps/6`, encrypts each `.exe` to `g<grade>_<hash>.dat`, copies the matching image (PNG/JPG) untouched, reads the matching `.txt` sidecar as a Persian description, and writes `manifest.json`. Output dir is wiped first.
+
+Each game in `manifest.json` carries `Name`, `Grade`, `EncryptedFile`, `ImageFile`, and `Description`. The launcher's info popup pulls `Description` straight out of the manifest.
 
 ## Runtime flow
 

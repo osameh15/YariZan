@@ -10,6 +10,7 @@
         FontFamily="{DynamicResource ShabnamFont}"
         Background="{StaticResource RoomBackgroundBrush}"
         WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
         MinWidth="1100" MinHeight="720"
         Width="1280" Height="800">
 
@@ -22,6 +23,38 @@
         </Grid.Background>
 
         <ContentControl x:Name="PageHost" />
+
+        <!-- Custom minimize: top-right visually (HorizontalAlignment="Left" flips under RTL).
+             We set FlowDirection=LeftToRight on the cluster so future controls add naturally. -->
+        <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight"
+                    HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,14,0,0">
+            <Button x:Name="MinimizeBtn" Click="Minimize_Click" Width="38" Height="38"
+                    Margin="14,0,0,0" Cursor="Hand" ToolTip="کوچک‌نمایی">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Ellipse x:Name="Ring" Fill="#88000000"
+                                     Stroke="{StaticResource GoldBrush}" StrokeThickness="1.5">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="6" Opacity="0.5" ShadowDepth="1" />
+                                </Ellipse.Effect>
+                            </Ellipse>
+                            <Path Data="M -9,0 L 9,0" Stroke="{StaticResource GoldBrush}"
+                                  StrokeThickness="2.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Ring" Property="Fill" Value="{StaticResource LeatherBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Ring" Property="Fill" Value="{StaticResource LeatherDarkBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </StackPanel>
 
         <TextBlock Text="یاریزان" FontFamily="{DynamicResource ShabnamBoldFont}" FontSize="14"
                    Foreground="#80EAD08A" HorizontalAlignment="Right" VerticalAlignment="Bottom"

@@ -18,8 +18,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="..\..\secrets\public.pem" Link="Keys\public.pem" />
-    <EmbeddedResource Include="..\..\secrets\master.key" Link="Keys\master.key" />
+    <!-- Conditional so CI can build without checking in real keys.
+         If absent at compile time, the launcher will throw a clear error at activation. -->
+    <EmbeddedResource Include="..\..\secrets\public.pem" Link="Keys\public.pem"
+                      Condition="Exists('..\..\secrets\public.pem')" />
+    <EmbeddedResource Include="..\..\secrets\master.key" Link="Keys\master.key"
+                      Condition="Exists('..\..\secrets\master.key')" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,73 +1,135 @@
+<div align="center">
+
+<img src="src/YariZan.App/Resources/icon.png" alt="YariZan" width="180" />
+
 # YariZan — یاریزان
 
-A Windows desktop launcher for educational mini‑games (grades 1–6), styled as an ornate Persian leather book. Each book "spread" shows nine games per page; the games themselves are protected `.exe` bundles that only decrypt and run after the user activates the app with a serial bound to their machine.
+**A modern Persian launcher for educational mini‑games (grades 1–6),**
+**styled as an ornate leather book with hardware‑locked activation.**
 
-| | |
-|--|--|
-| **Stack** | .NET 9, WPF, C# |
-| **Platform** | Windows (x64) |
-| **Language** | Persian UI (RTL), Shabnam font |
-| **License** | Proprietary |
+[![.NET](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![WPF](https://img.shields.io/badge/UI-WPF-0078D4)](https://learn.microsoft.com/dotnet/desktop/wpf/)
+[![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows)](https://www.microsoft.com/windows)
+[![Language](https://img.shields.io/badge/Language-C%23-239120?logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
+[![License](https://img.shields.io/badge/License-Proprietary-lightgrey)](#license)
+[![RTL](https://img.shields.io/badge/UI-RTL%20(Persian)-2BAE66)](#)
 
----
-
-## What's in the box
-
-| Project | Purpose |
-|---------|---------|
-| `src/YariZan.App` | WPF launcher with the book UI, activation, and game runner |
-| `src/YariZan.Core` | Crypto + HWID + serial codec + activation store (shared) |
-| `src/YariZan.SerialGen` | Seller‑side console tool: generate keys & sign per‑machine serials |
-| `src/YariZan.Packer` | Build‑time tool: encrypt `miniApps/` into `games_encrypted/` |
+</div>
 
 ---
 
-## Quick start (developer)
+## Why
+
+Bundle a catalog of Adobe‑published `.exe` mini‑games (grades 1–6) into one polished, **hardware‑locked** launcher. A buyer's serial only unlocks **their** PC; the games themselves are AES‑encrypted on disk so they can't be casually extracted and shared.
+
+## Highlights
+
+- 📖 **Book‑style UI** — closed leather cover → information page → open spread of game tiles, with page‑flip animation and proper Persian RTL reading order (first page on the right).
+- 🔐 **HWID‑bound activation** — ECDSA‑P256 signed serials. Sharing a serial does not work; carrying the activation file across PCs does not work.
+- 🛡️ **Encrypted games at rest** — AES‑256‑GCM blobs on disk. Games decrypt on‑demand to a temp directory with a restricted ACL and are deleted on exit.
+- 🇮🇷 **Persian, right‑to‑left** — Shabnam font, Persian digits, native RTL layout. Latin wordmarks (the "YariZan" cover title) remain LTR where intended.
+- 🧰 **Self‑contained tooling** — one console tool to generate keys & sign serials, another to encrypt your games into a shippable bundle. Both are just `dotnet run`.
+- 📚 **Six grades, infinite games** — drop a `.exe`, `.png`, and a Persian description `.txt` into `miniApps/<grade>/`, re‑pack, ship.
+
+## Screen flow
+
+```
+   ┌──────────────────┐    ┌─────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+   │   CoverPage      │ →  │   LockPage      │ →  │   InfoPage       │ →  │   GamesBookPage  │
+   │ closed leather   │    │ HWID + serial   │    │ author + about   │    │ grade picker +   │
+   │ book, "tap to    │    │ entry. Skipped  │    │ + "ورود" button  │    │ 6+6 spread + i   │
+   │ open"            │    │ on later runs.  │    │                  │    │ popup + flips    │
+   └──────────────────┘    └─────────────────┘    └──────────────────┘    └──────────────────┘
+```
+
+Every page after the cover has a red **خروج** (Exit) button. The window has a custom minimize control in its top‑right corner and starts maximized.
+
+---
+
+## Quick start
 
 ```powershell
-# 1. Generate the keypair + master AES key (run ONCE, keep secrets/private.pem and secrets/master.key safe)
+# Prerequisites
+winget install Microsoft.DotNet.SDK.9    # one-time
+
+# 1. Generate keypair + master AES key (run ONCE per project lifetime)
 dotnet run --project src\YariZan.SerialGen -- init
 
-# 2. Add games — drop them in miniApps/<grade>/<GameName>.exe with a matching .png
-#    (folder layout below)
-
-# 3. Encrypt the games into games_encrypted/
+# 2. Encrypt the games in miniApps/ into games_encrypted/
 dotnet run --project src\YariZan.Packer
 
-# 4. Build & run the app
+# 3. Run it
 dotnet run --project src\YariZan.App
 ```
 
+The first time you run it, the lock screen will show your machine's HWID. Generate a serial bound to it:
+
+```powershell
+dotnet run --project src\YariZan.SerialGen -- sign <YOUR-HWID-HEX>
+```
+
+Paste the printed serial into the lock screen → the book opens. Subsequent launches skip the lock entirely.
+
 ---
+
+## Project layout
+
+```
+YariZan/
+├── src/
+│   ├── YariZan.sln
+│   ├── YariZan.App/         WPF launcher (Persian RTL book UI, page-flip, info modal)
+│   ├── YariZan.Core/        Crypto + HWID + serial codec + activation store
+│   ├── YariZan.SerialGen/   Console tool: generate keys, sign per-machine serials
+│   └── YariZan.Packer/      Build-time tool: encrypt miniApps/ into games_encrypted/
+├── miniApps/                Source mini-games (you author this)
+│   ├── 1/  …  6/            One folder per school grade
+│   │   ├── <Game>.exe       Adobe CS6 published mini-game
+│   │   ├── <Game>.png       Landscape thumbnail (width > height)
+│   │   └── <Game>.txt       Persian description (UTF-8, free-form)
+├── games_encrypted/         Build artifact (gitignored, ships with the launcher)
+├── secrets/                 Keys (private.pem and master.key are gitignored)
+├── images/                  Branding (icon.png, logo.png)
+├── docs/                    Architecture, security, build, UI-flow, CI
+└── .github/workflows/       Optional GitHub Actions CI
+```
 
 ## Adding a new mini‑game
 
-```
-miniApps/
-├── 1/                              # grade 1
-│   ├── جمع با شکل.exe
-│   └── جمع با شکل.png
-├── 2/
-│   └── ...
-├── 3/
-├── 4/
-├── 5/
-└── 6/
-```
-
-Each game is one `.exe` plus an icon image (PNG or JPG) with the **same base name** in Persian. After adding files, re‑run the Packer.
-
----
-
-## Activating a customer's machine (seller workflow)
-
-1. Customer launches `YariZan.exe`. The lock screen shows their **HWID** (a 64‑char hex string, prettified into 8 groups).
-2. Customer sends you that HWID.
-3. You run:
+1. Pick a grade folder under `miniApps/<n>/`.
+2. Drop in three files with the **same Persian base name**:
+   - `<Name>.exe` — the published mini‑game
+   - `<Name>.png` (or `.jpg`) — landscape thumbnail
+   - `<Name>.txt` — UTF‑8 Persian description shown in the info popup
+3. Re‑run the Packer:
    ```powershell
-   dotnet run --project src\YariZan.SerialGen -- sign <THEIR-HWID>
+   dotnet run --project src\YariZan.Packer
    ```
-4. You send back the printed `Serial`. They paste it into the lock screen and the book opens. Activation persists per‑machine and is bound to their HWID, so they will **never see the lock screen again on that machine** — subsequent launches go straight to the cover → info → games book.
+4. Re‑build the launcher. New games appear automatically (the manifest is regenerated each pack).
+
+No serial changes needed when you add games — same key, same activation, more content.
+
+## Selling a copy (operator workflow)
+
+```
+Customer                                          You
+─────────                                         ───
+1. Receives YariZan-win-x64.zip
+   from you (one-time download)
+                                                  
+2. Runs YariZan.exe
+   Sees lock screen + their HWID              
+                                                  
+3. Sends HWID to you  ──────────────────────►  4. Runs:
+                                                  dotnet run --project src\YariZan.SerialGen -- sign <HWID>
+                                                  
+                                                  Sends back the Serial: line
+5. Pastes serial → book opens   ◄─────────────  
+   Activation persists per‑PC                     
+                                                  
+6. Launch from now on goes straight to the
+   cover, no lock screen, no internet check
+```
 
 ---
 
@@ -75,24 +137,61 @@ Each game is one `.exe` plus an icon image (PNG or JPG) with the **same base nam
 
 | File | What it covers |
 |------|----------------|
-| [docs/architecture.md](docs/architecture.md) | Solution layout, module responsibilities, runtime flow |
-| [docs/security.md](docs/security.md) | HWID, ECDSA serials, AES‑GCM game crypto, activation store, threat model & honest limits |
-| [docs/build-and-pack.md](docs/build-and-pack.md) | Generating keys, packing games, publishing the launcher |
-| [docs/ui-flow.md](docs/ui-flow.md) | Cover → Lock → Info → GamesBook screens, Persian RTL details, fonts |
+| [docs/architecture.md](docs/architecture.md) | Solution map, module responsibilities, runtime flow |
+| [docs/security.md](docs/security.md) | HWID, ECDSA serials, AES‑GCM, activation store, threat model & honest DRM limits |
+| [docs/build-and-pack.md](docs/build-and-pack.md) | Keygen, packing, single‑file publish, ConfuserEx tips |
+| [docs/ui-flow.md](docs/ui-flow.md) | Screens, RTL/fonts, animations, tile grid, info modal |
+| [docs/ci.md](docs/ci.md) | CI rationale and the optional GitHub Actions workflow |
 
----
+## Tech stack
+
+| Layer | Choice | Reason |
+|-------|--------|--------|
+| Runtime | .NET 9 (Windows) | Latest LTS‑track, mature WPF, `AesGcm`, `ECDsa` built‑in |
+| UI | WPF | First‑class RTL & Persian shaping; smooth book animations via 3D/Render transforms |
+| Asymmetric crypto | ECDSA‑P256 (SHA‑256) | 64‑byte signatures → ~103 char Base32 serials (vs ~410 for RSA‑2048) |
+| Symmetric crypto | AES‑256‑GCM | Authenticated encryption, single primitive, no MAC composition needed |
+| KDF (activation file) | PBKDF2‑SHA256, 100k | Slow KDF over high‑entropy HWID; binds activation to one PC |
+| HWID source | WMI BaseBoard / Processor / BIOS / Disk0 | Stable across reboots, no MAC dependency |
+| Font | Shabnam | Free, well‑shaped Persian; bundled `.ttf` for full WPF support |
 
 ## Security at a glance
 
-- **HWID** = SHA‑256(BaseBoard SN ‖ ProcessorId ‖ BIOS SN ‖ Disk0 SN). Stable per machine.
-- **Serial** = ECDSA‑P256 signature of `"YariZan-Serial-v1|" + HWID`, encoded as Base32 in 5‑char groups (~103 chars). Only the **public key** ships in the app — even fully cracking the binary cannot forge a valid serial without the seller's private key.
-- **Mini‑games** = AES‑256‑GCM encrypted blobs (`*.dat`). Master key is embedded in the launcher; games decrypt on‑demand to a temp directory with a restricted ACL, then are deleted on exit.
-- **Activation** = per‑user encrypted file at `%LocalAppData%\YariZan\activation.dat`, sealed with a key derived from the HWID. Carrying the file to a different PC will not unlock it.
+- Serial = **ECDSA‑P256** signature of `"YariZan-Serial-v1\|" + HWID`. Only the **public** key ships in the launcher — even cracking the binary cannot forge serials.
+- HWID = **SHA‑256** of `(Motherboard SN ‖ Processor ID ‖ BIOS SN ‖ Disk0 SN)`.
+- Games encrypted with **AES‑256‑GCM**; master key embedded in the launcher (obfuscation recommended for release builds — see `docs/build-and-pack.md`).
+- Activation file `%LocalAppData%\YariZan\activation.dat` is itself AES‑GCM encrypted with a key **derived from the running PC's HWID** — copying the file does not transfer activation.
 
-See [docs/security.md](docs/security.md) for a full threat‑model and DRM honesty note.
+> **Honest framing:** local Windows DRM has a hard ceiling — a determined attacker with admin rights can copy a decrypted game out of the temp directory while it's running. YariZan defeats casual extraction (file managers, archive tools), not nation‑state reverse engineers. See [docs/security.md](docs/security.md) for the full threat model.
 
 ---
 
-## Required font (one‑time)
+## CI?
 
-WPF cannot render `.woff2`. Drop the **`.ttf`** versions of Shabnam into `src/YariZan.App/Resources/Fonts/Shabnam/` (download from the [Shabnam GitHub releases](https://github.com/rastikerdar/shabnam-font/releases)). Until then the app falls back to Tahoma.
+A minimal **GitHub Actions** workflow is in `.github/workflows/ci.yml` and verifies the solution builds on every push to `main` / pull request. It generates ephemeral keys (so it never sees your real `private.pem`) and runs the Packer on the sample game.
+
+**Do you need it?** Honest answer for this project today: **not strictly.** A solo dev shipping a Windows‑only app gets very little safety net from a build‑only CI. It becomes valuable when:
+
+1. You add unit tests (then CI catches regressions before you click "merge").
+2. Contributors join (PRs build automatically).
+3. You want **release automation** — tag a version, GitHub builds the single‑file `.exe`, zips it with `games_encrypted/`, and attaches it to a Release.
+
+The workflow shipped here covers (1) and (2) and is a 5‑line add to enable (3) when you want it. See [docs/ci.md](docs/ci.md).
+
+---
+
+## Roadmap
+
+- [ ] Per‑machine wrapped master key (hide the key behind activation entirely)
+- [ ] Release automation (tag → published zip on GitHub Releases)
+- [ ] Smoothed 3D page‑flip (PlaneProjection) replacing the current scale‑and‑swap
+- [ ] In‑app screen for adding games at runtime (drag & drop into a grade)
+- [ ] Optional offline analytics: per‑game launch counts (local SQLite, never leaves the PC)
+
+## License
+
+Proprietary. © YariZan. All rights reserved. Contact the author for distribution terms.
+
+## Author
+
+**osameh15** — <osirandoust@gmail.com> · [github.com/osameh15](https://github.com/osameh15)

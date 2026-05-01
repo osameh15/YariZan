@@ -119,9 +119,10 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
+                    <!-- Grid.Column=0 lands on the RIGHT under FlowDirection=RTL (first page in a Persian book). -->
                     <Border Grid.Column="0" Background="{StaticResource ParchmentBrushGradient}"
                             CornerRadius="6" Margin="6,0,0,0">
-                        <UniformGrid x:Name="LeftPage" Rows="3" Columns="2" Margin="14" />
+                        <UniformGrid x:Name="RightSide" Rows="3" Columns="2" Margin="14" />
                     </Border>
 
                     <Rectangle Grid.Column="0" Grid.ColumnSpan="2" Width="6"
@@ -129,20 +130,22 @@
 
                     <Border Grid.Column="1" Background="{StaticResource ParchmentBrushGradient}"
                             CornerRadius="6" Margin="0,0,6,0">
-                        <UniformGrid x:Name="RightPage" Rows="3" Columns="2" Margin="14" />
+                        <UniformGrid x:Name="LeftSide" Rows="3" Columns="2" Margin="14" />
                     </Border>
                 </Grid>
 
                 <Grid Grid.Row="2" Margin="6,10,6,2">
-                    <Button Content="◄ صفحهٔ قبل" Style="{StaticResource GoldButton}"
-                            FontSize="14" MinHeight="36" Padding="14,6"
-                            HorizontalAlignment="Right" Click="PrevPage_Click" />
+                    <!-- RTL book: Previous lives on the visual RIGHT (where you came from),
+                         Next lives on the visual LEFT (where you're heading). -->
+                    <Button Content="صفحهٔ قبل" Style="{StaticResource GoldButton}"
+                            FontSize="14" MinHeight="36" Padding="18,6"
+                            HorizontalAlignment="Left" Click="PrevPage_Click" />
                     <TextBlock x:Name="PageIndicator" FontFamily="{DynamicResource ShabnamBoldFont}"
                                FontSize="16" Foreground="{StaticResource GoldBrush}"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    <Button Content="صفحهٔ بعد ►" Style="{StaticResource GoldButton}"
-                            FontSize="14" MinHeight="36" Padding="14,6"
-                            HorizontalAlignment="Left" Click="NextPage_Click" />
+                    <Button Content="صفحهٔ بعد" Style="{StaticResource GoldButton}"
+                            FontSize="14" MinHeight="36" Padding="18,6"
+                            HorizontalAlignment="Right" Click="NextPage_Click" />
                 </Grid>
             </Grid>
 

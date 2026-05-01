@@ -86,8 +86,8 @@ public partial class GamesBookPage : UserControl
 
     private void Render()
     {
-        LeftPage.Children.Clear();
-        RightPage.Children.Clear();
+        RightSide.Children.Clear();
+        LeftSide.Children.Clear();
 
         var games = CurrentGames();
         int total = games.Count;
@@ -96,8 +96,9 @@ public partial class GamesBookPage : UserControl
         if (_spreadIndex < 0) _spreadIndex = 0;
 
         int start = _spreadIndex * TilesPerSpread;
-        FillPage(LeftPage, games, start + TilesPerPage, TilesPerPage);
-        FillPage(RightPage, games, start, TilesPerPage);
+        // Persian RTL book: first page is on the right.
+        FillPage(RightSide, games, start, TilesPerPage);
+        FillPage(LeftSide, games, start + TilesPerPage, TilesPerPage);
 
         var label = _grade == AllGradesValue ? "همه" : "پایهٔ " + ToPersianDigits(_grade.ToString());
         PageIndicator.Text = $"{label}  —  صفحهٔ {ToPersianDigits((_spreadIndex + 1).ToString())} از {ToPersianDigits(totalSpreads.ToString())}";
@@ -244,8 +245,9 @@ public partial class GamesBookPage : UserControl
 
     private void AnimateFlip(int direction)
     {
-        var target = direction > 0 ? RightPage : LeftPage;
-        target.RenderTransformOrigin = new Point(direction > 0 ? 0 : 1, 0.5);
+        // Going forward in a Persian RTL book = the LEFT page flips back. Going back = RIGHT page flips back.
+        var target = direction > 0 ? LeftSide : RightSide;
+        target.RenderTransformOrigin = new Point(direction > 0 ? 1 : 0, 0.5);
         var scale = new ScaleTransform(1, 1);
         target.RenderTransform = scale;
 
