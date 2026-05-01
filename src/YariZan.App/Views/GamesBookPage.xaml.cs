@@ -242,29 +242,36 @@ public partial class GamesBookPage : UserControl
     private void NextPage_Click(object sender, RoutedEventArgs e) { _spreadIndex++; AnimateFlip(+1); }
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
     private void Exit_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
+    private void Minimize_Click(object sender, RoutedEventArgs e) => Window.GetWindow(this).WindowState = WindowState.Minimized;
 
     private void AnimateFlip(int direction)
     {
-        // Going forward in a Persian RTL book = the LEFT page flips back. Going back = RIGHT page flips back.
-        var target = direction > 0 ? LeftSide : RightSide;
-        target.RenderTransformOrigin = new Point(direction > 0 ? 1 : 0, 0.5);
-        var scale = new ScaleTransform(1, 1);
-        target.RenderTransform = scale;
+        // Persian RTL: Next ⇒ content slides left→right. Prev ⇒ content slides right→left.
+        // RenderTransform.X is in screen pixels (positive = visually right).
+        var w = SpreadHost.ActualWidth;
+        if (w <= 0) { Render(); return; }
 
-        var anim = new DoubleAnimation(1, 0.05, TimeSpan.FromMilliseconds(180))
+        double outX = direction > 0 ? +w : -w;
+        double inX  = direction > 0 ? -w : +w;
+
+        var translate = new TranslateTransform(0, 0);
+        SpreadHost.RenderTransform = translate;
+
+        var slideOut = new DoubleAnimation(0, outX, TimeSpan.FromMilliseconds(220))
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
         };
-        anim.Completed += (_, _) =>
+        slideOut.Completed += (_, _) =>
         {
             Render();
-            var back = new DoubleAnimation(0.05, 1, TimeSpan.FromMilliseconds(220))
+            translate.X = inX;
+            var slideIn = new DoubleAnimation(inX, 0, TimeSpan.FromMilliseconds(260))
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
             };
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, back);
+            translate.BeginAnimation(TranslateTransform.XProperty, slideIn);
         };
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+        translate.BeginAnimation(TranslateTransform.XProperty, slideOut);
     }
 
     private static string ToPersianDigits(string s)

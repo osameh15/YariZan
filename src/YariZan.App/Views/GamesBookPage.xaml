@@ -106,14 +106,16 @@
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Content="بازگشت" Style="{StaticResource GoldButton}"
                                 FontSize="14" MinHeight="36" Padding="14,6"
-                                Click="Back_Click" Margin="6,0" />
+                                Click="Back_Click" Margin="4,0" />
                         <Button Content="خروج" Style="{StaticResource ExitButton}"
                                 FontSize="14" MinHeight="36" Padding="14,6"
-                                Click="Exit_Click" Margin="6,0" />
+                                Click="Exit_Click" Margin="4,0" />
+                        <Button Style="{StaticResource MinimizeButton}" MinHeight="36" Width="38"
+                                Click="Minimize_Click" Margin="4,0" />
                     </StackPanel>
                 </Grid>
 
-                <Grid Grid.Row="1">
+                <Grid Grid.Row="1" x:Name="SpreadHost" ClipToBounds="True">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />

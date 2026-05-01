@@ -20,13 +20,16 @@ switch (cmd)
         if (args.Length < 2) { Console.Error.WriteLine("Usage: sign <hwid-hex>"); return 1; }
         Sign(args[1]);
         break;
+    case "reset":
+        Reset(); break;
     default:
         Console.WriteLine("YariZan Serial Generator");
         Console.WriteLine();
         Console.WriteLine("Commands:");
-        Console.WriteLine("  init                Generate RSA keypair + master AES key into secrets/");
+        Console.WriteLine("  init                Generate ECDSA keypair + master AES key into secrets/");
         Console.WriteLine("  hwid                Print this machine's HWID");
         Console.WriteLine("  sign <HWID-HEX>     Generate a serial bound to the given HWID");
+        Console.WriteLine("  reset               Delete this machine's saved activation (forces lock screen on next launch)");
         return 1;
 }
 return 0;
@@ -53,6 +56,20 @@ void Init()
     Console.WriteLine("  " + privPath + "   (KEEP SECRET)");
     Console.WriteLine("  " + pubPath  + "   (embedded in app)");
     Console.WriteLine("  " + masterPath + "   (embedded in app, used by Packer)");
+}
+
+void Reset()
+{
+    var path = ActivationStore.DefaultPath;
+    if (!File.Exists(path))
+    {
+        Console.WriteLine("No activation file at " + path);
+        Console.WriteLine("Already reset. Next app launch will show the lock screen.");
+        return;
+    }
+    ActivationStore.Clear();
+    Console.WriteLine("Deleted: " + path);
+    Console.WriteLine("Next app launch will show the lock screen.");
 }
 
 void Sign(string hwidArg)

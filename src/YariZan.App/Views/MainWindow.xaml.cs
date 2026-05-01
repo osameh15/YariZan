@@ -19,9 +19,6 @@ public partial class MainWindow : Window
         Closed += (_, _) => _launcher.Dispose();
     }
 
-    private void Minimize_Click(object sender, RoutedEventArgs e) =>
-        WindowState = WindowState.Minimized;
-
     public void ShowCover(bool animate = true)
     {
         var page = new CoverPage();

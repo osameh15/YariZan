@@ -67,6 +67,22 @@ To check your own machine's HWID without involving the launcher:
 dotnet run --project src\YariZan.SerialGen -- hwid
 ```
 
+## Reset activation (re-test the lock screen)
+
+Activation persists at `%LocalAppData%\YariZan\activation.dat`. To clear it and force the lock screen on the next launch (useful when QA-ing the activation flow):
+
+```powershell
+dotnet run --project src\YariZan.SerialGen -- reset
+```
+
+…or delete the file directly:
+
+```powershell
+Remove-Item "$env:LOCALAPPDATA\YariZan\activation.dat" -Force
+```
+
+Both have the same effect. The next launch will show the lock screen with the same HWID, so the same serial you generated before will still work.
+
 ## Publish a single-file release
 
 ```powershell

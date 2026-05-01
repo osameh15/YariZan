@@ -27,8 +27,9 @@ public static class HwidProvider
     public static string GetHwidPretty()
     {
         var hex = GetHwid();
+        // 64 hex chars → 8 groups of 8, separated by '-'.
         return string.Join("-",
-            Enumerable.Range(0, 8).Select(i => hex.Substring(i * 4, 4)));
+            Enumerable.Range(0, 8).Select(i => hex.Substring(i * 8, 8)));
     }
 
     private static string Wmi(string cls, string prop, string where = "")

@@ -72,13 +72,17 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="8" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <Button Grid.Column="0" Content="بازگشت" Style="{StaticResource GoldButton}"
                                             HorizontalAlignment="Stretch" Click="Back_Click" />
                                     <Button Grid.Column="2" Content="خروج" Style="{StaticResource ExitButton}"
                                             HorizontalAlignment="Stretch" Click="Exit_Click" />
+                                    <Button Grid.Column="4" Style="{StaticResource MinimizeButton}"
+                                            Click="Minimize_Click" />
                                 </Grid>
                             </StackPanel>
                         </StackPanel>

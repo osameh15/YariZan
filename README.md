@@ -70,6 +70,8 @@ dotnet run --project src\YariZan.SerialGen -- sign <YOUR-HWID-HEX>
 
 Paste the printed serial into the lock screen → the book opens. Subsequent launches skip the lock entirely.
 
+> **Need to re-test the lock screen?** Wipe your saved activation with `dotnet run --project src\YariZan.SerialGen -- reset`, then relaunch.
+
 ---
 
 ## Project layout

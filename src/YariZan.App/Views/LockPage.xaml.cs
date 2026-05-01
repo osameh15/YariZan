@@ -51,4 +51,7 @@ public partial class LockPage : UserControl
 
     private void Exit_Click(object sender, RoutedEventArgs e) =>
         Application.Current.Shutdown();
+
+    private void Minimize_Click(object sender, RoutedEventArgs e) =>
+        Window.GetWindow(this).WindowState = WindowState.Minimized;
 }
