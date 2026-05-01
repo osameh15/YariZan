@@ -55,7 +55,7 @@
             </Grid.InputBindings>
         </Grid>
 
-        <TextBlock Text="© YariZan — یاریزان" FontFamily="{DynamicResource ShabnamFont}" FontSize="12"
+        <TextBlock Text="2026 © YariZan — یاریزان" FontFamily="{DynamicResource ShabnamFont}" FontSize="12"
                    Foreground="{StaticResource GoldBrush}" Opacity="0.6"
                    HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,16" />
     </Grid>

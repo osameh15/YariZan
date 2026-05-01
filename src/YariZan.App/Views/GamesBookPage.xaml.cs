@@ -248,18 +248,29 @@ public partial class GamesBookPage : UserControl
     {
         // Page-flip around the spine (the inner edge of each page where the book is bound).
         //
-        // Persian RTL book:
-        //   - Next: flip the LEFT page. Its spine is its RIGHT edge → RenderTransformOrigin = (1, 0.5).
-        //   - Prev: flip the RIGHT page. Its spine is its LEFT edge → RenderTransformOrigin = (0, 0.5).
+        // Important RTL quirk: when an element inherits FlowDirection=RightToLeft, WPF flips the
+        // X of RenderTransformOrigin in that element's local coordinate system. So for an RTL
+        // element, origin.X = 0 corresponds to the visually-RIGHT edge in screen pixels, and
+        // origin.X = 1 corresponds to the visually-LEFT edge. We flip these on purpose below.
         //
-        // The fold is faked with ScaleX 1→0 (page rotates toward 90°, narrowing to a vertical slit)
-        // plus a small SkewY to suggest 3D lift; content swap happens at the slit; then unfold ScaleX 0→1.
+        // Persian RTL book physical model:
+        //   - Next: flip the LEFT page (it has just been read). Its spine = its visually-RIGHT
+        //           edge. In RTL coords that's origin.X = 0. The page rotates toward the spine,
+        //           giving a LEFT→RIGHT motion across the spread.
+        //   - Prev: flip the RIGHT page. Its spine = its visually-LEFT edge. In RTL coords that
+        //           is origin.X = 1. Page rotates toward the spine → RIGHT→LEFT motion.
+        //
+        // The fold is faked with ScaleX 1→0 (page narrows to a vertical slit at the spine) plus
+        // a small SkewY for a 3D lift cue; content is rendered while the slit is invisible; then
+        // ScaleX 0→1 unfolds with the new content.
 
-        // Reset any prior transform on the spread host (from earlier slide implementation).
-        SpreadHost.RenderTransform = Transform.Identity;
+        // Reset any prior transform on either side from a previous animation so a quickly-clicked
+        // Next-then-Prev (or vice versa) doesn't double-apply scale/skew.
+        LeftSide.RenderTransform = Transform.Identity;
+        RightSide.RenderTransform = Transform.Identity;
 
         var target = direction > 0 ? LeftSide : RightSide;
-        var origin = new Point(direction > 0 ? 1 : 0, 0.5);
+        var origin = new Point(direction > 0 ? 0 : 1, 0.5);  // RTL-flipped: 0 = spine for LeftSide, 1 = spine for RightSide
         target.RenderTransformOrigin = origin;
 
         var scale = new ScaleTransform(1, 1);
@@ -285,8 +296,6 @@ public partial class GamesBookPage : UserControl
         foldX.Completed += (_, _) =>
         {
             Render();
-
-            // Re-anchor — Render() rebuilds the children but the UniformGrid host keeps its transform.
             target.RenderTransformOrigin = origin;
 
             var unfoldX = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(unfoldMs))
