@@ -121,7 +121,7 @@
 
                     <Border Grid.Column="0" Background="{StaticResource ParchmentBrushGradient}"
                             CornerRadius="6" Margin="6,0,0,0">
-                        <UniformGrid x:Name="LeftPage" Rows="2" Columns="3" Margin="14" />
+                        <UniformGrid x:Name="LeftPage" Rows="3" Columns="2" Margin="14" />
                     </Border>
 
                     <Rectangle Grid.Column="0" Grid.ColumnSpan="2" Width="6"
@@ -129,7 +129,7 @@
 
                     <Border Grid.Column="1" Background="{StaticResource ParchmentBrushGradient}"
                             CornerRadius="6" Margin="0,0,6,0">
-                        <UniformGrid x:Name="RightPage" Rows="2" Columns="3" Margin="14" />
+                        <UniformGrid x:Name="RightPage" Rows="3" Columns="2" Margin="14" />
                     </Border>
                 </Grid>
 

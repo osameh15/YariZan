@@ -134,7 +134,7 @@ public partial class GamesBookPage : UserControl
         var img = new Image
         {
             Source = LoadImage(e.ImageFile),
-            Stretch = Stretch.UniformToFill,
+            Stretch = Stretch.Uniform,
         };
         imgHost.Child = img;
         Grid.SetRow(imgHost, 0);

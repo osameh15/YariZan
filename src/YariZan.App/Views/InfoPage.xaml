@@ -66,13 +66,20 @@
                                 </StackPanel>
                             </Border>
 
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,32,0,0">
+                            <StackPanel HorizontalAlignment="Stretch" Margin="0,28,0,0">
                                 <Button Content="ورود به کتاب بازی‌ها" Style="{StaticResource GoldButton}"
-                                        MinWidth="220" Click="Next_Click" Margin="6,0" />
-                                <Button Content="بازگشت" Style="{StaticResource GoldButton}"
-                                        MinWidth="120" Click="Back_Click" Margin="6,0" />
-                                <Button Content="خروج" Style="{StaticResource ExitButton}"
-                                        MinWidth="100" Click="Exit_Click" Margin="6,0" />
+                                        HorizontalAlignment="Stretch" Click="Next_Click" Margin="0,0,0,10" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="بازگشت" Style="{StaticResource GoldButton}"
+                                            HorizontalAlignment="Stretch" Click="Back_Click" />
+                                    <Button Grid.Column="2" Content="خروج" Style="{StaticResource ExitButton}"
+                                            HorizontalAlignment="Stretch" Click="Exit_Click" />
+                                </Grid>
                             </StackPanel>
                         </StackPanel>
                     </Grid>
