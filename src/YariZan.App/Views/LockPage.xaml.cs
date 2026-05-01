@@ -9,6 +9,8 @@ public partial class LockPage : UserControl
     public event EventHandler? Activated;
     public event EventHandler? Cancelled;
 
+    private const string SupportPhone = "0918-876-4024";
+
     private readonly string _hwid;
 
     public LockPage()
@@ -18,10 +20,40 @@ public partial class LockPage : UserControl
         HwidText.Text = HwidProvider.GetHwidPretty();
     }
 
-    private void CopyHwid_Click(object sender, RoutedEventArgs e)
+    private void CopyHwid_Click(object sender, RoutedEventArgs e) =>
+        SetClipboardWithStatus(_hwid, "شناسهٔ دستگاه در حافظه کپی شد.");
+
+    private void CopyPhone_Click(object sender, RoutedEventArgs e) =>
+        SetClipboardWithStatus(SupportPhone, "شمارهٔ پشتیبانی در حافظه کپی شد.");
+
+    private void CopyMessage_Click(object sender, RoutedEventArgs e)
     {
-        try { Clipboard.SetText(_hwid); StatusText.Foreground = System.Windows.Media.Brushes.DarkGreen; StatusText.Text = "شناسه در حافظه کپی شد."; }
-        catch { }
+        var msg =
+            "سلام\n" +
+            "درخواست فعال‌سازی برنامهٔ یاریزان\n" +
+            "\n" +
+            "شناسهٔ دستگاه:\n" +
+            _hwid + "\n" +
+            "\n" +
+            "لطفاً سریال فعال‌سازی را برای من ارسال نمایید.\n" +
+            "سپاسگزارم";
+        SetClipboardWithStatus(msg,
+            "پیام در حافظه کپی شد. آن را به شمارهٔ " + SupportPhone + " ارسال کنید.");
+    }
+
+    private void SetClipboardWithStatus(string text, string okMessage)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+            StatusText.Foreground = System.Windows.Media.Brushes.DarkGreen;
+            StatusText.Text = okMessage;
+        }
+        catch
+        {
+            StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
+            StatusText.Text = "کپی نشد. لطفاً دوباره تلاش کنید.";
+        }
     }
 
     private void Activate_Click(object sender, RoutedEventArgs e)

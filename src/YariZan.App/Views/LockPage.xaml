@@ -7,58 +7,90 @@
 
     <Grid>
         <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                Width="640" Height="640" CornerRadius="14" BorderBrush="{StaticResource LeatherDarkBrush}"
+                Width="720" CornerRadius="14" BorderBrush="{StaticResource LeatherDarkBrush}"
                 BorderThickness="3" Background="{StaticResource ParchmentBrushGradient}">
             <Border.Effect>
                 <DropShadowEffect Color="Black" BlurRadius="40" Opacity="0.6" ShadowDepth="6" />
             </Border.Effect>
 
-            <Grid Margin="40">
+            <Grid Margin="36,28">
                 <Border BorderBrush="{StaticResource GoldBrush}" BorderThickness="2" CornerRadius="6"
                         Margin="-12" Opacity="0.5" />
 
-                <StackPanel VerticalAlignment="Center">
+                <StackPanel>
                     <TextBlock Text="قفل کتاب" FontFamily="{DynamicResource ShabnamBoldFont}"
-                               FontSize="40" Foreground="{StaticResource LeatherDarkBrush}"
+                               FontSize="36" Foreground="{StaticResource LeatherDarkBrush}"
                                HorizontalAlignment="Center" />
 
-                    <TextBlock Text="برای فعال‌سازی، شناسهٔ دستگاه را برای فروشنده ارسال کنید و سریال دریافتی را وارد نمایید."
-                               FontSize="16" TextWrapping="Wrap" TextAlignment="Center" Margin="20,18,20,0"
-                               Foreground="{StaticResource InkBrush}" />
+                    <TextBlock Text="برای فعال‌سازی برنامه، شناسهٔ دستگاه را برای پشتیبانی ارسال کنید و سریالی که برایتان فرستاده می‌شود را در کادر پایین وارد نمایید."
+                               FontSize="15" TextWrapping="Wrap" TextAlignment="Center" Margin="20,12,20,0"
+                               Foreground="{StaticResource InkBrush}" LineHeight="26" />
 
-                    <TextBlock Text="شناسهٔ دستگاه" FontSize="15" FontFamily="{DynamicResource ShabnamBoldFont}"
-                               Foreground="{StaticResource LeatherDarkBrush}" HorizontalAlignment="Center" Margin="0,28,0,8" />
+                    <!-- HWID -->
+                    <TextBlock Text="شناسهٔ دستگاه" FontSize="14" FontFamily="{DynamicResource ShabnamBoldFont}"
+                               Foreground="{StaticResource LeatherDarkBrush}" HorizontalAlignment="Center"
+                               Margin="0,18,0,6" />
                     <Border Background="#FAEFCF" BorderBrush="{StaticResource LeatherBrush}" BorderThickness="1.5"
-                            CornerRadius="6" Padding="12,10" Margin="40,0">
+                            CornerRadius="6" Padding="12,8" Margin="20,0">
                         <DockPanel LastChildFill="True" FlowDirection="LeftToRight">
                             <Button x:Name="CopyHwidBtn" DockPanel.Dock="Right" Content="کپی"
-                                    Width="64" Height="36" Style="{StaticResource GoldButton}"
-                                    FontSize="14" Padding="0" Click="CopyHwid_Click"
+                                    Width="64" Height="34" Style="{StaticResource GoldButton}"
+                                    FontSize="13" Padding="0" Click="CopyHwid_Click"
                                     FlowDirection="RightToLeft" />
                             <TextBlock x:Name="HwidText" Style="{StaticResource HwidBox}"
-                                       FlowDirection="LeftToRight" TextAlignment="Center"
-                                       VerticalAlignment="Center" Margin="0,0,12,0" />
+                                       FlowDirection="LeftToRight" TextAlignment="Center" FontSize="14"
+                                       VerticalAlignment="Center" Margin="0,0,10,0" />
                         </DockPanel>
                     </Border>
 
-                    <TextBlock Text="سریال" FontSize="15" FontFamily="{DynamicResource ShabnamBoldFont}"
-                               Foreground="{StaticResource LeatherDarkBrush}" HorizontalAlignment="Center" Margin="0,24,0,8" />
-                    <TextBox x:Name="SerialBox" Style="{StaticResource SerialBox}" Margin="60,0"
-                             FlowDirection="LeftToRight" />
+                    <!-- Support / contact card -->
+                    <Border Margin="20,18,20,0" CornerRadius="8" Padding="18,14"
+                            Background="#22000000" BorderBrush="{StaticResource LeatherBrush}" BorderThickness="1.5">
+                        <StackPanel>
+                            <TextBlock Text="شمارهٔ پشتیبانی" FontFamily="{DynamicResource ShabnamBoldFont}"
+                                       FontSize="14" Foreground="{StaticResource LeatherDarkBrush}"
+                                       HorizontalAlignment="Center" />
 
-                    <TextBlock x:Name="StatusText" HorizontalAlignment="Center" Margin="0,12,0,0"
-                               FontSize="14" Foreground="#8B0000" />
+                            <TextBlock x:Name="PhoneText" Text="0918-876-4024"
+                                       FontFamily="Consolas, Tahoma" FontSize="26" FontWeight="Bold"
+                                       Foreground="{StaticResource LeatherDarkBrush}"
+                                       FlowDirection="LeftToRight" TextAlignment="Center"
+                                       HorizontalAlignment="Center" Margin="0,4,0,0" />
 
-                    <!-- RTL StackPanel: source-first child renders rightmost in pixels.
-                         To place minimize on the visual RIGHT of خروج, minimize comes BEFORE خروج in source. -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,28,0,0">
-                        <Button Content="فعال‌سازی" Style="{StaticResource GoldButton}" MinWidth="160"
-                                Click="Activate_Click" Margin="6,0" />
-                        <Button Content="بازگشت" Style="{StaticResource GoldButton}" MinWidth="120"
-                                Click="Cancel_Click" Margin="6,0" />
-                        <Button Style="{StaticResource MinimizeButton}" Click="Minimize_Click" Margin="6,0" />
+                            <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="13" LineHeight="22"
+                                       Foreground="{StaticResource InkBrush}" Margin="0,8,0,0"
+                                       Text="شناسهٔ دستگاه را با پیامی که در زیر آماده شده برای این شماره ارسال کنید. زمان دریافت پاسخ بین ۱۵ دقیقه تا ۸ ساعت می‌باشد." />
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+                                <Button Content="کپی پیام آماده" Style="{StaticResource GoldButton}"
+                                        FontSize="14" MinHeight="34" Padding="16,6" MinWidth="160"
+                                        Click="CopyMessage_Click" Margin="4,0" />
+                                <Button Content="کپی شماره" Style="{StaticResource GoldButton}"
+                                        FontSize="14" MinHeight="34" Padding="16,6" MinWidth="120"
+                                        Click="CopyPhone_Click" Margin="4,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Serial input -->
+                    <TextBlock Text="سریال دریافتی" FontSize="14" FontFamily="{DynamicResource ShabnamBoldFont}"
+                               Foreground="{StaticResource LeatherDarkBrush}" HorizontalAlignment="Center"
+                               Margin="0,20,0,6" />
+                    <TextBox x:Name="SerialBox" Style="{StaticResource SerialBox}" Margin="20,0" />
+
+                    <TextBlock x:Name="StatusText" HorizontalAlignment="Center" TextAlignment="Center"
+                               TextWrapping="Wrap" Margin="20,10,20,0"
+                               FontSize="13" Foreground="#8B0000" />
+
+                    <!-- RTL StackPanel: source-first child renders rightmost. minimize before خروج → minimize is visually right of خروج. -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
+                        <Button Content="فعال‌سازی" Style="{StaticResource GoldButton}" MinWidth="150"
+                                Click="Activate_Click" Margin="5,0" />
+                        <Button Content="بازگشت" Style="{StaticResource GoldButton}" MinWidth="110"
+                                Click="Cancel_Click" Margin="5,0" />
+                        <Button Style="{StaticResource MinimizeButton}" Click="Minimize_Click" Margin="5,0" />
                         <Button Content="خروج" Style="{StaticResource ExitButton}" MinWidth="100"
-                                Click="Exit_Click" Margin="6,0" />
+                                Click="Exit_Click" Margin="5,0" />
                     </StackPanel>
                 </StackPanel>
             </Grid>
