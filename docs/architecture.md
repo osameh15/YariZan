@@ -14,7 +14,6 @@ YariZan/
 │   ├── 1/  …  6/
 ├── games_encrypted/           (build artifact, .gitignored)
 ├── secrets/                   (keys, .gitignored except public.pem)
-├── images/                    (logo + icon used by the WPF app)
 ├── docs/                      (you are here)
 └── README.md
 ```

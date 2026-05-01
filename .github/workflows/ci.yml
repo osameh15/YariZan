@@ -25,11 +25,15 @@ jobs:
       - name: Restore
         run: dotnet restore src/YariZan.sln
 
-      # The launcher embeds secrets/public.pem and secrets/master.key. They are
-      # gitignored, so we generate ephemeral ones for this run. They live only in
-      # the runner sandbox and are discarded when the job finishes.
+      # The launcher embeds secrets/public.pem and secrets/master.key. private.pem and
+      # master.key are gitignored; only public.pem is committed. SerialGen init bails if
+      # ANY of the three exists, so on CI we wipe the whole secrets folder first to
+      # guarantee a fresh keypair every run. The keys live only in the runner sandbox.
       - name: Generate ephemeral keys
-        run: dotnet run --project src/YariZan.SerialGen --no-restore -- init
+        shell: pwsh
+        run: |
+          if (Test-Path secrets) { Remove-Item secrets -Recurse -Force }
+          dotnet run --project src/YariZan.SerialGen --no-restore -- init
 
       - name: Pack sample games
         run: dotnet run --project src/YariZan.Packer --no-restore

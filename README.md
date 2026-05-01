@@ -91,10 +91,13 @@ YariZan/
 │   │   └── <Game>.txt       Persian description (UTF-8, free-form)
 ├── games_encrypted/         Build artifact (gitignored, ships with the launcher)
 ├── secrets/                 Keys (private.pem and master.key are gitignored)
-├── images/                  Branding (icon.png, logo.png)
 ├── docs/                    Architecture, security, build, UI-flow, CI
 └── .github/workflows/       Optional GitHub Actions CI
 ```
+
+## Updating branding
+
+The app's icon and any other branding live under [`src/YariZan.App/Resources/`](src/YariZan.App/Resources/) (`icon.png`, `logo.png`, fonts). Drop a new image with the same filename and rebuild — WPF embeds them as resources at build time.
 
 ## Adding a new mini‑game
 
