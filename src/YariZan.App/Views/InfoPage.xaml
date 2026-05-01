@@ -73,18 +73,18 @@
                                      Visual layout (right→left): minimize | خروج | بازگشت. -->
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="8" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="8" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Style="{StaticResource MinimizeButton}"
-                                            Click="Minimize_Click" />
-                                    <Button Grid.Column="2" Content="خروج" Style="{StaticResource ExitButton}"
-                                            HorizontalAlignment="Stretch" Click="Exit_Click" />
-                                    <Button Grid.Column="4" Content="بازگشت" Style="{StaticResource GoldButton}"
+                                    <Button Grid.Column="0" Content="بازگشت" Style="{StaticResource GoldButton}"
                                             HorizontalAlignment="Stretch" Click="Back_Click" />
+                                    <Button Grid.Column="2" Style="{StaticResource MinimizeButton}"
+                                            Click="Minimize_Click" />
+                                    <Button Grid.Column="4" Content="خروج" Style="{StaticResource ExitButton}"
+                                            HorizontalAlignment="Stretch" Click="Exit_Click" />
                                 </Grid>
                             </StackPanel>
                         </StackPanel>

@@ -246,32 +246,64 @@ public partial class GamesBookPage : UserControl
 
     private void AnimateFlip(int direction)
     {
-        // Persian RTL: Next ⇒ content slides left→right. Prev ⇒ content slides right→left.
-        // RenderTransform.X is in screen pixels (positive = visually right).
-        var w = SpreadHost.ActualWidth;
-        if (w <= 0) { Render(); return; }
+        // Page-flip around the spine (the inner edge of each page where the book is bound).
+        //
+        // Persian RTL book:
+        //   - Next: flip the LEFT page. Its spine is its RIGHT edge → RenderTransformOrigin = (1, 0.5).
+        //   - Prev: flip the RIGHT page. Its spine is its LEFT edge → RenderTransformOrigin = (0, 0.5).
+        //
+        // The fold is faked with ScaleX 1→0 (page rotates toward 90°, narrowing to a vertical slit)
+        // plus a small SkewY to suggest 3D lift; content swap happens at the slit; then unfold ScaleX 0→1.
 
-        double outX = direction > 0 ? +w : -w;
-        double inX  = direction > 0 ? -w : +w;
+        // Reset any prior transform on the spread host (from earlier slide implementation).
+        SpreadHost.RenderTransform = Transform.Identity;
 
-        var translate = new TranslateTransform(0, 0);
-        SpreadHost.RenderTransform = translate;
+        var target = direction > 0 ? LeftSide : RightSide;
+        var origin = new Point(direction > 0 ? 1 : 0, 0.5);
+        target.RenderTransformOrigin = origin;
 
-        var slideOut = new DoubleAnimation(0, outX, TimeSpan.FromMilliseconds(220))
+        var scale = new ScaleTransform(1, 1);
+        var skew  = new SkewTransform(0, 0);
+        var group = new TransformGroup();
+        group.Children.Add(scale);
+        group.Children.Add(skew);
+        target.RenderTransform = group;
+
+        const int foldMs = 240;
+        const int unfoldMs = 280;
+        double skewMax = direction > 0 ? -10 : 10;
+
+        var foldX = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(foldMs))
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
         };
-        slideOut.Completed += (_, _) =>
+        var foldSkew = new DoubleAnimation(0, skewMax, TimeSpan.FromMilliseconds(foldMs))
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+        };
+
+        foldX.Completed += (_, _) =>
         {
             Render();
-            translate.X = inX;
-            var slideIn = new DoubleAnimation(inX, 0, TimeSpan.FromMilliseconds(260))
+
+            // Re-anchor — Render() rebuilds the children but the UniformGrid host keeps its transform.
+            target.RenderTransformOrigin = origin;
+
+            var unfoldX = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(unfoldMs))
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
             };
-            translate.BeginAnimation(TranslateTransform.XProperty, slideIn);
+            var unfoldSkew = new DoubleAnimation(skewMax, 0, TimeSpan.FromMilliseconds(unfoldMs))
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, unfoldX);
+            skew.BeginAnimation(SkewTransform.AngleYProperty, unfoldSkew);
         };
-        translate.BeginAnimation(TranslateTransform.XProperty, slideOut);
+
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, foldX);
+        skew.BeginAnimation(SkewTransform.AngleYProperty, foldSkew);
     }
 
     private static string ToPersianDigits(string s)
