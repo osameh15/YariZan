@@ -1,0 +1,153 @@
+END-USER LICENSE AGREEMENT (EULA)
+YariZan - Educational Mini-Games Launcher
+Version 1.0.0
+
+================================================================
+ENGLISH
+================================================================
+
+Copyright (c) 2025 YariZan Studio. All rights reserved.
+
+Studio     : YariZan Studio
+Developer  : osameh_ir
+Contact    : Telegram @osameh_ir  (https://t.me/osameh_ir)
+
+PLEASE READ THIS AGREEMENT CAREFULLY. BY INSTALLING OR USING
+YARIZAN ("the Software") YOU AGREE TO BE BOUND BY THE TERMS
+BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
+
+1. LICENSE GRANT
+   Subject to your compliance with this Agreement and your
+   payment of the applicable fee, YariZan Studio grants you a
+   personal, non-exclusive, non-transferable, revocable license
+   to install and use one (1) copy of the Software on a single
+   Windows PC for which you have received and successfully
+   activated a hardware-bound serial number.
+
+2. TRIAL USE
+   The Software may be launched up to TWO (2) times without an
+   activation serial for evaluation purposes. After the trial
+   limit is reached, a valid activation serial is required to
+   continue using the Software.
+
+3. ACTIVATION SERIAL
+   Each activation serial is bound to the unique hardware
+   identifier (HWID) of one specific PC. Sharing, selling,
+   transferring or attempting to use a serial on another PC
+   is prohibited and will result in activation failure.
+
+4. RESTRICTIONS
+   You may NOT, in whole or in part:
+     a) copy, redistribute, sublicense, lend, lease or sell
+        the Software or any of its components;
+     b) reverse engineer, decompile, disassemble, or attempt
+        to extract the embedded mini-games or to obtain the
+        master encryption key from the Software;
+     c) tamper with, bypass, or attempt to defeat the
+        activation, trial, or HWID-binding mechanisms;
+     d) remove or alter any copyright, trademark or
+        proprietary notices contained in the Software;
+     e) use the Software for any unlawful purpose.
+
+5. OWNERSHIP
+   The Software, including the launcher application, the
+   embedded mini-games, the artwork, fonts and documentation,
+   is licensed, not sold. YariZan Studio retains all right,
+   title and interest in and to the Software, including all
+   intellectual property rights therein.
+
+6. UPDATES & SUPPORT
+   YariZan Studio may, at its sole discretion, provide updates
+   or new versions. Support is offered through Telegram
+   @osameh_ir. Response time is typically 15 minutes to 8 hours.
+
+7. DISCLAIMER OF WARRANTIES
+   THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE",
+   WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+   BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
+
+8. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL YARIZAN STUDIO OR ITS DEVELOPER BE LIABLE
+   FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL OR
+   PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUE, ARISING
+   FROM OR RELATED TO YOUR USE OF THE SOFTWARE.
+
+9. TERMINATION
+   This license terminates automatically if you fail to comply
+   with any of its terms. Upon termination you must cease all
+   use of the Software and destroy all copies in your possession.
+
+10. CONTACT
+    Telegram : @osameh_ir
+    URL      : https://t.me/osameh_ir
+
+
+================================================================
+فارسی  (PERSIAN)
+================================================================
+
+توافق‌نامهٔ کاربر نهایی
+یاریزان — مجموعه بازی‌های آموزشی
+نسخهٔ ۱.۰.۰
+
+تمامی حقوق محفوظ است. © ۲۰۲۵ استودیوی یاریزان
+
+استودیو         : استودیوی یاریزان (YariZan Studio)
+توسعه‌دهنده    : osameh_ir
+ارتباط          : تلگرام @osameh_ir   (https://t.me/osameh_ir)
+
+لطفاً پیش از نصب یا استفاده از برنامه، این توافق‌نامه را با
+دقت مطالعه کنید. با نصب یا اجرای برنامه، شما با همهٔ شرایط
+زیر موافقت می‌کنید. در صورت عدم موافقت، برنامه را نصب نکنید.
+
+۱) اعطای حق استفاده
+   استودیوی یاریزان به شما اجازه می‌دهد یک نسخه از این
+   برنامه را روی تنها یک رایانهٔ ویندوزی که سریال آن را
+   به‌صورت معتبر دریافت و فعال‌سازی کرده‌اید، نصب و استفاده کنید.
+
+۲) استفادهٔ آزمایشی
+   برنامه تا ۲ بار بدون سریال قابل اجرا است تا بتوانید آن را
+   ارزیابی کنید. پس از پایان آزمایش، برای ادامه استفاده باید
+   سریال معتبر وارد نمایید.
+
+۳) سریال فعال‌سازی
+   هر سریال به شناسهٔ سخت‌افزاری (HWID) یک رایانهٔ مشخص گره
+   خورده است. به‌اشتراک گذاشتن، فروش، انتقال یا تلاش برای
+   استفاده از سریال روی دستگاه دیگر مجاز نیست.
+
+۴) محدودیت‌ها
+   شما حق ندارید:
+     • برنامه یا اجزای آن را کپی، توزیع یا اجاره دهید؛
+     • برنامه را مهندسی معکوس، دیکامپایل یا اجزای رمزگذاری
+       شدهٔ بازی‌ها را استخراج کنید؛
+     • سامانهٔ فعال‌سازی، آزمایش، یا اتصال به HWID را دور بزنید؛
+     • علائم تجاری یا اطلاعات حق نشر را تغییر یا حذف کنید؛
+     • از برنامه برای اهداف غیرقانونی استفاده نمایید.
+
+۵) مالکیت
+   برنامه (شامل لانچر، بازی‌های مینی، گرافیک، فونت و مستندات)
+   به فروش نمی‌رسد، بلکه تنها مجوز استفاده داده می‌شود.
+   تمامی حقوق مالکیت معنوی متعلق به استودیوی یاریزان است.
+
+۶) به‌روزرسانی و پشتیبانی
+   پشتیبانی از طریق تلگرام @osameh_ir ارائه می‌شود. زمان
+   پاسخ‌گویی معمولاً بین ۱۵ دقیقه تا ۸ ساعت است.
+
+۷) سلب مسئولیت تضمین
+   برنامه «همان‌گونه که هست» و بدون هیچ‌گونه ضمانت صریح یا
+   ضمنی ارائه می‌شود.
+
+۸) محدودیت مسئولیت
+   استودیوی یاریزان در قبال هیچ خسارت غیرمستقیم، اتفاقی،
+   ویژه، تبعی یا از دست رفتن سود، ناشی از استفاده از برنامه،
+   مسئول نخواهد بود.
+
+۹) خاتمه
+   در صورت عدم رعایت هر یک از شرایط، این مجوز به‌صورت خودکار
+   لغو می‌شود و باید استفاده از برنامه را متوقف و همهٔ نسخه‌ها
+   را حذف کنید.
+
+۱۰) تماس
+    تلگرام : @osameh_ir
+    لینک   : https://t.me/osameh_ir

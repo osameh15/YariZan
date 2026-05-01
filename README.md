@@ -44,6 +44,40 @@ Bundle a catalog of Adobe‑published `.exe` mini‑games (grades 1–6) into on
 
 Every page after the cover has a red **خروج** (Exit) button. The window has a custom minimize control in its top‑right corner and starts maximized.
 
+## Screenshots
+
+### Entry flow
+
+| Closed book (cover) | Lock screen — first run |
+|---|---|
+| ![Cover page](docs/Images/cover-page.png) | ![Lock page](docs/Images/lock-page.png) |
+
+### Lock screen states
+
+| Pre‑formatted activation message copied to clipboard | Invalid serial rejected |
+|---|---|
+| ![Copy message](docs/Images/lock-page-copy-message.png) | ![Invalid serial](docs/Images/lock-page-invalid-serial.png) |
+
+| Trial — one launch left | Trial exhausted, must activate |
+|---|---|
+| ![Trial 1 remaining](docs/Images/lock-page-trial-one-remain.png) | ![Trial ended](docs/Images/trial-end.png) |
+
+### Inside the book
+
+| Info page (activated) | Info page (trial mode banner) |
+|---|---|
+| ![Info page](docs/Images/info-page.png) | ![Info page trial](docs/Images/info-page-trial.png) |
+
+| Open spread — six landscape tiles per page | Game info popup with description |
+|---|---|
+| ![Games book](docs/Images/game-book.png) | ![Game detail](docs/Images/game-detail.png) |
+
+### Launching a mini‑game
+
+The launcher decrypts the encrypted `.dat` blob to a temp directory with a restricted ACL, runs the Adobe CS6 projector, and cleans up on exit.
+
+![Mini‑app running](docs/Images/lunch-mini-app.png)
+
 ---
 
 ## Quick start
@@ -159,6 +193,29 @@ Customer                                          You
 ```
 
 ---
+
+## Building a Windows installer
+
+The repo ships with an Inno Setup script and a one‑shot batch driver:
+
+```powershell
+# Prerequisite (one-time): install Inno Setup 6 from https://jrsoftware.org/isinfo.php
+
+# Make sure your secrets/ keys exist (one-time)
+dotnet run --project src\YariZan.SerialGen -- init
+
+# Then any time you want a fresh installer:
+.\build-installer.bat
+```
+
+The script:
+1. Re‑packs `miniApps/` → `games_encrypted/`
+2. Generates a multi‑size `icon.ico` from `icon.png` via `tools\Convert-PngToIco.ps1`
+3. Cleans + publishes self‑contained `win‑x64`
+4. Runs `ISCC.exe` against `YariZan-Setup.iss`
+5. Outputs `publish\YariZan-Setup-v1.0.0.exe` (and an optional SHA‑256)
+
+The installer carries `LICENSE.txt` (bilingual EULA — Studio: YariZan, Developer: osameh_ir, Telegram: @osameh_ir), shows a Persian welcome/finish screen, and on uninstall wipes `%LocalAppData%\YariZan` so a re‑install starts fresh.
 
 ## Documentation
 
