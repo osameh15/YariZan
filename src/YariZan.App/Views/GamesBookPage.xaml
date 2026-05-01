@@ -103,15 +103,16 @@
                     <StackPanel Grid.Column="1" x:Name="GradePicker"
                                 Orientation="Horizontal" HorizontalAlignment="Center" />
 
+                    <!-- RTL StackPanel: minimize before خروج in source = minimize visually right of خروج. -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Content="بازگشت" Style="{StaticResource GoldButton}"
                                 FontSize="14" MinHeight="36" Padding="14,6"
                                 Click="Back_Click" Margin="4,0" />
+                        <Button Style="{StaticResource MinimizeButton}"
+                                Click="Minimize_Click" Margin="4,0" />
                         <Button Content="خروج" Style="{StaticResource ExitButton}"
                                 FontSize="14" MinHeight="36" Padding="14,6"
                                 Click="Exit_Click" Margin="4,0" />
-                        <Button Style="{StaticResource MinimizeButton}" MinHeight="36" Width="38"
-                                Click="Minimize_Click" Margin="4,0" />
                     </StackPanel>
                 </Grid>
 

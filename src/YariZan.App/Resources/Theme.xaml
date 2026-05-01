@@ -132,45 +132,12 @@
         </Setter>
     </Style>
 
-    <Style x:Key="MinimizeButton" TargetType="Button">
-        <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Width" Value="42" />
-        <Setter Property="MinHeight" Value="38" />
-        <Setter Property="Padding" Value="0" />
-        <Setter Property="ToolTip" Value="کوچک‌نمایی" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" CornerRadius="6"
-                            BorderBrush="{StaticResource LeatherDarkBrush}" BorderThickness="2">
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                <GradientStop Color="{StaticResource GoldLight}" Offset="0" />
-                                <GradientStop Color="{StaticResource Gold}" Offset="1" />
-                            </LinearGradientBrush>
-                        </Border.Background>
-                        <Path Data="M -9,0 L 9,0" Stroke="{StaticResource LeatherDarkBrush}"
-                              StrokeThickness="2.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                              HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background">
-                                <Setter.Value>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#F5DD9C" Offset="0" />
-                                        <GradientStop Color="#D8B470" Offset="1" />
-                                    </LinearGradientBrush>
-                                </Setter.Value>
-                            </Setter>
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Bd" Property="Opacity" Value="0.85" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
+    <Style x:Key="MinimizeButton" TargetType="Button" BasedOn="{StaticResource GoldButton}">
+        <Setter Property="Content" Value="کوچک نمایی" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Padding" Value="14,6" />
+        <Setter Property="ToolTip" Value="کوچک‌نمایی پنجره" />
     </Style>
 
     <Style x:Key="GradeChip" TargetType="ToggleButton">
@@ -222,7 +189,9 @@
         <Setter Property="FontFamily" Value="Consolas, Tahoma" />
         <Setter Property="FontSize" Value="20" />
         <Setter Property="Padding" Value="14,10" />
-        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="FlowDirection" Value="LeftToRight" />
+        <Setter Property="TextAlignment" Value="Left" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
         <Setter Property="Background" Value="#FAEFCF" />
         <Setter Property="BorderBrush" Value="{StaticResource LeatherBrush}" />

@@ -11,8 +11,8 @@
         Background="{StaticResource RoomBackgroundBrush}"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
-        MinWidth="1100" MinHeight="720"
-        Width="1280" Height="800">
+        WindowStyle="None"
+        ResizeMode="CanMinimize">
 
     <Grid>
         <Grid.Background>

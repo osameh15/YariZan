@@ -69,20 +69,22 @@
                             <StackPanel HorizontalAlignment="Stretch" Margin="0,28,0,0">
                                 <Button Content="ورود به کتاب بازی‌ها" Style="{StaticResource GoldButton}"
                                         HorizontalAlignment="Stretch" Click="Next_Click" Margin="0,0,0,10" />
+                                <!-- RTL Grid: column 0 renders on the visual RIGHT.
+                                     Visual layout (right→left): minimize | خروج | بازگشت. -->
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="8" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="8" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Content="بازگشت" Style="{StaticResource GoldButton}"
-                                            HorizontalAlignment="Stretch" Click="Back_Click" />
+                                    <Button Grid.Column="0" Style="{StaticResource MinimizeButton}"
+                                            Click="Minimize_Click" />
                                     <Button Grid.Column="2" Content="خروج" Style="{StaticResource ExitButton}"
                                             HorizontalAlignment="Stretch" Click="Exit_Click" />
-                                    <Button Grid.Column="4" Style="{StaticResource MinimizeButton}"
-                                            Click="Minimize_Click" />
+                                    <Button Grid.Column="4" Content="بازگشت" Style="{StaticResource GoldButton}"
+                                            HorizontalAlignment="Stretch" Click="Back_Click" />
                                 </Grid>
                             </StackPanel>
                         </StackPanel>
