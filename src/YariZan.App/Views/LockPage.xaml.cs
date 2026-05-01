@@ -66,7 +66,7 @@ public partial class LockPage : UserControl
             "لطفاً سریال فعال‌سازی را برای من ارسال نمایید.\n" +
             "سپاسگزارم";
         SetClipboardWithStatus(msg,
-            "پیام در حافظه کپی شد. آن را به شمارهٔ " + SupportPhone + " ارسال کنید.");
+            "پیام در حافظه کپی شد. آن را به شمارهٔ پشتیبانی ارسال کنید.");
     }
 
     private void SetClipboardWithStatus(string text, string okMessage)
