@@ -28,6 +28,7 @@ YariZan/
 | `GameCrypto.cs` | AES-256-GCM encrypt/decrypt with file format `YZG1` ‖ nonce(12) ‖ tag(16) ‖ cipher |
 | `GameManifest.cs` + `GameManifestIo` | JSON model + JsonSerializerOptions used by Packer & App |
 | `ActivationStore.cs` | Encrypted record at `%LocalAppData%\YariZan\activation.dat`, key = PBKDF2(HWID) |
+| `TrialStore.cs` | 2‑launch trial counter mirrored across `trial.dat` + `HKCU\Software\YariZan\State`, MAX‑wins read, HWID‑bound AES‑GCM |
 | `GameLauncher.cs` | Decrypts to temp dir, restricts ACL, launches process, cleans up on exit |
 | `AppKeys.cs` | Loads embedded `public.pem` and `master.key` from the running assembly |
 

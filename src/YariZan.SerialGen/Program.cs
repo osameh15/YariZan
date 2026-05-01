@@ -22,6 +22,8 @@ switch (cmd)
         break;
     case "reset":
         Reset(); break;
+    case "reset-trial":
+        ResetTrial(); break;
     default:
         Console.WriteLine("YariZan Serial Generator");
         Console.WriteLine();
@@ -29,7 +31,8 @@ switch (cmd)
         Console.WriteLine("  init                Generate ECDSA keypair + master AES key into secrets/");
         Console.WriteLine("  hwid                Print this machine's HWID");
         Console.WriteLine("  sign <HWID-HEX>     Generate a serial bound to the given HWID");
-        Console.WriteLine("  reset               Delete this machine's saved activation (forces lock screen on next launch)");
+        Console.WriteLine("  reset               Delete this machine's saved activation (forces lock screen)");
+        Console.WriteLine("  reset-trial         Delete this machine's trial counter (gives 2 fresh launches)");
         return 1;
 }
 return 0;
@@ -70,6 +73,18 @@ void Reset()
     ActivationStore.Clear();
     Console.WriteLine("Deleted: " + path);
     Console.WriteLine("Next app launch will show the lock screen.");
+}
+
+void ResetTrial()
+{
+    var existed = File.Exists(TrialStore.PrimaryFilePath);
+    TrialStore.Reset();
+    Console.WriteLine(existed
+        ? "Cleared trial state at " + TrialStore.PrimaryFilePath
+        : "No trial file at " + TrialStore.PrimaryFilePath);
+    Console.WriteLine("Cleared registry mirror at HKCU\\Software\\YariZan\\State");
+    Console.WriteLine("Trial counter is back to 0. The app will allow " +
+                      TrialStore.MaxTrialLaunches + " more launches before the lock screen.");
 }
 
 void Sign(string hwidArg)

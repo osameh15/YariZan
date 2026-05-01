@@ -7,6 +7,7 @@ namespace YariZan.App.Views;
 public partial class LockPage : UserControl
 {
     public event EventHandler? Activated;
+    public event EventHandler? TrialStarted;
     public event EventHandler? Cancelled;
 
     private const string SupportPhone = "0918-876-4024";
@@ -18,6 +19,33 @@ public partial class LockPage : UserControl
         InitializeComponent();
         _hwid = HwidProvider.GetHwid();
         HwidText.Text = HwidProvider.GetHwidPretty();
+        UpdateTrialButton();
+    }
+
+    private void UpdateTrialButton()
+    {
+        var remaining = TrialStore.Remaining();
+        if (remaining > 0)
+        {
+            TrialButton.IsEnabled = true;
+            TrialButton.Content =
+                "ورود آزمایشی (" + ToPersianDigits(remaining.ToString()) +
+                "/" + ToPersianDigits(TrialStore.MaxTrialLaunches.ToString()) + ")";
+        }
+        else
+        {
+            TrialButton.IsEnabled = false;
+            TrialButton.Content = "آزمایش به پایان رسیده";
+        }
+    }
+
+    private static string ToPersianDigits(string s)
+    {
+        var map = new[] { '۰','۱','۲','۳','۴','۵','۶','۷','۸','۹' };
+        var arr = s.ToCharArray();
+        for (int i = 0; i < arr.Length; i++)
+            if (arr[i] >= '0' && arr[i] <= '9') arr[i] = map[arr[i] - '0'];
+        return new string(arr);
     }
 
     private void CopyHwid_Click(object sender, RoutedEventArgs e) =>
@@ -80,6 +108,19 @@ public partial class LockPage : UserControl
 
     private void Cancel_Click(object sender, RoutedEventArgs e) =>
         Cancelled?.Invoke(this, EventArgs.Empty);
+
+    private void Trial_Click(object sender, RoutedEventArgs e)
+    {
+        if (TrialStore.IsExhausted())
+        {
+            StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
+            StatusText.Text = "آزمایش رایگان به پایان رسیده است. لطفاً سریال را وارد کنید.";
+            UpdateTrialButton();
+            return;
+        }
+        TrialStore.RecordLaunch();
+        TrialStarted?.Invoke(this, EventArgs.Empty);
+    }
 
     private void Exit_Click(object sender, RoutedEventArgs e) =>
         Application.Current.Shutdown();

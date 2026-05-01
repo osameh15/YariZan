@@ -25,10 +25,10 @@ public partial class MainWindow : Window
         page.OpenRequested += (_, _) =>
         {
             var rec = ActivationStore.Load();
-            if (rec is not null && string.Equals(rec.Hwid, HwidProvider.GetHwid(), StringComparison.OrdinalIgnoreCase))
-                ShowInfo();
-            else
-                ShowLock();
+            bool isActivated = rec is not null &&
+                string.Equals(rec.Hwid, HwidProvider.GetHwid(), StringComparison.OrdinalIgnoreCase);
+            if (isActivated) ShowInfo();
+            else ShowLock();
         };
         SwapPage(page, animate);
     }
@@ -36,8 +36,9 @@ public partial class MainWindow : Window
     public void ShowLock()
     {
         var page = new LockPage();
-        page.Activated += (_, _) => ShowInfo();
-        page.Cancelled += (_, _) => ShowCover();
+        page.Activated    += (_, _) => ShowInfo();
+        page.TrialStarted += (_, _) => ShowInfo();
+        page.Cancelled    += (_, _) => ShowCover();
         SwapPage(page, animate: true);
     }
 

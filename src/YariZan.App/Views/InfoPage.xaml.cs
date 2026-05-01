@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using YariZan.Core;
 
 namespace YariZan.App.Views;
 
@@ -14,6 +15,21 @@ public partial class InfoPage : UserControl
         InitializeComponent();
         var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
         VersionText.Text = "نسخهٔ " + ToPersianDigits(ver);
+
+        var rec = ActivationStore.Load();
+        bool isActivated = rec is not null &&
+            string.Equals(rec.Hwid, HwidProvider.GetHwid(), StringComparison.OrdinalIgnoreCase);
+        if (!isActivated)
+        {
+            int remaining = TrialStore.Remaining();
+            if (remaining > 0)
+            {
+                TrialBanner.Visibility = Visibility.Visible;
+                TrialBanner.Text =
+                    "نسخهٔ آزمایشی — " + ToPersianDigits(remaining.ToString()) +
+                    " بار اجرا باقی مانده است";
+            }
+        }
     }
 
     private void Next_Click(object sender, RoutedEventArgs e) =>

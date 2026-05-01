@@ -82,14 +82,22 @@
                                TextWrapping="Wrap" Margin="20,10,20,0"
                                FontSize="13" Foreground="#8B0000" />
 
-                    <!-- RTL StackPanel: source-first child renders rightmost. minimize before خروج → minimize is visually right of خروج. -->
+                    <!-- Primary actions: paid activation + free trial. Equal weight — user picks. -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
-                        <Button Content="فعال‌سازی" Style="{StaticResource GoldButton}" MinWidth="150"
-                                Click="Activate_Click" Margin="5,0" />
-                        <Button Content="بازگشت" Style="{StaticResource GoldButton}" MinWidth="110"
+                        <Button Content="فعال‌سازی" Style="{StaticResource GoldButton}" MinWidth="180"
+                                Click="Activate_Click" Margin="6,0" />
+                        <Button x:Name="TrialButton" Style="{StaticResource GoldButton}" MinWidth="220"
+                                Click="Trial_Click" Margin="6,0" />
+                    </StackPanel>
+
+                    <!-- Secondary navigation row. minimize before خروج in source = visually right of خروج. -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+                        <Button Content="بازگشت" Style="{StaticResource GoldButton}"
+                                FontSize="14" MinHeight="36" Padding="14,6"
                                 Click="Cancel_Click" Margin="5,0" />
                         <Button Style="{StaticResource MinimizeButton}" Click="Minimize_Click" Margin="5,0" />
-                        <Button Content="خروج" Style="{StaticResource ExitButton}" MinWidth="100"
+                        <Button Content="خروج" Style="{StaticResource ExitButton}"
+                                FontSize="14" MinHeight="36" Padding="14,6"
                                 Click="Exit_Click" Margin="5,0" />
                     </StackPanel>
                 </StackPanel>

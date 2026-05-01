@@ -63,6 +63,10 @@
                                                Foreground="{StaticResource InkBrush}" Margin="0,4,0,0" />
                                     <TextBlock x:Name="VersionText" FontSize="14"
                                                Foreground="{StaticResource LeatherBrush}" Margin="0,8,0,0" />
+                                    <TextBlock x:Name="TrialBanner" Visibility="Collapsed"
+                                               FontFamily="{DynamicResource ShabnamBoldFont}" FontSize="14"
+                                               Foreground="#A3501F" TextAlignment="Center"
+                                               Margin="0,10,0,0" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
 

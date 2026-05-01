@@ -6,6 +6,7 @@
 2. Mini‑games shipped with the launcher must not be trivially extractable as runnable `.exe` files.
 3. Forging a serial must require breaking either ECDSA‑P256 or stealing the seller's private key.
 4. Cracking the launcher binary alone should not be enough to unlock games for an arbitrary HWID.
+5. The 2‑launch trial cannot be reset by deleting a single file or registry value.
 
 ## Honest non‑goal
 
@@ -41,12 +42,39 @@
 ciphertext = AES-GCM(JSON {hwid, serial})
 ```
 
+### Trial store (mirrored)
+
+Two identical encrypted blobs, written together on every increment:
+
+| Location | Why |
+|----------|-----|
+| `%LocalAppData%\YariZan\trial.dat` | Primary, easy to reach for `reset-trial` |
+| `HKCU\Software\YariZan\State` value `T` (`REG_BINARY`) | Survives `LocalAppData` wipes / portable‑mode tricks |
+
+Per‑blob format:
+```
+0      4              16              32              N
++------+--------------+--------------+----------------+
+| YZT1 | nonce (12 B) |  tag (16 B)  |    ciphertext  |
++------+--------------+--------------+----------------+
+ciphertext = AES-GCM(JSON {hwid, count, firstLaunchUtc})
+key       = PBKDF2(HWID, "YariZan-Trial-v1", 100k iterations)
+```
+
+**Read rule**: if both stores are present, the higher `count` wins. Deleting one mirror to "roll back" the count therefore does nothing — the surviving copy holds the line.
+
+**HWID binding**: copying `trial.dat` from a friend's PC does nothing — the AES‑GCM authentication tag fails because the friend's HWID was used to derive their key.
+
 ## Attack scenarios
 
 | Scenario | Outcome |
 |----------|---------|
 | User shares their serial with a friend | Friend's HWID won't match → ECDSA verify fails → lock screen rejects. |
 | User copies their `activation.dat` to another PC | Friend's HWID won't decrypt the file (PBKDF2 key mismatch) → app behaves as if not activated. |
+| User deletes `%LocalAppData%\YariZan\trial.dat` to get a fresh trial | Registry mirror at `HKCU\Software\YariZan\State` still has the latest count. App reads MAX(file, registry) → no rollback. |
+| User deletes the registry value | File still holds the count. Same protection in reverse. |
+| User deletes both, hoping for a fresh trial | This works — fresh state. The two‑mirror design protects against accidental wipes (e.g. cleaner tools); a deliberate user with admin rights *can* zero out both. Defeating that would require a third anchor in `HKLM` or a TPM, both of which complicate distribution. |
+| User copies their pre‑trial `trial.dat` over a post‑trial one | The `count` in the file would be lower, but the registry mirror still has the higher count → MAX rule wins. |
 | Attacker patches the binary to skip signature verification | They can dismiss the lock screen, but the master AES key is still needed. Today the master key is embedded in the binary, so this attack does succeed at exposing the games. **See "Known weakness" below.** |
 | Attacker pulls a `.dat` and tries to run it directly | Won't run — it's encrypted ciphertext, not a PE. |
 | Attacker runs a game and copies the temp `.exe` while it's running | Possible. Temp file has an ACL granting only the current user read access; admin can override. **This is the irreducible local‑DRM ceiling.** |

@@ -70,7 +70,29 @@ dotnet run --project src\YariZan.SerialGen -- sign <YOUR-HWID-HEX>
 
 Paste the printed serial into the lock screen → the book opens. Subsequent launches skip the lock entirely.
 
-> **Need to re-test the lock screen?** Wipe your saved activation with `dotnet run --project src\YariZan.SerialGen -- reset`, then relaunch.
+> **Need to re-test the lock screen?** Wipe your saved activation with `dotnet run --project src\YariZan.SerialGen -- reset`, then relaunch. To re-test the trial counter, use `reset-trial` (see below).
+
+## Trial mode
+
+A fresh install lets the user enter the app **2 times** without a serial. This gives the buyer time to evaluate the launcher before paying for activation.
+
+The trial is a **second button on the lock screen** next to فعال‌سازی. Its label shows the remaining count, like `ورود آزمایشی (۲/۲)`. Clicking it consumes one trial and routes the user to the info page exactly like a successful activation. Once the count reaches `0/2`, the button becomes disabled (`آزمایش به پایان رسیده`) and the only way forward is a paid serial.
+
+- The counter increments **only on explicit click of the trial button** — opening the cover, browsing back/forward, or closing the app costs nothing.
+- State is mirrored across two locations so deleting one isn't enough to reset:
+  - File: `%LocalAppData%\YariZan\trial.dat` (AES‑256‑GCM, key derived from HWID)
+  - Registry: `HKCU\Software\YariZan\State` (same encrypted blob, `REG_BINARY`)
+- On read, the higher of the two counts wins (rollback resistance).
+- Both blobs are HWID‑bound, so copying `trial.dat` from another PC fails to decrypt.
+- The info page shows the user how many trial runs remain (banner under the version line).
+
+To wipe the counter on this PC (for QA / re‑testing):
+
+```powershell
+dotnet run --project src\YariZan.SerialGen -- reset-trial
+```
+
+> **Caveat:** local Windows trial counters can always be defeated by a determined attacker who decompiles the binary and forges a fresh state. The same DRM ceiling applies as with activation. The two‑mirror design defeats casual file‑deletion / registry‑editing tampering — see [docs/security.md](docs/security.md) for the full threat model.
 
 ---
 

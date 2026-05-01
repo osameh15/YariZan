@@ -83,6 +83,16 @@ Remove-Item "$env:LOCALAPPDATA\YariZan\activation.dat" -Force
 
 Both have the same effect. The next launch will show the lock screen with the same HWID, so the same serial you generated before will still work.
 
+## Reset trial counter (re-test trial flow)
+
+Trial state is mirrored across `%LocalAppData%\YariZan\trial.dat` and `HKCU\Software\YariZan\State`. To wipe both at once:
+
+```powershell
+dotnet run --project src\YariZan.SerialGen -- reset-trial
+```
+
+After running this, the app allows 2 fresh trial launches before forcing the lock screen.
+
 ## Publish a single-file release
 
 ```powershell

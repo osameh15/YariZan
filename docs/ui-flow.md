@@ -99,9 +99,11 @@ Click outside the popup card → `HideInfo()`. Click on the card itself swallows
 
 ## Lock screen UX
 
-- **HWID** is shown as 8 groups of 4 hex chars for readability; the underlying value passed to `SerialCodec.Verify` is the un‑grouped 64‑char hex.
+- **HWID** is shown as 8 groups of 8 hex chars (the full 64‑char SHA‑256, rendered LTR so latin / digit characters keep their natural order).
 - **Copy** button puts the raw HWID on the clipboard so customers can paste it into chat / email without typos.
-- **Status text** turns dark red on errors, dark green on the "copied" confirmation.
+- **Support card**: phone number `0918-876-4024`, wait‑time note (15 min – 8 hr), a **کپی پیام آماده** button that drops a fully‑formed Persian activation request (including the HWID) into the clipboard, plus **کپی شماره** for just the phone.
+- **Trial button**: sits next to فعال‌سازی, label shows remaining count, e.g. `ورود آزمایشی (۲/۲)`. Click → `TrialStore.RecordLaunch()` + raises `TrialStarted` → MainWindow shows the info page. Once exhausted the button is disabled and reads `آزمایش به پایان رسیده`.
+- **Status text** turns dark red on errors, dark green on copy confirmations.
 - **بازگشت** returns to the cover (closes the book), it does *not* exit the app.
 - **خروج** exits the app immediately.
 
