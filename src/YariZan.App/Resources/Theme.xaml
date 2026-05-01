@@ -1,0 +1,108 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <FontFamily x:Key="ShabnamFont">/Resources/Fonts/Shabnam/#Shabnam, Tahoma, Segoe UI, Arial</FontFamily>
+    <FontFamily x:Key="ShabnamBoldFont">/Resources/Fonts/Shabnam/#Shabnam Bold, Tahoma, Segoe UI, Arial</FontFamily>
+
+    <Color x:Key="LeatherDark">#3B1F12</Color>
+    <Color x:Key="Leather">#5C2E1B</Color>
+    <Color x:Key="LeatherLight">#7A4427</Color>
+    <Color x:Key="Gold">#C9A45C</Color>
+    <Color x:Key="GoldLight">#EAD08A</Color>
+    <Color x:Key="ParchmentDark">#D7C28F</Color>
+    <Color x:Key="Parchment">#F1E2B7</Color>
+    <Color x:Key="ParchmentLight">#FBEFCB</Color>
+    <Color x:Key="Ink">#2A1A0A</Color>
+
+    <SolidColorBrush x:Key="LeatherBrush" Color="{StaticResource Leather}" />
+    <SolidColorBrush x:Key="LeatherDarkBrush" Color="{StaticResource LeatherDark}" />
+    <SolidColorBrush x:Key="GoldBrush" Color="{StaticResource Gold}" />
+    <SolidColorBrush x:Key="ParchmentBrush" Color="{StaticResource Parchment}" />
+    <SolidColorBrush x:Key="InkBrush" Color="{StaticResource Ink}" />
+
+    <LinearGradientBrush x:Key="LeatherCoverBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource LeatherDark}" Offset="0" />
+        <GradientStop Color="{StaticResource Leather}" Offset="0.5" />
+        <GradientStop Color="{StaticResource LeatherDark}" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="ParchmentBrushGradient" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="{StaticResource ParchmentLight}" Offset="0" />
+        <GradientStop Color="{StaticResource Parchment}" Offset="0.5" />
+        <GradientStop Color="{StaticResource ParchmentDark}" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="RoomBackgroundBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#1A0E07" Offset="0" />
+        <GradientStop Color="#2C170A" Offset="0.6" />
+        <GradientStop Color="#0B0603" Offset="1" />
+    </LinearGradientBrush>
+
+    <Style x:Key="GoldButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource ShabnamBoldFont}" />
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="Foreground" Value="{StaticResource LeatherDarkBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Padding" Value="24,10" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" CornerRadius="6" BorderBrush="{StaticResource LeatherDarkBrush}" BorderThickness="2">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="{StaticResource GoldLight}" Offset="0" />
+                                <GradientStop Color="{StaticResource Gold}" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background">
+                                <Setter.Value>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#F5DD9C" Offset="0" />
+                                        <GradientStop Color="#D8B470" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SerialBox" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="Consolas, Tahoma" />
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="Padding" Value="14,10" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+        <Setter Property="Background" Value="#FAEFCF" />
+        <Setter Property="BorderBrush" Value="{StaticResource LeatherBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border CornerRadius="4" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                        <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HwidBox" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Consolas, Tahoma" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="Foreground" Value="{StaticResource LeatherDarkBrush}" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+</ResourceDictionary>
