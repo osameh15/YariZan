@@ -29,8 +29,8 @@
                                 <DropShadowEffect Color="Black" BlurRadius="6" ShadowDepth="2" Opacity="0.8" />
                             </TextBlock.Effect>
                         </TextBlock>
-                        <Image Source="/Resources/logo.png" Width="220" Height="220" Margin="0,12,0,0"
-                               Stretch="Uniform" />
+                        <Image Source="pack://application:,,,/Resources/icon.png"
+                               Width="240" Height="240" Margin="0,12,0,0" Stretch="Uniform" />
                         <TextBlock x:Name="VersionText" FontSize="16"
                                    Foreground="{StaticResource GoldBrush}" Opacity="0.85"
                                    HorizontalAlignment="Center" Margin="0,18,0,0" />

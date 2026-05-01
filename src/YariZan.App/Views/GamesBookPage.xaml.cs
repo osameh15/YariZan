@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
@@ -15,20 +16,20 @@ public partial class GamesBookPage : UserControl
     public event EventHandler<GameEntry>? GameLaunchRequested;
     public event EventHandler? BackRequested;
 
-    private const int TilesPerPage = 9;
+    private const int TilesPerPage = 6;
     private const int TilesPerSpread = TilesPerPage * 2;
+    private const int AllGradesValue = 0;
 
     private readonly GameLibrary _library;
-    private int _grade;
+    private int _grade = AllGradesValue;
     private int _spreadIndex;
+    private GameEntry? _infoGame;
 
     public GamesBookPage(GameLibrary library)
     {
         _library = library;
         InitializeComponent();
         BuildGradePicker();
-        var grades = library.AvailableGrades();
-        _grade = grades.Count > 0 ? grades[0] : 1;
         Render();
     }
 
@@ -36,31 +37,51 @@ public partial class GamesBookPage : UserControl
     {
         GradePicker.Children.Clear();
         var available = _library.AvailableGrades().ToHashSet();
+
+        var allChip = MakeChip("همه", AllGradesValue, enabled: true);
+        GradePicker.Children.Add(allChip);
+
         for (int g = 1; g <= 6; g++)
-        {
-            var btn = new ToggleButton
-            {
-                Content = ToPersianDigits(g.ToString()),
-                Style = (Style)FindResource("GradeButton"),
-                IsEnabled = available.Contains(g),
-            };
-            int captured = g;
-            btn.Checked += (_, _) => { _grade = captured; _spreadIndex = 0; UpdateGradeChecks(); Render(); };
-            btn.Click += (_, _) => { if (btn.IsChecked != true) btn.IsChecked = true; };
-            GradePicker.Children.Add(btn);
-        }
-        UpdateGradeChecks();
+            GradePicker.Children.Add(MakeChip(ToPersianDigits(g.ToString()), g, available.Contains(g)));
+
+        UpdateChecks();
     }
 
-    private void UpdateGradeChecks()
+    private ToggleButton MakeChip(string label, int value, bool enabled)
     {
-        int i = 0;
-        foreach (ToggleButton b in GradePicker.Children)
+        var b = new ToggleButton
         {
-            int g = i + 1;
-            b.IsChecked = (g == _grade);
-            i++;
-        }
+            Content = label,
+            Style = (Style)FindResource("GradeChip"),
+            IsEnabled = enabled,
+            Tag = value,
+        };
+        b.Checked += (_, _) =>
+        {
+            if (_grade == value) return;
+            _grade = value;
+            _spreadIndex = 0;
+            UpdateChecks();
+            Render();
+        };
+        b.Click += (_, _) => { if (b.IsChecked != true) b.IsChecked = true; };
+        return b;
+    }
+
+    private void UpdateChecks()
+    {
+        foreach (ToggleButton b in GradePicker.Children)
+            b.IsChecked = ((int)b.Tag!) == _grade;
+    }
+
+    private List<GameEntry> CurrentGames()
+    {
+        if (_grade == AllGradesValue)
+            return _library.Manifest.Grades
+                .OrderBy(g => g.Grade)
+                .SelectMany(g => g.Games)
+                .ToList();
+        return _library.GamesFor(_grade).ToList();
     }
 
     private void Render()
@@ -68,7 +89,7 @@ public partial class GamesBookPage : UserControl
         LeftPage.Children.Clear();
         RightPage.Children.Clear();
 
-        var games = _library.GamesFor(_grade);
+        var games = CurrentGames();
         int total = games.Count;
         int totalSpreads = Math.Max(1, (int)Math.Ceiling(total / (double)TilesPerSpread));
         if (_spreadIndex >= totalSpreads) _spreadIndex = totalSpreads - 1;
@@ -78,7 +99,8 @@ public partial class GamesBookPage : UserControl
         FillPage(LeftPage, games, start + TilesPerPage, TilesPerPage);
         FillPage(RightPage, games, start, TilesPerPage);
 
-        PageIndicator.Text = $"پایهٔ {ToPersianDigits(_grade.ToString())}  —  صفحهٔ {ToPersianDigits((_spreadIndex + 1).ToString())} از {ToPersianDigits(totalSpreads.ToString())}";
+        var label = _grade == AllGradesValue ? "همه" : "پایهٔ " + ToPersianDigits(_grade.ToString());
+        PageIndicator.Text = $"{label}  —  صفحهٔ {ToPersianDigits((_spreadIndex + 1).ToString())} از {ToPersianDigits(totalSpreads.ToString())}";
     }
 
     private void FillPage(UniformGrid host, IReadOnlyList<GameEntry> games, int start, int count)
@@ -86,37 +108,83 @@ public partial class GamesBookPage : UserControl
         for (int i = 0; i < count; i++)
         {
             int idx = start + i;
-            if (idx < games.Count)
-                host.Children.Add(MakeTile(games[idx]));
-            else
-                host.Children.Add(MakePlaceholder());
+            host.Children.Add(idx < games.Count ? MakeTile(games[idx]) : MakePlaceholder());
         }
     }
 
     private FrameworkElement MakeTile(GameEntry e)
     {
-        var btn = new GameTileButton
+        var btn = new Button
         {
             Style = (Style)FindResource("GameTile"),
-            GameName = e.Name,
-            ImagePath = LoadImage(e.ImageFile),
+            Tag = e,
         };
+
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var imgHost = new Border
+        {
+            Margin = new Thickness(8, 8, 8, 4),
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true,
+            Background = new SolidColorBrush(Color.FromArgb(28, 0, 0, 0)),
+        };
+        var img = new Image
+        {
+            Source = LoadImage(e.ImageFile),
+            Stretch = Stretch.UniformToFill,
+        };
+        imgHost.Child = img;
+        Grid.SetRow(imgHost, 0);
+
+        var bottom = new Grid { Margin = new Thickness(10, 4, 10, 10) };
+        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var info = new Button
+        {
+            Style = (Style)FindResource("InfoBadge"),
+            ToolTip = "جزئیات",
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        info.Click += (s, ev) => { ev.Handled = true; ShowInfo(e); };
+        Grid.SetColumn(info, 0);
+
+        var nameText = new TextBlock
+        {
+            Text = e.Name,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            FontFamily = (System.Windows.Media.FontFamily)FindResource("ShabnamBoldFont"),
+            FontSize = 16,
+            Foreground = (Brush)FindResource("LeatherDarkBrush"),
+            Margin = new Thickness(8, 0, 8, 0),
+        };
+        Grid.SetColumn(nameText, 1);
+
+        bottom.Children.Add(info);
+        bottom.Children.Add(nameText);
+        Grid.SetRow(bottom, 1);
+
+        grid.Children.Add(imgHost);
+        grid.Children.Add(bottom);
+        btn.Content = grid;
+
         btn.Click += (_, _) => GameLaunchRequested?.Invoke(this, e);
         return btn;
     }
 
-    private static FrameworkElement MakePlaceholder()
+    private static FrameworkElement MakePlaceholder() => new Border
     {
-        var b = new Border
-        {
-            Margin = new Thickness(6),
-            CornerRadius = new CornerRadius(8),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0)),
-            BorderThickness = new Thickness(1),
-            Background = new SolidColorBrush(Color.FromArgb(20, 0, 0, 0)),
-        };
-        return b;
-    }
+        Margin = new Thickness(8),
+        CornerRadius = new CornerRadius(10),
+        BorderBrush = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0)),
+        BorderThickness = new Thickness(1),
+        Background = new SolidColorBrush(Color.FromArgb(20, 0, 0, 0)),
+    };
 
     private static ImageSource? LoadImage(string relative)
     {
@@ -136,9 +204,43 @@ public partial class GamesBookPage : UserControl
         catch { return null; }
     }
 
+    private void ShowInfo(GameEntry e)
+    {
+        _infoGame = e;
+        InfoTitle.Text = e.Name;
+        InfoBody.Text = string.IsNullOrWhiteSpace(e.Description)
+            ? "توضیحاتی برای این بازی ثبت نشده است."
+            : e.Description;
+        InfoOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void HideInfo()
+    {
+        _infoGame = null;
+        InfoOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void Overlay_BackgroundClick(object sender, MouseButtonEventArgs e)
+    {
+        HideInfo();
+        e.Handled = true;
+    }
+
+    private void Overlay_PanelClick(object sender, MouseButtonEventArgs e) => e.Handled = true;
+    private void InfoClose_Click(object sender, RoutedEventArgs e) => HideInfo();
+
+    private void InfoLaunch_Click(object sender, RoutedEventArgs e)
+    {
+        if (_infoGame is null) return;
+        var g = _infoGame;
+        HideInfo();
+        GameLaunchRequested?.Invoke(this, g);
+    }
+
     private void PrevPage_Click(object sender, RoutedEventArgs e) { _spreadIndex--; AnimateFlip(-1); }
     private void NextPage_Click(object sender, RoutedEventArgs e) { _spreadIndex++; AnimateFlip(+1); }
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
+    private void Exit_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
 
     private void AnimateFlip(int direction)
     {
@@ -170,25 +272,5 @@ public partial class GamesBookPage : UserControl
         for (int i = 0; i < arr.Length; i++)
             if (arr[i] >= '0' && arr[i] <= '9') arr[i] = map[arr[i] - '0'];
         return new string(arr);
-    }
-}
-
-public class GameTileButton : Button
-{
-    public static readonly DependencyProperty ImagePathProperty =
-        DependencyProperty.Register(nameof(ImagePath), typeof(ImageSource), typeof(GameTileButton));
-    public static readonly DependencyProperty GameNameProperty =
-        DependencyProperty.Register(nameof(GameName), typeof(string), typeof(GameTileButton));
-
-    public ImageSource? ImagePath
-    {
-        get => (ImageSource?)GetValue(ImagePathProperty);
-        set => SetValue(ImagePathProperty, value);
-    }
-
-    public string? GameName
-    {
-        get => (string?)GetValue(GameNameProperty);
-        set => SetValue(GameNameProperty, value);
     }
 }

@@ -20,6 +20,8 @@ public sealed class GameEntry
     public string Name { get; set; } = "";
     public string EncryptedFile { get; set; } = "";
     public string ImageFile { get; set; } = "";
+    public string Description { get; set; } = "";
+    public int Grade { get; set; }
 }
 
 public static class GameManifestIo

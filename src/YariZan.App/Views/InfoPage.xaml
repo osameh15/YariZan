@@ -25,7 +25,8 @@
                         Margin="6,4,0,4">
                     <Grid Margin="40">
                         <StackPanel VerticalAlignment="Center">
-                            <Image Source="/Resources/logo.png" Width="220" Height="220" Stretch="Uniform" />
+                            <Image Source="pack://application:,,,/Resources/icon.png"
+                                   Width="260" Height="260" Stretch="Uniform" />
                             <TextBlock Text="یاریزان" FontFamily="{DynamicResource ShabnamBoldFont}"
                                        FontSize="56" Foreground="{StaticResource LeatherDarkBrush}"
                                        HorizontalAlignment="Center" Margin="0,12,0,0" />
@@ -67,9 +68,11 @@
 
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,32,0,0">
                                 <Button Content="ورود به کتاب بازی‌ها" Style="{StaticResource GoldButton}"
-                                        Width="220" Click="Next_Click" Margin="8,0" />
+                                        MinWidth="220" Click="Next_Click" Margin="6,0" />
                                 <Button Content="بازگشت" Style="{StaticResource GoldButton}"
-                                        Width="120" Click="Back_Click" Margin="8,0" />
+                                        MinWidth="120" Click="Back_Click" Margin="6,0" />
+                                <Button Content="خروج" Style="{StaticResource ExitButton}"
+                                        MinWidth="100" Click="Exit_Click" Margin="6,0" />
                             </StackPanel>
                         </StackPanel>
                     </Grid>

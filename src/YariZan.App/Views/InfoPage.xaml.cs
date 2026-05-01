@@ -22,6 +22,9 @@ public partial class InfoPage : UserControl
     private void Back_Click(object sender, RoutedEventArgs e) =>
         BackRequested?.Invoke(this, EventArgs.Empty);
 
+    private void Exit_Click(object sender, RoutedEventArgs e) =>
+        Application.Current.Shutdown();
+
     private static string ToPersianDigits(string s)
     {
         var map = new[] { '۰','۱','۲','۳','۴','۵','۶','۷','۸','۹' };

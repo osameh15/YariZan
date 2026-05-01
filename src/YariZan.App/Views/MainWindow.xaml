@@ -6,6 +6,7 @@
         xmlns:views="clr-namespace:YariZan.App.Views"
         mc:Ignorable="d"
         Title="YariZan"
+        Icon="pack://application:,,,/Resources/icon.png"
         FontFamily="{DynamicResource ShabnamFont}"
         Background="{StaticResource RoomBackgroundBrush}"
         WindowStartupLocation="CenterScreen"

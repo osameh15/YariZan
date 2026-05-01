@@ -25,8 +25,8 @@
   <ItemGroup>
     <Resource Include="Resources\Fonts\Shabnam\*.ttf" />
     <Resource Include="Resources\Fonts\Shabnam\*.otf" />
-    <Resource Include="..\..\images\logo.png" Link="Resources\logo.png" />
-    <Resource Include="..\..\images\icon.png" Link="Resources\icon.png" />
+    <Resource Include="Resources\icon.png" />
+    <Resource Include="Resources\logo.png" />
   </ItemGroup>
 
   <ItemGroup>

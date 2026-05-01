@@ -48,4 +48,7 @@ public partial class LockPage : UserControl
 
     private void Cancel_Click(object sender, RoutedEventArgs e) =>
         Cancelled?.Invoke(this, EventArgs.Empty);
+
+    private void Exit_Click(object sender, RoutedEventArgs e) =>
+        Application.Current.Shutdown();
 }

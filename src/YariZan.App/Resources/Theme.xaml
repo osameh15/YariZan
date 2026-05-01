@@ -41,21 +41,31 @@
 
     <Style x:Key="GoldButton" TargetType="Button">
         <Setter Property="FontFamily" Value="{StaticResource ShabnamBoldFont}" />
-        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontSize" Value="18" />
         <Setter Property="Foreground" Value="{StaticResource LeatherDarkBrush}" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Padding" Value="24,10" />
+        <Setter Property="Padding" Value="22,10" />
+        <Setter Property="MinHeight" Value="42" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" CornerRadius="6" BorderBrush="{StaticResource LeatherDarkBrush}" BorderThickness="2">
+                    <Border x:Name="Bd" CornerRadius="6"
+                            BorderBrush="{StaticResource LeatherDarkBrush}" BorderThickness="2">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                                 <GradientStop Color="{StaticResource GoldLight}" Offset="0" />
                                 <GradientStop Color="{StaticResource Gold}" Offset="1" />
                             </LinearGradientBrush>
                         </Border.Background>
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"
+                                          TextElement.FontFamily="{TemplateBinding FontFamily}"
+                                          TextElement.FontSize="{TemplateBinding FontSize}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -68,8 +78,98 @@
                                 </Setter.Value>
                             </Setter>
                         </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource GoldBrush}" />
+                        </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Bd" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ExitButton" TargetType="Button" BasedOn="{StaticResource GoldButton}">
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="Padding" Value="18,8" />
+        <Setter Property="MinHeight" Value="38" />
+        <Setter Property="Foreground" Value="#FFF1E2B7" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" CornerRadius="6"
+                            BorderBrush="#FF5A1A0E" BorderThickness="2">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#C2452A" Offset="0" />
+                                <GradientStop Color="#7E2614" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"
+                                          TextElement.FontFamily="{TemplateBinding FontFamily}"
+                                          TextElement.FontSize="{TemplateBinding FontSize}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background">
+                                <Setter.Value>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#D4583C" Offset="0" />
+                                        <GradientStop Color="#8E2E18" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.85" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="GradeChip" TargetType="ToggleButton">
+        <Setter Property="MinWidth" Value="48" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Padding" Value="14,4" />
+        <Setter Property="Margin" Value="4,0" />
+        <Setter Property="FontFamily" Value="{StaticResource ShabnamBoldFont}" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="Foreground" Value="{StaticResource LeatherDarkBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Bd" CornerRadius="22"
+                            BorderBrush="{StaticResource LeatherDarkBrush}" BorderThickness="2"
+                            Background="#F1E2B7">
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"
+                                          TextElement.FontFamily="{TemplateBinding FontFamily}"
+                                          TextElement.FontSize="{TemplateBinding FontSize}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bd" Property="Background">
+                                <Setter.Value>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="{StaticResource GoldLight}" Offset="0" />
+                                        <GradientStop Color="{StaticResource Gold}" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Setter.Value>
+                            </Setter>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource LeatherDarkBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource GoldBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

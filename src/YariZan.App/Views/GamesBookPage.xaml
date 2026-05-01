@@ -5,33 +5,23 @@
              FontFamily="{DynamicResource ShabnamFont}"
              Background="Transparent">
     <UserControl.Resources>
+
         <Style x:Key="GameTile" TargetType="Button">
-            <Setter Property="Margin" Value="6" />
+            <Setter Property="Margin" Value="8" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FontFamily" Value="{DynamicResource ShabnamBoldFont}" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Foreground" Value="{StaticResource LeatherDarkBrush}" />
+            <Setter Property="Padding" Value="0" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="8" BorderBrush="{StaticResource LeatherBrush}"
-                                BorderThickness="1.5" Background="#FBEFCB">
+                        <Border x:Name="Bd" CornerRadius="10" BorderBrush="{StaticResource LeatherBrush}"
+                                BorderThickness="1.5" Background="#FBEFCB" SnapsToDevicePixels="True">
                             <Border.Effect>
-                                <DropShadowEffect Color="Black" BlurRadius="8" Opacity="0.25" ShadowDepth="2" />
+                                <DropShadowEffect Color="Black" BlurRadius="10" Opacity="0.3" ShadowDepth="2" />
                             </Border.Effect>
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <Border Grid.Row="0" Margin="6" CornerRadius="6" ClipToBounds="True"
-                                        Background="#22000000">
-                                    <Image Source="{Binding ImagePath, RelativeSource={RelativeSource AncestorType=Button}}"
-                                           Stretch="UniformToFill" />
-                                </Border>
-                                <TextBlock Grid.Row="1" Text="{Binding GameName, RelativeSource={RelativeSource AncestorType=Button}}"
-                                           HorizontalAlignment="Center" Margin="6,2,6,8" TextTrimming="CharacterEllipsis" />
-                            </Grid>
+                            <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -45,37 +35,45 @@
             </Setter>
         </Style>
 
-        <Style x:Key="GradeButton" TargetType="ToggleButton">
-            <Setter Property="Width" Value="44" />
-            <Setter Property="Height" Value="44" />
-            <Setter Property="Margin" Value="4,0" />
-            <Setter Property="FontFamily" Value="{DynamicResource ShabnamBoldFont}" />
-            <Setter Property="FontSize" Value="18" />
-            <Setter Property="Foreground" Value="{StaticResource LeatherDarkBrush}" />
+        <Style x:Key="InfoBadge" TargetType="Button">
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontFamily" Value="Georgia, Tahoma" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="20" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Bd" CornerRadius="22" BorderBrush="{StaticResource LeatherDarkBrush}"
-                                BorderThickness="2" Background="#F1E2B7">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Ellipse x:Name="Ring" Fill="{StaticResource LeatherBrush}"
+                                     Stroke="{StaticResource GoldBrush}" StrokeThickness="2">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="6" Opacity="0.4" ShadowDepth="1" />
+                                </Ellipse.Effect>
+                            </Ellipse>
+                            <TextBlock Text="i" FlowDirection="LeftToRight" FontFamily="Georgia"
+                                       FontStyle="Italic" FontWeight="Bold" FontSize="20"
+                                       Foreground="{StaticResource GoldBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="0,-2,0,0" />
+                        </Grid>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource GoldBrush}" />
-                            </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource GoldBrush}" />
+                                <Setter TargetName="Ring" Property="Fill" Value="{StaticResource LeatherDarkBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
     </UserControl.Resources>
 
     <Viewbox Stretch="Uniform">
-        <Grid Width="1180" Height="720">
+        <Grid Width="1200" Height="740">
 
             <Border CornerRadius="14" BorderBrush="{StaticResource LeatherDarkBrush}"
                     BorderThickness="3" Background="{StaticResource LeatherCoverBrush}">
@@ -91,15 +89,28 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="6,2,6,8">
-                    <TextBlock Text="کتاب بازی‌ها" FontFamily="{DynamicResource ShabnamBoldFont}"
+                <Grid Grid.Row="0" Margin="6,2,6,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="کتاب بازی‌ها" FontFamily="{DynamicResource ShabnamBoldFont}"
                                FontSize="22" Foreground="{StaticResource GoldBrush}"
-                               VerticalAlignment="Center" HorizontalAlignment="Right" Margin="8,0" />
+                               VerticalAlignment="Center" Margin="8,0" />
 
-                    <StackPanel x:Name="GradePicker" Orientation="Horizontal" HorizontalAlignment="Center" />
+                    <StackPanel Grid.Column="1" x:Name="GradePicker"
+                                Orientation="Horizontal" HorizontalAlignment="Center" />
 
-                    <Button Content="بازگشت" Style="{StaticResource GoldButton}" FontSize="14" Padding="14,6"
-                            HorizontalAlignment="Left" Click="Back_Click" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="بازگشت" Style="{StaticResource GoldButton}"
+                                FontSize="14" MinHeight="36" Padding="14,6"
+                                Click="Back_Click" Margin="6,0" />
+                        <Button Content="خروج" Style="{StaticResource ExitButton}"
+                                FontSize="14" MinHeight="36" Padding="14,6"
+                                Click="Exit_Click" Margin="6,0" />
+                    </StackPanel>
                 </Grid>
 
                 <Grid Grid.Row="1">
@@ -110,7 +121,7 @@
 
                     <Border Grid.Column="0" Background="{StaticResource ParchmentBrushGradient}"
                             CornerRadius="6" Margin="6,0,0,0">
-                        <UniformGrid x:Name="LeftPage" Rows="3" Columns="3" Margin="14" />
+                        <UniformGrid x:Name="LeftPage" Rows="2" Columns="3" Margin="14" />
                     </Border>
 
                     <Rectangle Grid.Column="0" Grid.ColumnSpan="2" Width="6"
@@ -118,19 +129,61 @@
 
                     <Border Grid.Column="1" Background="{StaticResource ParchmentBrushGradient}"
                             CornerRadius="6" Margin="0,0,6,0">
-                        <UniformGrid x:Name="RightPage" Rows="3" Columns="3" Margin="14" />
+                        <UniformGrid x:Name="RightPage" Rows="2" Columns="3" Margin="14" />
                     </Border>
                 </Grid>
 
-                <Grid Grid.Row="2" Margin="6,8,6,2">
-                    <Button Content="◄ صفحهٔ قبل" Style="{StaticResource GoldButton}" FontSize="14"
-                            Padding="14,6" HorizontalAlignment="Right" Click="PrevPage_Click" />
+                <Grid Grid.Row="2" Margin="6,10,6,2">
+                    <Button Content="◄ صفحهٔ قبل" Style="{StaticResource GoldButton}"
+                            FontSize="14" MinHeight="36" Padding="14,6"
+                            HorizontalAlignment="Right" Click="PrevPage_Click" />
                     <TextBlock x:Name="PageIndicator" FontFamily="{DynamicResource ShabnamBoldFont}"
                                FontSize="16" Foreground="{StaticResource GoldBrush}"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    <Button Content="صفحهٔ بعد ►" Style="{StaticResource GoldButton}" FontSize="14"
-                            Padding="14,6" HorizontalAlignment="Left" Click="NextPage_Click" />
+                    <Button Content="صفحهٔ بعد ►" Style="{StaticResource GoldButton}"
+                            FontSize="14" MinHeight="36" Padding="14,6"
+                            HorizontalAlignment="Left" Click="NextPage_Click" />
                 </Grid>
+            </Grid>
+
+            <!-- Modal info overlay -->
+            <Grid x:Name="InfoOverlay" Visibility="Collapsed" Background="#B0000000"
+                  MouseLeftButtonDown="Overlay_BackgroundClick">
+                <Border MaxWidth="640" Margin="40" CornerRadius="12"
+                        Background="{StaticResource ParchmentBrushGradient}"
+                        BorderBrush="{StaticResource LeatherDarkBrush}" BorderThickness="3"
+                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                        MouseLeftButtonDown="Overlay_PanelClick">
+                    <Border.Effect>
+                        <DropShadowEffect Color="Black" BlurRadius="40" Opacity="0.7" ShadowDepth="0" />
+                    </Border.Effect>
+                    <Grid Margin="28">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" x:Name="InfoTitle" FontFamily="{DynamicResource ShabnamBoldFont}"
+                                   FontSize="26" Foreground="{StaticResource LeatherDarkBrush}"
+                                   TextAlignment="Center" />
+
+                        <Border Grid.Row="1" Margin="0,12,0,0" Height="2" Background="{StaticResource GoldBrush}" Opacity="0.5" />
+
+                        <ScrollViewer Grid.Row="2" MaxHeight="320" VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
+                            <TextBlock x:Name="InfoBody" FontSize="18" Foreground="{StaticResource InkBrush}"
+                                       TextWrapping="Wrap" TextAlignment="Justify" LineHeight="32" />
+                        </ScrollViewer>
+
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
+                            <Button Content="اجرا" Style="{StaticResource GoldButton}" MinWidth="140"
+                                    Click="InfoLaunch_Click" Margin="6,0" />
+                            <Button Content="بستن" Style="{StaticResource ExitButton}" MinWidth="100"
+                                    Click="InfoClose_Click" Margin="6,0" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
             </Grid>
         </Grid>
     </Viewbox>

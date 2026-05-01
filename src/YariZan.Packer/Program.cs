@@ -47,6 +47,11 @@ for (int g = 1; g <= 6; g++)
         var jpgSrc = Path.Combine(gradeDir, name + ".jpg");
         var imageSrc = File.Exists(pngSrc) ? pngSrc : (File.Exists(jpgSrc) ? jpgSrc : null);
 
+        var txtSrc = Path.Combine(gradeDir, name + ".txt");
+        var description = File.Exists(txtSrc)
+            ? File.ReadAllText(txtSrc, System.Text.Encoding.UTF8).Trim()
+            : "";
+
         var safe = "g" + g + "_" + Math.Abs(name.GetHashCode()).ToString("x8");
         var encName = safe + ".dat";
         var imgName = imageSrc != null ? safe + Path.GetExtension(imageSrc) : "";
@@ -57,8 +62,10 @@ for (int g = 1; g <= 6; g++)
         entry.Games.Add(new GameEntry
         {
             Name = name,
+            Grade = g,
             EncryptedFile = g + "/" + encName,
             ImageFile = imgName.Length > 0 ? g + "/" + imgName : "",
+            Description = description,
         });
         total++;
         Console.WriteLine($"[grade {g}] {name}  →  {encName}");
