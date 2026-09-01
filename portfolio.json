@@ -1,0 +1,288 @@
+{
+  "$schema": "https://raw.githubusercontent.com/osameh15/osameh.dev/main/portfolio.schema.json",
+  "schemaVersion": "1.0.0",
+  "project": {
+    "slug": "YariZan",
+    "name": "YariZan — یاریزان",
+    "tagline": "Persian educational mini-game launcher with hardware-bound activation and encrypted game assets.",
+    "summary": "A .NET 9 WPF launcher for grades 1–6, designed as an RTL leather-book experience with HWID-bound ECDSA activation, AES-256-GCM encrypted game packages, trial mode, packaging tools and installer workflow.",
+    "type": "Windows desktop application / launcher",
+    "lifecycle": "active",
+    "featured": true,
+    "featuredOrder": 1,
+    "legacy": false
+  },
+  "ownership": {
+    "role": "Software Developer & System Designer",
+    "collaboration": "solo",
+    "organization": null,
+    "responsibilities": [
+      "WPF product architecture",
+      "Persian/RTL interaction design",
+      "Activation and cryptographic workflow",
+      "Game packaging pipeline",
+      "Serial generation tooling",
+      "Installer/release workflow",
+      "Security documentation"
+    ]
+  },
+  "links": {
+    "repository": "https://github.com/osameh15/YariZan",
+    "live": null,
+    "demo": null,
+    "documentation": null,
+    "package": null
+  },
+  "repository": {
+    "owner": "osameh15",
+    "defaultBranch": "main",
+    "license": "Proprietary",
+    "name": "YariZan"
+  },
+  "stack": {
+    "languages": [
+      "C#",
+      "XAML",
+      "PowerShell"
+    ],
+    "frameworks": [
+      ".NET 9",
+      "WPF"
+    ],
+    "libraries": [],
+    "platforms": [
+      "Windows Desktop"
+    ],
+    "databases": [],
+    "tooling": [
+      "dotnet CLI",
+      "GitHub Actions",
+      "Inno Setup"
+    ],
+    "concepts": [
+      "ECDSA-P256",
+      "AES-256-GCM",
+      "PBKDF2-SHA256",
+      "HWID binding",
+      "DRM threat modeling",
+      "RTL UX",
+      "Build-time packaging"
+    ]
+  },
+  "caseStudy": {
+    "problem": "Educational mini-games needed a polished Persian launcher that organizes content by grade while preventing casual sharing of purchased content and activation files.",
+    "solution": "Create a WPF book-style launcher backed by machine-bound signed activation, encrypted game blobs, a packer tool, a serial-generation tool and a controlled decrypt-run-cleanup execution flow.",
+    "highlights": [
+      "Book-style Persian RTL interface",
+      "Six grade catalog with extensible game discovery",
+      "ECDSA-P256 machine-bound serials",
+      "AES-256-GCM encrypted games at rest",
+      "Two-launch trial mode",
+      "Dedicated SerialGen and Packer tools",
+      "Installer and CI documentation"
+    ],
+    "challenges": [
+      {
+        "title": "Offline machine activation",
+        "description": "Serials must validate locally without shipping the private signing key.",
+        "resolution": "Sign a versioned HWID payload with ECDSA-P256 and ship only the public key in the launcher."
+      },
+      {
+        "title": "Protecting packaged games",
+        "description": "Bundled game executables should not be trivially extractable from the installation directory.",
+        "resolution": "Encrypt games with AES-256-GCM, decrypt on demand to a restricted temporary directory and clean up after execution."
+      },
+      {
+        "title": "Persian visual metaphor",
+        "description": "The application should feel like a physical educational book while preserving correct RTL reading order.",
+        "resolution": "Build a custom WPF book interface with RTL layout, Shabnam font and page-oriented navigation."
+      }
+    ],
+    "results": [
+      "Self-contained launcher, activation and packaging toolchain",
+      "Explicit threat model documents realistic DRM limits",
+      "Repository includes architecture, security, build and CI documentation"
+    ]
+  },
+  "architecture": {
+    "summary": "The solution separates the WPF launcher from a core security/domain library and two operator tools: SerialGen signs machine activation and Packer transforms source mini-games into encrypted distributable assets.",
+    "nodes": [
+      {
+        "id": "app",
+        "label": "YariZan.App",
+        "type": "ui"
+      },
+      {
+        "id": "core",
+        "label": "YariZan.Core",
+        "type": "domain"
+      },
+      {
+        "id": "serial",
+        "label": "YariZan.SerialGen",
+        "type": "tool"
+      },
+      {
+        "id": "packer",
+        "label": "YariZan.Packer",
+        "type": "tool"
+      },
+      {
+        "id": "sourcegames",
+        "label": "miniApps/",
+        "type": "data"
+      },
+      {
+        "id": "encrypted",
+        "label": "games_encrypted/",
+        "type": "data"
+      },
+      {
+        "id": "machine",
+        "label": "Windows machine / HWID",
+        "type": "external"
+      }
+    ],
+    "edges": [
+      {
+        "from": "app",
+        "to": "core",
+        "label": "uses"
+      },
+      {
+        "from": "serial",
+        "to": "core",
+        "label": "signs via"
+      },
+      {
+        "from": "packer",
+        "to": "core",
+        "label": "encrypts via"
+      },
+      {
+        "from": "sourcegames",
+        "to": "packer",
+        "label": "input"
+      },
+      {
+        "from": "packer",
+        "to": "encrypted",
+        "label": "output"
+      },
+      {
+        "from": "app",
+        "to": "encrypted",
+        "label": "decrypts/runs"
+      },
+      {
+        "from": "core",
+        "to": "machine",
+        "label": "derives HWID"
+      }
+    ]
+  },
+  "media": {
+    "cover": {
+      "strategy": "first-gallery-image",
+      "path": null,
+      "alt": "YariZan — یاریزان"
+    },
+    "gallery": {
+      "autoDiscover": true,
+      "include": [
+        "images/**",
+        "Images/**",
+        "docs/**",
+        "screenshots/**",
+        "Screenshots/**",
+        "media/**",
+        "assets/**",
+        "Assets/**"
+      ],
+      "exclude": [
+        "**/node_modules/**",
+        "**/vendor/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/bin/**",
+        "**/obj/**",
+        "**/coverage/**",
+        "**/.cache/**",
+        "**/.git/**"
+      ],
+      "extensions": [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".gif",
+        ".svg"
+      ],
+      "preferred": [
+        "docs/**",
+        "src/YariZan.App/Resources/**",
+        "miniApps/**"
+      ]
+    },
+    "screenshots": []
+  },
+  "sourceExplorer": {
+    "enabled": true,
+    "maxFileSizeKb": 300,
+    "exclude": [
+      "node_modules/**",
+      "vendor/**",
+      "dist/**",
+      "build/**",
+      "bin/**",
+      "obj/**",
+      "coverage/**",
+      ".cache/**",
+      ".git/**",
+      "*.lock",
+      "*.min.js",
+      "*.map"
+    ],
+    "entryPoints": [
+      "src/YariZan.sln",
+      "src/YariZan.App/",
+      "src/YariZan.Core/",
+      "src/YariZan.SerialGen/",
+      "src/YariZan.Packer/",
+      "docs/"
+    ]
+  },
+  "recruiter": {
+    "headline": "Desktop product engineering combining UX, cryptography, tooling and deployment workflow.",
+    "skillsDemonstrated": [
+      "C#",
+      ".NET 9",
+      "WPF",
+      "System design",
+      "Applied cryptography",
+      "Security modeling",
+      "Build tooling",
+      "RTL UX"
+    ],
+    "talkingPoints": [
+      "Separates runtime, core security logic and operator tools",
+      "Uses public-key signatures so the private signing key never ships",
+      "Documents threat-model limits instead of overstating DRM security"
+    ]
+  },
+  "seo": {
+    "title": "YariZan — یاریزان — Osameh Irandoust",
+    "description": "A .NET 9 WPF launcher for grades 1–6, designed as an RTL leather-book experience with HWID-bound ECDSA activation, AES-256-GCM encrypted game packages, trial mode, packaging tools and installer workflow.",
+    "keywords": [
+      "C#",
+      ".NET 9",
+      "WPF",
+      "Persian",
+      "educational games",
+      "ECDSA",
+      "AES-GCM",
+      "HWID",
+      "desktop launcher"
+    ]
+  }
+}
