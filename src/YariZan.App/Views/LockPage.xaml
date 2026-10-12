@@ -84,7 +84,7 @@
 
                     <!-- Primary actions: paid activation + free trial. Equal weight — user picks. -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
-                        <Button Content="فعال‌سازی" Style="{StaticResource GoldButton}" MinWidth="180"
+                        <Button x:Name="ActivateButton" Content="فعال‌سازی" Style="{StaticResource GoldButton}" MinWidth="180"
                                 Click="Activate_Click" Margin="6,0" />
                         <Button x:Name="TrialButton" Style="{StaticResource GoldButton}" MinWidth="220"
                                 Click="Trial_Click" Margin="6,0" />

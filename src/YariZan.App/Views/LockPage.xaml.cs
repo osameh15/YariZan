@@ -51,6 +51,7 @@ public partial class LockPage : UserControl
     {
         if (_refreshing) return;
         _refreshing = true;
+        ActivateButton.IsEnabled = false;
         var savedActivation = ActivationStore.Load();
         TrialButton.IsEnabled = false;
         TrialButton.Content = "بررسی ارتباط…";
@@ -87,7 +88,7 @@ public partial class LockPage : UserControl
                 ? "سرور آزمایش در دسترس نیست. ارتباط اینترنت را بررسی کنید و دوباره تلاش کنید، یا سریال را وارد کنید."
                 : "برای بررسی دسترسی و فعال‌سازی، به اینترنت متصل شوید.";
         }
-        finally { _refreshing = false; }
+        finally { _refreshing = false; ActivateButton.IsEnabled = true; }
     }
 
     private static string ToPersianDigits(string s)
