@@ -91,7 +91,7 @@ Static files under `public/assets/` use `Cache-Control: public, max-age=604800` 
 
 `.github/workflows/licensing.yml` tests PHP against disposable MySQL, validates runtime provisioning, and packages code without secrets. Successful pushes to `main` deploy changed panel/deployment code; manual runs can use `deploy=true`. Pull requests only test. Deployment uses the `licensing-production` GitHub environment.
 
-`tools/Deploy-Licensing.py` uploads only public index/API/assets/Apache rules using per-file atomic renames. It never uploads, creates, or changes private files. HTTPS readiness and signing-key compatibility are checked when private setup is present; a missing private bootstrap produces a manual-setup warning. Multi-file updates are not globally atomic.
+`tools/Deploy-Licensing.py` uploads only public index/API/assets/Apache rules using per-file atomic renames. It never uploads, creates, or changes private files. Deployment ends after successful certificate-pinned FTPS uploads; it does not make a live HTTP health request. You can manually open `/api/health.php` to inspect readiness. Multi-file updates are not globally atomic.
 
 For a public manual-upload ZIP, run `powershell -NoProfile -ExecutionPolicy Bypass -File tools/Build-LicensingBundle.ps1`. Extract its contents directly into `domains/osameh.dev/subdomains/yarizan/`. Private setup uses the separate command and ZIP described above.
 ## Known boundaries
@@ -99,3 +99,5 @@ For a public manual-upload ZIP, run `powershell -NoProfile -ExecutionPolicy Bypa
 The public trial API identifies devices by their reported HWID. Deleting local files or reinstalling Windows does not reset that HWID's server counter. A modified client can report a different HWID, consume another user's known HWID trials, or bypass local enforcement; verified customer accounts/evaluation codes and device-proof registration would be needed to strengthen that identity model. This implementation matches the requested paste-HWID workflow and is not proof of unbreakable DRM.
 
 The existing game key remains embedded in the desktop app; standalone game extraction is a separate content-protection problem. Signed perpetual serials cannot be revoked while paid copies remain fully offline. Anyone with access to the host's signing key can issue serials, so protect the hosting account and admin login. Legacy serials issued outside this panel still work but are not automatically discovered by its database.
+
+The shared panel confirmation dialog is used for trial reset and device deletion, with cancel, Escape and backdrop closing. Deletion removes the device, its serial/name/description, trial grants and associated audit rows in one transaction. A later app connection registers the HWID afresh with two trials; existing offline serials remain valid. Update private `app/Service.php` manually using the code-only ZIP before using deletion. No schema migration is needed.

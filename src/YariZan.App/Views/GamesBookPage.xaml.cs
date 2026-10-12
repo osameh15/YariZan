@@ -102,7 +102,7 @@ public partial class GamesBookPage : UserControl
         if (_grade == AllGradesValue)
             return _library.Manifest.Grades
                 .OrderBy(g => g.Grade)
-                .SelectMany(g => g.Games)
+                .SelectMany(g => _library.GamesFor(g.Grade))
                 .ToList();
         return _library.GamesFor(_grade).ToList();
     }

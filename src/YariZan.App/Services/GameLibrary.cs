@@ -24,5 +24,6 @@ public sealed class GameLibrary
         Manifest.Grades.Where(g => g.Games.Count > 0).Select(g => g.Grade).OrderBy(x => x).ToList();
 
     public IReadOnlyList<GameEntry> GamesFor(int grade) =>
-        Manifest.Grades.FirstOrDefault(g => g.Grade == grade)?.Games ?? new List<GameEntry>();
+        Manifest.Grades.FirstOrDefault(g => g.Grade == grade)?.Games
+            .OrderBy(g => g.Name, GameNameComparer.Instance).ToList() ?? new List<GameEntry>();
 }

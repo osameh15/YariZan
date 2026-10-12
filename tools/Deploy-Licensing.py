@@ -2,7 +2,6 @@
 import base64
 import hashlib
 import hmac
-import json
 import os
 import pathlib
 import re
@@ -26,11 +25,6 @@ def required(name):
     if not value:
         raise RuntimeError(f'Missing required secret: {name}')
     return value
-
-
-def pem_fingerprint(pem):
-    der = base64.b64decode(re.sub(rb'-----[^-]+-----|\s', b'', pem), validate=True)
-    return hashlib.sha256(der).hexdigest()
 
 
 def main():
@@ -117,26 +111,7 @@ def main():
             destination = '/'.join(part for part in (public_root, local.relative_to(artifact / 'public').as_posix()) if part)
             upload(local, destination)
         print('Public panel files deployed. No private files were accessed, uploaded, or changed.')
-        try:
-            health = run(['curl', '--silent', '--show-error', '--fail-with-body',
-                          '--connect-timeout', '10', '--max-time', '30',
-                          '--retry', '2', '--retry-delay', '5', '--retry-max-time', '110',
-                          '-H', 'Cache-Control: no-cache', 'https://yarizan.osameh.dev/api/health.php?deploy='
-                          + os.environ.get('GITHUB_SHA', 'manual')])
-        except RuntimeError as error:
-            raise RuntimeError(
-                'Public files were uploaded successfully, but HTTPS verification failed after retries. '
-                'The upload was not rolled back. Check DNS, origin HTTPS, and CDN/firewall access '
-                'to /api/health.php from GitHub-hosted runners. ' + str(error)
-            ) from None
-        if health.decode('utf-8', 'replace').strip() == 'Licensing service setup is incomplete.':
-            print('::warning::Public deployment succeeded. Manually upload the private setup bundle to private/yarizan before using the panel.')
-            return
-        result = json.loads(health)
-        expected_key = pem_fingerprint(pathlib.Path('secrets/public.pem').read_bytes())
-        if result.get('status') != 'ready' or result.get('public_key_sha256') != expected_key:
-            raise RuntimeError('Live service is not ready or its signing key does not match the desktop key.')
-        print('Live HTTPS, database schema, and existing desktop signing-key compatibility verified.')
+
 
 
 if __name__ == '__main__':

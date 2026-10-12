@@ -26,7 +26,44 @@ document.addEventListener('click', async (event) => {
   }
   setTimeout(() => { status.textContent = ''; }, 3500);
 });
+const confirmationDialog = document.getElementById('confirmation-dialog');
+const approvedForms = new WeakSet();
+let pendingAction = null;
 document.addEventListener('submit', (event) => {
-  const message = event.target.dataset.confirm;
-  if (message && !window.confirm(message)) event.preventDefault();
+  const form = event.target;
+  if (approvedForms.has(form)) { approvedForms.delete(form); return; }
+  const message = form.dataset.confirm;
+  if (!message) return;
+  event.preventDefault();
+  if (!confirmationDialog || pendingAction) return;
+  const deleting = form.elements.action?.value === 'delete_device';
+  document.getElementById('confirmation-title').textContent = deleting ? 'حذف دستگاه' : 'بازنشانی آزمایش';
+  document.getElementById('confirmation-message').textContent = message;
+  const confirmButton = document.getElementById('confirmation-accept');
+  confirmButton.textContent = deleting ? 'حذف دستگاه' : 'بازنشانی آزمایش';
+  confirmButton.classList.toggle('destructive', deleting);
+  pendingAction = { form, submitter: event.submitter };
+  confirmationDialog.showModal();
+});
+document.getElementById('confirmation-accept')?.addEventListener('click', () => {
+  if (!pendingAction) return;
+  const { form, submitter } = pendingAction;
+  confirmationDialog.close();
+  pendingAction = null;
+  approvedForms.add(form);
+  if (submitter) form.requestSubmit(submitter);
+  else form.requestSubmit();
+});
+document.querySelectorAll('[data-close-confirmation]').forEach((button) => {
+  button.addEventListener('click', () => { pendingAction = null; confirmationDialog.close(); });
+});
+confirmationDialog?.addEventListener('cancel', () => { pendingAction = null; });
+confirmationDialog?.addEventListener('close', () => { if (!confirmationDialog.open) pendingAction = null; });
+confirmationDialog?.addEventListener('click', (event) => {
+  if (event.target !== confirmationDialog) return;
+  const bounds = confirmationDialog.getBoundingClientRect();
+  if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) {
+    pendingAction = null;
+    confirmationDialog.close();
+  }
 });

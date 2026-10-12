@@ -85,6 +85,13 @@ try {
                 if ($result === 'granted') $successes++;
             }
             check($successes === 2 && $service->status($hwid)['remaining'] === 0, 'Concurrent processes receive exactly two grants');
+            $service->deleteDevice($hwid);
+            foreach (['devices', 'trial_grants', 'audit_events'] as $table) {
+                $stmt = $db->prepare("SELECT COUNT(*) FROM $table WHERE hwid = ?"); $stmt->execute([$hwid]);
+                check((int)$stmt->fetchColumn() === 0, 'Device deletion clears ' . $table);
+            }
+            $service->deleteDevice($hwid);
+            check($service->status($hwid)['remaining'] === 2, 'Deleted device registers fresh without reusing serial or trial');
         } finally {
             foreach (['trial_grants', 'audit_events', 'devices'] as $table) {
                 $stmt = $db->prepare("DELETE FROM $table WHERE hwid = ?"); $stmt->execute([$hwid]);

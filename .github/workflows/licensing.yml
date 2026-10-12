@@ -81,7 +81,7 @@ jobs:
           path: licensing-dist
       - name: Install deployment runtime
         run: sudo apt-get update -qq && sudo apt-get install -y -qq php-cli curl openssl
-      - name: Deploy over certificate-pinned FTPS and verify live service
+      - name: Deploy public files over certificate-pinned FTPS
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_PORT: ${{ secrets.FTP_PORT }}

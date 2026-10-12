@@ -43,7 +43,7 @@ for (int g = 1; g <= 6; g++)
     Directory.CreateDirectory(outGradeDir);
 
     foreach (var exe in Directory.EnumerateFiles(gradeDir, "*.exe")
-                                  .OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+                                  .OrderBy(Path.GetFileNameWithoutExtension, GameNameComparer.Instance))
     {
         var name = Path.GetFileNameWithoutExtension(exe);
         var pngSrc = Path.Combine(gradeDir, name + ".png");

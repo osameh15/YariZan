@@ -122,6 +122,23 @@ final class Service
         }
     }
 
+    public function deleteDevice(string $hwid): void
+    {
+        $this->db->beginTransaction();
+        try {
+            $lock = $this->db->prepare('SELECT hwid FROM devices WHERE hwid = ? FOR UPDATE');
+            $lock->execute([$hwid]);
+            foreach (['trial_grants', 'audit_events', 'devices'] as $table) {
+                $stmt = $this->db->prepare("DELETE FROM $table WHERE hwid = ?");
+                $stmt->execute([$hwid]);
+            }
+            $this->db->commit();
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $error;
+        }
+    }
+
     private function audit(string $action, string $hwid, string $actor): void
     {
         $stmt = $this->db->prepare('INSERT INTO audit_events (action, hwid, actor) VALUES (?, ?, ?)');
