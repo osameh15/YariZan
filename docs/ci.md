@@ -1,109 +1,42 @@
-# CI
+﻿# CI and deployment
 
-## Do you need it?
+## Desktop checks
 
-Honest take, scoped to *this* project today: **not strictly.** It's a Windows‑only WPF app, single developer, no test suite yet, manual release cadence. A build‑only CI catches very little that you wouldn't notice in your next `dotnet run`.
+`.github/workflows/ci.yml` runs on main pushes/PRs and manually. Windows/.NET 9 restores, rejects tracked private files, generates ephemeral runner keys, packs an empty catalog, builds Release, runs isolated access/grant checks, and verifies the EXE exists.
 
-CI starts to earn its keep when **any** of these become true:
+It does not use production keys/games/customer state or produce a production installer. Build actual releases locally with [build-and-pack.md](build-and-pack.md).
 
-| Trigger | What CI gives you |
-|---------|-------------------|
-| You add unit tests | Catches regressions before merge — the biggest payoff |
-| Contributors join | Every PR builds automatically; no "works on my machine" |
-| You want release automation | Tag a version → CI builds → uploads `YariZan-win-x64.zip` to GitHub Releases |
-| You add code‑signing | Centralizes the signing certificate in one secure CI secret instead of every dev's machine |
-
-For now this repo carries one minimal workflow at `.github/workflows/ci.yml` that just verifies the solution builds. It's there as scaffolding — flip it on (push to GitHub) and it costs you nothing; ignore it for as long as you want.
-
-## What the included workflow does
-
-```yaml
-on: [push to main, pull_request, workflow_dispatch]
-runs-on: windows-latest
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/Run-AccessChecks.ps1
+py tools/Check-PublicRepository.py
 ```
 
-1. **Checks out** the repo.
-2. **Installs .NET 9** SDK on the runner.
-3. **Restores** NuGet for `src/YariZan.sln`.
-4. **Generates ephemeral keys** by running `YariZan.SerialGen init`. These keys live only in the runner sandbox and disappear when the job ends. **Your real `secrets/private.pem` and `secrets/master.key` never leave your machine.**
-5. **Packs** the sample games in `miniApps/` so the launcher project has something to embed.
-6. **Builds Release** for the entire solution (`Core`, `App`, `SerialGen`, `Packer`).
-7. **Smoke check**: confirms `YariZan.exe` was produced.
+## Panel checks and deploy
 
-## Why ephemeral keys are safe
+`.github/workflows/licensing.yml` runs for the panel and listed deployment/check paths, plus manual runs. Ubuntu/PHP/disposable MySQL lint PHP, verify the repository boundary, test database/service/runtime preparation, and validate Python syntax. Artifact `yarizan-licensing` contains only `public/`.
 
-The `secrets/` directory is `.gitignored` for `private.pem` and `master.key`. The CI workflow regenerates them per‑run inside the GitHub‑hosted runner; nothing is uploaded back to GitHub, and the runner is destroyed after the job. This means:
+Successful matching main pushes deploy using environment `licensing-production`. Manual runs require `deploy=true` on main. PRs never deploy.
 
-- ✅ Your real signing key stays offline on your machine.
-- ✅ CI can still build the entire solution end‑to‑end (including the launcher's embedded resources).
-- ❌ A binary produced by CI is **not shippable** — its embedded master key is one‑time, so you couldn't later issue serials that would unlock games for that build.
+| Secret | Value |
+|---|---|
+| `FTP_HOST` | `2450773172.cloudylink.com` |
+| `FTP_PORT` | `21` |
+| `FTP_USERNAME` | Dedicated account username |
+| `FTP_PASSWORD` | Dedicated account password |
+| `FTP_CERT_FINGERPRINT` | Verified server certificate SHA-256 fingerprint; current script also accepts SHA-1 |
 
-This is on purpose. Releases should always be built **on your machine** with your real keys, not by CI. CI here is a *correctness* check, not a release pipeline.
+Confirm fingerprint with your provider, including after certificate rotation. Deployment verifies it before credentials and pins the verified key on transfers. FTP may open directly at the subdomain public root; no private-folder access is required.
 
-## Adding tests later
+`Deploy-Licensing.py` uses staged per-file renames; multi-file updates are not globally atomic. It never updates private PHP/schema/config/keys. Upload these separately using [hosting instructions](../web/licensing/README.md#updating-this-release).
 
-When you write your first xUnit / NUnit project (e.g. `tests/YariZan.Core.Tests/`), uncomment the test step in `ci.yml`:
+**CI has no HTTP health check.** Green deployment means public FTPS uploads completed, not that live PHP/database readiness is verified. Manually open `https://yarizan.osameh.dev/api/health.php`, check `status: ready`, then test login and app access. Hosting/CDN restrictions on runner networks can differ from browser access; report timestamps and details to the provider.
 
-```yaml
-- name: Test
-  run: dotnet test src/YariZan.sln --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+## Manual public upload
 
-- name: Upload test results
-  if: always()
-  uses: actions/upload-artifact@v4
-  with:
-    name: test-results
-    path: '**/TestResults/*.trx'
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/Build-LicensingBundle.ps1
 ```
 
-## Adding release automation later
+Extract `publish/YariZan-licensing-panel.zip` directly into the public root, including `.htaccess`. This ZIP contains public files at root; CI artifacts have a `public/` wrapper. Neither includes private setup.
 
-When you're ready to ship from CI (will require shipping your real `master.key` to GitHub Secrets — read the trade‑off carefully):
-
-```yaml
-on:
-  push:
-    tags: ['v*']
-
-jobs:
-  release:
-    runs-on: windows-latest
-    steps:
-      # ... checkout + setup-dotnet ...
-
-      - name: Restore real secrets from GH Secrets
-        env:
-          PRIVATE_PEM: ${{ secrets.YARIZAN_PRIVATE_PEM }}
-          PUBLIC_PEM:  ${{ secrets.YARIZAN_PUBLIC_PEM }}
-          MASTER_KEY_B64: ${{ secrets.YARIZAN_MASTER_KEY_B64 }}
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path secrets | Out-Null
-          $env:PRIVATE_PEM | Out-File -FilePath secrets/private.pem -Encoding ascii
-          $env:PUBLIC_PEM  | Out-File -FilePath secrets/public.pem  -Encoding ascii
-          [IO.File]::WriteAllBytes("secrets/master.key", [Convert]::FromBase64String($env:MASTER_KEY_B64))
-
-      - name: Pack & Publish
-        run: |
-          dotnet run --project src/YariZan.Packer
-          dotnet publish src/YariZan.App/YariZan.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true -o publish/YariZan-win-x64
-
-      - name: Zip
-        shell: pwsh
-        run: Compress-Archive -Path publish/YariZan-win-x64/* -DestinationPath publish/YariZan-${{ github.ref_name }}-win-x64.zip
-
-      - name: Attach to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: publish/YariZan-${{ github.ref_name }}-win-x64.zip
-```
-
-**Trade‑off**: storing `master.key` as a GitHub secret means anyone with admin on your repo (or who steals your GitHub account) can extract it. For a small operation, keeping the release build local on your machine is safer. For a team, the convenience of `git tag v1.2 && git push --tags` triggering a signed release may be worth it.
-
-## Cost
-
-GitHub Actions on public repos is **free**. On private repos, you get 2,000 free minutes/month for Free accounts (more on paid). A single build run for this project is ~2 min, so even with several pushes a day you're nowhere near the cap.
-
-## Summary
-
-The workflow ships in this repo. Do nothing → it stays inert. Push to GitHub → CI starts running on every push. Add tests → uncomment the test step. Want release automation → see the snippet above.
+See [panel checks/preview](../web/licensing/README.md#tests-and-local-preview). Never deploy preview credentials. Use Conventional Commit prefixes (`feat:`, `fix:`, `chore:`, `docs:`), configured SSH signing and the SSH Git remote.

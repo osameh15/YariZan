@@ -1,116 +1,43 @@
-# Security model
+﻿# Security and access policy
 
-The desktop now obtains signed trial-session grants from the PHP/MySQL service. Trial usage and admin resets are server-side; local `TrialStore` data is retained only as a legacy utility/test fixture. Paid serial activation remains offline. See `web/licensing/README.md` for the current protocol, server identity limitations, and private-key deployment requirements. The local trial-file formats below document the previous mechanism.
+## Current behavior
 
-## Goals
+Paid/trial access requires online validation. A valid local signature or saved activation alone cannot authorize the official app. MySQL controls current serials, trial counters/grants and blocked HWIDs.
 
-1. A serial sold to one customer must not unlock another machine.
-2. Mini‑games shipped with the launcher must not be trivially extractable as runnable `.exe` files.
-3. Forging a serial must require breaking either ECDSA‑P256 or stealing the seller's private key.
-4. Cracking the launcher binary alone should not be enough to unlock games for an arbitrary HWID.
-5. The 2‑launch trial cannot be reset by deleting a single file or registry value.
+Checks occur when opening the book, before each game launch, and every 60 seconds in an authorized session. Failure revokes in-memory access, stops games started by the launcher, and shows Lock. Revocation is detected at the next check plus network delay; it is not instantaneous push notification.
 
-## Honest non‑goal
+Ordinary outages preserve the saved serial. Retry validates it automatically when connectivity returns. A rejected serial cannot grant access or fall back automatically to trial registration. Enter a replacement serial once.
 
-> **Local Windows DRM is never absolute.** A determined attacker with admin rights on their own PC can always observe a launched mini‑game in the temp directory and copy it. The protections here defeat *casual* extraction (file managers, archive tools, hex editors), not nation‑state reverse engineers. This is the same ceiling every commercial DRM hits.
+## Device identity
 
----
+HWID is uppercase SHA-256 of `YariZan-HWID-v1|` plus available WMI motherboard serial, processor ID, BIOS serial and disk index 0 serial, separated by `|`. If none is available, machine/user names are the fallback. It often survives reinstall on unchanged hardware, but hardware/WMI/fallback changes can alter it. HWID is an identifier, not a secret or proof of physical device possession.
 
-## Primitives
+## Signatures and trial state
 
-| Concern | Choice | Why |
-|---------|--------|-----|
-| Hardware fingerprint | SHA‑256 of (BaseBoard SN ‖ Processor ID ‖ BIOS SN ‖ Disk0 SN), versioned | Stable across reboots, unique per box, no dependency on changeable Windows installs (no MAC). |
-| Serial signing | ECDSA‑P256 over `"YariZan-Serial-v1\|" + HWID` | Asymmetric → only the **public** key ships in the app. ~64 byte sigs → ~103 Base32 chars. |
-| Game encryption | AES‑256‑GCM, random nonce per file | Authenticated; integrity check rejects tampering before launch. |
-| Activation file key | PBKDF2‑SHA256(HWID, "YariZan‑Activation‑v1", 100k) → 32 bytes | Binds activation file to the same machine that produced the HWID. |
+Serials are Base32-formatted ECDSA-P256/SHA-256 signatures of `YariZan-Serial-v1|HWID`. The private key never ships with the desktop. Metadata edits preserve serials; regeneration creates a replacement and server checks reject the old one even though its signature remains valid.
 
-## File format
+Trial signatures bind `YariZan-Trial-v1|HWID|NONCE|REMAINING`. Authorization signs `YariZan-Access-v1|HWID|CHECK_NONCE|MODE|CREDENTIAL_HASH`. Mode is paid/trial; hash is uppercase SHA-256 of normalized credential. The app checks all fields and the fresh nonce using a 64-byte raw P-256 signature. Unsigned trial status only registers/displays remaining entries.
 
-### Encrypted game (`games_encrypted/<grade>/g<grade>_<hash>.dat`)
-```
-0      4              16              32              N
-+------+--------------+--------------+----------------+
-| YZG1 | nonce (12 B) |  tag (16 B)  |    ciphertext  |
-+------+--------------+--------------+----------------+
-```
+InnoDB transactions and retained consumption nonces prevent concurrent overspending and retry double charges. New processes use fresh trial nonces. Panel reset removes prior grants and restores two entries; active trials fail their next validation.
 
-### Activation store (`%LocalAppData%\YariZan\activation.dat`)
-```
-0      4              16              32              N
-+------+--------------+--------------+----------------+
-| YZA1 | nonce (12 B) |  tag (16 B)  |    ciphertext  |
-+------+--------------+--------------+----------------+
-ciphertext = AES-GCM(JSON {hwid, serial})
-```
+## Local protection
 
-### Trial store (mirrored)
+`%LocalAppData%/YariZan/activation.dat` uses AES-256-GCM and an HWID-derived PBKDF2-SHA256 key with 100,000 iterations. Loading verifies HWID/serial; online validation remains mandatory. Uninstall retains it. This is casual-copy protection, not a secret unavailable to modified clients.
 
-Two identical encrypted blobs, written together on every increment:
+Games use AES-256-GCM with a 32-byte embedded master key. Manifest metadata/thumbnails are not encrypted. Decrypted games run from restricted temporary directories; cleanup is attempted after use and access loss stops owned processes. Legacy local trial file/registry mirrors do not authorize this app or reset MySQL usage.
 
-| Location | Why |
-|----------|-----|
-| `%LocalAppData%\YariZan\trial.dat` | Primary, easy to reach for `reset-trial` |
-| `HKCU\Software\YariZan\State` value `T` (`REG_BINARY`) | Survives `LocalAppData` wipes / portable‑mode tricks |
+## Hosting and repository
 
-Per‑blob format:
-```
-0      4              16              32              N
-+------+--------------+--------------+----------------+
-| YZT1 | nonce (12 B) |  tag (16 B)  |    ciphertext  |
-+------+--------------+--------------+----------------+
-ciphertext = AES-GCM(JSON {hwid, count, firstLaunchUtc})
-key       = PBKDF2(HWID, "YariZan-Trial-v1", 100k iterations)
-```
+Keep implementation, SQL, admin credentials, DB config and signing keys outside every document root. Private folder permissions are 700; sensitive files 600; PHP runs as the account owner. Serve HTTPS and bypass CDN caching/challenges for dynamic/admin/API routes. Cache only versioned assets.
 
-**Read rule**: if both stores are present, the higher `count` wins. Deleting one mirror to "roll back" the count therefore does nothing — the surviving copy holds the line.
+Admin actions use password hashes, authenticated sessions, CSRF protection, rate limits and confirmation dialogs. Serials are intentionally visible to the administrator. Keep database/key/admin backups securely. Privacy checks reject tracked sensitive files; ignored local files still need exclusion from manual sharing.
 
-**HWID binding**: copying `trial.dat` from a friend's PC does nothing — the AES‑GCM authentication tag fails because the friend's HWID was used to derive their key.
+CI uses disposable keys/databases. Public FTPS upload verifies the server certificate before authentication and pins its key during transfer. CI never provisions or overwrites private configuration, signing keys or backend code.
 
-## Attack scenarios
+## Limitations
 
-| Scenario | Outcome |
-|----------|---------|
-| User shares their serial with a friend | Friend's HWID won't match → ECDSA verify fails → lock screen rejects. |
-| User copies their `activation.dat` to another PC | Friend's HWID won't decrypt the file (PBKDF2 key mismatch) → app behaves as if not activated. |
-| User deletes `%LocalAppData%\YariZan\trial.dat` to get a fresh trial | Registry mirror at `HKCU\Software\YariZan\State` still has the latest count. App reads MAX(file, registry) → no rollback. |
-| User deletes the registry value | File still holds the count. Same protection in reverse. |
-| User deletes both, hoping for a fresh trial | This works — fresh state. The two‑mirror design protects against accidental wipes (e.g. cleaner tools); a deliberate user with admin rights *can* zero out both. Defeating that would require a third anchor in `HKLM` or a TPM, both of which complicate distribution. |
-| User copies their pre‑trial `trial.dat` over a post‑trial one | The `count` in the file would be lower, but the registry mirror still has the higher count → MAX rule wins. |
-| Attacker patches the binary to skip signature verification | They can dismiss the lock screen, but the master AES key is still needed. Today the master key is embedded in the binary, so this attack does succeed at exposing the games. **See "Known weakness" below.** |
-| Attacker pulls a `.dat` and tries to run it directly | Won't run — it's encrypted ciphertext, not a PE. |
-| Attacker runs a game and copies the temp `.exe` while it's running | Possible. Temp file has an ACL granting only the current user read access; admin can override. **This is the irreducible local‑DRM ceiling.** |
-| Attacker steals `secrets/master.key` from the dev's machine | Total compromise of all shipped game packages. Treat `secrets/` as you would a code‑signing key. |
+A modified binary can bypass local enforcement, claim another HWID, extract the game key or capture decrypted executables. Freely reported HWID is not verified customer identity. Online checks stop local deletion resetting the same HWID and allow official-client revocation, not unbreakable local DRM.
 
-## Known weakness
+Older offline binaries cannot be reliably revoked remotely. The app has not yet been published; distribute the current online build. Device-key proof, verified customer registration, admin MFA and different content-key delivery are future improvements, not implemented protections.
 
-**The master AES key is embedded in the launcher binary.** Anyone willing to reverse engineer the assembly can find it and decrypt the `*.dat` blobs offline. This is a pragmatic trade‑off: per‑customer rewrapping of the master key is possible (sign a per‑machine `key‑wrap` blob alongside the serial), but doubles operational complexity.
-
-Mitigations available *without* changing the architecture:
-- Run [ConfuserEx](https://github.com/mkaring/ConfuserEx) on the published `YariZan.exe` (string encryption + control flow + anti‑debug).
-- Single‑file publish with `PublishReadyToRun=false` + `IncludeAllContentForSelfExtract=true` so the binary is self‑contained and the master key isn't sitting on disk as a managed resource of an unobfuscated DLL.
-- Strip PDBs from the release output.
-
-Mitigations that require an architectural change (deferred):
-- Switch to a per‑machine wrapped master key. Seller's `sign` command would output `serial || encrypt_for(KDF(hwid), master_key)`; app would unwrap on activation.
-
-## Access enforcement
-
-- Every saved activation is checked against this machine's HWID and its ECDSA signature. An encrypted record containing an invalid serial is rejected.
-- Two explicit trial entries are allowed. Each entry authorizes its application process until it closes; navigating back to the cover does not consume another entry.
-- Trial consumption uses a named mutex and checks persistence before granting access. Damaged or unreadable trial state blocks trial access; verified activation still works.
-- Both protected page navigation and game launch check the current activation or the process's granted trial session.
-- Deleting both local trial mirrors still resets the counter, and the embedded game key can still be extracted by reverse engineering. These local protections do not guarantee resistance to a modified application.
-- Run `powershell -NoProfile -ExecutionPolicy Bypass -File tests\Run-AccessChecks.ps1` for isolated regression checks. Tests use temporary keys, redirected files, and a unique registry location; real activation and trial state are untouched.
-
-## Operational hygiene
-
-- `secrets/private.pem` and `secrets/master.key` are `.gitignored`. **Never commit them.** If they leak, regenerate (which invalidates every existing serial and game pack).
-- Keep an offline backup of `secrets/`. Without `private.pem` you cannot issue new serials. Without `master.key` you cannot rebuild the encrypted bundle (you'd have to re‑encrypt all games against a new key and re‑ship).
-- Mark `private.pem` and `master.key` read‑only on disk (the `init` command does this automatically).
-
-## What I deliberately did *not* add
-
-- Online activation server — adds a runtime dependency that hurts UX and creates a service to maintain. Local HWID‑bound serials cover the threat model the user described.
-- Time‑limited / floating licenses — out of scope.
-- Anti‑VM / anti‑sandbox detection — false‑positive risk on legitimate users.
+See [hosting operations](../web/licensing/README.md) and [checks](ci.md). Automated checks must not change real customer activation/trial state.

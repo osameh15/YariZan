@@ -1,106 +1,50 @@
-# Architecture
+﻿# Architecture
 
-Current licensing addition: `web/licensing/` contains the PHP/MySQL admin panel and signed trial API. `OnlineTrialClient` requests server trial grants, `TrialGrant` verifies their signatures/device/session bindings, and `AccessSession` authorizes one app process. Paid activation still uses the existing serial format offline. `TrialStore` is a retained legacy utility and no longer grants trial access in the desktop UI. See `web/licensing/README.md` for deployment and API details.
+YariZan combines a Windows WPF launcher, local game packaging tools, and a PHP/MySQL licensing service. Games ship with the desktop; the host stores device state and signs authorization proofs.
 
-## Solution layout
+## Modules
 
-```
-YariZan/
-├── src/
-│   ├── YariZan.sln
-│   ├── YariZan.Core/          (class library, net9.0-windows)
-│   ├── YariZan.App/           (WPF, WinExe, net9.0-windows)
-│   ├── YariZan.SerialGen/     (console, net9.0-windows)
-│   └── YariZan.Packer/        (console, net9.0-windows)
-├── miniApps/                  (source mini-games per grade)
-│   ├── 1/  …  6/
-├── games_encrypted/           (build artifact, .gitignored)
-├── secrets/                   (keys, .gitignored except public.pem)
-├── docs/                      (you are here)
-└── README.md
-```
-
-## Module responsibilities
-
-### `YariZan.Core`
-| File | Role |
-|------|------|
-| `HwidProvider.cs` | WMI-based fingerprint (BaseBoard, Processor, BIOS, Disk0) → SHA-256 |
-| `SerialCodec.cs` | ECDSA-P256 sign/verify + Base32 grouping |
-| `GameCrypto.cs` | AES-256-GCM encrypt/decrypt with file format `YZG1` ‖ nonce(12) ‖ tag(16) ‖ cipher |
-| `GameManifest.cs` + `GameManifestIo` | JSON model + JsonSerializerOptions used by Packer & App |
-| `ActivationStore.cs` | Encrypted record at `%LocalAppData%\YariZan\activation.dat`, key = PBKDF2(HWID) |
-| `TrialStore.cs` | 2‑launch trial counter mirrored across `trial.dat` + `HKCU\Software\YariZan\State`, MAX‑wins read, HWID‑bound AES‑GCM |
-| `GameLauncher.cs` | Decrypts to temp dir, restricts ACL, launches process, cleans up on exit |
-| `AppKeys.cs` | Loads embedded `public.pem` and `master.key` from the running assembly |
-
-### `YariZan.App` (WPF)
-- `Views/MainWindow.xaml` — single window, page swap with rotate+fade transition. Starts maximized; carries a custom minimize button (top-right visually) on every page.
-- `Views/CoverPage.xaml` — closed leather book; tap to enter. Always shown first, even after activation.
-- `Views/LockPage.xaml` — HWID display, copy button, serial entry, "فعال‌سازی" / "بازگشت" / "خروج". Only reachable when the saved `activation.dat` is missing or invalid for this PC.
-- `Views/InfoPage.xaml` — two-page spread: icon+title on the right (first reading page in RTL), about+author+vertical button stack on the left.
-- `Views/GamesBookPage.xaml` — grade picker (`همه` + ۱..۶), 3×2 landscape tile grid per page, info modal popup, navigation buttons swapped for RTL reading direction.
-- `Services/AppPaths.cs` — resolves `games_encrypted/` next to the running exe.
-- `Services/GameLibrary.cs` — loads `manifest.json` and exposes per-grade game lists.
-- `Resources/Theme.xaml` — colors, brushes, `GoldButton`, `ExitButton`, `GradeChip` styles, Shabnam font lookup.
-
-### `YariZan.SerialGen`
-Three commands: `init` (generate keys + master.key into `secrets/`), `hwid` (print this machine's), `sign <HWID>`.
-
-### `YariZan.Packer`
-Walks `miniApps/1` … `miniApps/6`, encrypts each `.exe` to `g<grade>_<hash>.dat`, copies the matching image (PNG/JPG) untouched, reads the matching `.txt` sidecar as a Persian description, and writes `manifest.json`. Output dir is wiped first.
-
-Each game in `manifest.json` carries `Name`, `Grade`, `EncryptedFile`, `ImageFile`, and `Description`. The launcher's info popup pulls `Description` straight out of the manifest.
+| Module | Responsibility |
+|---|---|
+| `YariZan.App` | Persian views/resources, navigation and online client |
+| `YariZan.Core` | HWID, serial/grant verification, activation/session state, game crypto/launching/sorting |
+| `YariZan.Packer` | Encrypt source executables, copy thumbnails, write manifest |
+| `YariZan.SerialGen` | New key initialization and local diagnostics |
+| `web/licensing/public` | Login/admin, assets, API; public document root |
+| `web/licensing/app`, `bin`, `database` | Private PHP implementation, CLI maintenance/migrations, SQL |
+| `tools` / workflows | Bundles, private preparation, checks, public FTPS uploads |
 
 ## Runtime flow
 
-```
-Launch YariZan.exe
-   │
-   ▼
-ActivationStore.Load()
-   │
-   ├── null/invalid ─────────────┐
-   │                             ▼
-   │                       LockPage (input serial)
-   │                             │
-   │                       SerialCodec.Verify(public.pem, hwid, serial)
-   │                             │
-   │                       ActivationStore.Save({hwid, serial})
-   │                             │
-   ▼                             ▼
-CoverPage  ──tap──►  InfoPage  ──"ورود"──►  GamesBookPage
-                                                  │
-                                            user clicks tile
-                                                  │
-                                                  ▼
-                            GameLauncher.Launch(masterKey, gameDat, name)
-                              ├── decrypt blob to byte[]
-                              ├── write to %Temp%\YariZan\<guid>\<name>.exe
-                              ├── ACL: this user + FullControl, deny inheritance
-                              ├── Process.Start
-                              └── on Exited: delete temp dir
+```mermaid
+flowchart TD
+    Cover[Cover appears first] --> Open[Open book]
+    Open --> Check[Validate saved paid serial online]
+    Check -->|accepted| Info[Information page]
+    Check -->|absent or rejected| Lock[Lock screen]
+    Lock -->|new device online| Status[Register HWID and PC name]
+    Status -->|explicit trial click| Trial[Consume signed trial entry]
+    Lock -->|current serial| Paid[Local signature plus server authorization]
+    Trial --> Info
+    Paid --> Info
+    Info --> Book[Game book]
+    Book --> Launch[Online check then decrypt and launch]
+    Book --> Heartbeat[Session check every 60 seconds]
+    Heartbeat -->|failed| Stop[Stop owned games and show Lock]
 ```
 
-## Build-time wiring
+`MainWindow` owns the online client, in-memory `AccessSession`, game library, launcher and heartbeat. Protected navigation depends on an authorized session, never on saved activation alone. `LockPage` retries a saved paid serial before trial registration. Outages retain the paid record for recovery.
 
-`YariZan.App.csproj` embeds the keys and copies the encrypted bundle:
+`OnlineTrialClient` uses HTTPS JSON POST, disabled redirects, a 15-second timeout, and bounded responses. A process retains its trial consumption nonce for idempotent retries; each authorization check has a fresh nonce. PHP/C# agree on exact signed messages and raw P-256 signatures.
 
-```xml
-<EmbeddedResource Include="..\..\secrets\public.pem" Link="Keys\public.pem" />
-<EmbeddedResource Include="..\..\secrets\master.key" Link="Keys\master.key" />
+## Games and keys
 
-<None Include="..\..\games_encrypted\**\*.*"
-      Link="games_encrypted\%(RecursiveDir)%(Filename)%(Extension)">
-    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-</None>
-```
+Local games reside directly in grade folders `miniApps/1` through `6`. Packing produces external manifest/blobs/thumbnails in `games_encrypted/`, copied beside the app. Numeric filename chunks sort naturally. Each spread contains twelve tiles, six per page, first page on the right.
 
-`AppKeys.OpenResource` looks up resources by suffix match, so the keys can live under any logical resource path inside the assembly.
+The app embeds its public signing key and AES master key. The server retains the matching private key outside the document root. The launcher decrypts to restricted temporary directories, owns started processes, and attempts cleanup on exit; revocation stops owned processes. See [protection limits](security.md#limitations).
 
-## Why these choices
+## Server and deployment
 
-- **WPF over WinForms / Avalonia / Electron** — book-flip animations want a 2D vector framework with proper RenderTransform support; WPF Persian/RTL is mature; single-file publish is straightforward.
-- **ECDSA-P256 over RSA-2048** — equivalent security with 64-byte raw signatures (~103 Base32 chars) vs 256 bytes (~410 chars). Materially better UX for serial entry.
-- **AES-GCM over CBC+HMAC** — single primitive, authenticated, modern, and built-in to .NET.
-- **PBKDF2 for activation key** — slow KDF over a high-entropy HWID is overkill but cheap and consistent.
+MySQL stores metadata, current serials, trial usage/grants, rate limits, audit events and blocked HWIDs. Transactions serialize consumption and retained nonces support retries. Removing a device deletes details/grants/audit rows and keeps a blocked HWID to stop automatic recreation. Explicit admin issuance restores it. Regeneration replaces serial, revokes trial grants and exhausts trials.
+
+Public FTPS deploy changes public files only. Private code/schema updates and credential/key provisioning are uploaded manually. See [hosting](../web/licensing/README.md) and [CI](ci.md).

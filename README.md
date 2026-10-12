@@ -1,293 +1,82 @@
-<div align="center">
-
-<img src="src/YariZan.App/Resources/icon.png" alt="YariZan" width="180" />
+﻿<div align="center">
+<img src="src/YariZan.App/Resources/icon.png" alt="YariZan" width="160" />
 
 # YariZan — یاریزان
 
-**A modern Persian launcher for educational mini‑games (grades 1–6),**
-**styled as an ornate leather book with hardware‑locked activation.**
-
-[![.NET](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
-[![WPF](https://img.shields.io/badge/UI-WPF-0078D4)](https://learn.microsoft.com/dotnet/desktop/wpf/)
-[![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows)](https://www.microsoft.com/windows)
-[![Language](https://img.shields.io/badge/Language-C%23-239120?logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
-[![License](https://img.shields.io/badge/License-Proprietary-lightgrey)](#license)
-[![RTL](https://img.shields.io/badge/UI-RTL%20(Persian)-2BAE66)](#)
-
+Persian RTL educational mini-game launcher for Windows, with a book interface, encrypted game bundles, and a PHP/MySQL licensing panel.
 </div>
 
----
+## Current access policy
 
-## Why
+The cover appears first on every launch. Opening the book requires internet: the app validates the saved paid serial or shows the activation/trial screen. New devices register their HWID and PC name with two trial entries; viewing status does not consume an entry. Only pressing the trial entry button consumes one.
 
-Bundle a catalog of Adobe‑published `.exe` mini‑games (grades 1–6) into one polished, **hardware‑locked** launcher. A buyer's serial only unlocks **their** PC; the games themselves are AES‑encrypted on disk so they can't be casually extracted and shared.
+Paid and trial sessions check access before each game launch and every 60 seconds. Connection failures return to Lock and stop games launched by the app. Reconnecting and pressing Retry automatically validates a saved paid serial; users do not enter it again after an ordinary outage. Removing a device blocks it; regenerating its serial invalidates the old serial. Trial counts are stored in MySQL and reset from the panel.
 
-## Highlights
+## Start here
 
-- 📖 **Book‑style UI** — closed leather cover → information page → open spread of game tiles, with page‑flip animation and proper Persian RTL reading order (first page on the right).
-- 🔐 **HWID‑bound activation** — ECDSA‑P256 signed serials. Sharing a serial does not work; carrying the activation file across PCs does not work.
-- 🛡️ **Encrypted games at rest** — AES‑256‑GCM blobs on disk. Games decrypt on‑demand to a temp directory with a restricted ACL and are deleted on exit.
-- 🇮🇷 **Persian, right‑to‑left** — Shabnam font, Persian digits, native RTL layout. Latin wordmarks (the "YariZan" cover title) remain LTR where intended.
-- 🧰 **Self‑contained tooling** — one console tool to generate keys & sign serials, another to encrypt your games into a shippable bundle. Both are just `dotnet run`.
-- 📚 **Six grades, infinite games** — drop a `.exe`, `.png`, and a Persian description `.txt` into `miniApps/<grade>/`, re‑pack, ship.
+Run commands from the repository root in Windows PowerShell. Use a .NET SDK that builds `net9.0-windows`; workflows use .NET 9. Install Inno Setup 6 or 7 for installer builds. PHP 8.2+ and MySQL/InnoDB run the licensing service.
 
-## Screen flow
-
-```
-   ┌──────────────────┐    ┌─────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-   │   CoverPage      │ →  │   LockPage      │ →  │   InfoPage       │ →  │   GamesBookPage  │
-   │ closed leather   │    │ HWID + serial   │    │ author + about   │    │ grade picker +   │
-   │ book, "tap to    │    │ entry. Skipped  │    │ + "ورود" button  │    │ 6+6 spread + i   │
-   │ open"            │    │ on later runs.  │    │                  │    │ popup + flips    │
-   └──────────────────┘    └─────────────────┘    └──────────────────┘    └──────────────────┘
-```
-
-Every page after the cover has a red **خروج** (Exit) button. The window has a custom minimize control in its top‑right corner and starts maximized.
-
-## Screenshots
-
-### Entry flow
-
-| Closed book (cover) | Lock screen — first run |
-|---|---|
-| ![Cover page](docs/Images/cover-page.png) | ![Lock page](docs/Images/lock-page.png) |
-
-### Lock screen states
-
-| Pre‑formatted activation message copied to clipboard | Invalid serial rejected |
-|---|---|
-| ![Copy message](docs/Images/lock-page-copy-message.png) | ![Invalid serial](docs/Images/lock-page-invalid-serial.png) |
-
-| Trial — one launch left | Trial exhausted, must activate |
-|---|---|
-| ![Trial 1 remaining](docs/Images/lock-page-trial-one-remain.png) | ![Trial ended](docs/Images/trial-end.png) |
-
-### Inside the book
-
-| Info page (activated) | Info page (trial mode banner) |
-|---|---|
-| ![Info page](docs/Images/info-page.png) | ![Info page trial](docs/Images/info-page-trial.png) |
-
-| Open spread — six landscape tiles per page | Game info popup with description |
-|---|---|
-| ![Games book](docs/Images/game-book.png) | ![Game detail](docs/Images/game-detail.png) |
-
-### Launching a mini‑game
-
-The launcher decrypts the encrypted `.dat` blob to a temp directory with a restricted ACL, runs the Adobe CS6 projector, and cleans up on exit.
-
-![Mini‑app running](docs/Images/lunch-mini-app.png)
-
----
-
-## Quick start
+1. Restore the existing `secrets/private.pem`, `secrets/public.pem`, and `secrets/master.key` from your secure backup. For a completely new product key set, follow [key setup](docs/build-and-pack.md#keys).
+2. Add local games following [miniApps/README.md](miniApps/README.md). The public repository contains no game payloads or private configuration.
+3. Set up licensing using [the hosting guide](web/licensing/README.md). Compilation can succeed without the service; protected access cannot.
+4. Pack, build, and run:
 
 ```powershell
-# Prerequisites
-winget install Microsoft.DotNet.SDK.9    # one-time
-
-# 1. Generate keypair + master AES key (run ONCE per project lifetime)
-dotnet run --project src\YariZan.SerialGen -- init
-
-# 2. Encrypt the games in miniApps/ into games_encrypted/
-dotnet run --project src\YariZan.Packer
-
-# 3. Run it
-dotnet run --project src\YariZan.App
+dotnet restore src/YariZan.sln
+dotnet run --project src/YariZan.Packer
+dotnet build src/YariZan.sln -c Release
+dotnet run --project src/YariZan.App
 ```
 
-The first time you run it, the lock screen will show your machine's HWID. Generate a serial bound to it:
+Create the setup executable:
 
 ```powershell
-dotnet run --project src\YariZan.SerialGen -- sign <YOUR-HWID-HEX>
+.\build-installer.bat --noninteractive
 ```
 
-Paste the printed serial into the lock screen → the book opens. Subsequent launches skip the lock entirely.
+| Output | Use |
+|---|---|
+| `publish/YariZan-win-x64/YariZan.exe` | Self-contained launcher; keep adjacent `games_encrypted/` |
+| `publish/YariZan-Setup-v1.0.0.exe` | Installer containing launcher and games |
+| `publish/installer-about.rtf` | Generated build input; disposable after compilation |
 
-> **Need to re-test the lock screen?** Wipe your saved activation with `dotnet run --project src\YariZan.SerialGen -- reset`, then relaunch. To re-test the trial counter, use `reset-trial` (see below).
+See [build-and-pack.md](docs/build-and-pack.md) for portable publishing, installer options, troubleshooting, and release checks. Never distribute source games, keys, private hosting ZIPs, or credentials with a release.
 
-## Trial mode
+## Operator workflow
 
-**Current behavior:** trial entries are now managed by the PHP/MySQL service at `yarizan.osameh.dev`. Each of the two entries requires internet and a signed session grant. Reset trials from the web panel; deleting local files or running `SerialGen reset-trial` does not reset the server counter. Paid serial activation and later access require signed online validation. Reactivation after an OS reinstall uses the same serial only while it remains the current server serial for that HWID. See [web/licensing/README.md](web/licensing/README.md) for the panel, setup, and deployment instructions.
+Log in to `https://yarizan.osameh.dev/` using private admin credentials. Search by name, description, HWID, or serial; use Add with HWID if needed. Edit name/description and generate the serial once. Copy it to the customer. Metadata edits retain it. Regenerate issues a replacement, Reset trial restores two entries, and Remove blocks the HWID. Styled confirmation dialogs protect these actions.
 
-The local-file/registry details below describe the retained legacy `TrialStore` utility, not the desktop application's current trial authorization.
+The current serial can reactivate after an OS reinstall only if the HWID matches. Hardware/WMI changes can alter it. Uninstall retains saved activation and never resets server trials.
 
-A fresh install lets the user enter the app **2 times** without a serial. This gives the buyer time to evaluate the launcher before paying for activation.
+## Repository map
 
-The trial is a **second button on the lock screen** next to فعال‌سازی. Its label shows the remaining count, like `ورود آزمایشی (۲/۲)`. Clicking it consumes one trial and routes the user to the info page exactly like a successful activation. Once the count reaches `0/2`, the button becomes disabled (`آزمایش به پایان رسیده`) and the only way forward is a paid serial.
-
-- The counter increments **only on explicit click of the trial button** — opening the cover, browsing back/forward, or closing the app costs nothing.
-- State is mirrored across two locations so deleting one isn't enough to reset:
-  - File: `%LocalAppData%\YariZan\trial.dat` (AES‑256‑GCM, key derived from HWID)
-  - Registry: `HKCU\Software\YariZan\State` (same encrypted blob, `REG_BINARY`)
-- On read, the higher of the two counts wins (rollback resistance).
-- Both blobs are HWID‑bound, so copying `trial.dat` from another PC fails to decrypt.
-- The info page shows the user how many trial runs remain (banner under the version line).
-
-To wipe the counter on this PC (for QA / re‑testing):
-
-```powershell
-dotnet run --project src\YariZan.SerialGen -- reset-trial
-```
-
-> **Caveat:** local Windows trial counters can always be defeated by a determined attacker who decompiles the binary and forges a fresh state. The same DRM ceiling applies as with activation. The two‑mirror design defeats casual file‑deletion / registry‑editing tampering — see [docs/security.md](docs/security.md) for the full threat model.
-
----
-
-## Project layout
-
-```
-YariZan/
-├── src/
-│   ├── YariZan.sln
-│   ├── YariZan.App/         WPF launcher (Persian RTL book UI, page-flip, info modal)
-│   ├── YariZan.Core/        Crypto + HWID + serial codec + activation store
-│   ├── YariZan.SerialGen/   Console tool: generate keys, sign per-machine serials
-│   └── YariZan.Packer/      Build-time tool: encrypt miniApps/ into games_encrypted/
-├── miniApps/                Source mini-games (you author this)
-│   ├── 1/  …  6/            One folder per school grade
-│   │   ├── <Game>.exe       Adobe CS6 published mini-game
-│   │   ├── <Game>.png       Landscape thumbnail (width > height)
-│   │   └── <Game>.txt       Persian description (UTF-8, free-form)
-├── games_encrypted/         Build artifact (gitignored, ships with the launcher)
-├── secrets/                 Keys (private.pem and master.key are gitignored)
-├── docs/                    Architecture, security, build, UI-flow, CI
-└── .github/workflows/       Optional GitHub Actions CI
-```
-
-## Updating branding
-
-The app's icon and any other branding live under [`src/YariZan.App/Resources/`](src/YariZan.App/Resources/) (`icon.png`, `logo.png`, fonts). Drop a new image with the same filename and rebuild — WPF embeds them as resources at build time.
-
-## Adding a new mini‑game
-
-1. Pick a grade folder under `miniApps/<n>/`.
-2. Drop in three files with the **same Persian base name**:
-   - `<Name>.exe` — the published mini‑game
-   - `<Name>.png` (or `.jpg`) — landscape thumbnail
-   - `<Name>.txt` — UTF‑8 Persian description shown in the info popup
-3. Re‑run the Packer:
-   ```powershell
-   dotnet run --project src\YariZan.Packer
-   ```
-4. Re‑build the launcher. New games appear automatically (the manifest is regenerated each pack).
-
-No serial changes needed when you add games — same key, same activation, more content.
-
-## Selling a copy (operator workflow)
-
-```
-Customer                                          You
-─────────                                         ───
-1. Receives YariZan-win-x64.zip
-   from you (one-time download)
-                                                  
-2. Runs YariZan.exe
-   Sees lock screen + their HWID              
-                                                  
-3. Sends HWID to you  ──────────────────────►  4. Runs:
-                                                  dotnet run --project src\YariZan.SerialGen -- sign <HWID>
-                                                  
-                                                  Sends back the Serial: line
-5. Pastes serial → book opens   ◄─────────────  
-   Activation persists per‑PC                     
-                                                  
-6. Launch from now on goes straight to the
-   cover, no lock screen, no internet check
-```
-
----
-
-## Building a Windows installer
-
-The repo ships with an Inno Setup script and a one‑shot batch driver:
-
-```powershell
-# Prerequisite (one-time): install Inno Setup 6 from https://jrsoftware.org/isinfo.php
-
-# Make sure your secrets/ keys exist (one-time)
-dotnet run --project src\YariZan.SerialGen -- init
-
-# Then any time you want a fresh installer:
-.\build-installer.bat
-```
-
-The script:
-1. Re‑packs `miniApps/` → `games_encrypted/`
-2. Generates a multi‑size `icon.ico` from `icon.png` via `tools\Convert-PngToIco.ps1`
-3. Cleans + publishes self‑contained `win‑x64`
-4. Runs `ISCC.exe` against `YariZan-Setup.iss`
-5. Outputs `publish\YariZan-Setup-v1.0.0.exe` (and an optional SHA‑256)
-
-The installer carries `LICENSE.txt` (bilingual EULA — Studio: YariZan, Developer: osameh_ir, Telegram: @osameh_ir), shows a Persian welcome/finish screen, and on uninstall wipes `%LocalAppData%\YariZan` so a re‑install starts fresh.
+| Path | Responsibility |
+|---|---|
+| `src/YariZan.App/` | WPF views, online client, branding/fonts |
+| `src/YariZan.Core/` | HWID, crypto, activation/session state, games and sorting |
+| `src/YariZan.Packer/` | Encrypts local games and writes manifest |
+| `src/YariZan.SerialGen/` | Key setup/diagnostics; customer serials come from panel |
+| `web/licensing/` | Public panel/API and private implementation/schema |
+| `miniApps/` | Ignored local games directly in grade folders `1`–`6` |
+| `games_encrypted/` | Ignored generated catalog; README tracked |
+| `secrets/` | Keys; private/master keys ignored |
+| `tools/`, `tests/` | Packaging/deployment and isolated checks |
+| `publish/` | Ignored app, installer, upload bundles |
 
 ## Documentation
 
-| File | What it covers |
-|------|----------------|
-| [docs/architecture.md](docs/architecture.md) | Solution map, module responsibilities, runtime flow |
-| [docs/security.md](docs/security.md) | HWID, ECDSA serials, AES‑GCM, activation store, threat model & honest DRM limits |
-| [docs/build-and-pack.md](docs/build-and-pack.md) | Keygen, packing, single‑file publish, ConfuserEx tips |
-| [docs/ui-flow.md](docs/ui-flow.md) | Screens, RTL/fonts, animations, tile grid, info modal |
-| [docs/ci.md](docs/ci.md) | CI rationale and the optional GitHub Actions workflow |
+| Guide | Contents |
+|---|---|
+| [Build and pack](docs/build-and-pack.md) | Setup, keys, games, portable EXE, installer, cleanup |
+| [Hosting and panel](web/licensing/README.md) | Database, private files, admin, FTP/CDN, deployment, API |
+| [Architecture](docs/architecture.md) | Modules/runtime flow |
+| [Security](docs/security.md) | Signed access, revocation, limitations |
+| [UI flow](docs/ui-flow.md) | Screens, retry and modals |
+| [CI](docs/ci.md) | Checks, secrets, public-only deployment |
+| [Licensing decisions](docs/online-licensing-plan.md) | Current policy and future improvements |
 
-## Tech stack
+## License and contact
 
-| Layer | Choice | Reason |
-|-------|--------|--------|
-| Runtime | .NET 9 (Windows) | Latest LTS‑track, mature WPF, `AesGcm`, `ECDsa` built‑in |
-| UI | WPF | First‑class RTL & Persian shaping; smooth book animations via 3D/Render transforms |
-| Asymmetric crypto | ECDSA‑P256 (SHA‑256) | 64‑byte signatures → ~103 char Base32 serials (vs ~410 for RSA‑2048) |
-| Symmetric crypto | AES‑256‑GCM | Authenticated encryption, single primitive, no MAC composition needed |
-| KDF (activation file) | PBKDF2‑SHA256, 100k | Slow KDF over high‑entropy HWID; binds activation to one PC |
-| HWID source | WMI BaseBoard / Processor / BIOS / Disk0 | Stable across reboots, no MAC dependency |
-| Font | Shabnam | Free, well‑shaped Persian; bundled `.ttf` for full WPF support |
+Proprietary; see [LICENSE.txt](LICENSE.txt) for the bilingual EULA. Game/font distribution must respect their respective licenses. Local encryption and signed checks do not make a customer-controlled binary impossible to modify; see [security limits](docs/security.md#limitations).
 
-## Security at a glance
-
-- Serial = **ECDSA‑P256** signature of `"YariZan-Serial-v1\|" + HWID`. Only the **public** key ships in the launcher — even cracking the binary cannot forge serials.
-- HWID = **SHA‑256** of `(Motherboard SN ‖ Processor ID ‖ BIOS SN ‖ Disk0 SN)`.
-- Games encrypted with **AES‑256‑GCM**; master key embedded in the launcher (obfuscation recommended for release builds — see `docs/build-and-pack.md`).
-- Activation file `%LocalAppData%\YariZan\activation.dat` is itself AES‑GCM encrypted with a key **derived from the running PC's HWID** — copying the file does not transfer activation.
-
-> **Honest framing:** local Windows DRM has a hard ceiling — a determined attacker with admin rights can copy a decrypted game out of the temp directory while it's running. YariZan defeats casual extraction (file managers, archive tools), not nation‑state reverse engineers. See [docs/security.md](docs/security.md) for the full threat model.
-
----
-
-## CI?
-
-A minimal **GitHub Actions** workflow is in `.github/workflows/ci.yml` and verifies the solution builds on every push to `main` / pull request. It generates ephemeral keys (so it never sees your real `private.pem`) and runs the Packer with an empty local catalog (game payloads are not tracked).
-
-**Do you need it?** Honest answer for this project today: **not strictly.** A solo dev shipping a Windows‑only app gets very little safety net from a build‑only CI. It becomes valuable when:
-
-1. You add unit tests (then CI catches regressions before you click "merge").
-2. Contributors join (PRs build automatically).
-3. You want **release automation** — tag a version, GitHub builds the single‑file `.exe`, zips it with `games_encrypted/`, and attaches it to a Release.
-
-The workflow shipped here covers (1) and (2) and is a 5‑line add to enable (3) when you want it. See [docs/ci.md](docs/ci.md).
-
----
-
-## Roadmap
-
-- [ ] Per‑machine wrapped master key (hide the key behind activation entirely)
-- [ ] Release automation (tag → published zip on GitHub Releases)
-- [ ] Smoothed 3D page‑flip (PlaneProjection) replacing the current scale‑and‑swap
-- [ ] In‑app screen for adding games at runtime (drag & drop into a grade)
-- [ ] Optional offline analytics: per‑game launch counts (local SQLite, never leaves the PC)
-
-## License
-
-Proprietary. © YariZan. All rights reserved. Contact the author for distribution terms.
-
-## Author
-
-**osameh15** — <osirandoust@gmail.com> · [github.com/osameh15](https://github.com/osameh15)
-
-The licensing panel deploys public files only. Upload the separate ignored private setup bundle manually; see [private setup instructions](web/licensing/README.md#manual-private-setup).
-
-Game payloads in `miniApps/` and `games_encrypted/` stay local. See [source game setup](miniApps/README.md) and [generated bundle setup](games_encrypted/README.md). The game-book toolbar includes a scrollable RTL About dialog; its Persian text is embedded directly in the app.
-
-Paid and trial access now require online server validation. Deleting a device blocks future access; regenerating its serial invalidates the old one. See the [licensing protocol and migration](web/licensing/README.md). Older offline binaries must be replaced for revocation to take effect.
-
-The installer builder detects Inno Setup 6 or 7 and generates a Persian RTL About information page directly from the app's hardcoded `AboutText`. Run `build-installer.bat` to repack, publish, and create `publish/YariZan-Setup-v1.0.0.exe`. To reuse an already validated encrypted catalog without prompts, run `build-installer.bat --skip-pack --noninteractive`. Set `INNO_PATH` to your `ISCC.exe` path if Inno is installed in a custom location. Generated `publish/installer-about.rtf` is build-only and is ignored by Git.
+Website: [osameh.dev](https://osameh.dev) · Support: [support@osameh.dev](mailto:support@osameh.dev) · Telegram: [@osameh_ir](https://t.me/osameh_ir)

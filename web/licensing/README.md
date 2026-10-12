@@ -1,115 +1,184 @@
-# YariZan licensing panel
+﻿# Licensing panel: setup and operations
 
-PHP 8.2+ / MySQL (InnoDB) admin panel for `https://yarizan.osameh.dev`.
+PHP 8.2+ / MySQL-InnoDB service at `https://yarizan.osameh.dev`. It registers devices, stores two-entry trial counters and current serials, and signs online authorization. Paid and trial access both need internet; no perpetual offline access is implemented.
 
-The administrator pastes a device HWID, optionally supplies a customer name and notes, and generates a serial. The user table appears first. Search covers customer name, description, HWID, and serial. Each row opens a closable editor below the table; metadata saves do not issue a serial, and existing serials are displayed and preserved. Reissuing for the same HWID returns its stored serial. Reset trial restores exactly two online trial entries for that HWID without changing the paid serial. Panel actions are recorded in the database audit log.
+## Hosting layout
 
-Serials retain the existing ECDSA-P256 format, but a valid local signature no longer grants access by itself. Paid activation and later access require a fresh signed server authorization against the current database serial. Authorization is checked when opening the book, before each game launch, and every 60 seconds during a session. Offline access is no longer supported.
-
-## Hosting setup for osameh.dev
-
-The public document root is `domains/osameh.dev/subdomains/yarizan/`. The existing private parent is `domains/osameh.dev/subdomains/private/` (700). Create the panel-specific `private/yarizan/` child manually; other private items remain separate.
+Create subdomain `yarizan.osameh.dev` with HTTPS and public document root `domains/osameh.dev/subdomains/yarizan/`. The existing private parent contains other applications; create its separate `yarizan/` child.
 
 ```text
-subdomains/
-  yarizan/                    public index.php, api/, assets/, .htaccess
-  private/                    existing parent, permission 700
-    yarizan/                  panel-specific child, permission 700
-      app/, bin/, database/   PHP implementation and schema
-      config.php              database settings, permission 600
-      private.pem             existing ECDSA signing key, permission 600
-      admin.php               username/password hash, permission 600
-      admin-credentials.txt   generated admin login, permission 600
+domains/osameh.dev/subdomains/
+  yarizan/                    public document root (755)
+    index.php
+    app-loader.php
+    api/
+    assets/
+    .htaccess
+  private/                    existing parent (700)
+    yarizan/                  panel-specific private directory (700)
+      app/
+      bin/
+      database/
+      config.php              DB configuration (600)
+      private.pem             existing signing key (600)
+      admin.php               admin password hash (600)
+      admin-credentials.txt   generated login details (600)
 ```
 
-Create a dedicated MySQL database and user and grant that user access. Database credentials belong only in the private `config.php`; CI does not use database or signing-key secrets. Initial tables are created idempotently on first startup. PHP needs PDO MySQL, OpenSSL, sessions, and a writable session directory. Dates use the browser's Persian calendar, Persian digits, and Tehran time; PHP Intl is not required.
+PHP must run as the hosting account to read private 700 folders. Enable PDO MySQL, OpenSSL, PHP sessions and a writable session directory. PHP Intl is not required; browser Intl formats dates.
 
-### Manual private setup
+Create a dedicated database and user in the hosting panel, then grant the user access. The current database/user names are `osameh_yarizan` and `osameh_yarizan_admin`; keep their password private. Initial schema creation needs CREATE/INDEX privileges; normal operation needs SELECT/INSERT/UPDATE/DELETE. Back up the database and matching signing key securely.
 
-The prepared local private files are ignored by Git. To create them on another machine, set `DATABASE_NAME`, `DATABASE_USER_NAME`, and `DATABASE_PASSWORD` in your local process environment. Set `SIGNING_PRIVATE_KEY` to the contents of the existing `secrets/private.pem`, and set `CREATE_ADMIN=true` and `CREATE_SIGNING_KEY=true`. Run:
+## Manual private setup
+
+Restore the existing `secrets/private.pem` locally; it must match the app's embedded public key. Provision ignored files locally using PHP CLI:
 
 ```powershell
-php tools/Prepare-LicensingRuntime.php web/licensing/private
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/Build-PrivateLicensingBundle.ps1
+$env:DATABASE_NAME = 'osameh_yarizan'
+$env:DATABASE_USER_NAME = 'osameh_yarizan_admin'
+$dbPassword = Read-Host 'Database password' -AsSecureString
+$env:DATABASE_PASSWORD = [System.Net.NetworkCredential]::new('', $dbPassword).Password
+$env:SIGNING_PRIVATE_KEY = Get-Content -Raw secrets/private.pem
+$env:CREATE_ADMIN = 'true'
+$env:CREATE_SIGNING_KEY = 'true'
+try {
+  php tools/Prepare-LicensingRuntime.php web/licensing/private
+  if ($LASTEXITCODE -ne 0) { throw 'Private provisioning failed' }
+  powershell -NoProfile -ExecutionPolicy Bypass -File tools/Build-PrivateLicensingBundle.ps1
+  if ($LASTEXITCODE -ne 0) { throw 'Private bundle failed' }
+} finally {
+  'DATABASE_NAME','DATABASE_USER_NAME','DATABASE_PASSWORD','SIGNING_PRIVATE_KEY',
+  'CREATE_ADMIN','CREATE_SIGNING_KEY' | ForEach-Object {
+    [Environment]::SetEnvironmentVariable($_, $null, 'Process')
+  }
+  Remove-Variable dbPassword -ErrorAction SilentlyContinue
+}
 ```
 
-Keep secret values out of shell history and clear these environment variables afterward. Use the existing signing key to preserve compatibility with old serials. Creation flags generate the initial admin files and copy the supplied signing key; omit them on subsequent configuration updates to preserve both.
+Use your PHP executable's full path if it is not on PATH. The flags create the admin account and copy the supplied existing key, not a new keypair. Omit both flags for subsequent configuration-only updates so the password/key remain unchanged. The preparation script rewrites config; do not run it against production paths casually.
 
-Upload `publish/YariZan-private-setup.zip` manually through the hosting file manager, extract its contents directly into `domains/osameh.dev/subdomains/private/yarizan/`, then remove the uploaded ZIP. The folder must contain **app/**, **bin/**, **database/**, **config.php**, **admin.php**, **admin-credentials.txt**, and **private.pem**. Set the private folder to 700 and the four private files to 600. Upload updated app/bin/database code manually after backend changes; preserve your config, admin account, and signing key.
+Upload `publish/YariZan-private-setup.zip` manually through the host file manager. Extract its contents directly into `domains/osameh.dev/subdomains/private/yarizan/`. Set folder/sensitive-file permissions as above. Remove the uploaded ZIP afterward; it contains secrets and must never go in public storage, GitHub or CI artifacts.
 
-Username: `admin`. Read the generated strong password in `admin-credentials.txt` locally or through the host's private file manager. The password hash is stored in `admin.php`. Never upload these private files or the private ZIP into the public document root, GitHub, or CI artifacts.
+Username is `admin`; read the randomly generated strong password from `admin-credentials.txt` privately. `admin.php` stores the password hash. Keep secure backups; anyone who reads the credentials file can log in.
 
-Only these repository secrets are needed for public deployment: `FTP_HOST`, `FTP_PORT`, `FTP_USERNAME`, `FTP_PASSWORD`, and `FTP_CERT_FINGERPRINT`. The workflow verifies the certificate before login and pins that public key on each FTPS connection. The FTP account can open directly into the public subdomain directory; it does not need private-directory access. The FTPS host is `2450773172.cloudylink.com`, port 21.
-Enable HTTPS to the subdomain and origin. Bypass CDN caching/browser challenges for `/api/*`, and bypass caching for the login/admin page. Configure daily cron to execute `private/yarizan/bin/maintenance.php`. PHP must run as your hosting account to read 700 directories.
+Generated `config.php` merges database settings and `admin.php`, with `signing_key_path` pointing at the private key. It sets secure cookies and `auto_install_schema=true`; a writable private directory stores the schema-v2 readiness marker. With automatic schema disabled, run private `bin/migrate.php` through CLI or import `database/schema.sql` manually.
 
-The desktop uses `https://yarizan.osameh.dev/api/trial.php`. Until the service is ready, both paid and trial access are unavailable. Use the panel to reset server trials, not the retained local `SerialGen reset-trial` utility.
+For a custom layout/DB host, use `config.example.php` as a reference and adjust DSN/private paths; do not upload the example as an active config unchanged. Standard public `app-loader.php` resolves the sibling private application. `YARIZAN_CONFIG` can override the config location for a controlled local environment.
+
+## Public deployment
+
+GitHub secrets: `FTP_HOST`, `FTP_PORT`, `FTP_USERNAME`, `FTP_PASSWORD`, `FTP_CERT_FINGERPRINT`. Do not add DB/admin/signing secrets to public deployment. Host `2450773172.cloudylink.com`, port 21, explicit FTPS. Confirm the certificate fingerprint with the provider before setting it.
+
+The FTP account may open directly into the public subdomain folder; it needs no private-directory access. CI verifies the certificate and pins its public key for each transfer. Main pushes matching workflow paths deploy tested public files; manual workflow runs need `deploy=true`. See [CI guide](../../docs/ci.md).
+
+Manual public bundle:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/Build-LicensingBundle.ps1
+```
+
+Extract `publish/YariZan-licensing-panel.zip` directly into the public root, including hidden `.htaccess`. This ZIP is public only. CI's `yarizan-licensing` artifact instead contains a `public/` wrapper.
+
+Public deploy never reads/uploads/changes private files. Per-file staged renames do not make a multi-file release globally atomic. **There is no live HTTP health check in CI.** A successful upload does not prove backend readiness.
+
+### CDN and readiness
+
+Enable HTTPS at both CDN and origin. Bypass caching and browser challenges for `/api/*`, login and authenticated pages. API callers are desktop programs, not browsers. Versioned static `assets/` cache for seven days using Apache mod_headers/.htaccess; increment URL versions on asset changes.
+
+Open `https://yarizan.osameh.dev/api/health.php`. Expected JSON includes `status: ready`, `product: YariZan`, version and the public-key SHA-256 fingerprint. This checks DB/key readability, not the complete customer workflow. Test admin login and the desktop separately. For blocked/time-out runner connections, contact the provider with timestamps and origin/CDN details.
+
+Configure a daily cron with the provider's PHP CLI and the absolute private `yarizan/bin/maintenance.php` path. It removes expired rate-limit data and audit records older than a year; retained trial grants support idempotent retries.
+
+### Backups, password changes, and recovery
+
+Back up the MySQL database, private configuration/admin files, and matching signing key securely. Keep the desktop AES key/source games separately. Restoring only code does not restore customer serials or counters. A database restore can roll back usage or revocation decisions; review those records before reopening access.
+
+To change the admin password, run `php web/licensing/bin/password_hash.php` privately and enter a strong password (14–72 bytes; this tool's input is not hidden). Replace only `admin_password_hash` in the private `admin.php` with the generated hash, preserving PHP syntax, username, and permission 600. Update the private credentials record/secure password manager too. Do not regenerate signing keys to fix a login problem.
+
+Troubleshooting: 503 usually means missing private code/config, inaccessible files, DB/schema failure, or unreadable signing key; inspect the host PHP error log without posting secrets. Login loops can indicate HTTPS/secure-cookie/session-storage problems. HTTP 403 `access_denied` means a blocked device, stale serial, or missing trial grant. Browser challenge pages, redirects and cached API responses can prevent desktop verification even if the panel opens in a browser. Backend maintenance/outages deny app access by design.
+
+## How the panel works
+
+| Action | Result |
+|---|---|
+| Search | Name, description/notes, HWID, serial |
+| Page size | 10, 25, 50, 100, 200 rows |
+| Edit | Opens closable editor after the table; HWID read-only |
+| Save metadata | Updates name/description and retains serial |
+| Add with HWID / issue | Registers/restores HWID and creates its serial if absent |
+| Issue again | Returns existing serial rather than silently replacing it |
+| Copy | Copies HWID or current serial |
+| Reset trial | Restores two entries and removes trial grants; paid serial unchanged |
+| Regenerate | New serial, old serial rejected, trial grants revoked, trials exhausted |
+| Remove | Deletes device details/grants/audit rows, retains blocked HWID |
+| Restore removed device | Explicit Add/issue for that HWID; give customer new serial |
+
+Styled confirmations handle destructive actions. Login uses hashed passwords, secure HttpOnly SameSite cookies, CSRF and rate limits. Idle sessions expire after 30 minutes. Counts use Persian digits; dates are Persian Solar Hijri/Jalali in Tehran time. Admin operations are audited except records removed as part of device deletion.
+
+Customers first see the cover. Opening it validates saved paid access or shows Lock. New online status registers PC/HWID without spending a trial. Only trial entry spends one. Paid users enter the current serial once; it is saved locally. After an outage, Retry validates it and opens automatically. Revoked saved serials cannot fall back to registration; replacements need entry once.
+
+Checks happen at protected entry, before each game launch, and every 60 seconds during a session. Failure stops launched games and shows Lock. Same-HWID OS reinstall can use the current serial; server counters/blocks do not reset with local deletion/reinstall.
 
 ## Updating this release
 
-Manually extract the refreshed `publish/YariZan-private-code-update.zip` into `domains/osameh.dev/subdomains/private/yarizan/`, overwriting `app/` and `database/` code. It contains no config, credentials, or signing key. Schema v2 adds `blocked_devices`; with `auto_install_schema=true`, the new schema marker triggers idempotent creation on the next request. Otherwise run `bin/migrate.php` or import `database/schema.sql` manually. CI uploads public files only.
+For private backend updates, create a code-only bundle:
 
-The cover/splash appears first. Opening it checks saved paid activation online or displays the registration/lock screen. Status creates a new device with two trials without consumption, unless that HWID was deleted and blocked. A network failure denies protected access; a failed session check closes launched games and returns to Lock.
+```powershell
+New-Item -ItemType Directory -Path publish -Force | Out-Null
+Compress-Archive -Path web/licensing/app,web/licensing/bin,web/licensing/database -DestinationPath publish/YariZan-private-code-update.zip -Force
+```
+
+Extract into the private application directory, replacing app/bin/database code while preserving config, admin files and key. This ZIP contains no runtime secrets. Schema v2 adds blocked devices; auto-install's v2 marker triggers idempotent setup on the next request. Otherwise migrate manually. Deploy compatible public code through CI/manual upload and then check health/login/desktop. Delete old ZIPs after upload.
 
 ## API
 
-`POST /api/trial.php`, `Content-Type: application/json`:
+Endpoint: HTTPS POST `/api/trial.php`, JSON content type.
+
+| Operation | Request fields | Purpose |
+|---|---|---|
+| `status` | `hwid`, optional `pc_name` | Register/display remaining 0–2; unsigned, no authorization |
+| `consume` | `hwid`, `nonce` | Consume trial; signed result, retained nonce makes retries idempotent |
+| `authorize` | `hwid`, `mode`, `credential`, fresh `nonce` | Signed paid/trial session check |
+
+HWID/nonces are 64-character hex. Paid credential is normalized current serial; trial credential is the retained trial-session nonce.
 
 ```json
-{"operation":"status","hwid":"64_HEX_CHARACTERS","pc_name":"Optional PC name"}
+{"operation":"status","hwid":"64_HEX_CHARACTERS","pc_name":"Customer-PC"}
 ```
 
-Returns `remaining` (0–2). This unsigned status is only used for UI text; it cannot authorize access.
+Consumption returns device, nonce, remaining and Base64 raw P-256 signature over `YariZan-Trial-v1|HWID|NONCE|REMAINING`. Authorization signs `YariZan-Access-v1|HWID|CHECK_NONCE|MODE|CREDENTIAL_HASH`, with uppercase SHA-256 normalized-credential hash. The app verifies every field/signature; status alone cannot unlock it.
 
-```json
-{"operation":"consume","hwid":"64_HEX_CHARACTERS","nonce":"64_HEX_RANDOM_SESSION_NONCE"}
-```
-
-Returns `hwid`, `nonce`, `remaining` (0–1), and a Base64 P-256 raw signature over:
-
-```text
-YariZan-Trial-v1|HWID|NONCE|REMAINING
-```
-
-The app verifies the signature and exact current device/session nonce before granting access. Retrying the same nonce returns the same grant without spending another entry. InnoDB transactions serialize concurrent requests for one device. Signing or database failure never grants access. A new process uses a fresh nonce. Panel reset deletes stored grants for that HWID and restores its counter; an existing trial session will fail its next online session check.
+Invalid requests: 400; access denied/exhausted: 403; wrong method: 405; wrong content type: 415; rate limit: 429; service failure: 503. Deleted HWIDs, replaced serials and removed grants are denied. Request/response bodies are bounded. Transactions serialize concurrent trial requests; signing/database failure grants no access.
 
 ## Tests and local preview
+
+Docker Compose provides disposable PHP/MySQL with a temporary key:
 
 ```powershell
 docker compose -p yarizan-checks -f web/licensing/tests/compose.yml up --build -d
 docker compose -p yarizan-checks -f web/licensing/tests/compose.yml exec -T panel php tests/check.php
 ```
 
-The preview is bound to `http://127.0.0.1:8871/`, with a disposable MySQL database and temporary signing key. Login: `admin`, password: `Local-test-password-2026`. These are **development-only** credentials; never use or deploy them on your host.
+Preview: `http://127.0.0.1:8871/`. Login `admin`, password `Local-test-password-2026`; development-only, never deploy. Stop with the same compose command ending in `down`.
 
-For PHP/.NET interoperability checks, generate a vector inside the container, copy it to a temporary local file, set `YARIZAN_TEST_VECTOR` to its path, then run `tests/Run-AccessChecks.ps1`. PHP tests can also run directly with `YARIZAN_TEST_DSN`, `YARIZAN_TEST_DB_USER`, and `YARIZAN_TEST_DB_PASSWORD`; the database name must end in `_test`.
+Direct tests use `YARIZAN_TEST_DSN`, `YARIZAN_TEST_DB_USER`, `YARIZAN_TEST_DB_PASSWORD`; database name must end in `_test`. Run `php web/licensing/tests/check.php` and `php tools/tests/check_licensing_runtime.php`. For PHP/.NET vectors, export a container-generated fixture to a temporary file, set `YARIZAN_TEST_VECTOR`, and run `tests/Run-AccessChecks.ps1`. Never point these checks at real customer data or keys.
 
-Stop the preview with `docker compose -p yarizan-checks -f web/licensing/tests/compose.yml down`. No real activation, registry, game key, or signing key is touched by these tests.
-
-Static files under `public/assets/` use `Cache-Control: public, max-age=604800` (seven days). Asset URLs include version numbers; increment the relevant URL version when changing a logo, font, stylesheet, or script. Login/admin pages and API responses retain `no-store`. The static cache policy requires Apache `mod_headers` and permission to apply `.htaccess` rules. CDN rules must respect these headers and bypass caching for dynamic pages and API routes.
-
-## Deployment workflow
-
-`.github/workflows/licensing.yml` tests PHP against disposable MySQL, validates runtime provisioning, and packages code without secrets. Successful pushes to `main` deploy changed panel/deployment code; manual runs can use `deploy=true`. Pull requests only test. Deployment uses the `licensing-production` GitHub environment.
-
-`tools/Deploy-Licensing.py` uploads only public index/API/assets/Apache rules using per-file atomic renames. It never uploads, creates, or changes private files. Deployment ends after successful certificate-pinned FTPS uploads; it does not make a live HTTP health request. You can manually open `/api/health.php` to inspect readiness. Multi-file updates are not globally atomic.
-
-For a public manual-upload ZIP, run `powershell -NoProfile -ExecutionPolicy Bypass -File tools/Build-LicensingBundle.ps1`. Extract its contents directly into `domains/osameh.dev/subdomains/yarizan/`. Private setup uses the separate command and ZIP described above.
-## Known boundaries
-
-The public trial API identifies devices by their reported HWID. Deleting local files or reinstalling Windows does not reset that HWID's server counter. A modified client can report a different HWID, consume another user's known HWID trials, or bypass local enforcement; verified customer accounts/evaluation codes and device-proof registration would be needed to strengthen that identity model. This implementation matches the requested paste-HWID workflow and is not proof of unbreakable DRM.
-
-The game key remains embedded in the app, so local extraction and modified binaries remain limitations. Older offline app releases cannot be remotely revoked and must be replaced with this new online build. Serial keys issued outside the panel are not accepted unless registered as the current database serial.
-
-The shared confirmation dialog handles trial reset, device deletion, and serial regeneration. Deletion removes device details, grants and audit rows, but keeps a minimal blocked-HWID record to prevent automatic registration. Restore through Add with HWID and issue a new serial. Regeneration replaces the current serial, revokes existing trial grants and sets trials to exhausted; reset trial remains a separate explicit admin action.
-
-### Signed session checks
-
-POST `authorize` with HWID, mode (`paid` or `trial`), credential (current serial or trial session nonce), and a fresh 64-character hexadecimal check nonce. The response signs `YariZan-Access-v1|HWID|CHECK_NONCE|MODE|CREDENTIAL_HASH` using the existing key; credential hash is uppercase SHA-256 of the normalized credential. The desktop verifies device, mode, credential hash and fresh nonce before granting access. Deleted HWIDs, replaced serials, and removed trial sessions receive HTTP 403. A running session notices changes on its next check (60-second interval plus request timeout), and every game launch checks immediately.
-
-To recreate the code-only private update ZIP after cleanup:
+Example cross-language check after starting the disposable containers:
 
 ```powershell
-New-Item -ItemType Directory -Path publish -Force | Out-Null
-Compress-Archive -Path web/licensing/app,web/licensing/database -DestinationPath publish/YariZan-private-code-update.zip -Force
+docker compose -p yarizan-checks -f web/licensing/tests/compose.yml exec -T -e YARIZAN_TEST_VECTOR=/tmp/yarizan-vector.json panel php tests/check.php
+$panelContainer = docker compose -p yarizan-checks -f web/licensing/tests/compose.yml ps -q panel
+$vectorFile = Join-Path $env:TEMP 'yarizan-vector.json'
+docker cp "${panelContainer}:/tmp/yarizan-vector.json" $vectorFile
+$env:YARIZAN_TEST_VECTOR = $vectorFile
+try {
+  powershell -NoProfile -ExecutionPolicy Bypass -File tests/Run-AccessChecks.ps1
+} finally {
+  Remove-Item Env:YARIZAN_TEST_VECTOR -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $vectorFile -ErrorAction SilentlyContinue
+}
 ```
-Connection Retry first validates the saved activation serial and resumes paid access automatically. Network failures preserve the local activation. A rejected saved serial remains blocked and Retry cannot fall back to trial registration; a replaced serial needs to be entered once. The regeneration button shares the editor action row and submits its own confirmation form.
+
+## Boundaries
+
+Reported HWID is not device proof/customer identity; modified clients can report another value. Embedded AES keys/decrypted executables can be extracted and modified clients can bypass checks. Local deletion does not reset the same server HWID's trial, but this is not unbreakable DRM. Old offline binaries cannot be remotely revoked. Serials made outside the panel are not accepted unless stored as current database serial. See [security](../../docs/security.md).

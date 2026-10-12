@@ -11,6 +11,8 @@ Copyright (c) 2025 YariZan Studio. All rights reserved.
 Studio     : YariZan Studio
 Developer  : osameh_ir
 Contact    : Telegram @osameh_ir  (https://t.me/osameh_ir)
+Website    : https://osameh.dev
+Support    : support@osameh.dev
 
 PLEASE READ THIS AGREEMENT CAREFULLY. BY INSTALLING OR USING
 YARIZAN ("the Software") YOU AGREE TO BE BOUND BY THE TERMS
@@ -59,7 +61,8 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 6. UPDATES & SUPPORT
    YariZan Studio may, at its sole discretion, provide updates
    or new versions. Support is offered through Telegram
-   @osameh_ir. Response time is typically 15 minutes to 8 hours.
+   @osameh_ir and email support@osameh.dev. Visit https://osameh.dev.
+   Response time is typically 15 minutes to 8 hours.
 
 7. DISCLAIMER OF WARRANTIES
    THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE",
@@ -81,6 +84,8 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 10. CONTACT
     Telegram : @osameh_ir
     URL      : https://t.me/osameh_ir
+    Website  : https://osameh.dev
+    Email    : support@osameh.dev
 
 
 ================================================================
@@ -96,6 +101,8 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 استودیو         : استودیوی یاریزان (YariZan Studio)
 توسعه‌دهنده    : osameh_ir
 ارتباط          : تلگرام @osameh_ir   (https://t.me/osameh_ir)
+وب‌سایت        : https://osameh.dev
+ایمیل پشتیبانی : support@osameh.dev
 
 لطفاً پیش از نصب یا استفاده از برنامه، این توافق‌نامه را با
 دقت مطالعه کنید. با نصب یا اجرای برنامه، شما با همهٔ شرایط
@@ -131,8 +138,9 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
    تمامی حقوق مالکیت معنوی متعلق به استودیوی یاریزان است.
 
 ۶) به‌روزرسانی و پشتیبانی
-   پشتیبانی از طریق تلگرام @osameh_ir ارائه می‌شود. زمان
-   پاسخ‌گویی معمولاً بین ۱۵ دقیقه تا ۸ ساعت است.
+   پشتیبانی از طریق تلگرام @osameh_ir و ایمیل
+   support@osameh.dev ارائه می‌شود. وب‌سایت: https://osameh.dev
+   زمان پاسخ‌گویی معمولاً بین ۱۵ دقیقه تا ۸ ساعت است.
 
 ۷) سلب مسئولیت تضمین
    برنامه «همان‌گونه که هست» و بدون هیچ‌گونه ضمانت صریح یا
@@ -151,3 +159,5 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 ۱۰) تماس
     تلگرام : @osameh_ir
     لینک   : https://t.me/osameh_ir
+    وب‌سایت : https://osameh.dev
+    ایمیل پشتیبانی : support@osameh.dev
