@@ -79,6 +79,8 @@ For PHP/.NET interoperability checks, generate a vector inside the container, co
 
 Stop the preview with `docker compose -p yarizan-checks -f web/licensing/tests/compose.yml down`. No real activation, registry, game key, or signing key is touched by these tests.
 
+Static files under `public/assets/` use `Cache-Control: public, max-age=604800` (seven days). Asset URLs include version numbers; increment the relevant URL version when changing a logo, font, stylesheet, or script. Login/admin pages and API responses retain `no-store`. The static cache policy requires Apache `mod_headers` and permission to apply `.htaccess` rules. CDN rules must respect these headers and bypass caching for dynamic pages and API routes.
+
 ## Deployment workflow
 
 `.github/workflows/licensing.yml` tests PHP against disposable MySQL, validates runtime provisioning, and packages code without secrets. Successful pushes to `main` deploy changed panel/deployment code; manual runs can use `deploy=true`. Pull requests only test. Deployment uses the `licensing-production` GitHub environment.

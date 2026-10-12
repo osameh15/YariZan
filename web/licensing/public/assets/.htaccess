@@ -1,0 +1,5 @@
+# Only public static assets may be cached; dynamic responses remain no-store.
+<IfModule mod_headers.c>
+    Header unset Cache-Control
+    Header always set Cache-Control "public, max-age=604800"
+</IfModule>

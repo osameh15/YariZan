@@ -75,15 +75,15 @@ if ($loggedIn) {
 ?>
 <!doctype html>
 <html lang="fa" dir="rtl">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>یاریزان | مدیریت فعال‌سازی</title><link rel="icon" type="image/png" href="/assets/icon.png"><link rel="stylesheet" href="/assets/panel.css?v=4"><script src="/assets/panel.js?v=3" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>یاریزان | مدیریت فعال‌سازی</title><link rel="icon" type="image/png" href="/assets/icon.png?v=1"><link rel="stylesheet" href="/assets/panel.css?v=5"><script src="/assets/panel.js?v=3" defer></script></head>
 <body class="<?= $loggedIn ? 'panel-page' : 'login-page' ?>"><div class="shell">
 <?php if ($loggedIn): ?>
-<header class="topbar"><a class="brand" href="/"><img class="brand-logo" src="/assets/logo.png" alt="" width="72" height="72"><span class="brand-copy"><strong>یاریزان</strong><small>مدیریت فعال‌سازی</small></span></a>
+<header class="topbar"><a class="brand" href="/"><img class="brand-logo" src="/assets/logo.png?v=1" alt="" width="72" height="72"><span class="brand-copy"><strong>یاریزان</strong><small>مدیریت فعال‌سازی</small></span></a>
 <form method="post"><input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="action" value="logout"><button class="quiet" type="submit">خروج از پنل</button></form></header>
 <?php endif; ?>
 <?php if ($error !== ''): ?><p class="notice error" role="alert"><?= escape($error) ?></p><?php endif; ?>
 <?php if (!$loggedIn): ?>
-<main class="login card"><img class="login-logo" src="/assets/logo.png" alt="نشان یاریزان" width="160" height="160"><p class="eyebrow">پنل مدیر</p><h1>خوش آمدید</h1><p class="muted">برای مدیریت کاربران و سریال‌های یاریزان وارد شوید.</p><form method="post">
+<main class="login card"><img class="login-logo" src="/assets/logo.png?v=1" alt="نشان یاریزان" width="160" height="160"><p class="eyebrow">پنل مدیر</p><h1>خوش آمدید</h1><p class="muted">برای مدیریت کاربران و سریال‌های یاریزان وارد شوید.</p><form method="post">
 <input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="action" value="login">
 <label for="username">نام کاربری</label><input id="username" name="username" dir="ltr" autocomplete="username" required maxlength="120">
 <label for="password">رمز عبور</label><input id="password" name="password" type="password" dir="ltr" autocomplete="current-password" required maxlength="1024">
