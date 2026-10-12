@@ -105,3 +105,10 @@ The shared confirmation dialog handles trial reset, device deletion, and serial 
 ### Signed session checks
 
 POST `authorize` with HWID, mode (`paid` or `trial`), credential (current serial or trial session nonce), and a fresh 64-character hexadecimal check nonce. The response signs `YariZan-Access-v1|HWID|CHECK_NONCE|MODE|CREDENTIAL_HASH` using the existing key; credential hash is uppercase SHA-256 of the normalized credential. The desktop verifies device, mode, credential hash and fresh nonce before granting access. Deleted HWIDs, replaced serials, and removed trial sessions receive HTTP 403. A running session notices changes on its next check (60-second interval plus request timeout), and every game launch checks immediately.
+
+To recreate the code-only private update ZIP after cleanup:
+
+```powershell
+New-Item -ItemType Directory -Path publish -Force | Out-Null
+Compress-Archive -Path web/licensing/app,web/licensing/database -DestinationPath publish/YariZan-private-code-update.zip -Force
+```
