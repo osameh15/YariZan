@@ -8,8 +8,8 @@
 #define MyAppVersion     "1.0.0"
 #define MyAppPublisher   "YariZan Studio"
 #define MyAppDeveloper   "osameh_ir"
-#define MyAppURL         "https://t.me/osameh_ir"
-#define MyAppSupportURL  "https://t.me/osameh_ir"
+#define MyAppURL         "https://osameh.dev"
+#define MyAppSupportURL  "mailto:support@osameh.dev"
 #define MyAppExeName     "YariZan.exe"
 #define MyPublishDir     "publish\YariZan-win-x64"
 
@@ -24,7 +24,7 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppSupportURL}
 AppUpdatesURL={#MyAppURL}
 AppCopyright=Copyright (C) 2025 {#MyAppPublisher} — {#MyAppDeveloper}
-AppContact={#MyAppSupportURL}
+AppContact=support@osameh.dev
 
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
@@ -87,8 +87,10 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 ; Preserve per-user activation across reinstall. The server controls access and trials.
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%nYariZan is a Persian RTL launcher for educational mini-games (grades 1-6).%n%nFeatures:%n  - Hardware-bound activation with online access checks%n  - 2 online trial launches%n  - 12 mini-games per spread, page-flip animation%n  - Persian Shabnam font, fullscreen kiosk mode%n%nDeveloper: osameh_ir   ·   Telegram: @osameh_ir%n%nPlease close other applications before continuing.
-FinishedLabel=YariZan has been installed successfully.%n%nLaunch from the Start Menu or the Desktop shortcut. Open the cover to check your saved activation or start an online trial. Send your HWID to the developer at @osameh_ir to receive a serial.%n%nInternet is required for activation and access checks. Reinstalling does not reset server trial usage or device blocks.
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nYariZan is a Persian RTL launcher for educational mini-games (grades 1-6).%n%nFeatures:%n  - Hardware-bound activation with online access checks%n  - 2 online trial launches%n  - 12 mini-games per spread, page-flip animation%n  - Persian Shabnam font, fullscreen kiosk mode%n%nWebsite: osameh.dev%nSupport: support@osameh.dev%n%nPlease close other applications before continuing.
+FinishedLabel=YariZan has been installed successfully.%n%nLaunch from the Start Menu or the Desktop shortcut. Open the cover to check your saved activation or start an online trial. Send your HWID to support@osameh.dev to receive a serial.%n%nWebsite: osameh.dev%nSupport: support@osameh.dev%n%nInternet is required for activation and access checks. Reinstalling does not reset server trial usage or device blocks.
 
 [CustomMessages]
 english.SupportTelegram=Telegram: @osameh_ir
+english.SupportWebsite=Website: osameh.dev
+english.SupportEmail=Support: support@osameh.dev
