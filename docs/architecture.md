@@ -1,5 +1,7 @@
 # Architecture
 
+Current licensing addition: `web/licensing/` contains the PHP/MySQL admin panel and signed trial API. `OnlineTrialClient` requests server trial grants, `TrialGrant` verifies their signatures/device/session bindings, and `AccessSession` authorizes one app process. Paid activation still uses the existing serial format offline. `TrialStore` is a retained legacy utility and no longer grants trial access in the desktop UI. See `web/licensing/README.md` for deployment and API details.
+
 ## Solution layout
 
 ```

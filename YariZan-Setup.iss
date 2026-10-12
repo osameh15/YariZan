@@ -69,7 +69,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Dirs]
-Name: "{app}"; Permissions: users-full
+Name: "{app}"
 
 [Files]
 ; Self-contained .NET 9 publish + games_encrypted/ ride along (Content / CopyToOutputDirectory).

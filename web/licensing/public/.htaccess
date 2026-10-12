@@ -1,0 +1,17 @@
+Options -Indexes
+DirectoryIndex index.php
+
+<Files "app-loader.php">
+    Require all denied
+</Files>
+
+<FilesMatch "(^\.|\.(sql|pem|key|log|ini|env|bak)$)">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always set Cache-Control "no-store"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "no-referrer"
+</IfModule>

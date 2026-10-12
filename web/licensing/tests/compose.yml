@@ -1,0 +1,30 @@
+services:
+  database:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: local-test-root-only
+      MYSQL_DATABASE: yarizan_test
+      MYSQL_USER: yarizan_test
+      MYSQL_PASSWORD: local-test-only
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-plocal-test-root-only"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  panel:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile
+    depends_on:
+      database:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8871:80"
+    volumes:
+      - ..:/var/www/html:ro
+    environment:
+      YARIZAN_CONFIG: /tmp/yarizan-dev/config.php
+      YARIZAN_TEST_DSN: mysql:host=database;dbname=yarizan_test;charset=utf8mb4
+      YARIZAN_TEST_DB_USER: yarizan_test
+      YARIZAN_TEST_DB_PASSWORD: local-test-only
+    command: ["sh", "-c", "php tests/prepare-development.php && php bin/migrate.php && apache2-foreground"]

@@ -36,6 +36,7 @@ public static class ActivationStore
             if (!File.Exists(DefaultPath)) return null;
             var blob = File.ReadAllBytes(DefaultPath);
             if (blob.Length < 4 + 12 + 16) return null;
+            if (Encoding.ASCII.GetString(blob, 0, 4) != "YZA1") return null;
             var hwid = HwidProvider.GetHwid();
             var key = DeriveProtectKey(hwid);
             var nonce = blob.AsSpan(4, 12);
@@ -44,7 +45,11 @@ public static class ActivationStore
             var plain = new byte[cipher.Length];
             using var aes = new AesGcm(key, 16);
             aes.Decrypt(nonce, cipher, tag, plain);
-            return JsonSerializer.Deserialize<ActivationRecord>(plain);
+            var record = JsonSerializer.Deserialize<ActivationRecord>(plain);
+            if (record is null || !string.Equals(record.Hwid, hwid, StringComparison.OrdinalIgnoreCase))
+                return null;
+            return SerialCodec.Verify(AppKeys.LoadEmbeddedPublicKeyPem(), hwid, record.Serial)
+                ? record : null;
         }
         catch { return null; }
     }

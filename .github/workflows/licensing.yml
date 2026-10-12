@@ -1,0 +1,91 @@
+name: Licensing panel
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/licensing/**', 'tools/Deploy-Licensing.py', 'tools/Check-PublicRepository.py', 'tools/Prepare-LicensingRuntime.php', 'tools/tests/**', '.github/workflows/licensing.yml']
+  pull_request:
+    paths: ['web/licensing/**', 'tools/Deploy-Licensing.py', 'tools/Check-PublicRepository.py', 'tools/Prepare-LicensingRuntime.php', 'tools/tests/**', '.github/workflows/licensing.yml']
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the tested panel to yarizan.osameh.dev
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: licensing-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: isolated-ci-only
+          MYSQL_DATABASE: yarizan_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -pisolated-ci-only"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install PHP test runtime
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq php-cli php-mysql
+      - name: PHP syntax and isolated database checks
+        env:
+          YARIZAN_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=yarizan_test;charset=utf8mb4
+          YARIZAN_TEST_DB_USER: root
+          YARIZAN_TEST_DB_PASSWORD: isolated-ci-only
+        run: |
+          set -euo pipefail
+          python3 tools/Check-PublicRepository.py
+          find web/licensing -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l tools/Prepare-LicensingRuntime.php
+          php web/licensing/tests/check.php
+          php tools/tests/check_licensing_runtime.php
+          python3 -m py_compile tools/Deploy-Licensing.py
+      - name: Package code without credentials or signing keys
+        run: |
+          set -euo pipefail
+          mkdir -p licensing-dist
+          cp -R web/licensing/public licensing-dist/
+          if find licensing-dist -type f \( -name '*.pem' -o -name '*.key' -o -name 'config.php' \) | grep -q .; then
+            echo '::error::Unexpected secret file in deployment artifact'; exit 1
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: yarizan-licensing
+          path: licensing-dist/
+          include-hidden-files: true
+          retention-days: 7
+  deploy:
+    if: (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy)) && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: licensing-production
+      url: https://yarizan.osameh.dev
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: yarizan-licensing
+          path: licensing-dist
+      - name: Install deployment runtime
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq php-cli curl openssl
+      - name: Deploy over certificate-pinned FTPS and verify live service
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_CERT_FINGERPRINT: ${{ secrets.FTP_CERT_FINGERPRINT }}
+        run: python3 tools/Deploy-Licensing.py

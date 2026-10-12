@@ -50,23 +50,38 @@ public static class TrialStore
     public static bool IsExhausted() => Remaining() <= 0;
 
     /// <summary>
-    /// Increment the trial counter by one and write to both stores.
-    /// Idempotent within a process: callers should gate this behind a per-session flag if they want
-    /// "one trial = one launch" semantics regardless of UI navigation.
+    /// Atomically consume an available trial entry across processes and persist it.
+    /// AccessSession prevents repeat consumption during navigation within one process.
     /// </summary>
     public static TrialState RecordLaunch()
     {
-        var existing = Load();
-        var hwid = HwidProvider.GetHwid();
-        var next = new TrialState(
-            Hwid: hwid,
-            Count: (existing?.Count ?? 0) + 1,
-            FirstLaunchUtc: existing?.FirstLaunchUtc ?? DateTime.UtcNow);
+        using var mutex = new Mutex(false, @"Local\YariZan-Trial-" + HwidProvider.GetHwid());
+        bool acquired = false;
+        try
+        {
+            try { acquired = mutex.WaitOne(TimeSpan.FromSeconds(10)); }
+            catch (AbandonedMutexException) { acquired = true; }
+            if (!acquired) throw new IOException("Trial state is busy.");
+            var existing = Load();
+            if ((existing?.Count ?? 0) >= MaxTrialLaunches)
+                throw new InvalidOperationException("Trial exhausted.");
+            var hwid = HwidProvider.GetHwid();
+            var next = new TrialState(
+                Hwid: hwid,
+                Count: (existing?.Count ?? 0) + 1,
+                FirstLaunchUtc: existing?.FirstLaunchUtc ?? DateTime.UtcNow);
 
-        SaveToFile(next);
-        SaveToRegistry(next);
-        return next;
+            bool fileSaved = SaveToFile(next);
+            bool registrySaved = SaveToRegistry(next);
+            if ((!fileSaved && !registrySaved) || Load()?.Count != next.Count)
+                throw new IOException("Could not persist trial state.");
+            return next;
+        }
+        finally { if (acquired) mutex.ReleaseMutex(); }
     }
+
+    private static TrialState InvalidState() =>
+        new(HwidProvider.GetHwid(), MaxTrialLaunches, DateTime.UtcNow);
 
     public static void Reset()
     {
@@ -79,9 +94,9 @@ public static class TrialStore
         try
         {
             if (!File.Exists(PrimaryFilePath)) return null;
-            return DecryptBlob(File.ReadAllBytes(PrimaryFilePath));
+            return DecryptBlob(File.ReadAllBytes(PrimaryFilePath)) ?? InvalidState();
         }
-        catch { return null; }
+        catch { return InvalidState(); }
     }
 
     private static TrialState? LoadFromRegistry()
@@ -89,31 +104,34 @@ public static class TrialStore
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RegistryPath);
-            if (key?.GetValue(RegistryValueName) is byte[] blob)
-                return DecryptBlob(blob);
-            return null;
+            var value = key?.GetValue(RegistryValueName);
+            if (value is null) return null;
+            return value is byte[] blob ? DecryptBlob(blob) ?? InvalidState() : InvalidState();
         }
-        catch { return null; }
+        catch { return InvalidState(); }
     }
 
-    private static void SaveToFile(TrialState state)
+    private static bool SaveToFile(TrialState state)
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(PrimaryFilePath)!);
             File.WriteAllBytes(PrimaryFilePath, EncryptBlob(state));
+            return true;
         }
-        catch { /* one mirror missing is acceptable; the other still holds the line */ }
+        catch { return false; }
     }
 
-    private static void SaveToRegistry(TrialState state)
+    private static bool SaveToRegistry(TrialState state)
     {
         try
         {
             using var key = Registry.CurrentUser.CreateSubKey(RegistryPath);
-            key?.SetValue(RegistryValueName, EncryptBlob(state), RegistryValueKind.Binary);
+            if (key is null) return false;
+            key.SetValue(RegistryValueName, EncryptBlob(state), RegistryValueKind.Binary);
+            return true;
         }
-        catch { }
+        catch { return false; }
     }
 
     private static byte[] EncryptBlob(TrialState state)
@@ -151,6 +169,7 @@ public static class TrialStore
 
         var state = JsonSerializer.Deserialize<TrialState>(plain);
         if (state is null) return null;
+        if (state.Count < 0 || state.Count > MaxTrialLaunches) return null;
         // HWID match guard — copying a foreign trial file would have failed AesGcm anyway, but be explicit.
         return string.Equals(state.Hwid, hwid, StringComparison.OrdinalIgnoreCase) ? state : null;
     }

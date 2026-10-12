@@ -11,9 +11,12 @@ public partial class MainWindow : Window
 {
     private readonly GameLibrary _library = GameLibrary.LoadOrEmpty();
     private readonly GameLauncher _launcher = new();
+    private readonly OnlineTrialClient _trials = new();
+    private readonly AccessSession _access;
 
     public MainWindow()
     {
+        _access = new AccessSession(() => ActivationStore.Load() is not null, _trials.ConsumeAsync);
         InitializeComponent();
         Loaded += (_, _) => ShowCover(animate: false);
         Closed += (_, _) => _launcher.Dispose();
@@ -24,10 +27,7 @@ public partial class MainWindow : Window
         var page = new CoverPage();
         page.OpenRequested += (_, _) =>
         {
-            var rec = ActivationStore.Load();
-            bool isActivated = rec is not null &&
-                string.Equals(rec.Hwid, HwidProvider.GetHwid(), StringComparison.OrdinalIgnoreCase);
-            if (isActivated) ShowInfo();
+            if (_access.CanEnter) ShowInfo();
             else ShowLock();
         };
         SwapPage(page, animate);
@@ -35,7 +35,7 @@ public partial class MainWindow : Window
 
     public void ShowLock()
     {
-        var page = new LockPage();
+        var page = new LockPage(_access, _trials);
         page.Activated    += (_, _) => ShowInfo();
         page.TrialStarted += (_, _) => ShowInfo();
         page.Cancelled    += (_, _) => ShowCover();
@@ -44,7 +44,8 @@ public partial class MainWindow : Window
 
     public void ShowInfo()
     {
-        var page = new InfoPage();
+        if (!_access.CanEnter) { ShowLock(); return; }
+        var page = new InfoPage(_access.TrialRemaining);
         page.NextRequested += (_, _) => ShowGames();
         page.BackRequested += (_, _) => ShowCover();
         SwapPage(page, animate: true);
@@ -52,6 +53,7 @@ public partial class MainWindow : Window
 
     public void ShowGames()
     {
+        if (!_access.CanEnter) { ShowLock(); return; }
         var page = new GamesBookPage(_library);
         page.GameLaunchRequested += OnGameLaunch;
         page.BackRequested += (_, _) => ShowInfo();
@@ -62,10 +64,14 @@ public partial class MainWindow : Window
     {
         try
         {
+            if (!_access.CanEnter) { ShowLock(); return; }
             var key = AppKeys.LoadEmbeddedMasterKey();
-            var path = AppPaths.ResolveGameFile(e.EncryptedFile);
-            _launcher.Launch(key, path, e.Name);
-            Array.Clear(key, 0, key.Length);
+            try
+            {
+                var path = AppPaths.ResolveGameFile(e.EncryptedFile);
+                _launcher.Launch(key, path, e.Name);
+            }
+            finally { Array.Clear(key, 0, key.Length); }
         }
         catch (Exception ex)
         {

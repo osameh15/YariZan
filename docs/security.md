@@ -1,5 +1,7 @@
 # Security model
 
+The desktop now obtains signed trial-session grants from the PHP/MySQL service. Trial usage and admin resets are server-side; local `TrialStore` data is retained only as a legacy utility/test fixture. Paid serial activation remains offline. See `web/licensing/README.md` for the current protocol, server identity limitations, and private-key deployment requirements. The local trial-file formats below document the previous mechanism.
+
 ## Goals
 
 1. A serial sold to one customer must not unlock another machine.
@@ -91,6 +93,15 @@ Mitigations available *without* changing the architecture:
 
 Mitigations that require an architectural change (deferred):
 - Switch to a per‑machine wrapped master key. Seller's `sign` command would output `serial || encrypt_for(KDF(hwid), master_key)`; app would unwrap on activation.
+
+## Access enforcement
+
+- Every saved activation is checked against this machine's HWID and its ECDSA signature. An encrypted record containing an invalid serial is rejected.
+- Two explicit trial entries are allowed. Each entry authorizes its application process until it closes; navigating back to the cover does not consume another entry.
+- Trial consumption uses a named mutex and checks persistence before granting access. Damaged or unreadable trial state blocks trial access; verified activation still works.
+- Both protected page navigation and game launch check the current activation or the process's granted trial session.
+- Deleting both local trial mirrors still resets the counter, and the embedded game key can still be extracted by reverse engineering. These local protections do not guarantee resistance to a modified application.
+- Run `powershell -NoProfile -ExecutionPolicy Bypass -File tests\Run-AccessChecks.ps1` for isolated regression checks. Tests use temporary keys, redirected files, and a unique registry location; real activation and trial state are untouched.
 
 ## Operational hygiene
 

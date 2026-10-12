@@ -10,25 +10,21 @@ public partial class InfoPage : UserControl
     public event EventHandler? NextRequested;
     public event EventHandler? BackRequested;
 
-    public InfoPage()
+    public InfoPage(int? trialRemaining = null)
     {
         InitializeComponent();
         var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
         VersionText.Text = "نسخهٔ " + ToPersianDigits(ver);
 
         var rec = ActivationStore.Load();
-        bool isActivated = rec is not null &&
-            string.Equals(rec.Hwid, HwidProvider.GetHwid(), StringComparison.OrdinalIgnoreCase);
+        bool isActivated = rec is not null;
         if (!isActivated)
         {
-            int remaining = TrialStore.Remaining();
-            if (remaining > 0)
-            {
-                TrialBanner.Visibility = Visibility.Visible;
-                TrialBanner.Text =
-                    "نسخهٔ آزمایشی — " + ToPersianDigits(remaining.ToString()) +
-                    " بار اجرا باقی مانده است";
-            }
+            int remaining = trialRemaining ?? 0;
+            TrialBanner.Visibility = Visibility.Visible;
+            TrialBanner.Text =
+                "نسخهٔ آزمایشی — " + ToPersianDigits(remaining.ToString()) +
+                " بار اجرا باقی مانده است";
         }
     }
 

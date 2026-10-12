@@ -108,6 +108,10 @@ Paste the printed serial into the lock screen → the book opens. Subsequent lau
 
 ## Trial mode
 
+**Current behavior:** trial entries are now managed by the PHP/MySQL service at `yarizan.osameh.dev`. Each of the two entries requires internet and a signed session grant. Reset trials from the web panel; deleting local files or running `SerialGen reset-trial` does not reset the server counter. Paid serial activation remains offline, including reactivation after an OS reinstall when the HWID matches. See [web/licensing/README.md](web/licensing/README.md) for the panel, setup, and deployment instructions.
+
+The local-file/registry details below describe the retained legacy `TrialStore` utility, not the desktop application's current trial authorization.
+
 A fresh install lets the user enter the app **2 times** without a serial. This gives the buyer time to evaluate the launcher before paying for activation.
 
 The trial is a **second button on the lock screen** next to فعال‌سازی. Its label shows the remaining count, like `ورود آزمایشی (۲/۲)`. Clicking it consumes one trial and routes the user to the info page exactly like a successful activation. Once the count reaches `0/2`, the button becomes disabled (`آزمایش به پایان رسیده`) and the only way forward is a paid serial.
@@ -279,3 +283,5 @@ Proprietary. © YariZan. All rights reserved. Contact the author for distributio
 ## Author
 
 **osameh15** — <osirandoust@gmail.com> · [github.com/osameh15](https://github.com/osameh15)
+
+The licensing panel deploys public files only. Upload the separate ignored private setup bundle manually; see [private setup instructions](web/licensing/README.md#manual-private-setup).

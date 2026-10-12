@@ -1,6 +1,7 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using YariZan.Core;
+using YariZan.App.Services;
 
 namespace YariZan.App.Views;
 
@@ -13,18 +14,23 @@ public partial class LockPage : UserControl
     private const string SupportPhone = "0918-876-4024";
 
     private readonly string _hwid;
+    private readonly AccessSession _access;
+    private readonly OnlineTrialClient _trials;
 
-    public LockPage()
+    public LockPage(AccessSession access, OnlineTrialClient trials)
     {
+        _access = access;
+        _trials = trials;
         InitializeComponent();
         _hwid = HwidProvider.GetHwid();
         HwidText.Text = HwidProvider.GetHwidPretty();
-        UpdateTrialButton();
+        TrialButton.IsEnabled = false;
+        TrialButton.Content = "بررسی آزمایش…";
+        Loaded += async (_, _) => await RefreshTrialAsync();
     }
 
-    private void UpdateTrialButton()
+    private void UpdateTrialButton(int remaining)
     {
-        var remaining = TrialStore.Remaining();
         if (remaining > 0)
         {
             TrialButton.IsEnabled = true;
@@ -36,6 +42,17 @@ public partial class LockPage : UserControl
         {
             TrialButton.IsEnabled = false;
             TrialButton.Content = "آزمایش به پایان رسیده";
+        }
+    }
+
+    private async Task RefreshTrialAsync()
+    {
+        try { UpdateTrialButton(await _trials.RemainingAsync()); }
+        catch
+        {
+            // Permit an explicit retry; no access is granted without a signed server response.
+            TrialButton.IsEnabled = true;
+            TrialButton.Content = "ورود آزمایشی (نیاز به اینترنت)";
         }
     }
 
@@ -94,32 +111,49 @@ public partial class LockPage : UserControl
             return;
         }
 
-        var pubKey = AppKeys.LoadEmbeddedPublicKeyPem();
-        if (!SerialCodec.Verify(pubKey, _hwid, serial))
+        try
+        {
+            var pubKey = AppKeys.LoadEmbeddedPublicKeyPem();
+            if (!SerialCodec.Verify(pubKey, _hwid, serial))
+            {
+                StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
+                StatusText.Text = "سریال نامعتبر است.";
+                return;
+            }
+
+            ActivationStore.Save(new ActivationRecord(_hwid, serial));
+            Activated?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception)
         {
             StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
-            StatusText.Text = "سریال نامعتبر است.";
-            return;
+            StatusText.Text = "فعال‌سازی ذخیره نشد. لطفاً دسترسی نوشتن و فایل‌های برنامه را بررسی کنید.";
         }
-
-        ActivationStore.Save(new ActivationRecord(_hwid, serial));
-        Activated?.Invoke(this, EventArgs.Empty);
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e) =>
         Cancelled?.Invoke(this, EventArgs.Empty);
 
-    private void Trial_Click(object sender, RoutedEventArgs e)
+    private async void Trial_Click(object sender, RoutedEventArgs e)
     {
-        if (TrialStore.IsExhausted())
+        IsEnabled = false;
+        try
+        {
+            await _access.StartTrialAsync();
+            TrialStarted?.Invoke(this, EventArgs.Empty);
+        }
+        catch (TrialExhaustedException)
         {
             StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
             StatusText.Text = "آزمایش رایگان به پایان رسیده است. لطفاً سریال را وارد کنید.";
-            UpdateTrialButton();
-            return;
+            UpdateTrialButton(0);
         }
-        TrialStore.RecordLaunch();
-        TrialStarted?.Invoke(this, EventArgs.Empty);
+        catch (Exception)
+        {
+            StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
+            StatusText.Text = "ارتباط با سرویس آزمایش برقرار نشد. اینترنت را بررسی کنید و دوباره تلاش کنید، یا سریال را وارد کنید.";
+        }
+        finally { IsEnabled = true; }
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e) =>

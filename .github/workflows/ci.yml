@@ -25,6 +25,9 @@ jobs:
       - name: Restore
         run: dotnet restore src/YariZan.sln
 
+      - name: Reject tracked private hosting files
+        run: python tools/Check-PublicRepository.py
+
       # The launcher embeds secrets/public.pem and secrets/master.key. private.pem and
       # master.key are gitignored; only public.pem is committed. SerialGen init bails if
       # ANY of the three exists, so on CI we wipe the whole secrets folder first to
@@ -40,6 +43,10 @@ jobs:
 
       - name: Build (Release)
         run: dotnet build src/YariZan.sln --configuration Release --no-restore
+
+      - name: Isolated access and trial grant checks
+        shell: powershell
+        run: .\tests\Run-AccessChecks.ps1
 
       # Future: when tests exist, add:
       # - name: Test
