@@ -117,9 +117,18 @@ def main():
             destination = '/'.join(part for part in (public_root, local.relative_to(artifact / 'public').as_posix()) if part)
             upload(local, destination)
         print('Public panel files deployed. No private files were accessed, uploaded, or changed.')
-        health = run(['curl', '--silent', '--show-error', '--connect-timeout', '15', '--max-time', '30',
-                      '-H', 'Cache-Control: no-cache', 'https://yarizan.osameh.dev/api/health.php?deploy='
-                      + os.environ.get('GITHUB_SHA', 'manual')])
+        try:
+            health = run(['curl', '--silent', '--show-error', '--fail-with-body',
+                          '--connect-timeout', '10', '--max-time', '30',
+                          '--retry', '2', '--retry-delay', '5', '--retry-max-time', '110',
+                          '-H', 'Cache-Control: no-cache', 'https://yarizan.osameh.dev/api/health.php?deploy='
+                          + os.environ.get('GITHUB_SHA', 'manual')])
+        except RuntimeError as error:
+            raise RuntimeError(
+                'Public files were uploaded successfully, but HTTPS verification failed after retries. '
+                'The upload was not rolled back. Check DNS, origin HTTPS, and CDN/firewall access '
+                'to /api/health.php from GitHub-hosted runners. ' + str(error)
+            ) from None
         if health.decode('utf-8', 'replace').strip() == 'Licensing service setup is incomplete.':
             print('::warning::Public deployment succeeded. Manually upload the private setup bundle to private/yarizan before using the panel.')
             return
