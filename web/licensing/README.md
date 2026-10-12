@@ -112,3 +112,4 @@ To recreate the code-only private update ZIP after cleanup:
 New-Item -ItemType Directory -Path publish -Force | Out-Null
 Compress-Archive -Path web/licensing/app,web/licensing/database -DestinationPath publish/YariZan-private-code-update.zip -Force
 ```
+Connection Retry first validates the saved activation serial and resumes paid access automatically. Network failures preserve the local activation. A rejected saved serial remains blocked and Retry cannot fall back to trial registration; a replaced serial needs to be entered once. The regeneration button shares the editor action row and submits its own confirmation form.

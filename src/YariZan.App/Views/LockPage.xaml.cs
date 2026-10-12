@@ -17,6 +17,7 @@ public partial class LockPage : UserControl
     private readonly AccessSession _access;
     private readonly OnlineTrialClient _trials;
     private bool _registered;
+    private bool _refreshing;
 
     public LockPage(AccessSession access, OnlineTrialClient trials)
     {
@@ -48,10 +49,19 @@ public partial class LockPage : UserControl
 
     private async Task RefreshTrialAsync()
     {
+        if (_refreshing) return;
+        _refreshing = true;
+        var savedActivation = ActivationStore.Load();
         TrialButton.IsEnabled = false;
         TrialButton.Content = "بررسی ارتباط…";
         try
         {
+            if (savedActivation is not null)
+            {
+                await _trials.AuthorizePaidAsync(savedActivation.Serial);
+                Activated?.Invoke(this, EventArgs.Empty);
+                return;
+            }
             UpdateTrialButton(await _trials.RemainingAsync());
             _registered = true;
             StatusText.Text = "دستگاه ثبت شد. بررسی وضعیت، ورود آزمایشی مصرف نمی‌کند.";
@@ -59,9 +69,10 @@ public partial class LockPage : UserControl
         }
         catch (AccessDeniedException)
         {
+            _trials.Revoke();
             _registered = false;
-            TrialButton.IsEnabled = false;
-            TrialButton.Content = "دستگاه غیرفعال است";
+            TrialButton.IsEnabled = true;
+            TrialButton.Content = "بررسی دوبارهٔ دسترسی";
             StatusText.Text = "دسترسی این دستگاه لغو شده است. برای دریافت سریال جدید با پشتیبانی تماس بگیرید.";
         }
         catch
@@ -70,10 +81,13 @@ public partial class LockPage : UserControl
             TrialButton.IsEnabled = true;
             TrialButton.Content = "بررسی دوبارهٔ ارتباط";
             StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
-            StatusText.Text = System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()
+            StatusText.Text = savedActivation is not null
+                ? "سریال ذخیره‌شده حفظ شده است. اتصال اینترنت و سرور را بررسی کنید و دوباره تلاش کنید."
+                : System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()
                 ? "سرور آزمایش در دسترس نیست. ارتباط اینترنت را بررسی کنید و دوباره تلاش کنید، یا سریال را وارد کنید."
                 : "برای بررسی دسترسی و فعال‌سازی، به اینترنت متصل شوید.";
         }
+        finally { _refreshing = false; }
     }
 
     private static string ToPersianDigits(string s)
