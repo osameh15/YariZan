@@ -10,14 +10,12 @@ public partial class InfoPage : UserControl
     public event EventHandler? NextRequested;
     public event EventHandler? BackRequested;
 
-    public InfoPage(int? trialRemaining = null)
+    public InfoPage(int? trialRemaining = null, bool isActivated = false)
     {
         InitializeComponent();
         var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
         VersionText.Text = "نسخهٔ " + ToPersianDigits(ver);
 
-        var rec = ActivationStore.Load();
-        bool isActivated = rec is not null;
         if (!isActivated)
         {
             int remaining = trialRemaining ?? 0;

@@ -13,22 +13,35 @@ public partial class MainWindow : Window
     private readonly GameLauncher _launcher = new();
     private readonly OnlineTrialClient _trials = new();
     private readonly AccessSession _access;
+    private readonly System.Windows.Threading.DispatcherTimer _heartbeat = new() { Interval = TimeSpan.FromSeconds(60) };
+    private bool _checking;
 
     public MainWindow()
     {
-        _access = new AccessSession(() => ActivationStore.Load() is not null, _trials.ConsumeAsync);
+        _access = new AccessSession(() => _trials.PaidAuthorized, _trials.ConsumeAsync);
         InitializeComponent();
         Loaded += (_, _) => ShowCover(animate: false);
-        Closed += (_, _) => _launcher.Dispose();
+        _heartbeat.Tick += async (_, _) => { if (_access.CanEnter) await CheckSessionAsync(); };
+        _heartbeat.Start();
+        Closed += (_, _) => { _heartbeat.Stop(); _launcher.Dispose(); };
     }
 
     public void ShowCover(bool animate = true)
     {
         var page = new CoverPage();
-        page.OpenRequested += (_, _) =>
+        page.OpenRequested += async (_, _) =>
         {
-            if (_access.CanEnter) ShowInfo();
-            else ShowLock();
+            if (_checking) return;
+            _checking = true;
+            page.IsEnabled = false;
+            try
+            {
+                if (_access.CanEnter) await _trials.ValidateSessionAsync();
+                else if (ActivationStore.Load() is { } activation) await _trials.AuthorizePaidAsync(activation.Serial);
+                if (_access.CanEnter) ShowInfo(); else ShowLock();
+            }
+            catch { RevokeAccess(); }
+            finally { _checking = false; page.IsEnabled = true; }
         };
         SwapPage(page, animate);
     }
@@ -45,7 +58,7 @@ public partial class MainWindow : Window
     public void ShowInfo()
     {
         if (!_access.CanEnter) { ShowLock(); return; }
-        var page = new InfoPage(_access.TrialRemaining);
+        var page = new InfoPage(_access.TrialRemaining, _trials.PaidAuthorized);
         page.NextRequested += (_, _) => ShowGames();
         page.BackRequested += (_, _) => ShowCover();
         SwapPage(page, animate: true);
@@ -60,10 +73,12 @@ public partial class MainWindow : Window
         SwapPage(page, animate: true);
     }
 
-    private void OnGameLaunch(object? sender, GameEntry e)
+    private async void OnGameLaunch(object? sender, GameEntry e)
     {
         try
         {
+            if (_checking) return;
+            if (!await CheckSessionAsync()) return;
             if (!_access.CanEnter) { ShowLock(); return; }
             var key = AppKeys.LoadEmbeddedMasterKey();
             try
@@ -78,6 +93,23 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "خطا در اجرای بازی: " + ex.Message, "یاریزان",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private void RevokeAccess()
+    {
+        _trials.Revoke();
+        _access.Revoke();
+        _launcher.StopGames();
+        ShowLock();
+    }
+
+    private async Task<bool> CheckSessionAsync()
+    {
+        if (_checking) return false;
+        _checking = true;
+        try { await _trials.ValidateSessionAsync(); return true; }
+        catch { RevokeAccess(); return false; }
+        finally { _checking = false; }
     }
 
     private void SwapPage(UserControl next, bool animate)

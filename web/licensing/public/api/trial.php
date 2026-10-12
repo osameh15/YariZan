@@ -27,6 +27,10 @@ try {
     if (!is_array($body) || !is_string($body['hwid'] ?? null)) throw new InvalidArgumentException();
     $hwid = YariZan\Licensing\Crypto::hwid($body['hwid']);
     $operation = $body['operation'] ?? '';
+    if ($operation === 'authorize') {
+        if (!is_string($body['mode'] ?? null) || !is_string($body['credential'] ?? null) || !is_string($body['nonce'] ?? null)) throw new InvalidArgumentException();
+        respond($service->authorize($hwid, $body['mode'], $body['credential'], $body['nonce']));
+    }
     if ($operation === 'status') {
         $pcName = $body['pc_name'] ?? '';
         if (!is_string($pcName)) throw new InvalidArgumentException();
@@ -34,6 +38,8 @@ try {
     }
     if ($operation !== 'consume' || !is_string($body['nonce'] ?? null)) throw new InvalidArgumentException();
     respond($service->trial($hwid, $body['nonce']));
+} catch (YariZan\Licensing\AccessDenied) {
+    respond(['error' => 'access_denied'], 403);
 } catch (YariZan\Licensing\TrialExhausted) {
     respond(['error' => 'trial_exhausted', 'remaining' => 0], 403);
 } catch (InvalidArgumentException | JsonException) {

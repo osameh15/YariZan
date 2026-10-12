@@ -30,7 +30,10 @@ try {
     check(fails(fn() => Crypto::derToRaw('invalid')), 'Reject malformed DER');
     $vectorPath = getenv('YARIZAN_TEST_VECTOR');
     if ($vectorPath) {
+        $credentialHash = strtoupper(hash('sha256', str_replace('-', '', $serial)));
+        $accessSignature = base64_encode(Crypto::sign($keyPath, "YariZan-Access-v1|$hwid|$nonce|paid|$credentialHash"));
         file_put_contents($vectorPath, json_encode(['publicKey' => $public, 'hwid' => $hwid, 'serial' => $serial,
+            'credentialHash' => $credentialHash, 'accessSignature' => $accessSignature,
             'nonce' => $nonce, 'remaining' => 1, 'signature' => base64_encode($raw)], JSON_THROW_ON_ERROR));
     }
     $dsn = getenv('YARIZAN_TEST_DSN');
@@ -52,6 +55,7 @@ try {
             check($row['customer_name'] === 'Renamed user' && $row['notes'] === 'Contact description' && $row['serial'] === null && (int)$row['trial_used'] === 0, 'Registration preserves admin edits; metadata save grants no access');
             $one = $service->trial($hwid, $nonce);
             check($one['remaining'] === 1, 'First trial');
+            check($service->authorize($hwid, 'trial', $nonce, $nonce)['mode'] === 'trial', 'Existing trial session reauthorizes without spending entry');
             check($service->trial($hwid, $nonce) === $one, 'Retry returns identical grant');
             check($service->status($hwid)['remaining'] === 1, 'Retry does not double-consume');
             $two = $service->trial($hwid, strtoupper(bin2hex(random_bytes(32))));
@@ -85,15 +89,24 @@ try {
                 if ($result === 'granted') $successes++;
             }
             check($successes === 2 && $service->status($hwid)['remaining'] === 0, 'Concurrent processes receive exactly two grants');
+            check($service->authorize($hwid, 'paid', $saved, $nonce)['mode'] === 'paid', 'Stored paid serial authorizes online');
+            $replacement = $service->regenerate($hwid, 'test-admin');
+            check($replacement !== $saved, 'Regeneration produces a different serial');
+            check(fails(fn() => $service->authorize($hwid, 'paid', $saved, $nonce)), 'Regenerated old serial is denied');
+            check($service->authorize($hwid, 'paid', $replacement, $nonce)['mode'] === 'paid', 'New serial authorizes');
             $service->deleteDevice($hwid);
             foreach (['devices', 'trial_grants', 'audit_events'] as $table) {
                 $stmt = $db->prepare("SELECT COUNT(*) FROM $table WHERE hwid = ?"); $stmt->execute([$hwid]);
                 check((int)$stmt->fetchColumn() === 0, 'Device deletion clears ' . $table);
             }
             $service->deleteDevice($hwid);
-            check($service->status($hwid)['remaining'] === 2, 'Deleted device registers fresh without reusing serial or trial');
+            check(fails(fn() => $service->status($hwid)), 'Deleted HWID cannot register for fresh trial');
+            check(fails(fn() => $service->trial($hwid, $nonce)), 'Deleted HWID cannot consume trial');
+            check(fails(fn() => $service->authorize($hwid, 'paid', $replacement, $nonce)), 'Deleted HWID cannot authorize saved activation');
+            $restored = $service->issue($hwid, 'Restored', '', 'test-admin');
+            check($restored !== $replacement && $service->authorize($hwid, 'paid', $restored, $nonce)['mode'] === 'paid', 'Admin restores device with new serial');
         } finally {
-            foreach (['trial_grants', 'audit_events', 'devices'] as $table) {
+            foreach (['trial_grants', 'audit_events', 'devices', 'blocked_devices'] as $table) {
                 $stmt = $db->prepare("DELETE FROM $table WHERE hwid = ?"); $stmt->execute([$hwid]);
             }
         }

@@ -3,7 +3,7 @@ $repo = Split-Path $PSScriptRoot -Parent
 $testId = [Guid]::NewGuid().ToString('N')
 $testDir = Join-Path ([IO.Path]::GetTempPath()) "YariZan-access-$testId"
 New-Item -ItemType Directory -Path $testDir | Out-Null
-foreach ($name in 'SerialCodec', 'ActivationStore', 'TrialStore', 'AccessSession', 'TrialGrant') {
+foreach ($name in 'SerialCodec', 'ActivationStore', 'TrialStore', 'AccessSession', 'TrialGrant', 'AccessGrant') {
     $source = Get-Content -Raw -Encoding UTF8 (Join-Path $repo "src/YariZan.Core/$name.cs")
     # Redirect state to disposable locations; use temporary keys and a fixed test HWID.
     $source = $source.Replace('Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)', 'AppContext.BaseDirectory')

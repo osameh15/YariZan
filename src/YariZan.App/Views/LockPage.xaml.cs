@@ -57,6 +57,13 @@ public partial class LockPage : UserControl
             StatusText.Text = "دستگاه ثبت شد. بررسی وضعیت، ورود آزمایشی مصرف نمی‌کند.";
             StatusText.Foreground = System.Windows.Media.Brushes.DarkGreen;
         }
+        catch (AccessDeniedException)
+        {
+            _registered = false;
+            TrialButton.IsEnabled = false;
+            TrialButton.Content = "دستگاه غیرفعال است";
+            StatusText.Text = "دسترسی این دستگاه لغو شده است. برای دریافت سریال جدید با پشتیبانی تماس بگیرید.";
+        }
         catch
         {
             _registered = false;
@@ -65,7 +72,7 @@ public partial class LockPage : UserControl
             StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
             StatusText.Text = System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()
                 ? "سرور آزمایش در دسترس نیست. ارتباط اینترنت را بررسی کنید و دوباره تلاش کنید، یا سریال را وارد کنید."
-                : "برای شروع استفادهٔ آزمایشی، به اینترنت متصل شوید. فعال‌سازی با سریال به اینترنت نیاز ندارد.";
+                : "برای بررسی دسترسی و فعال‌سازی، به اینترنت متصل شوید.";
         }
     }
 
@@ -114,7 +121,7 @@ public partial class LockPage : UserControl
         }
     }
 
-    private void Activate_Click(object sender, RoutedEventArgs e)
+    private async void Activate_Click(object sender, RoutedEventArgs e)
     {
         var serial = SerialBox.Text?.Trim() ?? "";
         if (serial.Length == 0)
@@ -126,6 +133,7 @@ public partial class LockPage : UserControl
 
         try
         {
+            IsEnabled = false;
             var pubKey = AppKeys.LoadEmbeddedPublicKeyPem();
             if (!SerialCodec.Verify(pubKey, _hwid, serial))
             {
@@ -134,14 +142,21 @@ public partial class LockPage : UserControl
                 return;
             }
 
+            await _trials.AuthorizePaidAsync(serial);
             ActivationStore.Save(new ActivationRecord(_hwid, serial));
             Activated?.Invoke(this, EventArgs.Empty);
+        }
+        catch (AccessDeniedException)
+        {
+            _trials.Revoke();
+            StatusText.Text = "سریال لغو شده یا دستگاه غیرفعال است. سریال جدید را از پشتیبانی دریافت کنید.";
         }
         catch (Exception)
         {
             StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
-            StatusText.Text = "فعال‌سازی ذخیره نشد. لطفاً دسترسی نوشتن و فایل‌های برنامه را بررسی کنید.";
+            StatusText.Text = "فعال‌سازی انجام نشد. ارتباط اینترنت، سرویس فعال‌سازی و دسترسی نوشتن را بررسی کنید.";
         }
+        finally { IsEnabled = true; }
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e) =>

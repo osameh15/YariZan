@@ -4,7 +4,7 @@ PHP 8.2+ / MySQL (InnoDB) admin panel for `https://yarizan.osameh.dev`.
 
 The administrator pastes a device HWID, optionally supplies a customer name and notes, and generates a serial. The user table appears first. Search covers customer name, description, HWID, and serial. Each row opens a closable editor below the table; metadata saves do not issue a serial, and existing serials are displayed and preserved. Reissuing for the same HWID returns its stored serial. Reset trial restores exactly two online trial entries for that HWID without changing the paid serial. Panel actions are recorded in the database audit log.
 
-Serials use the existing `YariZan-Serial-v1|HWID` ECDSA-P256 format. Paid activation remains fully offline. A customer who reinstalls Windows can re-enter the old serial if the hardware fingerprint is unchanged. The activation file need not survive the reinstall. The panel records issued serials, not live activation status or currently running offline users.
+Serials retain the existing ECDSA-P256 format, but a valid local signature no longer grants access by itself. Paid activation and later access require a fresh signed server authorization against the current database serial. Authorization is checked when opening the book, before each game launch, and every 60 seconds during a session. Offline access is no longer supported.
 
 ## Hosting setup for osameh.dev
 
@@ -42,13 +42,13 @@ Username: `admin`. Read the generated strong password in `admin-credentials.txt`
 Only these repository secrets are needed for public deployment: `FTP_HOST`, `FTP_PORT`, `FTP_USERNAME`, `FTP_PASSWORD`, and `FTP_CERT_FINGERPRINT`. The workflow verifies the certificate before login and pins that public key on each FTPS connection. The FTP account can open directly into the public subdomain directory; it does not need private-directory access. The FTPS host is `2450773172.cloudylink.com`, port 21.
 Enable HTTPS to the subdomain and origin. Bypass CDN caching/browser challenges for `/api/*`, and bypass caching for the login/admin page. Configure daily cron to execute `private/yarizan/bin/maintenance.php`. PHP must run as your hosting account to read 700 directories.
 
-The desktop uses `https://yarizan.osameh.dev/api/trial.php`. Until the service is ready, trials are unavailable; valid serial activation stays offline. Use the panel to reset server trials, not the retained local `SerialGen reset-trial` utility.
+The desktop uses `https://yarizan.osameh.dev/api/trial.php`. Until the service is ready, both paid and trial access are unavailable. Use the panel to reset server trials, not the retained local `SerialGen reset-trial` utility.
 
 ## Updating this release
 
-After pulling this release, manually upload the updated `app/Service.php` into `domains/osameh.dev/subdomains/private/yarizan/app/` before using the new edit action. The local `publish/YariZan-private-code-update.zip` contains the `app/` directory only: extract into `private/yarizan/` and overwrite code files. It contains no config, credentials, or signing key. No database migration is required. CI uploads the matching public UI and API files only.
+Manually extract the refreshed `publish/YariZan-private-code-update.zip` into `domains/osameh.dev/subdomains/private/yarizan/`, overwriting `app/` and `database/` code. It contains no config, credentials, or signing key. Schema v2 adds `blocked_devices`; with `auto_install_schema=true`, the new schema marker triggers idempotent creation on the next request. Otherwise run `bin/migrate.php` or import `database/schema.sql` manually. CI uploads public files only.
 
-Unactivated desktop copies open the registration screen on launch. The status request sends HWID and PC name, creates a device with two trials without consuming one, and preserves administrator names/descriptions on subsequent requests. Without service access, trial entry is unavailable and Retry checks registration first. Paid activation remains offline; a signed trial session continues after disconnection until the process closes.
+The cover/splash appears first. Opening it checks saved paid activation online or displays the registration/lock screen. Status creates a new device with two trials without consumption, unless that HWID was deleted and blocked. A network failure denies protected access; a failed session check closes launched games and returns to Lock.
 
 ## API
 
@@ -70,7 +70,7 @@ Returns `hwid`, `nonce`, `remaining` (0–1), and a Base64 P-256 raw signature o
 YariZan-Trial-v1|HWID|NONCE|REMAINING
 ```
 
-The app verifies the signature and exact current device/session nonce before granting access. Retrying the same nonce returns the same grant without spending another entry. InnoDB transactions serialize concurrent requests for one device. Signing or database failure never grants access. A new process uses a fresh nonce. Panel reset deletes stored grants for that HWID and restores its counter; an already running trial session is not remotely terminated.
+The app verifies the signature and exact current device/session nonce before granting access. Retrying the same nonce returns the same grant without spending another entry. InnoDB transactions serialize concurrent requests for one device. Signing or database failure never grants access. A new process uses a fresh nonce. Panel reset deletes stored grants for that HWID and restores its counter; an existing trial session will fail its next online session check.
 
 ## Tests and local preview
 
@@ -98,6 +98,10 @@ For a public manual-upload ZIP, run `powershell -NoProfile -ExecutionPolicy Bypa
 
 The public trial API identifies devices by their reported HWID. Deleting local files or reinstalling Windows does not reset that HWID's server counter. A modified client can report a different HWID, consume another user's known HWID trials, or bypass local enforcement; verified customer accounts/evaluation codes and device-proof registration would be needed to strengthen that identity model. This implementation matches the requested paste-HWID workflow and is not proof of unbreakable DRM.
 
-The existing game key remains embedded in the desktop app; standalone game extraction is a separate content-protection problem. Signed perpetual serials cannot be revoked while paid copies remain fully offline. Anyone with access to the host's signing key can issue serials, so protect the hosting account and admin login. Legacy serials issued outside this panel still work but are not automatically discovered by its database.
+The game key remains embedded in the app, so local extraction and modified binaries remain limitations. Older offline app releases cannot be remotely revoked and must be replaced with this new online build. Serial keys issued outside the panel are not accepted unless registered as the current database serial.
 
-The shared panel confirmation dialog is used for trial reset and device deletion, with cancel, Escape and backdrop closing. Deletion removes the device, its serial/name/description, trial grants and associated audit rows in one transaction. A later app connection registers the HWID afresh with two trials; existing offline serials remain valid. Update private `app/Service.php` manually using the code-only ZIP before using deletion. No schema migration is needed.
+The shared confirmation dialog handles trial reset, device deletion, and serial regeneration. Deletion removes device details, grants and audit rows, but keeps a minimal blocked-HWID record to prevent automatic registration. Restore through Add with HWID and issue a new serial. Regeneration replaces the current serial, revokes existing trial grants and sets trials to exhausted; reset trial remains a separate explicit admin action.
+
+### Signed session checks
+
+POST `authorize` with HWID, mode (`paid` or `trial`), credential (current serial or trial session nonce), and a fresh 64-character hexadecimal check nonce. The response signs `YariZan-Access-v1|HWID|CHECK_NONCE|MODE|CREDENTIAL_HASH` using the existing key; credential hash is uppercase SHA-256 of the normalized credential. The desktop verifies device, mode, credential hash and fresh nonce before granting access. Deleted HWIDs, replaced serials, and removed trial sessions receive HTTP 403. A running session notices changes on its next check (60-second interval plus request timeout), and every game launch checks immediately.

@@ -7,6 +7,7 @@ namespace YariZan.Core;
 public sealed class GameLauncher : IDisposable
 {
     private readonly List<string> _temps = new();
+    private readonly List<Process> _processes = new();
 
     public Process Launch(byte[] masterKey, string encryptedGameFullPath, string displayName)
     {
@@ -23,6 +24,7 @@ public sealed class GameLauncher : IDisposable
 
         var psi = new ProcessStartInfo(file) { UseShellExecute = false, WorkingDirectory = dir };
         var p = Process.Start(psi)!;
+        _processes.Add(p);
         p.EnableRaisingEvents = true;
         p.Exited += (_, _) => CleanupDir(dir);
         return p;
@@ -61,6 +63,18 @@ public sealed class GameLauncher : IDisposable
 
     public void Dispose()
     {
+        StopGames();
         foreach (var d in _temps) CleanupDir(d);
+    }
+
+    public void StopGames()
+    {
+        foreach (var process in _processes)
+        {
+            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+            catch { }
+            process.Dispose();
+        }
+        _processes.Clear();
     }
 }

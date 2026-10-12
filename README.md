@@ -108,7 +108,7 @@ Paste the printed serial into the lock screen → the book opens. Subsequent lau
 
 ## Trial mode
 
-**Current behavior:** trial entries are now managed by the PHP/MySQL service at `yarizan.osameh.dev`. Each of the two entries requires internet and a signed session grant. Reset trials from the web panel; deleting local files or running `SerialGen reset-trial` does not reset the server counter. Paid serial activation remains offline, including reactivation after an OS reinstall when the HWID matches. See [web/licensing/README.md](web/licensing/README.md) for the panel, setup, and deployment instructions.
+**Current behavior:** trial entries are now managed by the PHP/MySQL service at `yarizan.osameh.dev`. Each of the two entries requires internet and a signed session grant. Reset trials from the web panel; deleting local files or running `SerialGen reset-trial` does not reset the server counter. Paid serial activation and later access require signed online validation. Reactivation after an OS reinstall uses the same serial only while it remains the current server serial for that HWID. See [web/licensing/README.md](web/licensing/README.md) for the panel, setup, and deployment instructions.
 
 The local-file/registry details below describe the retained legacy `TrialStore` utility, not the desktop application's current trial authorization.
 
@@ -287,3 +287,5 @@ Proprietary. © YariZan. All rights reserved. Contact the author for distributio
 The licensing panel deploys public files only. Upload the separate ignored private setup bundle manually; see [private setup instructions](web/licensing/README.md#manual-private-setup).
 
 Game payloads in `miniApps/` and `games_encrypted/` stay local. See [source game setup](miniApps/README.md) and [generated bundle setup](games_encrypted/README.md). The game-book toolbar includes a scrollable RTL About dialog; its Persian text is embedded directly in the app.
+
+Paid and trial access now require online server validation. Deleting a device blocks future access; regenerating its serial invalidates the old one. See the [licensing protocol and migration](web/licensing/README.md). Older offline binaries must be replaced for revocation to take effect.

@@ -30,13 +30,13 @@ $db = new PDO($config['dsn'], $config['db_user'], $config['db_password'], [
 ]);
 $db->exec("SET time_zone = '+00:00'");
 if ($config['auto_install_schema'] ?? false) {
-    $schemaMarker = dirname($configPath) . '/schema-v1-' . substr(hash('sha256', $config['dsn']), 0, 16) . '.ready';
+    $schemaMarker = dirname($configPath) . '/schema-v2-' . substr(hash('sha256', $config['dsn']), 0, 16) . '.ready';
     if (!is_file($schemaMarker)) {
         $schema = file_get_contents(dirname(__DIR__) . '/database/schema.sql');
         foreach (explode(';', $schema) as $statement) {
             if (trim($statement) !== '') $db->exec($statement);
         }
-        if (file_put_contents($schemaMarker, "Schema version 1 installed.\n", LOCK_EX) === false) {
+        if (file_put_contents($schemaMarker, "Schema version 2 installed.\n", LOCK_EX) === false) {
             throw new RuntimeException('Cannot persist schema readiness in the private directory.');
         }
         chmod($schemaMarker, 0600);

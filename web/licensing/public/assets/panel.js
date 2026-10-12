@@ -37,11 +37,11 @@ document.addEventListener('submit', (event) => {
   event.preventDefault();
   if (!confirmationDialog || pendingAction) return;
   const deleting = form.elements.action?.value === 'delete_device';
-  document.getElementById('confirmation-title').textContent = deleting ? 'حذف دستگاه' : 'بازنشانی آزمایش';
+  document.getElementById('confirmation-title').textContent = form.dataset.confirmTitle || (deleting ? 'حذف دستگاه' : 'بازنشانی آزمایش');
   document.getElementById('confirmation-message').textContent = message;
   const confirmButton = document.getElementById('confirmation-accept');
-  confirmButton.textContent = deleting ? 'حذف دستگاه' : 'بازنشانی آزمایش';
-  confirmButton.classList.toggle('destructive', deleting);
+  confirmButton.textContent = form.dataset.confirmLabel || (deleting ? 'حذف دستگاه' : 'بازنشانی آزمایش');
+  confirmButton.classList.toggle('destructive', deleting || form.elements.action?.value === 'regenerate');
   pendingAction = { form, submitter: event.submitter };
   confirmationDialog.showModal();
 });

@@ -78,6 +78,18 @@ try
     var online = new AccessSession(() => false, (Func<Task<int>>)(async () => { await Task.Delay(10); Interlocked.Increment(ref requests); return 0; }));
     Task.WhenAll(online.StartTrialAsync(), online.StartTrialAsync()).GetAwaiter().GetResult();
     Check("Concurrent UI requests consume once and authorize the second trial", online.CanEnter && requests == 1 && online.TrialRemaining == 0);
+    online.Revoke();
+    Check("Revocation removes existing session access", !online.CanEnter && online.TrialRemaining is null);
+    var credential = "CURRENT-SERIAL";
+    var credentialHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(credential)));
+    var accessMessage = Encoding.UTF8.GetBytes($"YariZan-Access-v1|{hwid}|{nonce}|paid|{credentialHash}");
+    var accessSignature = Convert.ToBase64String(signer.SignData(accessMessage, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
+    var accessGrant = new AccessGrant(hwid, nonce, "paid", credentialHash, accessSignature);
+    Check("Signed online authorization accepted", accessGrant.Verify(AppKeys.PublicKey, hwid, nonce, "paid", credential));
+    Check("Authorization cannot be replayed", !accessGrant.Verify(AppKeys.PublicKey, hwid, new string('D', 64), "paid", credential));
+    Check("Authorization rejects revoked or different serial", !accessGrant.Verify(AppKeys.PublicKey, hwid, nonce, "paid", "OLD-SERIAL"));
+    Check("Authorization rejects wrong device or mode", !accessGrant.Verify(AppKeys.PublicKey, new string('B', 64), nonce, "paid", credential)
+        && !accessGrant.Verify(AppKeys.PublicKey, hwid, nonce, "trial", credential));
 
     var vectorPath = Environment.GetEnvironmentVariable("YARIZAN_TEST_VECTOR");
     if (!string.IsNullOrEmpty(vectorPath))
@@ -89,6 +101,9 @@ try
         var phpNonce = root.GetProperty("nonce").GetString()!;
         Check("PHP serial verifies in the existing .NET codec", SerialCodec.Verify(phpKey, phpHwid, root.GetProperty("serial").GetString()!));
         Check("PHP trial signature verifies in .NET", new TrialGrant(phpHwid, phpNonce, root.GetProperty("remaining").GetInt32(), root.GetProperty("signature").GetString()!).Verify(phpKey, phpHwid, phpNonce));
+        Check("PHP online access signature verifies in .NET", new AccessGrant(phpHwid, phpNonce, "paid",
+            root.GetProperty("credentialHash").GetString()!, root.GetProperty("accessSignature").GetString()!)
+            .Verify(phpKey, phpHwid, phpNonce, "paid", root.GetProperty("serial").GetString()!.Replace("-", "")));
     }
 }
 finally

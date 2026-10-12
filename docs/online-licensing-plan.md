@@ -1,3 +1,7 @@
+# Historical licensing proposal
+
+The offline policy below has been superseded. The current build requires online validation for paid and trial access and supports device blocking and serial regeneration. See [current implementation](../web/licensing/README.md).
+
 # Licensing service plan
 
 Target: `https://yarizan.osameh.dev`, on the existing shared host.

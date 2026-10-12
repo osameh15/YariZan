@@ -8,12 +8,14 @@ final class Service
 
     private function device(string $hwid): void
     {
+        $this->assertNotBlocked($hwid);
         $stmt = $this->db->prepare('INSERT INTO devices (hwid) VALUES (?) ON DUPLICATE KEY UPDATE hwid = hwid');
         $stmt->execute([$hwid]);
     }
 
     public function status(string $hwid, string $pcName = ''): array
     {
+        $this->assertNotBlocked($hwid);
         $this->validateDetails($pcName, '');
         $register = $this->db->prepare('INSERT INTO devices (hwid, customer_name, last_seen_at) VALUES (?, ?, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE last_seen_at = UTC_TIMESTAMP()');
         $register->execute([$hwid, $pcName]);
@@ -30,6 +32,7 @@ final class Service
         }
         $this->db->beginTransaction();
         try {
+            $this->assertNotBlocked($hwid);
             $this->device($hwid);
             $lock = $this->db->prepare('SELECT trial_used FROM devices WHERE hwid = ? FOR UPDATE');
             $lock->execute([$hwid]);
@@ -61,6 +64,8 @@ final class Service
         $this->validateDetails($name, $notes);
         $this->db->beginTransaction();
         try {
+            $unblock = $this->db->prepare('DELETE FROM blocked_devices WHERE hwid = ?');
+            $unblock->execute([$hwid]);
             $this->device($hwid);
             $stmt = $this->db->prepare('SELECT serial FROM devices WHERE hwid = ? FOR UPDATE');
             $stmt->execute([$hwid]);
@@ -126,6 +131,8 @@ final class Service
     {
         $this->db->beginTransaction();
         try {
+            $block = $this->db->prepare('INSERT INTO blocked_devices (hwid) VALUES (?) ON DUPLICATE KEY UPDATE blocked_at = UTC_TIMESTAMP()');
+            $block->execute([$hwid]);
             $lock = $this->db->prepare('SELECT hwid FROM devices WHERE hwid = ? FOR UPDATE');
             $lock->execute([$hwid]);
             foreach (['trial_grants', 'audit_events', 'devices'] as $table) {
@@ -139,6 +146,56 @@ final class Service
         }
     }
 
+    private function assertNotBlocked(string $hwid): void
+    {
+        $stmt = $this->db->prepare('SELECT hwid FROM blocked_devices WHERE hwid = ?');
+        $stmt->execute([$hwid]);
+        if ($stmt->fetchColumn() !== false) throw new AccessDenied('Device disabled.');
+    }
+
+    public function regenerate(string $hwid, string $actor): string
+    {
+        $this->db->beginTransaction();
+        try {
+            $this->assertNotBlocked($hwid);
+            $stmt = $this->db->prepare('SELECT hwid FROM devices WHERE hwid = ? FOR UPDATE');
+            $stmt->execute([$hwid]);
+            if ($stmt->fetchColumn() === false) throw new \InvalidArgumentException('Device not found.');
+            $serial = Crypto::serial($this->keyPath, $hwid);
+            $stmt = $this->db->prepare('UPDATE devices SET serial = ?, trial_used = 2, issued_at = UTC_TIMESTAMP() WHERE hwid = ?');
+            $stmt->execute([$serial, $hwid]);
+            $stmt = $this->db->prepare('DELETE FROM trial_grants WHERE hwid = ?');
+            $stmt->execute([$hwid]);
+            $this->audit('regenerate_serial', $hwid, $actor);
+            $this->db->commit();
+            return $serial;
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $error;
+        }
+    }
+
+    public function authorize(string $hwid, string $mode, string $credential, string $nonce): array
+    {
+        if (!preg_match('/\A[A-F0-9]{64}\z/D', $nonce) || !in_array($mode, ['paid', 'trial'], true)) throw new \InvalidArgumentException();
+        $this->assertNotBlocked($hwid);
+        if ($mode === 'paid') {
+            $credential = strtoupper(preg_replace('/[\s-]+/', '', $credential) ?? '');
+            $stmt = $this->db->prepare('SELECT serial FROM devices WHERE hwid = ?');
+            $stmt->execute([$hwid]);
+            $serial = $stmt->fetchColumn();
+            if (!$serial || !hash_equals(str_replace('-', '', $serial), $credential)) throw new AccessDenied('Serial revoked or device missing.');
+        } else {
+            if (!preg_match('/\A[A-F0-9]{64}\z/D', $credential)) throw new \InvalidArgumentException();
+            $stmt = $this->db->prepare('SELECT nonce FROM trial_grants WHERE hwid = ? AND nonce = ?');
+            $stmt->execute([$hwid, $credential]);
+            if ($stmt->fetchColumn() === false) throw new AccessDenied('Trial session revoked.');
+        }
+        $credential_hash = strtoupper(hash('sha256', $credential));
+        $signature = base64_encode(Crypto::sign($this->keyPath, "YariZan-Access-v1|$hwid|$nonce|$mode|$credential_hash"));
+        return compact('hwid', 'nonce', 'mode', 'credential_hash', 'signature');
+    }
+
     private function audit(string $action, string $hwid, string $actor): void
     {
         $stmt = $this->db->prepare('INSERT INTO audit_events (action, hwid, actor) VALUES (?, ?, ?)');
@@ -147,3 +204,4 @@ final class Service
 }
 
 final class TrialExhausted extends \RuntimeException {}
+final class AccessDenied extends \RuntimeException {}

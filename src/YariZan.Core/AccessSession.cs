@@ -1,6 +1,6 @@
 namespace YariZan.Core;
 
-/// <summary>One trial entry authorizes this process until it closes.</summary>
+/// <summary>A trial grant enables session access until the session closes or is revoked.</summary>
 public sealed class AccessSession
 {
     private readonly Func<bool> _isActivated;
@@ -22,6 +22,8 @@ public sealed class AccessSession
     }
 
     public bool CanEnter => _isActivated() || _trialStarted;
+
+    public void Revoke() { _trialStarted = false; TrialRemaining = null; }
 
     public void StartTrial() => StartTrialAsync().GetAwaiter().GetResult();
 

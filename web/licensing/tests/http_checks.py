@@ -1,5 +1,6 @@
 """End-to-end checks against the disposable localhost preview only."""
 import http.cookiejar
+import hashlib
 import json
 import os
 import re
@@ -11,6 +12,7 @@ BASE = os.environ.get("YARIZAN_TEST_URL", "http://127.0.0.1:8871")
 parsed = urllib.parse.urlparse(BASE)
 if parsed.scheme != 'http' or parsed.hostname != '127.0.0.1' or not parsed.port:
     raise RuntimeError('HTTP tests may only mutate a disposable localhost service.')
+registered_hwid = hashlib.sha256(os.urandom(32)).hexdigest().upper()
 cookies = http.cookiejar.CookieJar()
 client = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(cookies))
 
@@ -67,10 +69,10 @@ status, _, _ = request("/api/trial.php", {"hwid": "A" * 64})
 check(status == 415, "Trial endpoint requires JSON")
 status, _, _ = request("/api/trial.php", {"operation": "consume", "hwid": "Z" * 64, "nonce": "B" * 64}, True)
 check(status == 400, "Invalid device identity rejected")
-status, registered, _ = request('/api/trial.php', {'operation': 'status', 'hwid': 'E' * 64, 'pc_name': 'Registration-only PC'}, True)
+status, registered, _ = request('/api/trial.php', {'operation': 'status', 'hwid': registered_hwid, 'pc_name': 'Registration-only PC'}, True)
 check(status == 200 and json.loads(registered)['remaining'] == 2, 'First-run registration does not spend a trial')
 status, html, _ = request('/?q=Registration-only%20PC')
-check(status == 200 and 'E' * 64 in html, 'Registered PC appears in admin table before trial starts')
+check(status == 200 and registered_hwid in html, 'Registered PC appears in admin table before trial starts')
 request("/", {"action": "reset_trial", "csrf": token, "hwid": "A" * 64})
 one = {"operation": "consume", "hwid": "A" * 64, "nonce": "B" * 64}
 status, grant, headers = request("/api/trial.php", one, True)
@@ -87,10 +89,21 @@ status, data, _ = request("/api/trial.php", {"operation": "status", "hwid": "A" 
 check(status == 200 and json.loads(data)["remaining"] == 2, "Panel reset restores two entries")
 status, html, _ = request("/?q=AAAA")
 check(status == 200 and serial in html, "User and serial searchable; reset preserves serial")
-status, html, _ = request('/?q=' + 'E' * 64)
+status, html, _ = request('/?q=' + registered_hwid)
 check('id="confirmation-dialog"' in html and 'value="delete_device"' in html, 'Panel exposes shared confirmation dialog and delete action')
-status, html, _ = request('/', {'action': 'delete_device', 'csrf': token, 'hwid': 'E' * 64})
-status, html, _ = request('/?q=' + 'E' * 64)
+status, html, _ = request('/', {'action': 'delete_device', 'csrf': token, 'hwid': registered_hwid})
+status, html, _ = request('/?q=' + registered_hwid)
 check(status == 200 and 'value="delete_device"' not in html and 'id="device-editor"' not in html, 'Delete removes registered device and returns to table')
+status, denied, _ = request('/api/trial.php', {'operation':'status','hwid':registered_hwid}, True)
+check(status == 403 and json.loads(denied)['error'] == 'access_denied', 'Deleted HWID stays blocked on reconnect')
+status, _, _ = request('/api/trial.php', {'operation':'authorize','hwid':'A'*64,'mode':'paid','credential':serial,'nonce':'F'*64}, True)
+check(status == 200, 'Current serial authorizes online')
+status, html, _ = request('/', {'action':'regenerate','hwid':'A'*64,'csrf':token})
+replacement = re.search(r'<code dir="ltr">([A-Z2-7-]+)</code>', html)[1]
+check(status == 200 and replacement != serial, 'Panel regenerates a different stored serial')
+status, _, _ = request('/api/trial.php', {'operation':'authorize','hwid':'A'*64,'mode':'paid','credential':serial,'nonce':'F'*64}, True)
+check(status == 403, 'Old serial rejected after regeneration')
+status, grant, _ = request('/api/trial.php', {'operation':'authorize','hwid':'A'*64,'mode':'paid','credential':replacement,'nonce':'F'*64}, True)
+check(status == 200 and 'signature' in json.loads(grant), 'New serial returns signed online authorization')
 status, html, _ = request("/", {"action": "logout", "csrf": token})
 check(status == 200 and 'name="password"' in html, "Logout removes panel access")
