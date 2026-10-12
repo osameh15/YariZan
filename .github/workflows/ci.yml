@@ -38,7 +38,7 @@ jobs:
           if (Test-Path secrets) { Remove-Item secrets -Recurse -Force }
           dotnet run --project src/YariZan.SerialGen --no-restore -- init
 
-      - name: Pack sample games
+      - name: Pack local catalog (empty in public checkout)
         run: dotnet run --project src/YariZan.Packer --no-restore
 
       - name: Build (Release)

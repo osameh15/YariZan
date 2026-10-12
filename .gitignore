@@ -12,7 +12,10 @@ secrets/private.pem
 secrets/master.key
 
 # Encrypted game bundles are reproducible from miniApps/ + secrets/master.key
-games_encrypted/
+/games_encrypted/*
+!/games_encrypted/README.md
+/miniApps/*
+!/miniApps/README.md
 
 # OS
 Thumbs.db

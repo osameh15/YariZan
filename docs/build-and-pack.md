@@ -38,7 +38,7 @@ games_encrypted/
     └── g<grade>_<hash>.png   # icon, copied verbatim
 ```
 
-The packer wipes `games_encrypted/` first to avoid stale entries from removed games.
+The packer replaces generated bundles in `games_encrypted/` while preserving its README. Game filenames use deterministic SHA-256 hashes.
 
 ## Build the launcher
 

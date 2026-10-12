@@ -99,7 +99,7 @@ if ($loggedIn && $error !== '' && is_string($_POST['hwid'] ?? null) && in_array(
 ?>
 <!doctype html>
 <html lang="fa" dir="rtl">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>یاریزان | مدیریت فعال‌سازی</title><link rel="icon" type="image/png" href="/assets/icon.png?v=1"><link rel="stylesheet" href="/assets/panel.css?v=6"><script src="/assets/panel.js?v=4" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>یاریزان | مدیریت فعال‌سازی</title><link rel="icon" type="image/png" href="/assets/icon.png?v=1"><link rel="stylesheet" href="/assets/panel.css?v=7"><script src="/assets/panel.js?v=4" defer></script></head>
 <body class="<?= $loggedIn ? 'panel-page' : 'login-page' ?>"><div class="shell">
 <?php if ($loggedIn): ?>
 <header class="topbar"><a class="brand" href="/"><img class="brand-logo" src="/assets/logo.png?v=1" alt="" width="72" height="72"><span class="brand-copy"><strong>یاریزان</strong><small>مدیریت فعال‌سازی</small></span></a>

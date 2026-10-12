@@ -34,8 +34,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\games_encrypted\**\*.*" Link="games_encrypted\%(RecursiveDir)%(Filename)%(Extension)">
+    <None Include="..\..\games_encrypted\**\*.*" Exclude="..\..\games_encrypted\README.md" Link="games_encrypted\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </None>
   </ItemGroup>
 

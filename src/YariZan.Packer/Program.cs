@@ -25,8 +25,10 @@ if (masterKey.Length != 32)
     return 1;
 }
 
-if (Directory.Exists(output)) Directory.Delete(output, true);
 Directory.CreateDirectory(output);
+foreach (var file in Directory.EnumerateFiles(output))
+    if (!Path.GetFileName(file).Equals("README.md", StringComparison.OrdinalIgnoreCase)) File.Delete(file);
+foreach (var directory in Directory.EnumerateDirectories(output)) Directory.Delete(directory, true);
 
 var manifest = new GameManifest();
 int total = 0;
@@ -53,7 +55,8 @@ for (int g = 1; g <= 6; g++)
             ? File.ReadAllText(txtSrc, System.Text.Encoding.UTF8).Trim()
             : "";
 
-        var safe = "g" + g + "_" + Math.Abs(name.GetHashCode()).ToString("x8");
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(name));
+        var safe = "g" + g + "_" + Convert.ToHexString(hash).ToLowerInvariant();
         var encName = safe + ".dat";
         var imgName = imageSrc != null ? safe + Path.GetExtension(imageSrc) : "";
 

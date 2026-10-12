@@ -256,7 +256,7 @@ The installer carries `LICENSE.txt` (bilingual EULA — Studio: YariZan, Develop
 
 ## CI?
 
-A minimal **GitHub Actions** workflow is in `.github/workflows/ci.yml` and verifies the solution builds on every push to `main` / pull request. It generates ephemeral keys (so it never sees your real `private.pem`) and runs the Packer on the sample game.
+A minimal **GitHub Actions** workflow is in `.github/workflows/ci.yml` and verifies the solution builds on every push to `main` / pull request. It generates ephemeral keys (so it never sees your real `private.pem`) and runs the Packer with an empty local catalog (game payloads are not tracked).
 
 **Do you need it?** Honest answer for this project today: **not strictly.** A solo dev shipping a Windows‑only app gets very little safety net from a build‑only CI. It becomes valuable when:
 
@@ -285,3 +285,5 @@ Proprietary. © YariZan. All rights reserved. Contact the author for distributio
 **osameh15** — <osirandoust@gmail.com> · [github.com/osameh15](https://github.com/osameh15)
 
 The licensing panel deploys public files only. Upload the separate ignored private setup bundle manually; see [private setup instructions](web/licensing/README.md#manual-private-setup).
+
+Game payloads in `miniApps/` and `games_encrypted/` stay local. See [source game setup](miniApps/README.md) and [generated bundle setup](games_encrypted/README.md). The game-book toolbar includes a scrollable RTL About dialog; its Persian text is embedded directly in the app.

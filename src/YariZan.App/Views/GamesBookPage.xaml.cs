@@ -24,6 +24,29 @@ public partial class GamesBookPage : UserControl
     private int _grade = AllGradesValue;
     private int _spreadIndex;
     private GameEntry? _infoGame;
+    private IInputElement? _modalFocus;
+    private const string AboutText = @"مجموعه آموزشی «همراه اولی‌ها»
+
+این مجموعه، همراه و دوست کوچک دانش‌آموزان پایه اول ابتدایی در مسیر یادگیری شیرین مفاهیم پایه‌ای ریاضی است. تمامی بازی‌ها و فعالیت‌های این نرم‌افزار کاملاً بر اساس آخرین محتوای کتاب درسی ریاضی اول ابتدایی طراحی شده‌اند و مفاهیم کلیدی از جمله:
+
+    شمارش و دسته‌بندی (چوب‌خط و اشکال)
+    الگویابی و ساخت الگوها
+    مفاهیم جمع و تفریق
+    مقایسه اعداد (کمتر، بیشتر و مساوی)
+    اندازه‌گیری (بلندتر/کوتاه‌تر، سنگین‌تر/سبک‌تر)
+    ساعت‌خوانی و تشخیص زمان
+    جدول شگفت‌انگیز (سودوکو) و مفاهیم جدول و نمودار
+
+را به‌صورت کاملاً تعاملی، جذاب و هدفمند آموزش می‌دهند.
+
+هر بازی با گرافیک شاد و رنگارنگ، انیمیشن‌های جذاب، فیدبک‌های صوتی و تشویق‌کننده، کودک را غرق در یادگیری کرده و با تکرار و تمرین غیرمستقیم، مهارت‌های ریاضی و اعتمادبه‌نفس او را تقویت می‌کند.
+
+ویژگی‌های برجسته نرم‌افزار:
+
+    پوشش کامل و گام‌به‌گام سرفصل‌های ریاضی پایه اول دبستان
+    محیط کاملاً فارسی، ایمن، ساده و کودکانه
+    دارای بخش‌های ارزشیابی مستمر برای سنجش یادگیری دانش‌آموز
+    ابزاری کارآمد و جذاب برای معلمان گرامی در کلاس‌های هوشمند (Smartboard) و والدین در خانه";
 
     public GamesBookPage(GameLibrary library)
     {
@@ -212,13 +235,43 @@ public partial class GamesBookPage : UserControl
         InfoBody.Text = string.IsNullOrWhiteSpace(e.Description)
             ? "توضیحاتی برای این بازی ثبت نشده است."
             : e.Description;
+        InfoLaunchButton.Visibility = Visibility.Visible;
+        ShowModal();
+    }
+
+    private void About_Click(object sender, RoutedEventArgs e)
+    {
+        _infoGame = null;
+        InfoTitle.Text = "دربارهٔ مجموعه";
+        InfoBody.Text = AboutText;
+        InfoLaunchButton.Visibility = Visibility.Collapsed;
+        ShowModal();
+    }
+
+    private void ShowModal()
+    {
+        _modalFocus = Keyboard.FocusedElement;
+        BookContent.IsEnabled = false;
         InfoOverlay.Visibility = Visibility.Visible;
+        InfoScroll.ScrollToTop();
+        InfoCloseButton.Focus();
+    }
+
+    private void Modal_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && InfoOverlay.Visibility == Visibility.Visible)
+        {
+            HideInfo();
+            e.Handled = true;
+        }
     }
 
     private void HideInfo()
     {
         _infoGame = null;
         InfoOverlay.Visibility = Visibility.Collapsed;
+        BookContent.IsEnabled = true;
+        if (_modalFocus is not null) Keyboard.Focus(_modalFocus);
     }
 
     private void Overlay_BackgroundClick(object sender, MouseButtonEventArgs e)

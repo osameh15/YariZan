@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FlowDirection="RightToLeft"
              FontFamily="{DynamicResource ShabnamFont}"
-             Background="Transparent">
+             Background="Transparent" PreviewKeyDown="Modal_KeyDown">
     <UserControl.Resources>
 
         <Style x:Key="GameTile" TargetType="Button">
@@ -82,7 +82,7 @@
                 </Border.Effect>
             </Border>
 
-            <Grid Margin="20">
+            <Grid x:Name="BookContent" Margin="20">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -105,6 +105,7 @@
 
                     <!-- RTL StackPanel: minimize before خروج in source = minimize visually right of خروج. -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="درباره" Style="{StaticResource GoldButton}" FontSize="14" MinHeight="36" Padding="14,6" Click="About_Click" Margin="4,0" ToolTip="دربارهٔ مجموعهٔ آموزشی" />
                         <Button Content="بازگشت" Style="{StaticResource GoldButton}"
                                 FontSize="14" MinHeight="36" Padding="14,6"
                                 Click="Back_Click" Margin="4,0" />
@@ -154,7 +155,7 @@
 
             <!-- Modal info overlay -->
             <Grid x:Name="InfoOverlay" Visibility="Collapsed" Background="#B0000000"
-                  MouseLeftButtonDown="Overlay_BackgroundClick">
+                  MouseLeftButtonDown="Overlay_BackgroundClick" KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.ControlTabNavigation="Cycle">
                 <Border MaxWidth="640" Margin="40" CornerRadius="12"
                         Background="{StaticResource ParchmentBrushGradient}"
                         BorderBrush="{StaticResource LeatherDarkBrush}" BorderThickness="3"
@@ -177,15 +178,15 @@
 
                         <Border Grid.Row="1" Margin="0,12,0,0" Height="2" Background="{StaticResource GoldBrush}" Opacity="0.5" />
 
-                        <ScrollViewer Grid.Row="2" MaxHeight="320" VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
+                        <ScrollViewer x:Name="InfoScroll" Grid.Row="2" MaxHeight="320" VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
                             <TextBlock x:Name="InfoBody" FontSize="18" Foreground="{StaticResource InkBrush}"
                                        TextWrapping="Wrap" TextAlignment="Justify" LineHeight="32" />
                         </ScrollViewer>
 
                         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
-                            <Button Content="اجرا" Style="{StaticResource GoldButton}" MinWidth="140"
+                            <Button x:Name="InfoLaunchButton" Content="اجرا" Style="{StaticResource GoldButton}" MinWidth="140"
                                     Click="InfoLaunch_Click" Margin="6,0" />
-                            <Button Content="بستن" Style="{StaticResource ExitButton}" MinWidth="100"
+                            <Button x:Name="InfoCloseButton" Content="بستن" Style="{StaticResource ExitButton}" MinWidth="100"
                                     Click="InfoClose_Click" Margin="6,0" />
                         </StackPanel>
                     </Grid>
