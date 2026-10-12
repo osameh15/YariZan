@@ -11,7 +11,7 @@
 #define MyAppURL         "https://t.me/osameh_ir"
 #define MyAppSupportURL  "https://t.me/osameh_ir"
 #define MyAppExeName     "YariZan.exe"
-#define MyPublishDir     "src\YariZan.App\bin\Release\net9.0-windows\win-x64\publish"
+#define MyPublishDir     "publish\YariZan-win-x64"
 
 [Setup]
 ; Stable random GUID — do NOT change between releases or upgrades will misbehave.
@@ -39,6 +39,7 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName} {#MyAppVersion}
 
 LicenseFile=LICENSE.txt
+InfoBeforeFile=publish\installer-about.rtf
 
 Compression=lzma2/max
 SolidCompression=yes
@@ -83,13 +84,11 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
-[UninstallDelete]
-; Wipe the per-user activation + trial state on uninstall so a re-install starts fresh.
-Type: filesandordirs; Name: "{localappdata}\YariZan"
+; Preserve per-user activation across reinstall. The server controls access and trials.
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%nYariZan is a Persian RTL launcher for educational mini-games (grades 1-6).%n%nFeatures:%n  - Hardware-locked activation (HWID + ECDSA-P256 signed serials)%n  - 2-launch free trial%n  - 18 mini-games per spread, page-flip animation%n  - Persian Shabnam font, fullscreen kiosk mode%n%nDeveloper: osameh_ir   ·   Telegram: @osameh_ir%n%nIt is recommended that you close all other applications before continuing.
-FinishedLabel=YariZan has been installed successfully.%n%nLaunch from the Start Menu or the Desktop shortcut. The first run will show the activation lock screen with your HWID. Send the HWID to the developer at @osameh_ir to receive your serial.%n%nYou get 2 free trial launches before activation is required.
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nYariZan is a Persian RTL launcher for educational mini-games (grades 1-6).%n%nFeatures:%n  - Hardware-bound activation with online access checks%n  - 2 online trial launches%n  - 12 mini-games per spread, page-flip animation%n  - Persian Shabnam font, fullscreen kiosk mode%n%nDeveloper: osameh_ir   ·   Telegram: @osameh_ir%n%nPlease close other applications before continuing.
+FinishedLabel=YariZan has been installed successfully.%n%nLaunch from the Start Menu or the Desktop shortcut. Open the cover to check your saved activation or start an online trial. Send your HWID to the developer at @osameh_ir to receive a serial.%n%nInternet is required for activation and access checks. Reinstalling does not reset server trial usage or device blocks.
 
 [CustomMessages]
 english.SupportTelegram=Telegram: @osameh_ir

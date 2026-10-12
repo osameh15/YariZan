@@ -289,3 +289,5 @@ The licensing panel deploys public files only. Upload the separate ignored priva
 Game payloads in `miniApps/` and `games_encrypted/` stay local. See [source game setup](miniApps/README.md) and [generated bundle setup](games_encrypted/README.md). The game-book toolbar includes a scrollable RTL About dialog; its Persian text is embedded directly in the app.
 
 Paid and trial access now require online server validation. Deleting a device blocks future access; regenerating its serial invalidates the old one. See the [licensing protocol and migration](web/licensing/README.md). Older offline binaries must be replaced for revocation to take effect.
+
+The installer builder detects Inno Setup 6 or 7 and generates a Persian RTL About information page directly from the app's hardcoded `AboutText`. Run `build-installer.bat` to repack, publish, and create `publish/YariZan-Setup-v1.0.0.exe`. To reuse an already validated encrypted catalog without prompts, run `build-installer.bat --skip-pack --noninteractive`. Set `INNO_PATH` to your `ISCC.exe` path if Inno is installed in a custom location. Generated `publish/installer-about.rtf` is build-only and is ignored by Git.
