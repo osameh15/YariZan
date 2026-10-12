@@ -27,7 +27,11 @@ try {
     if (!is_array($body) || !is_string($body['hwid'] ?? null)) throw new InvalidArgumentException();
     $hwid = YariZan\Licensing\Crypto::hwid($body['hwid']);
     $operation = $body['operation'] ?? '';
-    if ($operation === 'status') respond($service->status($hwid));
+    if ($operation === 'status') {
+        $pcName = $body['pc_name'] ?? '';
+        if (!is_string($pcName)) throw new InvalidArgumentException();
+        respond($service->status($hwid, trim($pcName)));
+    }
     if ($operation !== 'consume' || !is_string($body['nonce'] ?? null)) throw new InvalidArgumentException();
     respond($service->trial($hwid, $body['nonce']));
 } catch (YariZan\Licensing\TrialExhausted) {

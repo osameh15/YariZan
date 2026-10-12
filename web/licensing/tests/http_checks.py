@@ -49,6 +49,16 @@ status, html, _ = request("/", {"action": "issue", "csrf": token, "hwid": "A" * 
 check(status == 200 and "&lt;script&gt;bad&lt;/script&gt;" in html and "<script>bad</script>" not in html, "Customer details escaped")
 serial = re.search(r'<code dir="ltr">([A-Z2-7-]+)</code>', html)[1]
 check(len(serial.replace("-", "")) == 103, "Panel generates a compatible serial")
+check(html.index('</table>') < html.index('id="device-editor"'), "Editor appears after user table")
+check('aria-label="بستن بخش ویرایش"' in html, "Editor has an accessible close action")
+status, html, _ = request("/", {"action": "save", "csrf": token, "hwid": "A" * 64,
+                              "customer_name": "Renamed customer", "notes": "Unique support description"})
+check(status == 200 and serial in html and 'Renamed customer' in html, "Editing metadata preserves serial")
+for term, label in [("Renamed customer", "name"), ("Unique support description", "description"), ("A" * 64, "HWID"), (serial, "serial")]:
+    status, html, _ = request('/?q=' + urllib.parse.quote(term))
+    check(status == 200 and serial in html, 'Search finds user by ' + label)
+status, html, _ = request('/')
+check('id="device-editor"' not in html, "Editor is closed on normal table view")
 status, health, _ = request("/api/health.php")
 check(status == 200 and json.loads(health)["status"] == "ready", "Health endpoint reports readiness")
 status, _, _ = request("/api/trial.php")
@@ -57,6 +67,10 @@ status, _, _ = request("/api/trial.php", {"hwid": "A" * 64})
 check(status == 415, "Trial endpoint requires JSON")
 status, _, _ = request("/api/trial.php", {"operation": "consume", "hwid": "Z" * 64, "nonce": "B" * 64}, True)
 check(status == 400, "Invalid device identity rejected")
+status, registered, _ = request('/api/trial.php', {'operation': 'status', 'hwid': 'E' * 64, 'pc_name': 'Registration-only PC'}, True)
+check(status == 200 and json.loads(registered)['remaining'] == 2, 'First-run registration does not spend a trial')
+status, html, _ = request('/?q=Registration-only%20PC')
+check(status == 200 and 'E' * 64 in html, 'Registered PC appears in admin table before trial starts')
 request("/", {"action": "reset_trial", "csrf": token, "hwid": "A" * 64})
 one = {"operation": "consume", "hwid": "A" * 64, "nonce": "B" * 64}
 status, grant, headers = request("/api/trial.php", one, True)

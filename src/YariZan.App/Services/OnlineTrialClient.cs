@@ -21,7 +21,7 @@ public sealed class OnlineTrialClient
 
     public async Task<int> RemainingAsync()
     {
-        using var response = await Client.PostAsJsonAsync(Endpoint, new { operation = "status", hwid = HwidProvider.GetHwid() });
+        using var response = await Client.PostAsJsonAsync(Endpoint, new { operation = "status", hwid = HwidProvider.GetHwid(), pc_name = Environment.MachineName });
         response.EnsureSuccessStatusCode();
         var status = JsonSerializer.Deserialize<TrialStatus>(await ReadBoundedAsync(response), JsonOptions);
         if (status is null || status.Remaining is < 0 or > 2)

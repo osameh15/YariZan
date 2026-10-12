@@ -16,6 +16,7 @@ public partial class LockPage : UserControl
     private readonly string _hwid;
     private readonly AccessSession _access;
     private readonly OnlineTrialClient _trials;
+    private bool _registered;
 
     public LockPage(AccessSession access, OnlineTrialClient trials)
     {
@@ -47,12 +48,24 @@ public partial class LockPage : UserControl
 
     private async Task RefreshTrialAsync()
     {
-        try { UpdateTrialButton(await _trials.RemainingAsync()); }
+        TrialButton.IsEnabled = false;
+        TrialButton.Content = "بررسی ارتباط…";
+        try
+        {
+            UpdateTrialButton(await _trials.RemainingAsync());
+            _registered = true;
+            StatusText.Text = "دستگاه ثبت شد. بررسی وضعیت، ورود آزمایشی مصرف نمی‌کند.";
+            StatusText.Foreground = System.Windows.Media.Brushes.DarkGreen;
+        }
         catch
         {
-            // Permit an explicit retry; no access is granted without a signed server response.
+            _registered = false;
             TrialButton.IsEnabled = true;
-            TrialButton.Content = "ورود آزمایشی (نیاز به اینترنت)";
+            TrialButton.Content = "بررسی دوبارهٔ ارتباط";
+            StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
+            StatusText.Text = System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()
+                ? "سرور آزمایش در دسترس نیست. ارتباط اینترنت را بررسی کنید و دوباره تلاش کنید، یا سریال را وارد کنید."
+                : "برای شروع استفادهٔ آزمایشی، به اینترنت متصل شوید. فعال‌سازی با سریال به اینترنت نیاز ندارد.";
         }
     }
 
@@ -136,6 +149,7 @@ public partial class LockPage : UserControl
 
     private async void Trial_Click(object sender, RoutedEventArgs e)
     {
+        if (!_registered) { await RefreshTrialAsync(); return; }
         IsEnabled = false;
         try
         {

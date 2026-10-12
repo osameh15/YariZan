@@ -1,4 +1,8 @@
 'use strict';
+const editor = document.getElementById('device-editor');
+if (editor && window.location.hash === '#device-editor') {
+  editor.focus({ preventScroll: true });
+}
 const persianDate = new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-arabext', {
   timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit',
   hour: '2-digit', minute: '2-digit', hourCycle: 'h23'

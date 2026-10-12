@@ -12,8 +12,11 @@ final class Service
         $stmt->execute([$hwid]);
     }
 
-    public function status(string $hwid): array
+    public function status(string $hwid, string $pcName = ''): array
     {
+        $this->validateDetails($pcName, '');
+        $register = $this->db->prepare('INSERT INTO devices (hwid, customer_name, last_seen_at) VALUES (?, ?, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE last_seen_at = UTC_TIMESTAMP()');
+        $register->execute([$hwid, $pcName]);
         $stmt = $this->db->prepare('SELECT trial_used FROM devices WHERE hwid = ?');
         $stmt->execute([$hwid]);
         $used = $stmt->fetchColumn();
@@ -55,11 +58,7 @@ final class Service
 
     public function issue(string $hwid, string $name, string $notes, string $actor): string
     {
-        $nameLength = preg_match_all('/./us', $name);
-        $notesLength = preg_match_all('/./us', $notes);
-        if ($nameLength === false || $notesLength === false || $nameLength > 120 || $notesLength > 1000) {
-            throw new \InvalidArgumentException('Name or notes are too long.');
-        }
+        $this->validateDetails($name, $notes);
         $this->db->beginTransaction();
         try {
             $this->device($hwid);
@@ -75,6 +74,33 @@ final class Service
         } catch (\Throwable $error) {
             if ($this->db->inTransaction()) $this->db->rollBack();
             throw $error;
+        }
+    }
+
+    public function update(string $hwid, string $name, string $notes, string $actor): void
+    {
+        $this->validateDetails($name, $notes);
+        $this->db->beginTransaction();
+        try {
+            $exists = $this->db->prepare('SELECT hwid FROM devices WHERE hwid = ? FOR UPDATE');
+            $exists->execute([$hwid]);
+            if ($exists->fetchColumn() === false) throw new \InvalidArgumentException('Device not found.');
+            $stmt = $this->db->prepare('UPDATE devices SET customer_name = ?, notes = ? WHERE hwid = ?');
+            $stmt->execute([$name, $notes, $hwid]);
+            $this->audit('edit_device', $hwid, $actor);
+            $this->db->commit();
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $error;
+        }
+    }
+
+    private function validateDetails(string $name, string $notes): void
+    {
+        $nameLength = preg_match_all('/./us', $name);
+        $notesLength = preg_match_all('/./us', $notes);
+        if ($nameLength === false || $notesLength === false || $nameLength > 120 || $notesLength > 1000) {
+            throw new \InvalidArgumentException('Name or notes are too long.');
         }
     }
 

@@ -43,7 +43,13 @@ try {
         }
         $service = new Service($db, $keyPath);
         try {
-            check($service->status($hwid)['remaining'] === 2, 'New device has two entries');
+            check($service->status($hwid, 'First PC')['remaining'] === 2, 'Registration has two entries without consumption');
+            $row = $db->query("SELECT * FROM devices WHERE hwid = '$hwid'")->fetch(PDO::FETCH_ASSOC);
+            check($row['customer_name'] === 'First PC' && $row['serial'] === null, 'First status registers PC without a paid serial');
+            $service->update($hwid, 'Renamed user', 'Contact description', 'test-admin');
+            $service->status($hwid, 'Changed PC');
+            $row = $db->query("SELECT * FROM devices WHERE hwid = '$hwid'")->fetch(PDO::FETCH_ASSOC);
+            check($row['customer_name'] === 'Renamed user' && $row['notes'] === 'Contact description' && $row['serial'] === null && (int)$row['trial_used'] === 0, 'Registration preserves admin edits; metadata save grants no access');
             $one = $service->trial($hwid, $nonce);
             check($one['remaining'] === 1, 'First trial');
             check($service->trial($hwid, $nonce) === $one, 'Retry returns identical grant');
@@ -53,6 +59,8 @@ try {
             check(fails(fn() => $service->trial($hwid, strtoupper(bin2hex(random_bytes(32))))), 'Third trial rejected');
             $saved = $service->issue($hwid, 'کاربر آزمایشی', 'Test notes', 'test-admin');
             check($service->issue($hwid, 'Updated', '', 'test-admin') === $saved, 'Repeated issue preserves stored serial');
+            $service->update($hwid, 'Edited paid user', 'Searchable description', 'test-admin');
+            check($db->query("SELECT serial FROM devices WHERE hwid = '$hwid'")->fetchColumn() === $saved, 'Editing paid user preserves exact serial');
             $service->resetTrial($hwid, 'test-admin');
             check($service->status($hwid)['remaining'] === 2, 'Panel reset restores two entries');
             check($service->trial($hwid, $nonce)['remaining'] === 1, 'Reset invalidates old retry grant');

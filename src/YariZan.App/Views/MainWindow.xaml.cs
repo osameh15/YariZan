@@ -18,7 +18,7 @@ public partial class MainWindow : Window
     {
         _access = new AccessSession(() => ActivationStore.Load() is not null, _trials.ConsumeAsync);
         InitializeComponent();
-        Loaded += (_, _) => ShowCover(animate: false);
+        Loaded += (_, _) => { if (_access.CanEnter) ShowCover(animate: false); else ShowLock(); };
         Closed += (_, _) => _launcher.Dispose();
     }
 

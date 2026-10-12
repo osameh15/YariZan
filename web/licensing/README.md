@@ -2,7 +2,7 @@
 
 PHP 8.2+ / MySQL (InnoDB) admin panel for `https://yarizan.osameh.dev`.
 
-The administrator pastes a device HWID, optionally supplies a customer name and notes, and generates a serial. All registered trial devices and issued serials are searchable. Reissuing for the same HWID returns its stored serial. Reset trial restores exactly two online trial entries for that HWID without changing the paid serial. Panel actions are recorded in the database audit log.
+The administrator pastes a device HWID, optionally supplies a customer name and notes, and generates a serial. The user table appears first. Search covers customer name, description, HWID, and serial. Each row opens a closable editor below the table; metadata saves do not issue a serial, and existing serials are displayed and preserved. Reissuing for the same HWID returns its stored serial. Reset trial restores exactly two online trial entries for that HWID without changing the paid serial. Panel actions are recorded in the database audit log.
 
 Serials use the existing `YariZan-Serial-v1|HWID` ECDSA-P256 format. Paid activation remains fully offline. A customer who reinstalls Windows can re-enter the old serial if the hardware fingerprint is unchanged. The activation file need not survive the reinstall. The panel records issued serials, not live activation status or currently running offline users.
 
@@ -44,12 +44,18 @@ Enable HTTPS to the subdomain and origin. Bypass CDN caching/browser challenges 
 
 The desktop uses `https://yarizan.osameh.dev/api/trial.php`. Until the service is ready, trials are unavailable; valid serial activation stays offline. Use the panel to reset server trials, not the retained local `SerialGen reset-trial` utility.
 
+## Updating this release
+
+After pulling this release, manually upload the updated `app/Service.php` into `domains/osameh.dev/subdomains/private/yarizan/app/` before using the new edit action. The local `publish/YariZan-private-code-update.zip` contains the `app/` directory only: extract into `private/yarizan/` and overwrite code files. It contains no config, credentials, or signing key. No database migration is required. CI uploads the matching public UI and API files only.
+
+Unactivated desktop copies open the registration screen on launch. The status request sends HWID and PC name, creates a device with two trials without consuming one, and preserves administrator names/descriptions on subsequent requests. Without service access, trial entry is unavailable and Retry checks registration first. Paid activation remains offline; a signed trial session continues after disconnection until the process closes.
+
 ## API
 
 `POST /api/trial.php`, `Content-Type: application/json`:
 
 ```json
-{"operation":"status","hwid":"64_HEX_CHARACTERS"}
+{"operation":"status","hwid":"64_HEX_CHARACTERS","pc_name":"Optional PC name"}
 ```
 
 Returns `remaining` (0–2). This unsigned status is only used for UI text; it cannot authorize access.
