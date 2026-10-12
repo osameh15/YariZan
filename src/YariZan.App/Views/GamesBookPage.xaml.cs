@@ -236,6 +236,7 @@ public partial class GamesBookPage : UserControl
             ? "توضیحاتی برای این بازی ثبت نشده است."
             : e.Description;
         InfoLaunchButton.Visibility = Visibility.Visible;
+        InfoScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         ShowModal();
     }
 
@@ -245,6 +246,7 @@ public partial class GamesBookPage : UserControl
         InfoTitle.Text = "دربارهٔ مجموعه";
         InfoBody.Text = AboutText;
         InfoLaunchButton.Visibility = Visibility.Collapsed;
+        InfoScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
         ShowModal();
     }
 

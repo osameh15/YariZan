@@ -178,7 +178,7 @@
 
                         <Border Grid.Row="1" Margin="0,12,0,0" Height="2" Background="{StaticResource GoldBrush}" Opacity="0.5" />
 
-                        <ScrollViewer x:Name="InfoScroll" Grid.Row="2" MaxHeight="320" VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
+                        <ScrollViewer x:Name="InfoScroll" Grid.Row="2" MaxHeight="320" VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly" Margin="0,16,0,0">
                             <TextBlock x:Name="InfoBody" FontSize="18" Foreground="{StaticResource InkBrush}"
                                        TextWrapping="Wrap" TextAlignment="Justify" LineHeight="32" />
                         </ScrollViewer>
