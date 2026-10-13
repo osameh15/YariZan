@@ -1,4 +1,4 @@
-﻿# Setup, build, pack, and distribute
+# Setup, build, pack, and distribute
 
 ## Prerequisites
 
@@ -37,9 +37,9 @@ Back up all three securely. Changing the signing pair invalidates serials/grants
 Place games directly in grade folders `1` through `6`:
 
 ```text
-miniApps/1/page3.exe
-miniApps/1/page3.jpg
-miniApps/1/page3.txt
+miniApps/1/صفحه سوم کتاب ریاضی.exe
+miniApps/1/صفحه سوم کتاب ریاضی.jpg
+miniApps/1/صفحه سوم کتاب ریاضی.txt
 ```
 
 Use matching stems, PNG/JPG thumbnails, and UTF-8 descriptions. Images/descriptions are optional in the packer but provide complete tiles. Extract archives locally; nested directories and archives are not packed. Names sort naturally: `page3`, `page4`, `page115`.
@@ -49,6 +49,21 @@ dotnet run --project src/YariZan.Packer
 ```
 
 Packing replaces generated files while preserving README. It writes `manifest.json`, AES-GCM blobs and copied thumbnails under grade folders. Generated names include SHA-256 hashes of game names. Rebuild/publish after catalog changes; payloads remain ignored by Git.
+
+## Grade detection and package names
+
+One distribution contains one grade. The packer and installer automatically detect the only `miniApps/1` through `miniApps/6` folder containing direct `.exe` files. Empty folders are ignored. With games only in `miniApps/2/`, the manifest selects grade 2, the book header shows second grade, and setup is named `YariZan G2`.
+
+If several folders contain games, choose explicitly:
+
+```powershell
+dotnet run --project src/YariZan.Packer -- --grade 2
+.\build-installer.bat --noninteractive --grade 2
+```
+
+Without a unique grade, packing stops before changing existing output. An explicit grade with no games also stops. `--skip-pack` validates the selected grade against the manifest. Installers and output directories use `YariZan-G<grade>` names. If the standard grade publish folder already exists, the installer builder uses a fresh folder with a build suffix and prints its location. Existing builds are preserved, including when an older EXE is still running. The installer takes its files from the newly published folder.
+
+Builds share the existing HWID licensing service and local activation state. Grade packaging does not create separate grade entitlements or trial counters. The current detailed About content describes first-grade mathematics; supply appropriate content when adding other grades.
 
 ## Build and run
 
@@ -72,13 +87,13 @@ dotnet publish src/YariZan.App/YariZan.App.csproj `
   -p:IncludeNativeLibrariesForSelfExtract=true `
   -p:PublishReadyToRun=false `
   -p:DebugType=none -p:DebugSymbols=false `
-  -o publish/YariZan-win-x64
+  -o publish/YariZan-G1-win-x64
 ```
 
-Ship the complete folder. The self-contained EXE includes .NET dependencies; external `games_encrypted/` is required beside it. For removed/renamed games, use a fresh publish directory so old files are not retained.
+Rename the single-file EXE to `YariZan-G1.exe` (replace 1 with the detected grade). Ship the complete folder. The self-contained EXE includes .NET dependencies; external `games_encrypted/` is required beside it. For removed/renamed games, use a fresh publish directory so old files are not retained.
 
 ```powershell
-Compress-Archive -Path publish/YariZan-win-x64/* -DestinationPath publish/YariZan-win-x64.zip -Force
+Compress-Archive -Path publish/YariZan-G1-win-x64/* -DestinationPath publish/YariZan-G1-win-x64.zip -Force
 ```
 
 No obfuscator is configured/validated. Do not enable trimming without separately validating WPF/XAML behavior.
@@ -91,7 +106,7 @@ Install Inno Setup 6 or 7:
 .\build-installer.bat --noninteractive
 ```
 
-The script repacks games, regenerates the multi-size ICO, generates a Persian RTL About page from hardcoded app `AboutText`, cleans the build, publishes self-contained x64, then compiles `YariZan-Setup.iss`.
+The script repacks games, uses the brand kit multi-size ICO, preserves an existing `icon.ico` when the kit is absent, or generates one from PNG if no ICO exists, generates a Persian RTL About page from hardcoded app `AboutText`, cleans the build, publishes self-contained x64, then compiles `YariZan-Setup.iss`.
 
 | Option | Behavior |
 |---|---|
@@ -106,23 +121,26 @@ $env:INNO_PATH = 'C:\Your Inno Directory\ISCC.exe'
 .\build-installer.bat --noninteractive
 ```
 
-Output: `publish/YariZan-Setup-v1.0.0.exe`. It includes the app/games, bilingual EULA, and RTL About page. Setup and EULA contacts include `osameh.dev` and `support@osameh.dev`. Uninstall preserves saved activation; MySQL trials/blocks are unaffected.
+Output: `publish/YariZan-G1-Setup-v1.1.0.exe`. It includes the app/games, bilingual EULA, and RTL About page. Setup and EULA contacts include `osameh.dev` and `support@osameh.dev`. Uninstall preserves saved activation; MySQL trials/blocks are unaffected.
 
 For EULA/setup-text-only changes, reuse a verified current published app:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/Write-InstallerAbout.ps1
-& 'C:\Program Files\Inno Setup 7\ISCC.exe' 'YariZan-Setup.iss'
+& 'C:\Program Files\Inno Setup 7\ISCC.exe' /DGrade=1 'YariZan-Setup.iss'
 ```
 
-Adjust the compiler path. App/key/game changes require republishing first. Version releases consistently: update ISS `MyAppVersion`, app `Version`/`FileVersion`, EULA version and displayed version text. Keep installer AppId stable for upgrade identity.
+Adjust the compiler path. App/key/game changes require republishing first. Version releases consistently: update ISS `MyAppVersion`, app `Version`/`FileVersion`, EULA version and displayed version text. Keep each grade's installer AppId stable for upgrade identity. Grade installers have separate installation directories and shortcuts; the old combined installer has a different identity.
 
 ## Checks before distribution
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Run-AccessChecks.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/Run-LauncherChecks.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/Run-GradeChecks.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/Run-BookChecks.ps1
 py tools/Check-PublicRepository.py
-Get-FileHash publish/YariZan-Setup-v1.0.0.exe -Algorithm SHA256
+Get-FileHash publish/YariZan-G1-Setup-v1.1.0.exe -Algorithm SHA256
 ```
 
 Use [panel checks](../web/licensing/README.md#tests-and-local-preview) for backend changes. Test on a disposable Windows PC: install/uninstall, icon, cover-first start, two trials, activation, outage/retry, serial replacement/removal, game order/launch, RTL About and keyboard dismissal. Compiling setup does not test installation.
@@ -134,10 +152,14 @@ Use [panel checks](../web/licensing/README.md#tests-and-local-preview) for backe
 - No games: verify manifest/payloads beside EXE and direct grade-folder source files.
 - Connection errors: verify HTTPS/API/CDN rules; access intentionally needs online authorization.
 - Default icon: regenerate ICO and republish/recompile; Explorer may retain an icon cache.
-- Large setup: it includes .NET and all games. Inspect game sizes before removing required files.
+- Large setup: it includes .NET and all games in the selected grade. Inspect game sizes before removing required files.
 
 ## Cleanup and backups
 
 Keep latest setup, complete portable output/games, source games/code, and secure key/configuration backups. Generated .NET `bin/`/`obj/`, Python bytecode, old previews/test files, obsolete ZIPs, and `publish/installer-about.rtf` are disposable after consumers finish. Never delete `web/licensing/bin/`: it contains source scripts.
 
 Private setup ZIPs contain credentials/keys; remove after manual upload and retain secure backups. Recreate bundles using [the hosting guide](../web/licensing/README.md). Public deployment does not update private code/configuration.
+
+Book checks use a local JPG from `miniApps/1/` and render `publish/book-preview.png`. They exercise mixed-grade filtering, numeral input, navigation boundaries, image decoding/cache reuse and rapid clicks. Grade checks use synthetic games and a disposable key, never production state.
+
+The current grade-1 math-book bundle uses Persian filenames such as `صفحه سوم کتاب ریاضی`. This is catalog naming only: YariZan remains a general educational launcher. Persian page titles retain numeric textbook-page ordering; matching EXE/image/description stems are required.

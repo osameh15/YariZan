@@ -39,7 +39,9 @@ flowchart TD
 
 ## Games and keys
 
-Local games reside directly in grade folders `miniApps/1` through `6`. Packing produces external manifest/blobs/thumbnails in `games_encrypted/`, copied beside the app. Numeric filename chunks sort naturally. Each spread contains twelve tiles, six per page, first page on the right.
+Local games reside directly in grade folders `miniApps/1` through `6`. Each package contains one grade: automatically select the only populated source folder, or pass an explicit grade when several contain games. The manifest records `SelectedGrade`, used for the title and game filtering. Packing produces external manifest/blobs/thumbnails in `games_encrypted/`, copied beside the app. Numeric filename chunks sort naturally. Each spread contains twelve portrait tiles, three columns by two rows per page, first page on the right. Editable spread navigation supports Persian, Arabic and English digits.
+
+The book snapshots its sorted games once. Thumbnail decoding uses two background workers, a 360-pixel decode height and a bounded 48-entry cache; frozen bitmaps are assigned on the UI dispatcher. A 370 ms spine-centered fold/unfold animation runs while incoming thumbnails decode in the background; overlapping navigation and game clicks during turns are blocked. Installer names, output directories and shortcuts use `YariZan G<grade>`; licensing remains shared by HWID across grades.
 
 The app embeds its public signing key and AES master key. The server retains the matching private key outside the document root. The launcher decrypts to restricted temporary directories, owns started processes, and attempts cleanup on exit; revocation stops owned processes. See [protection limits](security.md#limitations).
 
@@ -48,3 +50,5 @@ The app embeds its public signing key and AES master key. The server retains the
 MySQL stores metadata, current serials, trial usage/grants, rate limits, audit events and blocked HWIDs. Transactions serialize consumption and retained nonces support retries. Removing a device deletes details/grants/audit rows and keeps a blocked HWID to stop automatic recreation. Explicit admin issuance restores it. Regeneration replaces serial, revokes trial grants and exhausts trials.
 
 Public FTPS deploy changes public files only. Private code/schema updates and credential/key provisioning are uploaded manually. See [hosting](../web/licensing/README.md) and [CI](ci.md).
+
+Game launching runs preparation off the UI thread. The launcher synchronizes process registration with revocation using a generation counter; stopped/disposed launchers cannot register a late prepared process. Cancelled/failed preparation clears plaintext and cleans temporary files. MainWindow owns the loading overlay and cancellation source, waits for a ready game window, and restores UI interaction in a finally block.

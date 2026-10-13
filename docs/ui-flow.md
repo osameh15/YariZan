@@ -1,4 +1,4 @@
-﻿# UI flow
+# UI flow
 
 ## Desktop
 
@@ -9,7 +9,7 @@ The Persian RTL WPF app always starts on the closed-book cover. Opening it check
 | Cover | Branded first page; opening initiates access checks |
 | Lock | HWID/support copy, serial entry, server trial count, connection retry, back/exit |
 | Information | Existing introductory About, paid/trial state, enter book |
-| Game book | Grades, twelve tiles per spread, natural order, details/About overlays |
+| Game book | One grade title, twelve portrait tiles per spread (3 columns x 2 rows per page), natural order, details/About overlays |
 
 Online status registers a new device's PC name/HWID and displays two trials without consumption. Explicit trial entry consumes one signed grant. Both trial numbers use Persian digits. Retry checks a saved paid serial first; outages do not require retyping. A rejected paid serial does not silently become a trial.
 
@@ -28,3 +28,11 @@ Counts and dates use Persian digits. Dates use the Persian Solar Hijri/Jalali ca
 ## Installer
 
 Inno shows welcome, bilingual EULA, Persian RTL About, options, progress and completion. About is generated from the app constant, not a separate `about.txt`. Both EULA language sections, wizard contact details and installed-app support metadata include `osameh.dev` and `support@osameh.dev`.
+
+The center footer accepts a spread number using English, Persian, or Arabic digits; press Enter or Go. Previous/Next disable at boundaries. Invalid numbers retain the current spread. Thumbnail decoding runs on two background workers, at 360 pixels high, with at most 48 cached images. Revisited spreads reuse thumbnails. A 170 ms fold and 200 ms unfold around the spine restore the book animation; thumbnails prefetch during the fold, and overlapping turns are prevented.
+
+The cover displays the OAR NOVA GAMES STUDIO logo and a Persian title derived from the selected grade. The information page displays the primary Yarizan logo from the brand kit. Window/EXE/setup icons use the kit app icon; setup preserves the supplied multi-size Windows ICO. The studio identity is shared by app credits, installer metadata and EULA. English studio text sits in the RTL layout without reversing its characters.
+
+The studio PNG retains its original transparency on the cover; its container has no opaque backing. The game-book toolbar centers the transparent Yarizan primary logo between equal-width side sections.
+
+A game click immediately opens a centered animated Yarizan-logo loading overlay and disables the book until startup finishes. Access is checked before background decryption and file preparation. The overlay remains until the game window is input-ready (up to ten seconds of startup observation), and closes on errors or cancellation. Revocation/shutdown cancel preparation and prevent a pending game from starting. Description bodies contain instructions only; the modal already displays the filename as its title.

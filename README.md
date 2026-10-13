@@ -1,10 +1,57 @@
-﻿<div align="center">
-<img src="src/YariZan.App/Resources/icon.png" alt="YariZan" width="160" />
+<div align="center">
+<img src="src/YariZan.App/Resources/logo.png" alt="YariZan - educational games for primary school" width="230" />
 
 # YariZan — یاریزان
 
-Persian RTL educational mini-game launcher for Windows, with a book interface, encrypted game bundles, and a PHP/MySQL licensing panel.
+Grade-specific Persian RTL educational mini-game launcher by **OAR NOVA GAMES STUDIO** for Windows, with a book interface, encrypted game bundles, and a PHP/MySQL licensing panel.
 </div>
+
+## App features
+
+Download the Windows installer or the ZIP containing the installer and its SHA-256 checksum from [release 1.1.0](https://github.com/osameh15/YariZan/releases/tag/1.1.0).
+
+- One grade per package, named **YariZan G1**, **G2**, etc.; the Persian cover title follows the selected grade.
+- Portrait game artwork in three columns and two rows per page, with book page-turn animation.
+- Direct page navigation using Persian, Arabic, or English digits.
+- Game titles come from filenames; descriptions show instructions without repeating the title.
+- Animated YariZan-logo loading while a selected game is prepared and opened. Background preparation keeps the interface responsive and prevents duplicate launches.
+
+## Screenshots
+
+Fresh captures of the current WPF views using the local G1 catalog. Activation/trial screens illustrate UI states; device identifiers are masked. Click an image to open it at full resolution.
+
+<table>
+  <tr><th>Cover and studio branding</th><th>Activation and trial</th></tr>
+  <tr>
+    <td><a href="docs/Images/cover-page.png"><img src="docs/Images/cover-page.png" width="440" alt="Persian grade-specific cover with transparent OAR NOVA GAMES STUDIO logo" /></a></td>
+    <td><a href="docs/Images/lock-page.png"><img src="docs/Images/lock-page.png" width="440" alt="Activation screen with masked HWID and two trial entries" /></a></td>
+  </tr>
+  <tr><th>Information and credits</th><th>Portrait game book</th></tr>
+  <tr>
+    <td><a href="docs/Images/info-page.png"><img src="docs/Images/info-page.png" width="440" alt="YariZan logo, dynamic grade title and studio credits" /></a></td>
+    <td><a href="docs/Images/game-book.png"><img src="docs/Images/game-book.png" width="440" alt="Real G1 catalog with Persian filenames, centered logo, portrait tiles and page-number input" /></a></td>
+  </tr>
+  <tr><th>Game details</th><th>Game-start loading</th></tr>
+  <tr>
+    <td><a href="docs/Images/game-detail.png"><img src="docs/Images/game-detail.png" width="440" alt="Game details with one title and instructions only" /></a></td>
+    <td><a href="docs/Images/game-loading.png"><img src="docs/Images/game-loading.png" width="440" alt="Centered animated-logo loading overlay while the selected game opens" /></a></td>
+  </tr>
+</table>
+
+<details>
+<summary>More activation and trial states</summary>
+
+| State | Screenshot |
+|---|---|
+| Trial information | [View](docs/Images/info-page-trial.png) |
+| One trial entry remaining | [View](docs/Images/lock-page-trial-one-remain.png) |
+| Trial exhausted | [View](docs/Images/trial-end.png) |
+| Copy support message | [View](docs/Images/lock-page-copy-message.png) |
+| Invalid serial | [View](docs/Images/lock-page-invalid-serial.png) |
+
+</details>
+
+Regenerate the images with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/Capture-AppScreenshots.ps1` after packing the local catalog. See [screenshot notes](docs/Images/README.md).
 
 ## Current access policy
 
@@ -28,6 +75,8 @@ dotnet build src/YariZan.sln -c Release
 dotnet run --project src/YariZan.App
 ```
 
+The grade is detected automatically from the only source folder containing games. Empty folders are ignored; with several populated grades, pass `--grade 2` (or another grade) to both packer and installer builder. Each package contains one grade and is named **YariZan G1**, **YariZan G2**, etc. The book uses portrait tiles and an editable page number.
+
 Create the setup executable:
 
 ```powershell
@@ -36,9 +85,13 @@ Create the setup executable:
 
 | Output | Use |
 |---|---|
-| `publish/YariZan-win-x64/YariZan.exe` | Self-contained launcher; keep adjacent `games_encrypted/` |
-| `publish/YariZan-Setup-v1.0.0.exe` | Installer containing launcher and games |
+| `publish/YariZan-G1-win-x64/YariZan-G1.exe` | Self-contained launcher; keep adjacent `games_encrypted/` |
+| `publish/YariZan-G1-Setup-v1.1.0.exe` | Installer containing launcher and games |
+| `publish/YariZan-G1-Setup-v1.1.0.exe.sha256` | Installer SHA-256 checksum |
+| `publish/YariZan-G1-Setup-v1.1.0.zip` | Installer and its checksum in one download |
 | `publish/installer-about.rtf` | Generated build input; disposable after compilation |
+
+If the standard publish directory already exists, the builder preserves it and prints the new directory with a build suffix.
 
 See [build-and-pack.md](docs/build-and-pack.md) for portable publishing, installer options, troubleshooting, and release checks. Never distribute source games, keys, private hosting ZIPs, or credentials with a release.
 
@@ -61,6 +114,7 @@ The current serial can reactivate after an OS reinstall only if the HWID matches
 | `games_encrypted/` | Ignored generated catalog; README tracked |
 | `secrets/` | Keys; private/master keys ignored |
 | `tools/`, `tests/` | Packaging/deployment and isolated checks |
+| `docs/Images/`, `docs/YariZan_Brand_Kit_v1/` | App screenshots, supplied images and original brand resources |
 | `publish/` | Ignored app, installer, upload bundles |
 
 ## Documentation

@@ -15,20 +15,30 @@ public partial class MainWindow : Window
     private readonly AccessSession _access;
     private readonly System.Windows.Threading.DispatcherTimer _heartbeat = new() { Interval = TimeSpan.FromSeconds(60) };
     private bool _checking;
+    private bool _launching;
+    private bool _closed;
+    private CancellationTokenSource? _launchCancellation;
 
     public MainWindow()
     {
         _access = new AccessSession(() => _trials.PaidAuthorized, _trials.ConsumeAsync);
         InitializeComponent();
+        Title = $"YariZan G{Math.Clamp(_library.Manifest.SelectedGrade, 1, 6)}";
         Loaded += (_, _) => ShowCover(animate: false);
         _heartbeat.Tick += async (_, _) => { if (_access.CanEnter) await CheckSessionAsync(); };
         _heartbeat.Start();
-        Closed += (_, _) => { _heartbeat.Stop(); _launcher.Dispose(); };
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            _launchCancellation?.Cancel();
+            _heartbeat.Stop();
+            _launcher.Dispose();
+        };
     }
 
     public void ShowCover(bool animate = true)
     {
-        var page = new CoverPage();
+        var page = new CoverPage(_library.Manifest.SelectedGrade);
         page.OpenRequested += async (_, _) =>
         {
             if (_checking) return;
@@ -58,7 +68,7 @@ public partial class MainWindow : Window
     public void ShowInfo()
     {
         if (!_access.CanEnter) { ShowLock(); return; }
-        var page = new InfoPage(_access.TrialRemaining, _trials.PaidAuthorized);
+        var page = new InfoPage(_access.TrialRemaining, _trials.PaidAuthorized, _library.Manifest.SelectedGrade);
         page.NextRequested += (_, _) => ShowGames();
         page.BackRequested += (_, _) => ShowCover();
         SwapPage(page, animate: true);
@@ -75,28 +85,69 @@ public partial class MainWindow : Window
 
     private async void OnGameLaunch(object? sender, GameEntry e)
     {
+        if (_checking || _launching || _closed) return;
+        _launching = true;
+        using var cancellation = new CancellationTokenSource();
+        _launchCancellation = cancellation;
+        LoadingOverlay.GameName = e.Name;
+        LoadingOverlay.Visibility = Visibility.Visible;
+        PageHost.IsEnabled = false;
+        Exception? failure = null;
         try
         {
-            if (_checking) return;
             if (!await CheckSessionAsync()) return;
             if (!_access.CanEnter) { ShowLock(); return; }
             var key = AppKeys.LoadEmbeddedMasterKey();
             try
             {
                 var path = AppPaths.ResolveGameFile(e.EncryptedFile);
-                _launcher.Launch(key, path, e.Name);
+                var process = await _launcher.LaunchAsync(key, path, e.Name, cancellation.Token);
+                await WaitForGameWindowAsync(process, cancellation.Token);
             }
             finally { Array.Clear(key, 0, key.Length); }
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { failure = ex; }
+        finally
         {
-            MessageBox.Show(this, "خطا در اجرای بازی: " + ex.Message, "یاریزان",
+            _launchCancellation = null;
+            _launching = false;
+            if (!_closed)
+            {
+                LoadingOverlay.Visibility = Visibility.Collapsed;
+                PageHost.IsEnabled = true;
+            }
+        }
+        if (failure is not null && !_closed)
+        {
+            MessageBox.Show(this, "خطا در اجرای بازی: " + failure.Message, "یاریزان",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
+    private static Task WaitForGameWindowAsync(System.Diagnostics.Process process, CancellationToken cancellation) =>
+        Task.Run(() =>
+        {
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                while (timer.Elapsed < TimeSpan.FromSeconds(10))
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    if (process.HasExited) return;
+                    bool ready = process.WaitForInputIdle(100);
+                    process.Refresh();
+                    if (ready && process.MainWindowHandle != IntPtr.Zero) return;
+                    Thread.Sleep(50);
+                }
+            }
+            catch (InvalidOperationException) { }
+            catch (System.ComponentModel.Win32Exception) { }
+        }, cancellation);
+
     private void RevokeAccess()
     {
+        _launchCancellation?.Cancel();
         _trials.Revoke();
         _access.Revoke();
         _launcher.StopGames();

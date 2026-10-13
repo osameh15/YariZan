@@ -22,15 +22,20 @@
                             Margin="20" />
 
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="40">
-                        <TextBlock Text="YariZan" FontFamily="Georgia, Tahoma" FontSize="64" FontWeight="Bold"
+                        <TextBlock x:Name="AppNameText" FontFamily="{DynamicResource ShabnamBoldFont}" FontSize="30" FontWeight="Bold"
                                    Foreground="{StaticResource GoldBrush}" HorizontalAlignment="Center"
-                                   FlowDirection="LeftToRight">
+                                   FlowDirection="RightToLeft" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420">
                             <TextBlock.Effect>
                                 <DropShadowEffect Color="Black" BlurRadius="6" ShadowDepth="2" Opacity="0.8" />
                             </TextBlock.Effect>
                         </TextBlock>
-                        <Image Source="pack://application:,,,/Resources/icon.png"
-                               Width="240" Height="240" Margin="0,12,0,0" Stretch="Uniform" />
+                        <Border Width="260" Height="260" Margin="0,18,0,0" Background="Transparent" Padding="10">
+                            <Image x:Name="StudioLogo" Source="pack://application:,,,/YariZan;component/Resources/OAR_Nova_Game.png"
+                                   Stretch="Uniform" FlowDirection="LeftToRight" />
+                        </Border>
+                        <TextBlock Text="OAR NOVA GAMES STUDIO" FlowDirection="RightToLeft" Language="en-US"
+                                   FontFamily="Segoe UI" FontSize="16" Foreground="{StaticResource GoldBrush}"
+                                   TextAlignment="Center" HorizontalAlignment="Center" Margin="0,14,0,0" />
                         <TextBlock x:Name="VersionText" FontSize="16"
                                    Foreground="{StaticResource GoldBrush}" Opacity="0.85"
                                    HorizontalAlignment="Center" Margin="0,18,0,0" />
@@ -55,7 +60,7 @@
             </Grid.InputBindings>
         </Grid>
 
-        <TextBlock Text="2026 © YariZan — یاریزان" FontFamily="{DynamicResource ShabnamFont}" FontSize="12"
+        <TextBlock Text="2026 © OAR NOVA GAMES STUDIO" FlowDirection="RightToLeft" FontFamily="Segoe UI" FontSize="12"
                    Foreground="{StaticResource GoldBrush}" Opacity="0.6"
                    HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,16" />
     </Grid>

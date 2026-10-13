@@ -38,8 +38,9 @@ jobs:
           if (Test-Path secrets) { Remove-Item secrets -Recurse -Force }
           dotnet run --project src/YariZan.SerialGen --no-restore -- init
 
-      - name: Pack local catalog (empty in public checkout)
-        run: dotnet run --project src/YariZan.Packer --no-restore
+      - name: Isolated grade detection and packaging checks
+        shell: powershell
+        run: .\tests\Run-GradeChecks.ps1
 
       - name: Build (Release)
         run: dotnet build src/YariZan.sln --configuration Release --no-restore
@@ -47,6 +48,10 @@ jobs:
       - name: Isolated access and trial grant checks
         shell: powershell
         run: .\tests\Run-AccessChecks.ps1
+
+      - name: Isolated asynchronous game launcher checks
+        shell: powershell
+        run: .\tests\Run-LauncherChecks.ps1
 
       # Future: when tests exist, add:
       # - name: Test

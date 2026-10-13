@@ -1,14 +1,14 @@
-END-USER LICENSE AGREEMENT (EULA)
+﻿END-USER LICENSE AGREEMENT (EULA)
 YariZan - Educational Mini-Games Launcher
-Version 1.0.0
+Version 1.1.0
 
 ================================================================
 ENGLISH
 ================================================================
 
-Copyright (c) 2025 YariZan Studio. All rights reserved.
+Copyright (c) 2025 OAR NOVA GAMES STUDIO. All rights reserved.
 
-Studio     : YariZan Studio
+Studio     : OAR NOVA GAMES STUDIO
 Developer  : osameh_ir
 Contact    : Telegram @osameh_ir  (https://t.me/osameh_ir)
 Website    : https://osameh.dev
@@ -20,7 +20,7 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 
 1. LICENSE GRANT
    Subject to your compliance with this Agreement and your
-   payment of the applicable fee, YariZan Studio grants you a
+   payment of the applicable fee, OAR NOVA GAMES STUDIO grants you a
    personal, non-exclusive, non-transferable, revocable license
    to install and use one (1) copy of the Software on a single
    Windows PC for which you have received and successfully
@@ -54,12 +54,12 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 5. OWNERSHIP
    The Software, including the launcher application, the
    embedded mini-games, the artwork, fonts and documentation,
-   is licensed, not sold. YariZan Studio retains all right,
+   is licensed, not sold. OAR NOVA GAMES STUDIO retains all right,
    title and interest in and to the Software, including all
    intellectual property rights therein.
 
 6. UPDATES & SUPPORT
-   YariZan Studio may, at its sole discretion, provide updates
+   OAR NOVA GAMES STUDIO may, at its sole discretion, provide updates
    or new versions. Support is offered through Telegram
    @osameh_ir and email support@osameh.dev. Visit https://osameh.dev.
    Response time is typically 15 minutes to 8 hours.
@@ -71,7 +71,7 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
    FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
 
 8. LIMITATION OF LIABILITY
-   IN NO EVENT SHALL YARIZAN STUDIO OR ITS DEVELOPER BE LIABLE
+   IN NO EVENT SHALL OAR NOVA GAMES STUDIO OR ITS DEVELOPER BE LIABLE
    FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL OR
    PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUE, ARISING
    FROM OR RELATED TO YOUR USE OF THE SOFTWARE.
@@ -96,9 +96,9 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 یاریزان — مجموعه بازی‌های آموزشی
 نسخهٔ ۱.۰.۰
 
-تمامی حقوق محفوظ است. © ۲۰۲۵ استودیوی یاریزان
+تمامی حقوق محفوظ است. © ۲۰۲۵ OAR NOVA GAMES STUDIO
 
-استودیو         : استودیوی یاریزان (YariZan Studio)
+استودیو         : OAR NOVA GAMES STUDIO
 توسعه‌دهنده    : osameh_ir
 ارتباط          : تلگرام @osameh_ir   (https://t.me/osameh_ir)
 وب‌سایت        : https://osameh.dev
@@ -109,7 +109,7 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 زیر موافقت می‌کنید. در صورت عدم موافقت، برنامه را نصب نکنید.
 
 ۱) اعطای حق استفاده
-   استودیوی یاریزان به شما اجازه می‌دهد یک نسخه از این
+   OAR NOVA GAMES STUDIO به شما اجازه می‌دهد یک نسخه از این
    برنامه را روی تنها یک رایانهٔ ویندوزی که سریال آن را
    به‌صورت معتبر دریافت و فعال‌سازی کرده‌اید، نصب و استفاده کنید.
 
@@ -135,7 +135,7 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 ۵) مالکیت
    برنامه (شامل لانچر، بازی‌های مینی، گرافیک، فونت و مستندات)
    به فروش نمی‌رسد، بلکه تنها مجوز استفاده داده می‌شود.
-   تمامی حقوق مالکیت معنوی متعلق به استودیوی یاریزان است.
+   تمامی حقوق مالکیت معنوی متعلق به OAR NOVA GAMES STUDIO است.
 
 ۶) به‌روزرسانی و پشتیبانی
    پشتیبانی از طریق تلگرام @osameh_ir و ایمیل
@@ -147,7 +147,7 @@ BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
    ضمنی ارائه می‌شود.
 
 ۸) محدودیت مسئولیت
-   استودیوی یاریزان در قبال هیچ خسارت غیرمستقیم، اتفاقی،
+   OAR NOVA GAMES STUDIO در قبال هیچ خسارت غیرمستقیم، اتفاقی،
    ویژه، تبعی یا از دست رفتن سود، ناشی از استفاده از برنامه،
    مسئول نخواهد بود.
 

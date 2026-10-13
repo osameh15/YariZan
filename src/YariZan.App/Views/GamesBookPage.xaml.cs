@@ -1,11 +1,9 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Imaging;
 using YariZan.App.Services;
 using YariZan.Core;
 
@@ -18,10 +16,11 @@ public partial class GamesBookPage : UserControl
 
     private const int TilesPerPage = 6;
     private const int TilesPerSpread = TilesPerPage * 2;
-    private const int AllGradesValue = 0;
 
-    private readonly GameLibrary _library;
-    private int _grade = AllGradesValue;
+    private readonly IReadOnlyList<GameEntry> _games;
+    private readonly ThumbnailCache _thumbnails = new();
+    private bool _turning;
+    private int TotalSpreads => Math.Max(1, (_games.Count + TilesPerSpread - 1) / TilesPerSpread);
     private int _spreadIndex;
     private GameEntry? _infoGame;
     private IInputElement? _modalFocus;
@@ -50,61 +49,10 @@ public partial class GamesBookPage : UserControl
 
     public GamesBookPage(GameLibrary library)
     {
-        _library = library;
+        _games = library.GamesFor(library.Manifest.SelectedGrade);
         InitializeComponent();
-        BuildGradePicker();
+        GradeTitle.Text = $"دبستانی ها- {AppBranding.GradeName(library.Manifest.SelectedGrade)} ابتدایی";
         Render();
-    }
-
-    private void BuildGradePicker()
-    {
-        GradePicker.Children.Clear();
-        var available = _library.AvailableGrades().ToHashSet();
-
-        var allChip = MakeChip("همه", AllGradesValue, enabled: true);
-        GradePicker.Children.Add(allChip);
-
-        for (int g = 1; g <= 6; g++)
-            GradePicker.Children.Add(MakeChip(ToPersianDigits(g.ToString()), g, available.Contains(g)));
-
-        UpdateChecks();
-    }
-
-    private ToggleButton MakeChip(string label, int value, bool enabled)
-    {
-        var b = new ToggleButton
-        {
-            Content = label,
-            Style = (Style)FindResource("GradeChip"),
-            IsEnabled = enabled,
-            Tag = value,
-        };
-        b.Checked += (_, _) =>
-        {
-            if (_grade == value) return;
-            _grade = value;
-            _spreadIndex = 0;
-            UpdateChecks();
-            Render();
-        };
-        b.Click += (_, _) => { if (b.IsChecked != true) b.IsChecked = true; };
-        return b;
-    }
-
-    private void UpdateChecks()
-    {
-        foreach (ToggleButton b in GradePicker.Children)
-            b.IsChecked = ((int)b.Tag!) == _grade;
-    }
-
-    private List<GameEntry> CurrentGames()
-    {
-        if (_grade == AllGradesValue)
-            return _library.Manifest.Grades
-                .OrderBy(g => g.Grade)
-                .SelectMany(g => _library.GamesFor(g.Grade))
-                .ToList();
-        return _library.GamesFor(_grade).ToList();
     }
 
     private void Render()
@@ -112,9 +60,8 @@ public partial class GamesBookPage : UserControl
         RightSide.Children.Clear();
         LeftSide.Children.Clear();
 
-        var games = CurrentGames();
-        int total = games.Count;
-        int totalSpreads = Math.Max(1, (int)Math.Ceiling(total / (double)TilesPerSpread));
+        var games = _games;
+        int totalSpreads = TotalSpreads;
         if (_spreadIndex >= totalSpreads) _spreadIndex = totalSpreads - 1;
         if (_spreadIndex < 0) _spreadIndex = 0;
 
@@ -123,8 +70,9 @@ public partial class GamesBookPage : UserControl
         FillPage(RightSide, games, start, TilesPerPage);
         FillPage(LeftSide, games, start + TilesPerPage, TilesPerPage);
 
-        var label = _grade == AllGradesValue ? "همه" : "پایهٔ " + ToPersianDigits(_grade.ToString());
-        PageIndicator.Text = $"{label}  —  صفحهٔ {ToPersianDigits((_spreadIndex + 1).ToString())} از {ToPersianDigits(totalSpreads.ToString())}";
+        PageNumber.Text = ToPersianDigits((_spreadIndex + 1).ToString());
+        PageTotal.Text = "از " + ToPersianDigits(totalSpreads.ToString());
+        UpdateNavigation();
     }
 
     private void FillPage(UniformGrid host, IReadOnlyList<GameEntry> games, int start, int count)
@@ -157,13 +105,13 @@ public partial class GamesBookPage : UserControl
         };
         var img = new Image
         {
-            Source = LoadImage(e.ImageFile),
             Stretch = Stretch.Uniform,
         };
+        _ = SetThumbnailAsync(img, e.ImageFile);
         imgHost.Child = img;
         Grid.SetRow(imgHost, 0);
 
-        var bottom = new Grid { Margin = new Thickness(10, 4, 10, 10) };
+        var bottom = new Grid { Margin = new Thickness(4, 2, 4, 6) };
         bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
@@ -179,13 +127,17 @@ public partial class GamesBookPage : UserControl
         var nameText = new TextBlock
         {
             Text = e.Name,
+            ToolTip = e.Name,
+            TextWrapping = TextWrapping.Wrap,
+            TextAlignment = TextAlignment.Center,
+            MaxHeight = 56,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
             FontFamily = (System.Windows.Media.FontFamily)FindResource("ShabnamBoldFont"),
-            FontSize = 16,
+            FontSize = 13,
             Foreground = (Brush)FindResource("LeatherDarkBrush"),
-            Margin = new Thickness(8, 0, 8, 0),
+            Margin = new Thickness(4, 0, 2, 0),
         };
         Grid.SetColumn(nameText, 1);
 
@@ -210,22 +162,10 @@ public partial class GamesBookPage : UserControl
         Background = new SolidColorBrush(Color.FromArgb(20, 0, 0, 0)),
     };
 
-    private static ImageSource? LoadImage(string relative)
+    private async Task SetThumbnailAsync(Image image, string relative)
     {
-        if (string.IsNullOrEmpty(relative)) return null;
-        var full = AppPaths.ResolveGameFile(relative);
-        if (!File.Exists(full)) return null;
-        try
-        {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.UriSource = new Uri(full);
-            bmp.EndInit();
-            bmp.Freeze();
-            return bmp;
-        }
-        catch { return null; }
+        var thumbnail = await _thumbnails.GetAsync(relative).ConfigureAwait(false);
+        await image.Dispatcher.InvokeAsync(() => image.Source = thumbnail);
     }
 
     private void ShowInfo(GameEntry e)
@@ -293,81 +233,93 @@ public partial class GamesBookPage : UserControl
         GameLaunchRequested?.Invoke(this, g);
     }
 
-    private void PrevPage_Click(object sender, RoutedEventArgs e) { _spreadIndex--; AnimateFlip(-1); }
-    private void NextPage_Click(object sender, RoutedEventArgs e) { _spreadIndex++; AnimateFlip(+1); }
+    private void PrevPage_Click(object sender, RoutedEventArgs e) => NavigateTo(_spreadIndex - 1);
+    private void NextPage_Click(object sender, RoutedEventArgs e) => NavigateTo(_spreadIndex + 1);
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
     private void Exit_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
     private void Minimize_Click(object sender, RoutedEventArgs e) => Window.GetWindow(this).WindowState = WindowState.Minimized;
 
-    private void AnimateFlip(int direction)
+    private void UpdateNavigation()
     {
-        // Page-flip around the spine (the inner edge of each page where the book is bound).
-        //
-        // Important RTL quirk: when an element inherits FlowDirection=RightToLeft, WPF flips the
-        // X of RenderTransformOrigin in that element's local coordinate system. So for an RTL
-        // element, origin.X = 0 corresponds to the visually-RIGHT edge in screen pixels, and
-        // origin.X = 1 corresponds to the visually-LEFT edge. We flip these on purpose below.
-        //
-        // Persian RTL book physical model:
-        //   - Next: flip the LEFT page (it has just been read). Its spine = its visually-RIGHT
-        //           edge. In RTL coords that's origin.X = 0. The page rotates toward the spine,
-        //           giving a LEFT→RIGHT motion across the spread.
-        //   - Prev: flip the RIGHT page. Its spine = its visually-LEFT edge. In RTL coords that
-        //           is origin.X = 1. Page rotates toward the spine → RIGHT→LEFT motion.
-        //
-        // The fold is faked with ScaleX 1→0 (page narrows to a vertical slit at the spine) plus
-        // a small SkewY for a 3D lift cue; content is rendered while the slit is invisible; then
-        // ScaleX 0→1 unfolds with the new content.
+        PreviousButton.IsEnabled = !_turning && _spreadIndex > 0;
+        NextButton.IsEnabled = !_turning && _spreadIndex + 1 < TotalSpreads;
+        PageNumber.IsEnabled = JumpButton.IsEnabled = !_turning;
+    }
 
-        // Reset any prior transform on either side from a previous animation so a quickly-clicked
-        // Next-then-Prev (or vice versa) doesn't double-apply scale/skew.
-        LeftSide.RenderTransform = Transform.Identity;
-        RightSide.RenderTransform = Transform.Identity;
-
+    private void NavigateTo(int index)
+    {
+        if (_turning || index < 0 || index >= TotalSpreads || index == _spreadIndex) return;
+        int direction = index > _spreadIndex ? 1 : -1;
+        _spreadIndex = index;
+        _turning = true;
+        UpdateNavigation();
+        SpreadHost.IsHitTestVisible = false;
+        // Start background decoding before the fold reaches the spine.
+        foreach (var game in _games.Skip(index * TilesPerSpread).Take(TilesPerSpread))
+            _ = _thumbnails.GetAsync(game.ImageFile);
         var target = direction > 0 ? LeftSide : RightSide;
-        var origin = new Point(direction > 0 ? 0 : 1, 0.5);  // RTL-flipped: 0 = spine for LeftSide, 1 = spine for RightSide
-        target.RenderTransformOrigin = origin;
-
+        // WPF mirrors transform origins under RTL: these origins sit at the book spine.
+        target.RenderTransformOrigin = new Point(direction > 0 ? 0 : 1, 0.5);
         var scale = new ScaleTransform(1, 1);
-        var skew  = new SkewTransform(0, 0);
-        var group = new TransformGroup();
-        group.Children.Add(scale);
-        group.Children.Add(skew);
-        target.RenderTransform = group;
-
-        const int foldMs = 240;
-        const int unfoldMs = 280;
-        double skewMax = direction > 0 ? -10 : 10;
-
-        var foldX = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(foldMs))
+        var skew = new SkewTransform();
+        var transforms = new TransformGroup();
+        transforms.Children.Add(scale);
+        transforms.Children.Add(skew);
+        target.RenderTransform = transforms;
+        double lift = direction > 0 ? -8 : 8;
+        var fold = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(170))
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
         };
-        var foldSkew = new DoubleAnimation(0, skewMax, TimeSpan.FromMilliseconds(foldMs))
-        {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
-        };
-
-        foldX.Completed += (_, _) =>
+        fold.Completed += (_, _) =>
         {
             Render();
-            target.RenderTransformOrigin = origin;
-
-            var unfoldX = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(unfoldMs))
+            var unfold = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200))
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
             };
-            var unfoldSkew = new DoubleAnimation(skewMax, 0, TimeSpan.FromMilliseconds(unfoldMs))
+            unfold.Completed += (_, _) =>
             {
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+                target.RenderTransform = Transform.Identity;
+                SpreadHost.IsHitTestVisible = true;
+                _turning = false;
+                UpdateNavigation();
             };
-
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, unfoldX);
-            skew.BeginAnimation(SkewTransform.AngleYProperty, unfoldSkew);
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, unfold);
+            skew.BeginAnimation(SkewTransform.AngleYProperty,
+                new DoubleAnimation(lift, 0, TimeSpan.FromMilliseconds(200)));
         };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, fold);
+        skew.BeginAnimation(SkewTransform.AngleYProperty,
+            new DoubleAnimation(0, lift, TimeSpan.FromMilliseconds(170)));
+    }
 
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, foldX);
-        skew.BeginAnimation(SkewTransform.AngleYProperty, foldSkew);
+    private void Jump_Click(object sender, RoutedEventArgs e) => JumpToPage();
+
+    private void PageNumber_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        JumpToPage();
+        e.Handled = true;
+    }
+
+    private void JumpToPage()
+    {
+        var normalized = new string(PageNumber.Text.Trim().Select(c =>
+            c >= '۰' && c <= '۹' ? (char)('0' + c - '۰') :
+            c >= '٠' && c <= '٩' ? (char)('0' + c - '٠') : c).ToArray());
+        if (int.TryParse(normalized, out int page) && page >= 1 && page <= TotalSpreads)
+        {
+            PageNumber.ToolTip = "شمارهٔ صفحه را وارد کنید و Enter بزنید";
+            NavigateTo(page - 1);
+        }
+        else
+        {
+            PageNumber.ToolTip = $"شماره‌ای بین ۱ و {ToPersianDigits(TotalSpreads.ToString())} وارد کنید";
+            PageNumber.Text = ToPersianDigits((_spreadIndex + 1).ToString());
+            PageNumber.Focus();
+            PageNumber.SelectAll();
+        }
     }
 
     private static string ToPersianDigits(string s)

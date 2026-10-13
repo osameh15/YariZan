@@ -3,19 +3,24 @@
 ; Requires Inno Setup 6.0 or later: https://jrsoftware.org/isinfo.php
 ; Build with build-installer.bat (which publishes the app first).
 
-#define MyAppName        "YariZan"
+#ifndef Grade
+#define Grade "1"
+#endif
+#define MyAppName        "YariZan G" + Grade
 #define MyAppNameFa      "یاریزان"
-#define MyAppVersion     "1.0.0"
-#define MyAppPublisher   "YariZan Studio"
+#define MyAppVersion     "1.1.0"
+#define MyAppPublisher   "OAR NOVA GAMES STUDIO"
 #define MyAppDeveloper   "osameh_ir"
 #define MyAppURL         "https://osameh.dev"
 #define MyAppSupportURL  "mailto:support@osameh.dev"
-#define MyAppExeName     "YariZan.exe"
-#define MyPublishDir     "publish\YariZan-win-x64"
+#define MyAppExeName     "YariZan-G" + Grade + ".exe"
+#ifndef MyPublishDir
+#define MyPublishDir     "publish\YariZan-G" + Grade + "-win-x64"
+#endif
 
 [Setup]
 ; Stable random GUID — do NOT change between releases or upgrades will misbehave.
-AppId={{F2B7E1A8-3C4D-4A5E-9F1B-2D7C8E9A0B3F}
+AppId=YariZan-Grade-{#Grade}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
@@ -33,7 +38,7 @@ DisableDirPage=no
 DisableProgramGroupPage=no
 
 OutputDir=publish
-OutputBaseFilename=YariZan-Setup-v{#MyAppVersion}
+OutputBaseFilename=YariZan-G{#Grade}-Setup-v{#MyAppVersion}
 SetupIconFile=src\YariZan.App\Resources\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName} {#MyAppVersion}
@@ -52,12 +57,12 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 
-VersionInfoVersion=1.0.0.0
+VersionInfoVersion=1.1.0.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription={#MyAppName} Setup
 VersionInfoCopyright=Copyright (C) 2025 {#MyAppPublisher}
 VersionInfoProductName={#MyAppName}
-VersionInfoProductVersion=1.0.0.0
+VersionInfoProductVersion=1.1.0.0
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -87,7 +92,7 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 ; Preserve per-user activation across reinstall. The server controls access and trials.
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%nYariZan is a Persian RTL launcher for educational mini-games (grades 1-6).%n%nFeatures:%n  - Hardware-bound activation with online access checks%n  - 2 online trial launches%n  - 12 mini-games per spread, page-flip animation%n  - Persian Shabnam font, fullscreen kiosk mode%n%nWebsite: osameh.dev%nSupport: support@osameh.dev%n%nPlease close other applications before continuing.
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nYariZan is a Persian RTL launcher for educational mini-games for grade {#Grade}.%n%nFeatures:%n  - Hardware-bound activation with online access checks%n  - 2 online trial launches%n  - 12 portrait mini-games per spread, direct page navigation%n  - Persian Shabnam font, fullscreen kiosk mode%n%nWebsite: osameh.dev%nSupport: support@osameh.dev%n%nPlease close other applications before continuing.
 FinishedLabel=YariZan has been installed successfully.%n%nLaunch from the Start Menu or the Desktop shortcut. Open the cover to check your saved activation or start an online trial. Send your HWID to support@osameh.dev to receive a serial.%n%nWebsite: osameh.dev%nSupport: support@osameh.dev%n%nInternet is required for activation and access checks. Reinstalling does not reset server trial usage or device blocks.
 
 [CustomMessages]

@@ -25,10 +25,11 @@
                         Margin="6,4,0,4">
                     <Grid Margin="40">
                         <StackPanel VerticalAlignment="Center">
-                            <Image Source="pack://application:,,,/Resources/icon.png"
+                            <Image Source="pack://application:,,,/YariZan;component/Resources/logo.png"
                                    Width="260" Height="260" Stretch="Uniform" />
-                            <TextBlock Text="یاریزان" FontFamily="{DynamicResource ShabnamBoldFont}"
-                                       FontSize="56" Foreground="{StaticResource LeatherDarkBrush}"
+                            <TextBlock x:Name="AppTitle" FontFamily="{DynamicResource ShabnamBoldFont}"
+                                       FontSize="24" Foreground="{StaticResource LeatherDarkBrush}"
+                                       TextWrapping="Wrap" TextAlignment="Center"
                                        HorizontalAlignment="Center" Margin="0,12,0,0" />
                             <TextBlock Text="مجموعه بازی‌های آموزشی" FontSize="20"
                                        Foreground="{StaticResource LeatherBrush}"
@@ -51,7 +52,7 @@
                             <TextBlock FontSize="18" Foreground="{StaticResource InkBrush}"
                                        TextAlignment="Justify" TextWrapping="Wrap" Margin="0,28,0,0"
                                        LineHeight="32">
-                                <Run Text="یاریزان مجموعه‌ای از بازی‌های آموزشی است که برای کلاس‌های اول تا ششم ابتدایی طراحی شده. هر صفحه از کتاب شامل 6 بازی است؛ با چرخاندن صفحه به بازی‌های دیگر دسترسی پیدا می‌کنید." />
+                                <Run x:Name="IntroductionText" />
                             </TextBlock>
 
                             <Border Margin="0,28,0,0" Padding="18,14" CornerRadius="6"
@@ -59,7 +60,7 @@
                                 <StackPanel>
                                     <TextBlock Text="پدیدآورنده" FontFamily="{DynamicResource ShabnamBoldFont}"
                                                FontSize="18" Foreground="{StaticResource LeatherDarkBrush}" />
-                                    <TextBlock Text="استودیوی یاریزان" FontSize="16"
+                                    <TextBlock Text="OAR NOVA GAMES STUDIO" FontSize="16" FlowDirection="RightToLeft" Language="en-US" FontFamily="Segoe UI"
                                                Foreground="{StaticResource InkBrush}" Margin="0,4,0,0" />
                                     <TextBlock x:Name="VersionText" FontSize="14"
                                                Foreground="{StaticResource LeatherBrush}" Margin="0,8,0,0" />

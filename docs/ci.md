@@ -2,7 +2,7 @@
 
 ## Desktop checks
 
-`.github/workflows/ci.yml` runs on main pushes/PRs and manually. Windows/.NET 9 restores, rejects tracked private files, generates ephemeral runner keys, packs an empty catalog, builds Release, runs isolated access/grant checks, and verifies the EXE exists.
+`.github/workflows/ci.yml` runs on main pushes/PRs and manually. Windows/.NET 9 restores, rejects tracked private files, generates ephemeral runner keys, checks grade detection/packing with disposable synthetic games, builds Release, runs isolated access/grant and asynchronous launcher checks, and verifies the EXE exists. The release packer intentionally rejects an empty source catalog; CI does not attempt to create a production bundle from the public checkout.
 
 It does not use production keys/games/customer state or produce a production installer. Build actual releases locally with [build-and-pack.md](build-and-pack.md).
 
@@ -40,3 +40,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/Build-LicensingBundle.
 Extract `publish/YariZan-licensing-panel.zip` directly into the public root, including `.htaccess`. This ZIP contains public files at root; CI artifacts have a `public/` wrapper. Neither includes private setup.
 
 See [panel checks/preview](../web/licensing/README.md#tests-and-local-preview). Never deploy preview credentials. Use Conventional Commit prefixes (`feat:`, `fix:`, `chore:`, `docs:`), configured SSH signing and the SSH Git remote.
+
+`tests/Run-LauncherChecks.ps1` builds a disposable invisible synthetic game and verifies cancellation, revocation, shutdown, Persian filenames, GUI readiness and temporary-file cleanup. It uses no real games, license state or production keys.

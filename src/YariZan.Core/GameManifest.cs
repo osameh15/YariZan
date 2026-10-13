@@ -6,6 +6,7 @@ namespace YariZan.Core;
 public sealed class GameManifest
 {
     public int Version { get; set; } = 1;
+    public int SelectedGrade { get; set; } = 1;
     public List<GradeEntry> Grades { get; set; } = new();
 }
 

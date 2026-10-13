@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Windows.Controls;
 using System.Windows.Input;
+using YariZan.App.Services;
 
 namespace YariZan.App.Views;
 
@@ -10,13 +11,14 @@ public partial class CoverPage : UserControl
 
     public ICommand OpenCommand { get; }
 
-    public CoverPage()
+    public CoverPage(int grade = 1)
     {
         OpenCommand = new RelayCommand(() => OpenRequested?.Invoke(this, EventArgs.Empty));
         InitializeComponent();
+        AppNameText.Text = AppBranding.PersianTitle(grade);
         DataContext = this;
 
-        var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+        var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0";
         VersionText.Text = "نسخهٔ " + ToPersianDigits(ver);
     }
 

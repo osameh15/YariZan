@@ -11,6 +11,8 @@ public sealed class GameNameComparer : IComparer<string>
     public int Compare(string? x, string? y)
     {
         if (x is null || y is null) return StringComparer.OrdinalIgnoreCase.Compare(x, y);
+        if (PersianPageNumber.TryGetNumber(x, out int leftPage) && PersianPageNumber.TryGetNumber(y, out int rightPage))
+            return leftPage.CompareTo(rightPage);
         var left = Regex.Split(x, "([0-9]+)");
         var right = Regex.Split(y, "([0-9]+)");
         for (int i = 0; i < Math.Min(left.Length, right.Length); i++)

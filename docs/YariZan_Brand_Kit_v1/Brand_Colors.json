@@ -1,0 +1,11 @@
+{
+  "product_name": "YariZan",
+  "colors_note": "Approximate palette for accompanying artwork",
+  "colors": {
+    "petrol_blue": "#063F73",
+    "turquoise": "#20C5C7",
+    "warm_yellow": "#FFC43B",
+    "coral": "#FF664C",
+    "white": "#FFFFFF"
+  }
+}

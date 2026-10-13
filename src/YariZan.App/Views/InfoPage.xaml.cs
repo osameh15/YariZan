@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using YariZan.Core;
+using YariZan.App.Services;
 
 namespace YariZan.App.Views;
 
@@ -10,10 +11,12 @@ public partial class InfoPage : UserControl
     public event EventHandler? NextRequested;
     public event EventHandler? BackRequested;
 
-    public InfoPage(int? trialRemaining = null, bool isActivated = false)
+    public InfoPage(int? trialRemaining = null, bool isActivated = false, int grade = 1)
     {
         InitializeComponent();
-        var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+        AppTitle.Text = AppBranding.PersianTitle(grade);
+        IntroductionText.Text = $"یاریزان مجموعه‌ای از بازی‌های آموزشی ویژهٔ پایه {AppBranding.GradeName(grade)} دبستان است. هر صفحه از کتاب شامل ۶ بازی است؛ با ورق زدن یا وارد کردن شمارهٔ صفحه به بازی‌های دیگر دسترسی پیدا می‌کنید.";
+        var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0";
         VersionText.Text = "نسخهٔ " + ToPersianDigits(ver);
 
         if (!isActivated)

@@ -8,26 +8,60 @@ public sealed class GameLauncher : IDisposable
 {
     private readonly List<string> _temps = new();
     private readonly List<Process> _processes = new();
+    private readonly object _sync = new();
+    private long _generation;
+    private bool _disposed;
 
-    public Process Launch(byte[] masterKey, string encryptedGameFullPath, string displayName)
+    public Task<Process> LaunchAsync(byte[] masterKey, string encryptedGameFullPath, string displayName,
+        CancellationToken cancellation = default)
     {
-        var plain = GameCrypto.Decrypt(masterKey, encryptedGameFullPath);
+        long generation = CaptureGeneration();
+        return Task.Run(() => LaunchCore(masterKey, encryptedGameFullPath, displayName, generation, cancellation), cancellation);
+    }
 
+    public Process Launch(byte[] masterKey, string encryptedGameFullPath, string displayName) =>
+        LaunchCore(masterKey, encryptedGameFullPath, displayName, CaptureGeneration(), CancellationToken.None);
+
+    private long CaptureGeneration()
+    {
+        lock (_sync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _generation;
+        }
+    }
+
+    private Process LaunchCore(byte[] masterKey, string encryptedGameFullPath, string displayName, long generation, CancellationToken cancellation)
+    {
         var dir = Path.Combine(Path.GetTempPath(), "YariZan", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        var file = Path.Combine(dir, SanitizeName(displayName) + ".exe");
-        File.WriteAllBytes(file, plain);
-        Array.Clear(plain, 0, plain.Length);
-
-        TryRestrictAcl(file);
-        _temps.Add(dir);
-
-        var psi = new ProcessStartInfo(file) { UseShellExecute = false, WorkingDirectory = dir };
-        var p = Process.Start(psi)!;
-        _processes.Add(p);
-        p.EnableRaisingEvents = true;
-        p.Exited += (_, _) => CleanupDir(dir);
-        return p;
+        try
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var plain = GameCrypto.Decrypt(masterKey, encryptedGameFullPath);
+            var file = Path.Combine(dir, SanitizeName(displayName) + ".exe");
+            try
+            {
+                cancellation.ThrowIfCancellationRequested();
+                Directory.CreateDirectory(dir);
+                File.WriteAllBytes(file, plain);
+            }
+            finally { Array.Clear(plain, 0, plain.Length); }
+            TryRestrictAcl(file);
+            lock (_sync)
+            {
+                // Revocation or shutdown during preparation must prevent a late launch.
+                if (_disposed || generation != _generation) throw new OperationCanceledException();
+                cancellation.ThrowIfCancellationRequested();
+                var psi = new ProcessStartInfo(file) { UseShellExecute = false, WorkingDirectory = dir };
+                var process = Process.Start(psi)!;
+                _temps.Add(dir);
+                _processes.Add(process);
+                process.Exited += (_, _) => CleanupDir(dir);
+                process.EnableRaisingEvents = true;
+                return process;
+            }
+        }
+        catch { CleanupDir(dir); throw; }
     }
 
     private static string SanitizeName(string s)
@@ -54,6 +88,9 @@ public sealed class GameLauncher : IDisposable
 
     private static void CleanupDir(string dir)
     {
+        var root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "YariZan")) + Path.DirectorySeparatorChar;
+        dir = Path.GetFullPath(dir);
+        if (!dir.StartsWith(root, StringComparison.OrdinalIgnoreCase)) return;
         for (int i = 0; i < 5; i++)
         {
             try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); return; }
@@ -63,18 +100,27 @@ public sealed class GameLauncher : IDisposable
 
     public void Dispose()
     {
+        lock (_sync) { _disposed = true; }
         StopGames();
-        foreach (var d in _temps) CleanupDir(d);
+        string[] temps;
+        lock (_sync) { temps = _temps.ToArray(); _temps.Clear(); }
+        foreach (var d in temps) CleanupDir(d);
     }
 
     public void StopGames()
     {
-        foreach (var process in _processes)
+        Process[] processes;
+        lock (_sync)
+        {
+            _generation++;
+            processes = _processes.ToArray();
+            _processes.Clear();
+        }
+        foreach (var process in processes)
         {
             try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
             catch { }
             process.Dispose();
         }
-        _processes.Clear();
     }
 }

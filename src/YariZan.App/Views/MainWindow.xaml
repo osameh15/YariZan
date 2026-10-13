@@ -6,7 +6,7 @@
         xmlns:views="clr-namespace:YariZan.App.Views"
         mc:Ignorable="d"
         Title="YariZan"
-        Icon="pack://application:,,,/Resources/icon.png"
+        Icon="pack://application:,,,/YariZan;component/Resources/icon.png"
         FontFamily="{DynamicResource ShabnamFont}"
         Background="{StaticResource RoomBackgroundBrush}"
         WindowStartupLocation="CenterScreen"
@@ -27,5 +27,6 @@
         <TextBlock Text="یاریزان" FontFamily="{DynamicResource ShabnamBoldFont}" FontSize="14"
                    Foreground="#80EAD08A" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                    Margin="0,0,16,10" />
+        <views:GameLoadingOverlay x:Name="LoadingOverlay" Visibility="Collapsed" Panel.ZIndex="20" />
     </Grid>
 </Window>
