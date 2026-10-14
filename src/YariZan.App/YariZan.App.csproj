@@ -47,4 +47,16 @@
     </None>
   </ItemGroup>
 
+  <!-- Ordinary builds are fixtures/review builds. Commercial builds and ordinary app publishes are gated. -->
+  <Target Name="ValidateV2PublicRootInputs" BeforeTargets="PrepareForBuild"
+          Condition="Exists('$(MSBuildThisFileDirectory)..\..\secrets\v2-license-public-keys.json')">
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --public-roots-only &quot;$(MSBuildThisFileDirectory)..\..\secrets\v2-license-public-keys.json&quot;" />
+  </Target>
+  <Target Name="ValidateV2CommercialBuild" BeforeTargets="PrepareForBuild" Condition="'$(CommercialRelease)' == 'true'">
+    <Error Condition="'$(FixtureOnlyBuild)' == 'true'" Text="FixtureOnlyBuild cannot be combined with CommercialRelease." />
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --commercial &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
+  </Target>
+  <Target Name="ValidateV2CommercialPublish" BeforeTargets="PrepareForPublish" Condition="'$(FixtureOnlyBuild)' != 'true' and '$(CommercialRelease)' != 'true'">
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --commercial &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
+  </Target>
 </Project>
