@@ -8,6 +8,8 @@
 
 ## 1. Purpose, scope, and status
 
+The [activation and customer lifecycle extension](YARIZAN-ACTIVATION-AND-LIFECYCLE-V2.md) defines manual online codes, independent Admin reset/block/unblock/reissue, signed reset propagation and retained financial/security history. It supersedes earlier assumptions of globally unique historical customer/device usernames and trial counters without account generation. Desktop UI/client foundations exist; all server/Admin operations remain future NestJS work.
+
 YariZan is a Windows educational game collection distributed in **six separate grade-specific packages** (G1–G6). This document defines the approved *future* product behavior and a buildable target architecture. It does not assert that the current repository or deployed PHP service already implements these features. Existing UI, game packaging, encryption, WPF book navigation, and useful tests should be reused where practical. The old licensing protocol and database **do not require backwards compatibility** because the previous release has not been commercially launched. No old production database, signing key, or service may be removed before an explicit operational cutover.
 
 Classification:

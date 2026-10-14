@@ -5,6 +5,12 @@
 
 ## Independent review resolutions (reviewed HEAD 5c7dc59)
 
+## Activation UX and lifecycle extension
+
+See [activation/lifecycle contract](../YARIZAN-ACTIVATION-AND-LIFECYCLE-V2.md). Manual codes are online one-time credentials exchanged under enrolled device authentication for the unchanged SignedLicense. Desktop normalization and process-memory request UUID enable same-code lost-response retries; no code storage, legacy serial or authentication fallback is added. Automatic pickup and redemption share verification and retained-decision checks. Pending/failed manual upgrade never suspends active trials. Independent Admin reset/SKU block/unblock/reissue and cross-license-ID replacement are future backend contracts. Cross-ID artifacts remain rejected until a reviewed replacement verifier and atomic lifecycle snapshot exist. New reset generation is only a privileged reset event, never an extra Windows profile or license reissue. No heartbeat or perpetual-license offline expiry is added.
+
+### Prior independent review resolutions
+
 ### Trusted local device ID
 
 The first implementation checked device_id syntax and fingerprint but did not compare the offline license UUID with an independent trusted enrollment. A server-signed license issued for another internal device UUID with the same reported/spoofed fingerprint could therefore be accepted. Signature validity alone does not establish that the internal record is the locally enrolled device.

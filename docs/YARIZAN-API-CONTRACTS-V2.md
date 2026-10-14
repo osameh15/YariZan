@@ -9,6 +9,8 @@
 
 ## 1. General conventions
 
+New [activation and lifecycle contracts](YARIZAN-ACTIVATION-AND-LIFECYCLE-V2.md) add authenticated one-time `POST /desktop/activation-codes/redeem` returning the existing SignedLicense; privileged code issuance/cancellation; separate customer reset, SKU block/unblock and ownership-verified reissue. Different-license-ID recovery is a proposed signed replacement contract and remains blocked in the desktop. OpenAPI describes future endpoints only, not implemented Admin capabilities.
+
 - JSON over TLS only; versioned routes. Use RFC 3339 UTC timestamps and UUID/opaque IDs; stable `YARIZAN-G1`–`YARIZAN-G6` SKUs.
 - Password/session and Admin requests: HttpOnly Secure SameSite cookies + CSRF defense for state changes. Desktop: device-key challenge/session credentials; no implicit browser cookie reliance.
 - `Idempotency-Key` header on mutating order/payment/device-pairing operations; unique per account/operation and retained long enough for user retries. Trial consumes an explicit cryptographic nonce in its body.
@@ -139,6 +141,21 @@ Sign exact canonical payload bytes with ECDSA-P256/SHA-256 and encode detached s
 **Offline requirement:** desktop verifies locally and opens purchased grade without network. If network is up, sync asynchronously on startup; transient error has no lock/revocation effect. Explicit signed remote revocation persists for next launch. The license does not expire for time offline; strict immediate remote revoke is impossible.
 
 ## 6. Orders, discounts and payments
+
+### Activation/lifecycle additions (future service)
+
+| Method | Route | Required authorization / result |
+|---|---|---|
+| POST | `/desktop/activation-codes/redeem` | Enrolled device proof; activation_code/device_id/sku/request_id; returns existing SignedLicense |
+| POST | `/admin/activation-codes` | MFA + activation_codes.issue + ownership evidence; returns secret once, then metadata-only retries |
+| POST | `/admin/activation-codes/:codeId/cancel` | MFA + activation_codes.cancel; cannot undo consumed entitlement |
+| POST | `/admin/customers/:customerId/reset` | MFA + customers.reset; closes operational access, advances generation, retains finance/bans/tombstones |
+| POST | `/admin/devices/:deviceId/products/:sku/block` | MFA + device_products.block; durable grade-only restriction and signed license revocation |
+| POST | `/admin/devices/:deviceId/products/:sku/unblock` | MFA + device_products.unblock; no ownership/trial reset |
+| POST | `/admin/devices/:deviceId/products/:sku/licenses/reissue` | MFA + licenses.reissue + independent ownership evidence; preserve account/trials/finance |
+| POST | `/desktop/licenses/recover` | Proposed signed cross-ID replacement; current desktop fails closed, atomic snapshot integration blocked |
+
+All Admin mutations include request_id/reason/expected revision, recent reauthentication, CSRF and immutable audit. See [transaction, signed replacement and retention rules](YARIZAN-ACTIVATION-AND-LIFECYCLE-V2.md). Reset/block cannot instantly revoke a permanently offline cache; HTTP errors never stand in for signed decisions.
 
 | Method | Route | Auth | Notes |
 |---|---|---|---|

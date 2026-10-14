@@ -5,6 +5,8 @@
 
 ## 1. Core invariants
 
+See [activation/lifecycle schema and transactions](YARIZAN-ACTIVATION-AND-LIFECYCLE-V2.md) for activation verifiers/redemptions, durable SKU restrictions, reset events and signed replacements. Those additions supersede the baseline customer global UNIQUE and trial composite keys below: retain historical customers with partial ACTIVE uniqueness; include account_generation in trial/idempotency keys. Only authorized Admin reset advances generation. New profiles/reissue do not reset trials. Device/product bans never cascade with customer deletion. These are proposed migrations, not deployed tables.
+
 - A normalized stable device fingerprint identifies one primary device record; the displayed username is a separate stable public identifier, uniquely constrained and never used as authentication proof.
 - A device maps to one active primary customer account; grade ownership is separate and unique by customer + product for an active perpetual entitlement. Device transfer/rebind is support audited.
 - Products have stable SKU and grade 1–6, configurable sale/activation flags and catalog status. A purchase for G1 is never a license for G2.
@@ -83,6 +85,17 @@
 3. Old device with no internet can still use cached perpetual license until sync. This is an accepted offline-first limitation.
 
 ## 4. Migration and rollback
+
+### Activation and lifecycle extension tables
+
+- `activation_codes`: unique keyed verifier, product, intended recipient constraints, optional expiry, ISSUED/REDEEMED/CANCELLED state and Admin issuance/cancellation audit. No plaintext.
+- `activation_redemptions`: unique device+account_generation+request_id, canonical request digest, unique consumed code reference and exact signed response for retries.
+- `device_product_restrictions`: stable device+product primary key, BLOCKED/UNBLOCKED, monotonic revision, actor/reason/time; no customer-reset cascade.
+- `customer_reset_events`: prior/new generation, customer/device, idempotent request and durable signed old-license tombstone references.
+- `license_replacements`: old/new IDs, same customer/device/product, monotonic lifecycle_revision, payload hash and signed replacement authorization; preserve previous decisions.
+- Partial ACTIVE customer uniqueness replaces global historical username/device uniqueness; trial keys include account_generation. Ordinary reissue/profile enrollment do not change generation.
+
+See [full columns, locking order, crash-safe replacement and retention](YARIZAN-ACTIVATION-AND-LIFECYCLE-V2.md). Implement and test PostgreSQL constraints/migrations in the future backend, never the live MySQL service.
 
 - Legacy MySQL schema stays untouched while new PostgreSQL schema is developed. **No backwards-compatible migration of the old unsigned product scope is needed** because no commercial legacy customers are asserted; verify operational reality before retiring old service.
 - Apply new schema only in disposable dev/staging with test fixtures. Use versioned migrations, migration drift detection, and backup/restore drills.
