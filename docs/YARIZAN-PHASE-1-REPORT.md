@@ -316,3 +316,8 @@ Secret review: no new production secrets, private signing keys, gateway settings
 | Real payments/ZarinPal/MeliPayamak | **No** |
 
 Only desktop/test/documentation/desktop-CI files on the feature branch were changed. No deployment workflow was dispatched. No production game payloads, credentials or signing keys were used for test scenarios. No merge/deployment approval is assumed.
+
+### Header branding follow-up
+
+At the user's request, GamesBookPage.xaml now embeds and displays Resources/YariZan_Symbol_Only_256x256.png, copied unchanged from the supplied 02_PNG_Transparent brand folder. YariZan.App.csproj includes this WPF resource. The main book header retains proportional scaling and displays only the symbol. Run-BookChecks.ps1 ran successfully after this change: 36 passed, 0 failed; its rendered preview was visually inspected.
+
