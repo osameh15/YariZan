@@ -133,29 +133,11 @@ internal static partial class Program
             "copy action and input have accessible labels with selectable read-only identity");
         Save(page, screenshots, "lock-activation-v2.png");
         Control<Button>("ManualCodeButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Check(Control<Border>("ManualCodePanel").Visibility == Visibility.Visible, "manual action expands code form");
+        Check(Control<Border>("ManualCodePanel").Visibility == Visibility.Visible && !Control<ScrollViewer>("LockScroll").IsEnabled,
+            "manual action opens modal with disabled background");
         Control<TextBox>("ActivationCodeInput").Text = "bad"; Control<Button>("RedeemButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(server.RedemptionRequests == 0 && Control<TextBlock>("CodeFeedback").Text.StartsWith("کد فعال‌سازی معتبر نیست"), "invalid input shows inline Persian feedback without request");
-        foreach (var size in new[] { new Size(640, 480), new Size(480, 360) })
-        {
-            page.Width = size.Width; page.Height = size.Height;
-            host.Width = size.Width + 16; host.Height = size.Height + 39;
-            page.Measure(size); page.Arrange(new Rect(size)); page.UpdateLayout();
-            var scroll = Control<ScrollViewer>("LockScroll");
-            Check(scroll.ScrollableWidth == 0 && scroll.ScrollableHeight > 0, "small window scrolls vertically without horizontal clipping " + size);
-            foreach (string name in new[] { "TrialButton", "ActivateButton", "ActivationCodeInput", "RedeemButton" })
-            {
-                var element = Control<FrameworkElement>(name); element.BringIntoView(); page.UpdateLayout();
-                var bounds = element.TransformToAncestor(page).TransformBounds(new Rect(element.RenderSize));
-                Check(bounds.Left >= 0 && bounds.Right <= size.Width + 1 && element.ActualHeight >= 36,
-                    "small-layout control reachable and usable: " + name + " " + size);
-            }
-        }
-        Save(page, screenshots, "lock-manual-small-v2.png", 480, 360);
-        page.Width = page.Height = double.NaN;
-        host.Width = 1216; host.Height = 939; page.UpdateLayout();
-        Control<ScrollViewer>("LockScroll").ScrollToTop(); page.UpdateLayout();
-        Save(page, screenshots, "lock-manual-code-v2.png", 1200, 900);
+        Save(page, screenshots, "lock-manual-code-v2.png");
         server.Offline = true; Control<TextBox>("ActivationCodeInput").Text = FakeServer.ValidCode;
         Control<Button>("RedeemButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Pump(() => Control<Button>("RedeemButton").IsEnabled);
@@ -180,6 +162,7 @@ internal static partial class Program
         Control<Button>("ActivateButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(entered && access.IsPurchased && server.RedemptionRequests == 3, "successful UI entry offline does not redeem again");
         host.Close();
+        LockDialogChecks(signing, identity, screenshots);
         for (int grade = 1; grade <= 6; grade++)
         {
             using var gradeAccess = Access(identity, signing, Store("label-" + grade), server, grade);

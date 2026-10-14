@@ -16,6 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\..\release\v2-store-destinations.json" Link="Config\v2-store-destinations.json" />
     <!-- Release gate: reviewed V2 verification keys only; no signing private keys. -->
     <EmbeddedResource Include="..\..\secrets\v2-license-public-keys.json" Link="Keys\v2-license-public-keys.json"
                       Condition="Exists('..\..\secrets\v2-license-public-keys.json')" />

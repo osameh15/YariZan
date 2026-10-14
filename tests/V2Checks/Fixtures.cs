@@ -88,11 +88,12 @@ internal sealed class FakeServer(SigningFixture signing, IDeviceIdentity identit
     private readonly Dictionary<string, (ActivationCodeRequest Request, string Response)> _redemptions = new();
     public TaskCompletionSource<string>? PendingSync;
     public TaskCompletionSource<string>? PendingPickup;
+    public TaskCompletionSource<int>? PendingStatus;
     public TrialStartRequest? LastRequest;
     public int Used(string sku = "YARIZAN-G1") { lock (_transaction) return _used.GetValueOrDefault((DeviceId!, sku)); }
     private void Network(CancellationToken cancellation) { cancellation.ThrowIfCancellationRequested(); if (Offline) throw new HttpRequestException("Test network disconnected"); }
     public Task<int> GetTrialStatusAsync(Product product, CancellationToken cancellation)
-    { Network(cancellation); if (ProductBlocked) throw new V2ApiException("PRODUCT_BLOCKED", System.Net.HttpStatusCode.Forbidden); Interlocked.Increment(ref StatusRequests); return Task.FromResult(2 - Used(product.Sku)); }
+    { Network(cancellation); if (ProductBlocked) throw new V2ApiException("PRODUCT_BLOCKED", System.Net.HttpStatusCode.Forbidden); Interlocked.Increment(ref StatusRequests); return PendingStatus?.Task.WaitAsync(cancellation) ?? Task.FromResult(2 - Used(product.Sku)); }
     public Task<TrialStartResponse> StartTrialAsync(TrialStartRequest request, CancellationToken cancellation)
     {
         Network(cancellation); Interlocked.Increment(ref StartRequests); LastRequest = request;
