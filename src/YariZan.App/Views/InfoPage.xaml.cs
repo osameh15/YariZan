@@ -25,7 +25,7 @@ public partial class InfoPage : UserControl
             TrialBanner.Visibility = Visibility.Visible;
             TrialBanner.Text =
                 "نسخهٔ آزمایشی — " + ToPersianDigits(remaining.ToString()) +
-                " بار اجرا باقی مانده است";
+                " ورود بعدی باقی مانده است؛ این اجرا تا بستن برنامه بدون اینترنت ادامه دارد";
         }
     }
 

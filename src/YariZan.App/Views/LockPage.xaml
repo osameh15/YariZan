@@ -22,12 +22,12 @@
                                FontSize="36" Foreground="{StaticResource LeatherDarkBrush}"
                                HorizontalAlignment="Center" />
 
-                    <TextBlock Text="برای فعال‌سازی برنامه، شناسهٔ دستگاه را برای پشتیبانی ارسال کنید و سریالی که برایتان فرستاده می‌شود را در کادر پایین وارد نمایید."
+                    <TextBlock Text="مجوز خریداری‌شدهٔ این پایه پس از فعال‌سازی بدون اینترنت کار می‌کند. برای شروع هر ورود آزمایشی به اینترنت نیاز است؛ پس از شروع تا بستن برنامه می‌توانید آفلاین بازی کنید."
                                FontSize="15" TextWrapping="Wrap" TextAlignment="Center" Margin="20,12,20,0"
                                Foreground="{StaticResource InkBrush}" LineHeight="26" />
 
                     <!-- HWID -->
-                    <TextBlock Text="شناسهٔ دستگاه" FontSize="14" FontFamily="{DynamicResource ShabnamBoldFont}"
+                    <TextBlock Text="نام کاربری دستگاه" FontSize="14" FontFamily="{DynamicResource ShabnamBoldFont}"
                                Foreground="{StaticResource LeatherDarkBrush}" HorizontalAlignment="Center"
                                Margin="0,18,0,6" />
                     <Border Background="#FAEFCF" BorderBrush="{StaticResource LeatherBrush}" BorderThickness="1.5"
@@ -59,7 +59,7 @@
 
                             <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="13" LineHeight="22"
                                        Foreground="{StaticResource InkBrush}" Margin="0,8,0,0"
-                                       Text="شناسهٔ دستگاه را با پیامی که در زیر آماده شده برای این شماره ارسال کنید. زمان دریافت پاسخ بین ۱۵ دقیقه تا ۸ ساعت می‌باشد." />
+                                       Text="برای راهنمایی فعال‌سازی نام کاربری دستگاه را به پشتیبانی اعلام کنید. این نام کاربری رمز یا مدرک مالکیت حساب نیست." />
 
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
                                 <Button Content="کپی پیام آماده" Style="{StaticResource GoldButton}"
@@ -72,19 +72,13 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Serial input -->
-                    <TextBlock Text="سریال دریافتی" FontSize="14" FontFamily="{DynamicResource ShabnamBoldFont}"
-                               Foreground="{StaticResource LeatherDarkBrush}" HorizontalAlignment="Center"
-                               Margin="0,20,0,6" />
-                    <TextBox x:Name="SerialBox" Style="{StaticResource SerialBox}" Margin="20,0" />
-
                     <TextBlock x:Name="StatusText" HorizontalAlignment="Center" TextAlignment="Center"
                                TextWrapping="Wrap" Margin="20,10,20,0"
                                FontSize="13" Foreground="#8B0000" />
 
                     <!-- Primary actions: paid activation + free trial. Equal weight — user picks. -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
-                        <Button x:Name="ActivateButton" Content="فعال‌سازی" Style="{StaticResource GoldButton}" MinWidth="180"
+                        <Button x:Name="ActivateButton" Content="دریافت مجوز خرید" Style="{StaticResource GoldButton}" MinWidth="180"
                                 Click="Activate_Click" Margin="6,0" />
                         <Button x:Name="TrialButton" Style="{StaticResource GoldButton}" MinWidth="220"
                                 Click="Trial_Click" Margin="6,0" />

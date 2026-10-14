@@ -16,6 +16,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Release gate: reviewed V2 verification keys only; no signing private keys. -->
+    <EmbeddedResource Include="..\..\secrets\v2-license-public-keys.json" Link="Keys\v2-license-public-keys.json"
+                      Condition="Exists('..\..\secrets\v2-license-public-keys.json')" />
     <ProjectReference Include="..\YariZan.Core\YariZan.Core.csproj" />
   </ItemGroup>
 
@@ -25,7 +28,7 @@
     <EmbeddedResource Include="..\..\secrets\public.pem" Link="Keys\public.pem"
                       Condition="Exists('..\..\secrets\public.pem')" />
     <EmbeddedResource Include="..\..\secrets\master.key" Link="Keys\master.key"
-                      Condition="Exists('..\..\secrets\master.key')" />
+                      Condition="Exists('..\..\secrets\master.key') and '$(IncludeGameKey)' != 'false'" />
   </ItemGroup>
 
   <ItemGroup>

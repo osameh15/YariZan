@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using YariZan.App.Services;
 using YariZan.Core;
+using YariZan.Core.V2;
 
 namespace YariZan.App.Views;
 
@@ -11,27 +12,28 @@ public partial class MainWindow : Window
 {
     private readonly GameLibrary _library = GameLibrary.LoadOrEmpty();
     private readonly GameLauncher _launcher = new();
-    private readonly OnlineTrialClient _trials = new();
-    private readonly AccessSession _access;
-    private readonly System.Windows.Threading.DispatcherTimer _heartbeat = new() { Interval = TimeSpan.FromSeconds(60) };
-    private bool _checking;
+    private readonly DesktopAccessController _access;
     private bool _launching;
     private bool _closed;
     private CancellationTokenSource? _launchCancellation;
 
-    public MainWindow()
+    public MainWindow() : this(null) { }
+
+    public MainWindow(DesktopAccessController? access)
     {
-        _access = new AccessSession(() => _trials.PaidAuthorized, _trials.ConsumeAsync);
+        _access = access ?? DesktopAccessFactory.Create(_library.Manifest.SelectedGrade);
         InitializeComponent();
         Title = $"YariZan G{Math.Clamp(_library.Manifest.SelectedGrade, 1, 6)}";
-        Loaded += (_, _) => ShowCover(animate: false);
-        _heartbeat.Tick += async (_, _) => { if (_access.CanEnter) await CheckSessionAsync(); };
-        _heartbeat.Start();
+        Loaded += (_, _) =>
+        {
+            ShowCover(animate: false);
+            _ = _access.SynchronizePurchasedAsync();
+        };
         Closed += (_, _) =>
         {
             _closed = true;
             _launchCancellation?.Cancel();
-            _heartbeat.Stop();
+            _access.Dispose();
             _launcher.Dispose();
         };
     }
@@ -39,26 +41,16 @@ public partial class MainWindow : Window
     public void ShowCover(bool animate = true)
     {
         var page = new CoverPage(_library.Manifest.SelectedGrade);
-        page.OpenRequested += async (_, _) =>
+        page.OpenRequested += (_, _) =>
         {
-            if (_checking) return;
-            _checking = true;
-            page.IsEnabled = false;
-            try
-            {
-                if (_access.CanEnter) await _trials.ValidateSessionAsync();
-                else if (ActivationStore.Load() is { } activation) await _trials.AuthorizePaidAsync(activation.Serial);
-                if (_access.CanEnter) ShowInfo(); else ShowLock();
-            }
-            catch { RevokeAccess(); }
-            finally { _checking = false; page.IsEnabled = true; }
+            if (_access.CanEnter) ShowInfo(); else ShowLock();
         };
         SwapPage(page, animate);
     }
 
     public void ShowLock()
     {
-        var page = new LockPage(_access, _trials);
+        var page = new LockPage(_access);
         page.Activated    += (_, _) => ShowInfo();
         page.TrialStarted += (_, _) => ShowInfo();
         page.Cancelled    += (_, _) => ShowCover();
@@ -68,7 +60,7 @@ public partial class MainWindow : Window
     public void ShowInfo()
     {
         if (!_access.CanEnter) { ShowLock(); return; }
-        var page = new InfoPage(_access.TrialRemaining, _trials.PaidAuthorized, _library.Manifest.SelectedGrade);
+        var page = new InfoPage(_access.TrialRemaining, _access.IsPurchased, _library.Manifest.SelectedGrade);
         page.NextRequested += (_, _) => ShowGames();
         page.BackRequested += (_, _) => ShowCover();
         SwapPage(page, animate: true);
@@ -85,7 +77,7 @@ public partial class MainWindow : Window
 
     private async void OnGameLaunch(object? sender, GameEntry e)
     {
-        if (_checking || _launching || _closed) return;
+        if (_launching || _closed) return;
         _launching = true;
         using var cancellation = new CancellationTokenSource();
         _launchCancellation = cancellation;
@@ -95,7 +87,6 @@ public partial class MainWindow : Window
         Exception? failure = null;
         try
         {
-            if (!await CheckSessionAsync()) return;
             if (!_access.CanEnter) { ShowLock(); return; }
             var key = AppKeys.LoadEmbeddedMasterKey();
             try
@@ -144,24 +135,6 @@ public partial class MainWindow : Window
             catch (InvalidOperationException) { }
             catch (System.ComponentModel.Win32Exception) { }
         }, cancellation);
-
-    private void RevokeAccess()
-    {
-        _launchCancellation?.Cancel();
-        _trials.Revoke();
-        _access.Revoke();
-        _launcher.StopGames();
-        ShowLock();
-    }
-
-    private async Task<bool> CheckSessionAsync()
-    {
-        if (_checking) return false;
-        _checking = true;
-        try { await _trials.ValidateSessionAsync(); return true; }
-        catch { RevokeAccess(); return false; }
-        finally { _checking = false; }
-    }
 
     private void SwapPage(UserControl next, bool animate)
     {
