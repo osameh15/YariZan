@@ -447,6 +447,9 @@ internal static class Program
     }
     private static void Save(UserControl page, string root, string name)
     {
+        // Snapshot the settled view; off-screen test HWNDs need not advance composition animations.
+        page.BeginAnimation(UIElement.OpacityProperty, null); page.Opacity = 1;
+        page.RenderTransform = Transform.Identity;
         Directory.CreateDirectory(root); page.Measure(new Size(1200, 740)); page.Arrange(new Rect(0, 0, 1200, 740)); page.UpdateLayout();
         var bitmap = new RenderTargetBitmap(1200, 740, 96, 96, PixelFormats.Pbgra32); bitmap.Render(page);
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
