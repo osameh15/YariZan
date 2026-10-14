@@ -2,6 +2,8 @@
 
 ## Desktop checks
 
+Phase 1 adds `tests/Run-V2Checks.ps1`, using actual Windows WMI/CNG, disposable P-256 keys, a transactional test server, bounded fake HTTP and synthetic WPF games. Node 24 verifies .NET signatures and signs reverse fixtures. OpenAPI lint uses Redocly CLI 2.63.0. Windows CI also runs `Run-BookChecks.ps1` independently with a synthetic portrait; no private game artwork is needed. Neither suite contacts the future V2 host or legacy PHP. CI reports actual token elevation and selected key provider; an elevated hosted runner is not non-admin evidence. Transport disconnection/profile-store simulations are not physical network disconnection or a second Windows account.
+
 `.github/workflows/ci.yml` runs on main pushes/PRs and manually. Windows/.NET 9 restores, rejects tracked private files, generates ephemeral runner keys, checks grade detection/packing with disposable synthetic games, builds Release, runs isolated access/grant and asynchronous launcher checks, and verifies the EXE exists. The release packer intentionally rejects an empty source catalog; CI does not attempt to create a production bundle from the public checkout.
 
 It does not use production keys/games/customer state or produce a production installer. Build actual releases locally with [build-and-pack.md](build-and-pack.md).

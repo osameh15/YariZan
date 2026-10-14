@@ -98,7 +98,7 @@
                                VerticalAlignment="Center" Margin="8,0" />
 
                     <Image x:Name="HeaderLogo" Grid.Column="1" Width="110" Height="70" Margin="12,0"
-                           Source="pack://application:,,,/YariZan;component/Resources/logo.png"
+                           Source="pack://application:,,,/YariZan;component/Resources/YariZan_Symbol_Only_256x256.png"
                            Stretch="Uniform" FlowDirection="LeftToRight" HorizontalAlignment="Center"
                            VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"
                            AutomationProperties.Name="یاریزان" />

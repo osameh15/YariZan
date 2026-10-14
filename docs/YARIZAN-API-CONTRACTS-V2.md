@@ -3,7 +3,13 @@
 > **Status:** Proposed, versioned interface contract (not live endpoints). [Technical specification](YARIZAN-TECHNICAL-SPEC-V2.md) · [Data model](YARIZAN-DATA-MODEL-V2.md).
 > **Base URL target:** `https://yarizan.oarnova.games/api/v2`. NestJS owns API; Nuxt SSR/customer UI must call it through appropriately secured boundaries.
 
+> Phase 1 refines signed artifact fields/canonical bytes in [ADR-0004](adr/0004-phase-1-desktop-artifact-profile.md). Routes remain future contracts. Secure device enrollment/credential issuance is deliberately blocked pending an anti-claim-race protocol; no anonymous HWID fallback exists.
+
+> Review follow-up: offline paid verification additionally requires a separately signed profile-key-bound device enrollment record. Proposed registration/additional-profile enrollment must return this artifact and preserve the same machine device UUID/customer/entitlement/trial budget across authorized Windows profiles. See ADR-0004 for the exact desktop envelope and blocked approval/issuance protocol. A license's own device_id or HWID cannot bootstrap enrollment.
+
 ## 1. General conventions
+
+New [activation and lifecycle contracts](YARIZAN-ACTIVATION-AND-LIFECYCLE-V2.md) add authenticated one-time `POST /desktop/activation-codes/redeem` returning the existing SignedLicense; privileged code issuance/cancellation; separate customer reset, SKU block/unblock and ownership-verified reissue. Different-license-ID recovery is a proposed signed replacement contract and remains blocked in the desktop. OpenAPI describes future endpoints only, not implemented Admin capabilities.
 
 - JSON over TLS only; versioned routes. Use RFC 3339 UTC timestamps and UUID/opaque IDs; stable `YARIZAN-G1`–`YARIZAN-G6` SKUs.
 - Password/session and Admin requests: HttpOnly Secure SameSite cookies + CSRF defense for state changes. Desktop: device-key challenge/session credentials; no implicit browser cookie reliance.
@@ -111,19 +117,22 @@ Result includes `grant` (a server-signed, product/device/process-scoped start ar
 | POST | `/desktop/licenses/sync` | Device proof | Return signed current license decisions; timeout does not affect valid local license |
 | GET | `/account/licenses` | Customer | Owned products, issued licenses, status and download/activation support |
 
-Example paid license **payload before signature**, canonical serialization still to be specified:
+Example paid license **payload before signature**, using ADR-0002/0004:
 
 ```json
 {
   "format": "YARIZAN-LICENSE-V2",
-  "license_id": "lic_example",
-  "customer_id": "cus_example",
+  "license_id": "20000000-0000-4000-8000-000000000001",
+  "customer_id": "30000000-0000-4000-8000-000000000001",
+  "device_id": "10000000-0000-4000-8000-000000000001",
   "sku": "YARIZAN-G1",
   "grade": 1,
-  "device_fingerprint": "UPPERCASE_SHA256_HEX",
+  "device_fingerprint_version": 2,
+  "device_fingerprint_digest": "UPPERCASE_SHA256_HEX",
   "issued_at": "2026-10-14T00:00:00Z",
   "expires_at": null,
-  "kid": "license-signing-2026-v1"
+  "kid": "license-signing-2026-v1",
+  "license_revision": 1
 }
 ```
 
@@ -132,6 +141,21 @@ Sign exact canonical payload bytes with ECDSA-P256/SHA-256 and encode detached s
 **Offline requirement:** desktop verifies locally and opens purchased grade without network. If network is up, sync asynchronously on startup; transient error has no lock/revocation effect. Explicit signed remote revocation persists for next launch. The license does not expire for time offline; strict immediate remote revoke is impossible.
 
 ## 6. Orders, discounts and payments
+
+### Activation/lifecycle additions (future service)
+
+| Method | Route | Required authorization / result |
+|---|---|---|
+| POST | `/desktop/activation-codes/redeem` | Enrolled device proof; activation_code/device_id/sku/request_id; returns existing SignedLicense |
+| POST | `/admin/activation-codes` | MFA + activation_codes.issue + ownership evidence; returns secret once, then metadata-only retries |
+| POST | `/admin/activation-codes/:codeId/cancel` | MFA + activation_codes.cancel; cannot undo consumed entitlement |
+| POST | `/admin/customers/:customerId/reset` | MFA + customers.reset; closes operational access, advances generation, retains finance/bans/tombstones |
+| POST | `/admin/devices/:deviceId/products/:sku/block` | MFA + device_products.block; durable grade-only restriction and signed license revocation |
+| POST | `/admin/devices/:deviceId/products/:sku/unblock` | MFA + device_products.unblock; no ownership/trial reset |
+| POST | `/admin/devices/:deviceId/products/:sku/licenses/reissue` | MFA + licenses.reissue + independent ownership evidence; preserve account/trials/finance |
+| POST | `/desktop/licenses/recover` | Proposed signed cross-ID replacement; current desktop fails closed, atomic snapshot integration blocked |
+
+All Admin mutations include request_id/reason/expected revision, recent reauthentication, CSRF and immutable audit. See [transaction, signed replacement and retention rules](YARIZAN-ACTIVATION-AND-LIFECYCLE-V2.md). Reset/block cannot instantly revoke a permanently offline cache; HTTP errors never stand in for signed decisions.
 
 | Method | Route | Auth | Notes |
 |---|---|---|---|

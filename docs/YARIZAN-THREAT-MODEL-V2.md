@@ -5,6 +5,17 @@
 
 ## 1. Trust boundaries
 
+The [activation/lifecycle security extension](YARIZAN-ACTIVATION-AND-LIFECYCLE-V2.md) adds secret code theft/enumeration, concurrent consumption, Admin abuse, ban escape via reset, stale replacement replay and revoked-credential tombstone retrieval. Required controls: 160-bit CSPRNG codes and server-side keyed verifiers, redacted request/audit/APM data, transaction/idempotency locks, MFA/scoped RBAC/recent reauthentication/CSRF, durable stable-device SKU restrictions, generation-aware reset and signed monotonic crash-safe recovery. Server controls are not implemented. Offline deletion/revocation and spoof-resistant hardware attribution cannot be guaranteed.
+
+| New threat | Required future control / acceptance |
+|---|---|
+| Code theft/enumeration/APM leak | Secret-body redaction, 160-bit entropy, keyed verifier, rate limits and failed-attempt audit; no raw codes in logs |
+| Parallel spend/lost response | Atomic code+entitlement+license transaction and canonical request-bound idempotency; test parallel requests and reset races |
+| Reset used to evade grade ban | Retain stable device+SKU restriction independently of customer/profile/generation; denied post-reset enrollment cannot bypass it |
+| Privileged reset/reissue abuse | Separate scoped roles, MFA/recent reauthentication, CSRF, verified ownership and append-only reason/actor audit |
+| Stale replacement resurrection | Signed target/hash/lifecycle watermark, retained old tombstones and one atomic desktop snapshot; cross-ID currently blocked |
+| Former key reads replacement account | Tombstone-only challenge scope with retained former public key; no new-account privileges; protocol review pending |
+
 1. **Hostile desktop**: game launcher, local storage, WMI/HWID, embedded AES content key and game processes are under user's eventual control; device proof is not hardware attestation by default.
 2. **Browser customer**: arbitrary JS requests, stolen browser sessions, pairing code theft, CSRF, session fixation, account enumeration.
 3. **Admin operator**: elevated permissions, social engineering, reset compromise, manual grant/refund abuse.

@@ -1,7 +1,10 @@
 openapi: 3.1.0
 info:
   title: YariZan V2 Design API
-  version: 0.1.0-design
+  version: 0.3.0-activation-lifecycle
+  license:
+    name: Proprietary OAR NOVA Games Studio
+    url: https://github.com/osameh15/YariZan/blob/main/LICENSE.txt
   description: >-
     Architecture baseline for the future NestJS V2 service, NOT a deployed API.
     Browser sessions are HttpOnly; desktop endpoints require enrolled device
@@ -11,18 +14,27 @@ servers:
     description: Future production target (not live)
 tags:
   - name: Catalog
+    description: Future six-product catalog
   - name: Identity
+    description: Future secure enrollment and account claim; production protocol blocked
   - name: Trial
+    description: Explicit per-grade online start; current process continues offline
   - name: Licensing
+    description: Signed perpetual offline licenses and best-effort decisions
   - name: Orders
+    description: Future commercial orders
   - name: Admin
+    description: Future privileged audited operations
 paths:
   /products:
     get:
       tags: [Catalog]
       summary: List six catalog products
       operationId: listProducts
+      security: []
       responses:
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '200':
           description: Catalog including coming-soon grades
           content:
@@ -36,6 +48,8 @@ paths:
       tags: [Identity]
       summary: Create a short-lived device-key challenge
       operationId: createDeviceChallenge
+      security: []
+      description: Design placeholder; secure initial enrollment and anti-claim-race controls remain blocked. Desktop does not issue anonymous requests yet.
       responses:
         '201':
           description: Challenge issued
@@ -50,6 +64,8 @@ paths:
       tags: [Identity]
       summary: Register or recover device only after proof verification
       operationId: registerDevice
+      security: []
+      description: Challenge signature is in the request body; not HWID-only authentication. Exact enrollment protocol remains a release blocker.
       requestBody:
         required: true
         content:
@@ -78,6 +94,8 @@ paths:
       operationId: createPairing
       security: [{ deviceProof: [] }]
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '201':
           description: One-time pairing details
           content:
@@ -93,6 +111,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PairingId'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Pairing state
           content:
@@ -135,6 +155,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ProductSku'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Remaining starts (0..2)
           content:
@@ -189,7 +211,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SignedArtifact'
+                $ref: '#/components/schemas/SignedLicense'
         '403':
           $ref: '#/components/responses/Forbidden'
   /desktop/licenses/sync:
@@ -209,12 +231,14 @@ paths:
                 license_id: {type: string}
                 sku: {$ref: '#/components/schemas/Sku'}
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Signed state with monotonic decision version
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SignedArtifact'
+                $ref: '#/components/schemas/SignedDecision'
   /orders:
     post:
       tags: [Orders]
@@ -265,6 +289,8 @@ paths:
         - $ref: '#/components/parameters/OrderId'
         - $ref: '#/components/parameters/IdempotencyKey'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '201':
           description: External gateway redirect details
           content:
@@ -301,6 +327,246 @@ paths:
           description: Updated product
         '403':
           $ref: '#/components/responses/Forbidden'
+  /desktop/activation-codes/redeem:
+    post:
+      tags: [Licensing]
+      summary: Redeem online one-time code for a signed perpetual license
+      operationId: redeemActivationCode
+      security: [{ deviceProof: [] }]
+      description: >-
+        Future Backend. Requires approved enrolled device credentials; body UUID must match them.
+        Atomic one-time product-bound redemption with durable request_id retries. Restrictions checked
+        before replay. Codes are secret, never logged. Desktop still verifies SignedLicense and
+        independent local enrollment/revocation. No offline serial or HWID-only enrollment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ActivationCodeRedeemRequest'}
+      responses:
+        '200':
+          description: Original signed product/device-bound perpetual artifact, including identical authorized retries
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SignedLicense'}
+        '400': {$ref: '#/components/responses/ActivationCodeRejected'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /desktop/licenses/recover:
+    post:
+      tags: [Licensing]
+      summary: Pick up explicitly authorized different-license-ID replacement
+      operationId: recoverLicense
+      security: [{ deviceProof: [] }]
+      description: >-
+        Proposed only; blocked in current desktop. Requires ownership-approved reissue,
+        no product/account restriction and signed lifecycle replacement plus single atomic
+        local license/decision/watermark snapshot. Old-key reset proof only fetches own signed
+        tombstones; never new-customer access. See lifecycle contract before implementation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [previous_license_id, sku, request_id]
+              properties:
+                previous_license_id: {type: string, format: uuid}
+                sku: {$ref: '#/components/schemas/Sku'}
+                request_id: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Signed replacement authorization and signed perpetual license
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [license, authorization]
+                properties:
+                  license: {$ref: '#/components/schemas/SignedLicense'}
+                  authorization: {$ref: '#/components/schemas/SignedReplacement'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /admin/activation-codes:
+    post:
+      tags: [Admin]
+      summary: Issue one-time manual activation code
+      operationId: issueActivationCode
+      security: [{ adminSession: [] }]
+      description: 'Future Backend; MFA/recent reauthentication, RBAC, CSRF and immutable actor/reason audit required. activation_codes.issue; independent ownership/manual grant verification. Code delivered only once; database holds only keyed verifier. Lost delivery requires cancellation/new issuance.'
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ActivationCodeIssueRequest'}
+      responses:
+        '201':
+          description: Audited idempotent operation result; not evidence of implemented Admin service
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ActivationCodeIssueResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /admin/activation-codes/{codeId}/cancel:
+    post:
+      tags: [Admin]
+      summary: Cancel an unused activation code
+      operationId: cancelActivationCode
+      security: [{ adminSession: [] }]
+      description: 'Future Backend; MFA/recent reauthentication, RBAC, CSRF and immutable actor/reason audit required. activation_codes.cancel; only ISSUED -> CANCELLED. Used license revocation is separate.'
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - name: codeId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LifecycleMutation'}
+      responses:
+        '200':
+          description: Audited idempotent operation result; not evidence of implemented Admin service
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LifecycleResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /admin/customers/{customerId}/reset:
+    post:
+      tags: [Admin]
+      summary: Reset operational customer and revoke old access
+      operationId: resetCustomer
+      security: [{ adminSession: [] }]
+      description: 'Future Backend; MFA/recent reauthentication, RBAC, CSRF and immutable actor/reason audit required. customers.reset; invalidate sessions/password/online keys/entitlements/licenses/trials, advance generation. Retain stable anchor, bans and payment/audit history; no automatic refund or instant offline erasure.'
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - name: customerId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LifecycleMutation'}
+      responses:
+        '200':
+          description: Audited idempotent operation result; not evidence of implemented Admin service
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LifecycleResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /admin/devices/{deviceId}/products/{sku}/block:
+    post:
+      tags: [Admin]
+      summary: Block exactly one device product
+      operationId: blockDeviceProduct
+      security: [{ adminSession: [] }]
+      description: 'Future Backend; MFA/recent reauthentication, RBAC, CSRF and immutable actor/reason audit required. device_products.block; durable across profiles/reset/re-enrollment. Deny trials/purchases/redemption and sign existing-license revocations. No global ban.'
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - name: deviceId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: sku
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/Sku'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LifecycleMutation'}
+      responses:
+        '200':
+          description: Audited idempotent operation result; not evidence of implemented Admin service
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LifecycleResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /admin/devices/{deviceId}/products/{sku}/unblock:
+    post:
+      tags: [Admin]
+      summary: Remove one audited product restriction
+      operationId: unblockDeviceProduct
+      security: [{ adminSession: [] }]
+      description: 'Future Backend; MFA/recent reauthentication, RBAC, CSRF and immutable actor/reason audit required. device_products.unblock; no automatic paid ownership, trial reset, payment change or ACTIVE decision.'
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - name: deviceId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: sku
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/Sku'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LifecycleMutation'}
+      responses:
+        '200':
+          description: Audited idempotent operation result; not evidence of implemented Admin service
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LifecycleResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /admin/devices/{deviceId}/products/{sku}/licenses/reissue:
+    post:
+      tags: [Admin]
+      summary: Reissue after independent ownership verification
+      operationId: reissueDeviceLicense
+      security: [{ adminSession: [] }]
+      description: 'Future Backend; MFA/recent reauthentication, RBAC, CSRF and immutable actor/reason audit required. licenses.reissue; same customer/device/product, no restrictions, keep finance and trials. Higher signed decisions/replacement lifecycle watermarks; different-ID desktop integration blocked.'
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - name: deviceId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: sku
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/Sku'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LicenseReissueRequest'}
+      responses:
+        '200':
+          description: Audited idempotent operation result; not evidence of implemented Admin service
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LifecycleResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
 components:
   securitySchemes:
     pairingClaimTicket:
@@ -324,6 +590,11 @@ components:
       in: cookie
       name: yarizan_admin
   parameters:
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: {type: string, minLength: 16, maxLength: 256}
     ProductSku:
       name: sku
       in: path
@@ -345,6 +616,103 @@ components:
       required: true
       schema: {type: string, minLength: 16, maxLength: 128}
   schemas:
+    ActivationCode:
+      type: string
+      pattern: '^YZ2(-[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{4}){8}$'
+      minLength: 43
+      maxLength: 43
+      writeOnly: true
+      description: Secret 160-bit one-time online credential; never log or include in URLs.
+    ActivationCodeRedeemRequest:
+      type: object
+      additionalProperties: false
+      required: [activation_code, device_id, sku, request_id]
+      properties:
+        activation_code: {$ref: '#/components/schemas/ActivationCode'}
+        device_id: {$ref: '#/components/schemas/ArtifactId'}
+        sku: {$ref: '#/components/schemas/Sku'}
+        request_id: {$ref: '#/components/schemas/ArtifactId'}
+    LifecycleMutation:
+      type: object
+      additionalProperties: false
+      required: [request_id, reason, expected_revision]
+      properties:
+        request_id: {$ref: '#/components/schemas/ArtifactId'}
+        reason: {type: string, minLength: 1, maxLength: 1000}
+        expected_revision: {type: integer, minimum: 0, maximum: 9007199254740991}
+    LicenseReissueRequest:
+      type: object
+      additionalProperties: false
+      required: [request_id, reason, expected_revision, ownership_evidence_ref, customer_id]
+      properties:
+        request_id: {$ref: '#/components/schemas/ArtifactId'}
+        reason: {type: string, minLength: 1, maxLength: 1000}
+        expected_revision: {type: integer, minimum: 0, maximum: 9007199254740991}
+        ownership_evidence_ref: {type: string, minLength: 1, maxLength: 256}
+        customer_id: {$ref: '#/components/schemas/ArtifactId'}
+    ActivationCodeIssueRequest:
+      type: object
+      additionalProperties: false
+      required: [request_id, sku, reason, ownership_evidence_ref]
+      properties:
+        request_id: {$ref: '#/components/schemas/ArtifactId'}
+        sku: {$ref: '#/components/schemas/Sku'}
+        reason: {type: string, minLength: 1, maxLength: 1000}
+        ownership_evidence_ref: {type: string, minLength: 1, maxLength: 256}
+        intended_customer_id: {$ref: '#/components/schemas/ArtifactId'}
+        intended_device_id: {$ref: '#/components/schemas/ArtifactId'}
+        expires_at: {type: [string, 'null'], format: date-time}
+    ActivationCodeIssueResponse:
+      type: object
+      additionalProperties: false
+      required: [code_id, sku, code_returned]
+      description: Code included only on first issuance attempt, omitted on idempotent retries; lost delivery requires audited cancellation/replacement. Do not record response body.
+      properties:
+        code_id: {$ref: '#/components/schemas/ArtifactId'}
+        code_returned: {type: boolean}
+        activation_code:
+          type: string
+          pattern: '^YZ2(-[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{4}){8}$'
+          description: Secret returned only on first issuance; not present on retry.
+        sku: {$ref: '#/components/schemas/Sku'}
+    LifecycleResult:
+      type: object
+      additionalProperties: false
+      required: [operation_id, state, revision]
+      properties:
+        operation_id: {$ref: '#/components/schemas/ArtifactId'}
+        device_id: {$ref: '#/components/schemas/ArtifactId'}
+        sku: {$ref: '#/components/schemas/Sku'}
+        state: {type: string, enum: [RESET, BLOCKED, UNBLOCKED, REISSUED, CANCELLED]}
+        revision: {$ref: '#/components/schemas/SafeRevision'}
+    SignedReplacement:
+      type: object
+      additionalProperties: false
+      required: [algorithm, payload, signature]
+      description: Proposed ONLY; current desktop rejects cross-ID recovery until atomic lifecycle snapshot is implemented.
+      properties:
+        algorithm: {type: string, const: ES256-P1363}
+        signature: {type: string, pattern: '^[A-Za-z0-9_-]{86}$'}
+        payload: {$ref: '#/components/schemas/ReplacementPayload'}
+    ReplacementPayload:
+      type: object
+      additionalProperties: false
+      required: [format, kid, issued_at, previous_license_id, replacement_license_id, customer_id, device_id, sku, device_fingerprint_version, device_fingerprint_digest, replacement_payload_digest, lifecycle_revision, previous_decision_version]
+      description: Canonical JSON domain YariZan-License-Replacement-V2 followed by LF; same-target ownership verified; retain old-ID tombstones.
+      properties:
+        format: {type: string, const: YARIZAN-LICENSE-REPLACEMENT-V2}
+        kid: {type: string, minLength: 1, maxLength: 1024}
+        issued_at: {$ref: '#/components/schemas/ArtifactTimestamp'}
+        previous_license_id: {$ref: '#/components/schemas/ArtifactId'}
+        replacement_license_id: {$ref: '#/components/schemas/ArtifactId'}
+        customer_id: {$ref: '#/components/schemas/ArtifactId'}
+        device_id: {$ref: '#/components/schemas/ArtifactId'}
+        sku: {$ref: '#/components/schemas/Sku'}
+        device_fingerprint_version: {type: integer, const: 2}
+        device_fingerprint_digest: {$ref: '#/components/schemas/FingerprintDigest'}
+        replacement_payload_digest: {$ref: '#/components/schemas/FingerprintDigest'}
+        lifecycle_revision: {$ref: '#/components/schemas/SafeRevision'}
+        previous_decision_version: {type: integer, minimum: 0, maximum: 9007199254740991}
     Sku:
       type: string
       enum: [YARIZAN-G1, YARIZAN-G2, YARIZAN-G3, YARIZAN-G4, YARIZAN-G5, YARIZAN-G6]
@@ -377,10 +745,12 @@ components:
         challenge_signature: {type: string}
     DevicePublicIdentity:
       type: object
-      required: [device_id, username]
+      required: [device_id, username, enrollment]
       properties:
         device_id: {type: string, format: uuid}
         username: {type: string}
+        enrollment:
+          $ref: '#/components/schemas/SignedDeviceEnrollment'
     Pairing:
       type: object
       required: [pairing_id, user_code, connect_url, expires_at]
@@ -411,18 +781,120 @@ components:
       type: object
       required: [grant, remaining, server_time]
       properties:
-        grant: {$ref: '#/components/schemas/SignedArtifact'}
+        grant: {$ref: '#/components/schemas/SignedTrialStart'}
         remaining: {type: integer, minimum: 0, maximum: 1}
         server_time: {type: string, format: date-time}
     SignedArtifact:
       type: object
+      additionalProperties: false
       required: [payload, signature, algorithm]
       properties:
         algorithm: {type: string, const: ES256-P1363}
         payload:
-          type: object
-          additionalProperties: true
-        signature: {type: string}
+          oneOf:
+            - $ref: '#/components/schemas/PaidLicensePayload'
+            - $ref: '#/components/schemas/TrialStartPayload'
+            - $ref: '#/components/schemas/DecisionPayload'
+            - $ref: '#/components/schemas/DeviceEnrollmentPayload'
+        signature: {type: string, pattern: '^[A-Za-z0-9_-]{86}$'}
+    SignedLicense:
+      allOf:
+        - $ref: '#/components/schemas/SignedArtifact'
+        - type: object
+          properties:
+            payload: {$ref: '#/components/schemas/PaidLicensePayload'}
+    SignedDeviceEnrollment:
+      description: Proposed backend-issued profile-key-bound identity; secure issuance and additional-profile approval are not implemented.
+      allOf:
+        - $ref: '#/components/schemas/SignedArtifact'
+        - type: object
+          properties:
+            payload: {$ref: '#/components/schemas/DeviceEnrollmentPayload'}
+    DeviceEnrollmentPayload:
+      type: object
+      additionalProperties: false
+      required: [format, kid, issued_at, device_id, device_fingerprint_version, device_fingerprint_digest, device_key_digest, profile_enrollment_id]
+      properties:
+        format: {type: string, const: YARIZAN-DEVICE-ENROLLMENT-V2}
+        kid: {type: string, minLength: 1, maxLength: 1024}
+        issued_at: {$ref: '#/components/schemas/ArtifactTimestamp'}
+        device_id: {$ref: '#/components/schemas/ArtifactId'}
+        device_fingerprint_version: {type: integer, const: 2}
+        device_fingerprint_digest: {$ref: '#/components/schemas/FingerprintDigest'}
+        device_key_digest: {$ref: '#/components/schemas/FingerprintDigest'}
+        profile_enrollment_id: {$ref: '#/components/schemas/ArtifactId'}
+    SignedTrialStart:
+      allOf:
+        - $ref: '#/components/schemas/SignedArtifact'
+        - type: object
+          properties:
+            payload: {$ref: '#/components/schemas/TrialStartPayload'}
+    SignedDecision:
+      allOf:
+        - $ref: '#/components/schemas/SignedArtifact'
+        - type: object
+          properties:
+            payload: {$ref: '#/components/schemas/DecisionPayload'}
+    ArtifactId:
+      type: string
+      format: uuid
+      pattern: '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+    ArtifactTimestamp:
+      type: string
+      format: date-time
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,7})?Z$'
+    SafeRevision:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+    FingerprintDigest:
+      type: string
+      pattern: '^[A-F0-9]{64}$'
+    PaidLicensePayload:
+      type: object
+      additionalProperties: false
+      required: [format, kid, issued_at, license_id, customer_id, device_id, sku, grade, device_fingerprint_version, device_fingerprint_digest, expires_at, license_revision]
+      properties:
+        format: {type: string, const: YARIZAN-LICENSE-V2}
+        kid: {type: string, minLength: 1, maxLength: 1024}
+        issued_at: {$ref: '#/components/schemas/ArtifactTimestamp'}
+        license_id: {$ref: '#/components/schemas/ArtifactId'}
+        customer_id: {$ref: '#/components/schemas/ArtifactId'}
+        device_id: {$ref: '#/components/schemas/ArtifactId'}
+        sku: {$ref: '#/components/schemas/Sku'}
+        grade: {type: integer, minimum: 1, maximum: 6}
+        device_fingerprint_version: {type: integer, const: 2}
+        device_fingerprint_digest: {$ref: '#/components/schemas/FingerprintDigest'}
+        expires_at: {type: 'null'}
+        license_revision: {$ref: '#/components/schemas/SafeRevision'}
+    TrialStartPayload:
+      type: object
+      additionalProperties: false
+      required: [format, kid, issued_at, device_id, sku, grade, client_nonce, process_session_id]
+      properties:
+        format: {type: string, const: YARIZAN-TRIAL-START-V2}
+        kid: {type: string, minLength: 1, maxLength: 1024}
+        issued_at: {$ref: '#/components/schemas/ArtifactTimestamp'}
+        device_id: {$ref: '#/components/schemas/ArtifactId'}
+        sku: {$ref: '#/components/schemas/Sku'}
+        grade: {type: integer, minimum: 1, maximum: 6}
+        client_nonce: {$ref: '#/components/schemas/FingerprintDigest'}
+        process_session_id: {$ref: '#/components/schemas/ArtifactId'}
+    DecisionPayload:
+      type: object
+      additionalProperties: false
+      required: [format, kid, issued_at, license_id, device_id, sku, device_fingerprint_version, device_fingerprint_digest, decision_version, status]
+      properties:
+        format: {type: string, const: YARIZAN-LICENSE-DECISION-V2}
+        kid: {type: string, minLength: 1, maxLength: 1024}
+        issued_at: {$ref: '#/components/schemas/ArtifactTimestamp'}
+        license_id: {$ref: '#/components/schemas/ArtifactId'}
+        device_id: {$ref: '#/components/schemas/ArtifactId'}
+        sku: {$ref: '#/components/schemas/Sku'}
+        device_fingerprint_version: {type: integer, const: 2}
+        device_fingerprint_digest: {$ref: '#/components/schemas/FingerprintDigest'}
+        decision_version: {$ref: '#/components/schemas/SafeRevision'}
+        status: {type: string, enum: [ACTIVE, REVOKED]}
     CreateOrderRequest:
       type: object
       required: [sku, device_id]
@@ -442,6 +914,23 @@ components:
         discount_irr: {type: integer, minimum: 0}
         total_irr: {type: integer, minimum: 0}
   responses:
+    Unauthorized:
+      description: Missing/expired enrolled device or Admin authentication; never authoritative offline revocation
+    ActivationCodeRejected:
+      description: Invalid, expired, cancelled, used or wrong-product code; no credential echoed
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                type: object
+                required: [code]
+                properties:
+                  code:
+                    type: string
+                    enum: [ACTIVATION_CODE_INVALID, ACTIVATION_CODE_USED, ACTIVATION_CODE_EXPIRED, ACTIVATION_CODE_CANCELLED]
     Forbidden:
       description: Insufficient privilege, device blocked or activation not available
     Conflict:

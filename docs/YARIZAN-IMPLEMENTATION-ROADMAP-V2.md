@@ -4,6 +4,8 @@
 
 ## Phase 0 design handoff state (2026-10-14)
 
+Phase 1 desktop work is implemented for review on `feat/yarizan-v2-device-licensing`; see [evidence and remaining gates](YARIZAN-PHASE-1-REPORT.md). Backend enrollment/issuance, real disconnected endurance, reboot/multiple-user and clean installers remain incomplete. Phase 1's full exit gate is **not met**.
+
 The [Phase 0 baseline](YARIZAN-PHASE-0-BASELINE.md), [ADR records](adr/0001-device-identity-and-account-claim.md), [security threat model](YARIZAN-THREAT-MODEL-V2.md), [design OpenAPI](YARIZAN-OPENAPI-V2.yaml) and [Phase 1 agent brief](YARIZAN-PHASE-1-AGENT-BRIEF.md) have been drafted and committed as **documentation only**. This does **not** claim OpenAPI lint, Windows hardware verification, deterministic cross-language crypto test vectors, backup/restore, CI execution or any V2 code completion. Phase 1 agent must close tests applicable to its desktop work; production readiness gates remain in force.
 
 ## 1. Baseline and no-go rules

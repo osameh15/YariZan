@@ -25,6 +25,12 @@ shift
 shift
 goto :args
 :start
+REM Validate before selecting/packing games or modifying any existing build.
+dotnet run --project src\YariZan.ReleaseCheck -c Release -- --commercial "%CD%"
+if errorlevel 1 (
+    echo [ERROR] V2 commercial release prerequisites are not satisfied. No installer will be built.
+    exit /b 1
+)
 powershell -NoProfile -ExecutionPolicy Bypass -File "tools\Get-GameGrade.ps1" -Grade "%GRADE%" -OutputPath "publish\selected-grade.txt"
 if errorlevel 1 (
     echo [ERROR] Could not select a grade from miniApps. Use --grade 1 through 6 if needed.
@@ -57,12 +63,6 @@ if not exist "secrets\master.key" (
     echo [ERROR] secrets\master.key is missing.
     echo         This is the AES key used to encrypt the games. Run once:
     echo             dotnet run --project src\YariZan.SerialGen -- init
-    if not defined NONINTERACTIVE pause
-    exit /b 1
-)
-if not exist "secrets\public.pem" (
-    echo [ERROR] secrets\public.pem is missing.
-    echo         Run: dotnet run --project src\YariZan.SerialGen -- init
     if not defined NONINTERACTIVE pause
     exit /b 1
 )
@@ -137,6 +137,7 @@ dotnet publish src\YariZan.App\YariZan.App.csproj ^
     -p:PublishSingleFile=true ^
     -p:IncludeNativeLibrariesForSelfExtract=true ^
     -p:PublishReadyToRun=false ^
+    -p:CommercialRelease=true ^
     "-p:AssemblyTitle=YariZan G%GRADE%" "-p:Product=YariZan G%GRADE%" ^
     -p:DebugType=none -p:DebugSymbols=false ^
     -o "%PUBLISH_DIR%"

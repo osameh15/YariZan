@@ -1,5 +1,9 @@
 # Setup, build, pack, and distribute
 
+> Phase 1 feature-branch note: game packaging is unchanged. Desktop access follows [ADR-0004](adr/0004-phase-1-desktop-artifact-profile.md); PHP/serial access instructions below are historical. Distribution requires reviewed V2 trust roots and future secure enrollment. Fixture-only builds use `-p:IncludeGameBundle=false -p:IncludeGameKey=false`. Never overwrite existing keys to run tests.
+
+Commercial installer preflight, `-p:CommercialRelease=true` builds and ordinary app publishes now run `YariZan.ReleaseCheck`. The reviewed approval list is `release/v2-approved-public-roots.json` (currently no production fingerprints). Roots must be public-only P-256 SPKI PEMs in `secrets/v2-license-public-keys.json`; activation prerequisites are defined in ADR-0004. Private keys, unapproved/renamed test keys, missing/invalid roots and missing activation configuration fail clearly. This revision is commercially blocked even with structurally valid inputs until real secure enrollment/credentials are integrated. Fixture app publishing requires explicit `-p:FixtureOnlyBuild=true -p:IncludeGameBundle=false -p:IncludeGameKey=false`; never distribute fixture outputs as commercial releases. Combining FixtureOnlyBuild with CommercialRelease is an error.
+
 ## Prerequisites
 
 Use Windows, PowerShell, and a .NET SDK that targets `net9.0-windows` (CI uses .NET 9). Check `dotnet --info`. Inno Setup 6 or 7 is required for setup generation. Python 3 runs repository/deployment tools; use `py` if `python` opens the Windows Store. NuGet connectivity is needed for initial restore and runtime packs.

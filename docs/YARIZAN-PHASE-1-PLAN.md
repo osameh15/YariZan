@@ -1,0 +1,11 @@
+# Phase 1 source review and implementation plan
+
+Base: `aef9bbc78d0a9a4357c3625f56b77ad037f672f7`; feature branch `feat/yarizan-v2-device-licensing`.
+
+Reviewed all twelve mission documents, legacy architecture/security/UI/build/CI guides, the four desktop projects, access/launcher/book/grade tests and both workflows before implementation.
+
+Legacy `MainWindow` awaits paid authorization on Cover, session validation on Cover and game clicks, and a 60-second DispatcherTimer. Failure calls RevokeAccess, cancels preparation and stops games. Lock retries saved serials, verifies v1 HWID-only serials and consumes trials explicitly. `OnlineTrialClient` points to PHP, has a process nonce but reauthorizes active trials. `ActivationStore` is shared across grades and uses an HWID-derived AES key; neither it nor the v1 serial carries product binding. `AccessSession` trusts delegates. `GameLauncher` performs background decryption, owns processes, cancels late starts with a generation counter and cleans restricted temporary files. Packer/manifest/book already filter grade content and remain reusable.
+
+Plan: (1) shared version-2 normalized identity plus user-scoped non-exportable CNG keys; (2) strict bounded JCS subset, ES256-P1363, separate domains and schemas, atomic DPAPI-protected per-SKU license/decision store; (3) centralized local access controller with memory-only trial grant and stable retry nonce, signed monotonic synchronization affecting next launch; (4) bounded cancellable V2 transport and WPF integration replacing legacy active gates; (5) deterministic cryptographic/state/network/Windows tests, JS interop, synthetic launcher/book regressions and report.
+
+Security gates: OpenAPI deviceProof is explicitly an undefined placeholder. Implement challenge/key and injectable enrolled-credential boundaries, but block production enrollment instead of inventing bearer authentication or trusting HWID alone. No production V2 signing public keys have been approved: ship no test trust roots, require reviewed compile-time public-key provisioning before release. No production backend calls, secrets, games, service changes, merge or deployment. Real reboot/multi-account/TPM and disconnected 60-minute gameplay results must be reported separately from deterministic tests.

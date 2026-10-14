@@ -16,6 +16,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\..\release\v2-store-destinations.json" Link="Config\v2-store-destinations.json" />
+    <!-- Release gate: reviewed V2 verification keys only; no signing private keys. -->
+    <EmbeddedResource Include="..\..\secrets\v2-license-public-keys.json" Link="Keys\v2-license-public-keys.json"
+                      Condition="Exists('..\..\secrets\v2-license-public-keys.json')" />
     <ProjectReference Include="..\YariZan.Core\YariZan.Core.csproj" />
   </ItemGroup>
 
@@ -25,7 +29,7 @@
     <EmbeddedResource Include="..\..\secrets\public.pem" Link="Keys\public.pem"
                       Condition="Exists('..\..\secrets\public.pem')" />
     <EmbeddedResource Include="..\..\secrets\master.key" Link="Keys\master.key"
-                      Condition="Exists('..\..\secrets\master.key')" />
+                      Condition="Exists('..\..\secrets\master.key') and '$(IncludeGameKey)' != 'false'" />
   </ItemGroup>
 
   <ItemGroup>
@@ -33,6 +37,7 @@
     <Resource Include="Resources\Fonts\Shabnam\*.otf" />
     <Resource Include="Resources\icon.png" />
     <Resource Include="Resources\logo.png" />
+    <Resource Include="Resources\YariZan_Symbol_Only_256x256.png" />
     <Resource Include="Resources\OAR_Nova_Game.png" />
   </ItemGroup>
 
@@ -44,4 +49,16 @@
     </None>
   </ItemGroup>
 
+  <!-- Ordinary builds are fixtures/review builds. Commercial builds and ordinary app publishes are gated. -->
+  <Target Name="ValidateV2PublicRootInputs" BeforeTargets="PrepareForBuild"
+          Condition="Exists('$(MSBuildThisFileDirectory)..\..\secrets\v2-license-public-keys.json')">
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --public-roots-only &quot;$(MSBuildThisFileDirectory)..\..\secrets\v2-license-public-keys.json&quot;" />
+  </Target>
+  <Target Name="ValidateV2CommercialBuild" BeforeTargets="PrepareForBuild" Condition="'$(CommercialRelease)' == 'true'">
+    <Error Condition="'$(FixtureOnlyBuild)' == 'true'" Text="FixtureOnlyBuild cannot be combined with CommercialRelease." />
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --commercial &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
+  </Target>
+  <Target Name="ValidateV2CommercialPublish" BeforeTargets="PrepareForPublish" Condition="'$(FixtureOnlyBuild)' != 'true' and '$(CommercialRelease)' != 'true'">
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --commercial &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
+  </Target>
 </Project>
