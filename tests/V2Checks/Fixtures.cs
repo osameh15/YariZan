@@ -77,16 +77,26 @@ internal sealed class FakeServer(SigningFixture signing, IDeviceIdentity identit
     public int StatusRequests, StartRequests, SyncRequests, PickupRequests;
     public string? SyncResponse;
     public string? PickupResponse;
+    public const string ValidCode = "YZ2-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA";
+    public string? RedemptionResponse;
+    public string? RedemptionError;
+    public bool LoseRedemptionResponse;
+    public bool ProductBlocked;
+    public int RedemptionRequests, Redemptions;
+    public ActivationCodeRequest? LastRedemption;
+    public TaskCompletionSource<string>? PendingRedemption;
+    private readonly Dictionary<string, (ActivationCodeRequest Request, string Response)> _redemptions = new();
     public TaskCompletionSource<string>? PendingSync;
     public TaskCompletionSource<string>? PendingPickup;
     public TrialStartRequest? LastRequest;
     public int Used(string sku = "YARIZAN-G1") { lock (_transaction) return _used.GetValueOrDefault((DeviceId!, sku)); }
     private void Network(CancellationToken cancellation) { cancellation.ThrowIfCancellationRequested(); if (Offline) throw new HttpRequestException("Test network disconnected"); }
     public Task<int> GetTrialStatusAsync(Product product, CancellationToken cancellation)
-    { Network(cancellation); Interlocked.Increment(ref StatusRequests); return Task.FromResult(2 - Used(product.Sku)); }
+    { Network(cancellation); if (ProductBlocked) throw new V2ApiException("PRODUCT_BLOCKED", System.Net.HttpStatusCode.Forbidden); Interlocked.Increment(ref StatusRequests); return Task.FromResult(2 - Used(product.Sku)); }
     public Task<TrialStartResponse> StartTrialAsync(TrialStartRequest request, CancellationToken cancellation)
     {
         Network(cancellation); Interlocked.Increment(ref StartRequests); LastRequest = request;
+        if (ProductBlocked) throw new V2ApiException("PRODUCT_BLOCKED", System.Net.HttpStatusCode.Forbidden);
         TrialStartResponse response;
         lock (_transaction)
         {
@@ -112,4 +122,32 @@ internal sealed class FakeServer(SigningFixture signing, IDeviceIdentity identit
     { Interlocked.Increment(ref SyncRequests); Network(cancellation); return PendingSync?.Task.WaitAsync(cancellation) ?? Task.FromResult(SyncResponse ?? signing.Decision(identity, 1, "ACTIVE")); }
     public Task<string> PickupAsync(Product product, CancellationToken cancellation)
     { Interlocked.Increment(ref PickupRequests); Network(cancellation); return PendingPickup?.Task.WaitAsync(cancellation) ?? Task.FromResult(PickupResponse ?? signing.License(identity, product.Grade)); }
+
+    public Task<string> RedeemAsync(ActivationCodeRequest request, CancellationToken cancellation)
+    {
+        Network(cancellation); Interlocked.Increment(ref RedemptionRequests); LastRedemption = request;
+        if (ProductBlocked) throw new V2ApiException("PRODUCT_BLOCKED", System.Net.HttpStatusCode.Forbidden);
+        if (RedemptionError is not null) throw new V2ApiException(RedemptionError, System.Net.HttpStatusCode.BadRequest);
+        if (PendingRedemption is not null) return PendingRedemption.Task.WaitAsync(cancellation);
+        lock (_transaction)
+        {
+            if (request.DeviceId != DeviceId || request.Sku != "YARIZAN-G1" || request.Code != ValidCode)
+                throw new V2ApiException("ACTIVATION_CODE_INVALID", System.Net.HttpStatusCode.BadRequest);
+            string response;
+            if (_redemptions.TryGetValue(request.RequestId, out var saved))
+            {
+                if (saved.Request.Code != request.Code || saved.Request.DeviceId != request.DeviceId || saved.Request.Sku != request.Sku)
+                    throw new V2ApiException("IDEMPOTENCY_MISMATCH", System.Net.HttpStatusCode.Conflict);
+                response = saved.Response;
+            }
+            else
+            {
+                if (Redemptions > 0) throw new V2ApiException("ACTIVATION_CODE_USED", System.Net.HttpStatusCode.BadRequest);
+                response = RedemptionResponse ?? signing.License(identity);
+                _redemptions.Add(request.RequestId, (request, response)); Redemptions++;
+            }
+            if (LoseRedemptionResponse) { LoseRedemptionResponse = false; throw new HttpRequestException("Lost redemption after commit"); }
+            return Task.FromResult(response);
+        }
+    }
 }

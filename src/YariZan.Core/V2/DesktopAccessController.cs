@@ -5,7 +5,7 @@ namespace YariZan.Core.V2;
 public enum DesktopAccessState
 {
     NoLicense, Purchased, Revoked, TrialAvailable, TrialStarted, TrialExhausted,
-    ConnectionUnavailable, ActivationPending, InvalidLicense, EnrollmentRequired, Closed
+    ConnectionUnavailable, ActivationPending, InvalidLicense, EnrollmentRequired, ProductBlocked, Closed
 }
 
 public interface ITrialStartClient
@@ -18,7 +18,7 @@ public interface ILicenseSyncService
     Task<string> SynchronizeAsync(PaidLicense license, CancellationToken cancellation);
     Task<string> PickupAsync(Product product, CancellationToken cancellation);
 }
-public interface IDesktopV2Client : ITrialStartClient, ILicenseSyncService
+public interface IDesktopV2Client : ITrialStartClient, ILicenseSyncService, IActivationCodeClient
 {
     string? DeviceId { get; }
 }
@@ -47,7 +47,9 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
     private readonly string _nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
     private bool _closed;
     private PaidLicense? _license;
+    private ActivationCodeRequest? _redemption;
     public string Username => _device.Username;
+    public int Grade => _product.Grade;
     public DesktopAccessState State { get; private set; } = DesktopAccessState.NoLicense;
     public DesktopAccessState LocalLicenseState { get; private set; } = DesktopAccessState.NoLicense;
     public string? LastError { get; private set; }
@@ -116,6 +118,7 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
             LastError = null;
         }
         catch (TrialExhaustedException) { if (!_closed) { State = DesktopAccessState.TrialExhausted; TrialRemaining = 0; } }
+        catch (V2ApiException ex) when (ex.Code == "PRODUCT_BLOCKED") { if (!_closed) { State = DesktopAccessState.ProductBlocked; LastError = ex.Code; } }
         catch (EnrollmentRequiredException) { if (!_closed) { State = DesktopAccessState.EnrollmentRequired; LastError = "ENROLLMENT_REQUIRED"; } }
         catch (Exception ex) when (IsSafeFailure(ex)) { if (!_closed) { State = DesktopAccessState.ConnectionUnavailable; LastError = "STATUS_UNAVAILABLE"; } }
         finally { _operation.Release(); }
@@ -142,6 +145,7 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
             // No grant file, clock, timer, renewal, game authorization or deferred trial network operation.
         }
         catch (TrialExhaustedException) { if (!_closed) { State = DesktopAccessState.TrialExhausted; TrialRemaining = 0; } throw; }
+        catch (V2ApiException ex) when (ex.Code == "PRODUCT_BLOCKED") { if (!_closed) { State = DesktopAccessState.ProductBlocked; LastError = ex.Code; } throw; }
         catch (EnrollmentRequiredException) { if (!_closed) State = DesktopAccessState.EnrollmentRequired; throw; }
         catch (Exception ex) when (IsSafeFailure(ex)) { if (!_closed) { State = DesktopAccessState.ConnectionUnavailable; LastError = "TRIAL_START_FAILED"; } throw; }
         finally { _operation.Release(); }
@@ -171,23 +175,51 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
             }
             string envelope = await _client.PickupAsync(_product, linked.Token);
             linked.Token.ThrowIfCancellationRequested();
-            var license = _verifier.VerifyLicense(envelope, _device, _product, enrollment);
-            if (_client.DeviceId != license.DeviceId) throw new InvalidDataException("Pickup device ID mismatch.");
-            using (_store.AcquireWriteLock(_product))
-            {
-                var savedDecision = _store.ReadDecision(_product);
-                // Recovery/reissue must deliver a reviewed authenticated replacement contract in Phase 2.
-                if (savedDecision.Status != StoreReadStatus.Missing)
-                {
-                    if (savedDecision.Status != StoreReadStatus.Present || _verifier.VerifyDecision(savedDecision.Envelope!, license).Status == "REVOKED")
-                        throw new InvalidDataException("License has a local revocation or recovery conflict.");
-                }
-                _store.WriteLicense(_product, envelope);
-            }
-            _license = license; State = LocalLicenseState = DesktopAccessState.Purchased; LastError = null;
+            AcceptPickedUpLicense(envelope, enrollment);
         }
         catch { if (!_closed) State = previous; throw; }
         finally { _operation.Release(); }
+    }
+
+    public async Task RedeemActivationCodeAsync(string input, CancellationToken cancellation = default)
+    {
+        string code = ActivationCode.Normalize(input);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, _lifetime.Token);
+        await _operation.WaitAsync(linked.Token);
+        var previous = State;
+        try
+        {
+            linked.Token.ThrowIfCancellationRequested();
+            if (IsPurchased) return;
+            var enrollment = OnlineEnrollment();
+            if (_redemption?.Code != code)
+                _redemption = new(code, enrollment.DeviceId, _product.Sku, Guid.NewGuid().ToString("D"));
+            if (previous != DesktopAccessState.TrialStarted) State = DesktopAccessState.ActivationPending;
+            string envelope = await _client.RedeemAsync(_redemption, linked.Token);
+            linked.Token.ThrowIfCancellationRequested();
+            AcceptPickedUpLicense(envelope, enrollment);
+            _redemption = null;
+        }
+        catch { if (!_closed) State = previous; throw; }
+        finally { _operation.Release(); }
+    }
+
+    private void AcceptPickedUpLicense(string envelope, DeviceEnrollment enrollment)
+    {
+        var license = _verifier.VerifyLicense(envelope, _device, _product, enrollment);
+        if (_client.DeviceId != license.DeviceId) throw new InvalidDataException("Pickup device ID mismatch.");
+        using (_store.AcquireWriteLock(_product))
+        {
+            var savedDecision = _store.ReadDecision(_product);
+            // Recovery/reissue must deliver a reviewed authenticated replacement contract in Phase 2.
+            if (savedDecision.Status != StoreReadStatus.Missing)
+            {
+                if (savedDecision.Status != StoreReadStatus.Present || _verifier.VerifyDecision(savedDecision.Envelope!, license).Status == "REVOKED")
+                    throw new InvalidDataException("License has a local revocation or recovery conflict.");
+            }
+            _store.WriteLicense(_product, envelope);
+        }
+        _license = license; State = LocalLicenseState = DesktopAccessState.Purchased; LastError = null;
     }
 
     public Task SynchronizePurchasedAsync(CancellationToken cancellation = default)
@@ -229,5 +261,5 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
         or UnauthorizedAccessException or HttpRequestException or OperationCanceledException or V2ApiException or KeyNotFoundException;
 
     public void Dispose()
-    { _closed = true; State = DesktopAccessState.Closed; TrialRemaining = null; _license = null; _lifetime.Cancel(); }
+    { _closed = true; State = DesktopAccessState.Closed; TrialRemaining = null; _license = null; _redemption = null; _lifetime.Cancel(); }
 }

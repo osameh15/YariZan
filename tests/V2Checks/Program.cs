@@ -16,7 +16,7 @@ using YariZan.App.Services;
 using YariZan.Core;
 using YariZan.Core.V2;
 
-internal static class Program
+internal static partial class Program
 {
     private static int _passed;
     private static readonly Product G1 = new(1);
@@ -53,6 +53,7 @@ internal static class Program
             TrialChecks(signing, identity);
             NetworkChecks();
             HttpContractChecks(signing, identity);
+            ActivationChecks(signing, identity);
             WindowsKeyChecks(identity);
             CrossLanguage(signing, identity);
             UiChecks(signing, identity, args.FirstOrDefault() ?? Path.Combine(_root, "screenshots"), args.ElementAtOrDefault(1));
@@ -576,7 +577,8 @@ internal static class Program
         var host = (ContentControl)window.FindName("PageHost");
         Pump(() => access.State == DesktopAccessState.TrialAvailable);
         var page = (LockPage)host.Content;
-        Check(((TextBlock)page.FindName("HwidText")).Text == identity.Username && server.Used() == 0, "WPF Lock displays common username without spending trial");
+        Check(((TextBox)page.FindName("HwidText")).Text == identity.Username && server.Used() == 0, "WPF Lock displays common username without spending trial");
+        ActivationUiChecks(signing, identity, screenshots);
         Save(page, screenshots, "lock-v2.png");
         ((Button)page.FindName("TrialButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Pump(() => host.Content is InfoPage);
@@ -618,13 +620,13 @@ internal static class Program
         Check(((ContentControl)paidWindow.FindName("PageHost")).Content is InfoPage && paid.CanEnter, "WPF purchased entry succeeds offline");
         paidWindow.Close(); app.Shutdown();
     }
-    private static void Save(UserControl page, string root, string name)
+    private static void Save(UserControl page, string root, string name, int width = 1200, int height = 740)
     {
         // Snapshot the settled view; off-screen test HWNDs need not advance composition animations.
         page.BeginAnimation(UIElement.OpacityProperty, null); page.Opacity = 1;
         page.RenderTransform = Transform.Identity;
-        Directory.CreateDirectory(root); page.Measure(new Size(1200, 740)); page.Arrange(new Rect(0, 0, 1200, 740)); page.UpdateLayout();
-        var bitmap = new RenderTargetBitmap(1200, 740, 96, 96, PixelFormats.Pbgra32); bitmap.Render(page);
+        Directory.CreateDirectory(root); page.Measure(new Size(width, height)); page.Arrange(new Rect(0, 0, width, height)); page.UpdateLayout();
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32); bitmap.Render(page);
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var file = File.Create(Path.Combine(root, name)); encoder.Save(file);
     }
@@ -665,6 +667,19 @@ internal static class Program
                 {
                     StrictJson.Fields(p, "sku");
                     signedBody = await server.PickupAsync(G1, cancellation);
+                }
+                else if (route.EndsWith("/activation-codes/redeem"))
+                {
+                    StrictJson.Fields(p, "activation_code", "device_id", "sku", "request_id");
+                    try
+                    {
+                        signedBody = await server.RedeemAsync(new(p.GetProperty("activation_code").GetString()!,
+                            p.GetProperty("device_id").GetString()!, p.GetProperty("sku").GetString()!, p.GetProperty("request_id").GetString()!), cancellation);
+                    }
+                    catch (V2ApiException ex)
+                    {
+                        return new(ex.Status ?? HttpStatusCode.BadRequest) { Content = new StringContent(JsonSerializer.Serialize(new { error = new { code = ex.Code } })) };
+                    }
                 }
                 else if (route.EndsWith("/sync"))
                 {

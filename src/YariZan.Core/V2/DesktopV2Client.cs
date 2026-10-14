@@ -107,6 +107,18 @@ public sealed class DesktopV2Client : IDesktopV2Client, IDeviceRegistrationClien
     public Task<string> SynchronizeAsync(PaidLicense license, CancellationToken cancellation) =>
         RequestAsync(HttpMethod.Post, "desktop/licenses/sync", new { license_id = license.LicenseId, sku = license.Sku }, cancellation);
 
+    public Task<string> RedeemAsync(ActivationCodeRequest request, CancellationToken cancellation)
+    {
+        string code = ActivationCode.Normalize(request.Code);
+        if (request.DeviceId != DeviceId || !Guid.TryParseExact(request.DeviceId, "D", out var device)
+            || device.ToString("D") != request.DeviceId || !Guid.TryParseExact(request.RequestId, "D", out var id)
+            || id.ToString("D") != request.RequestId
+            || !Enumerable.Range(1, 6).Any(g => new Product(g).Sku == request.Sku))
+            throw new ArgumentException("INVALID_REDEMPTION_REQUEST");
+        return RequestAsync(HttpMethod.Post, "desktop/activation-codes/redeem", new
+        { activation_code = code, device_id = request.DeviceId, sku = request.Sku, request_id = request.RequestId }, cancellation);
+    }
+
     // Registration is deliberately blocked: anonymous first enrollment is not yet a reviewed protocol.
     public Task<DeviceChallenge> ChallengeAsync(IDeviceIdentity device, string publicKey, CancellationToken cancellation) => throw new EnrollmentRequiredException();
     public Task<RegisteredDevice> RegisterAsync(DeviceRegistrationRequest request, CancellationToken cancellation) => throw new EnrollmentRequiredException();
