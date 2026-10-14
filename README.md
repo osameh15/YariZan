@@ -53,7 +53,11 @@ Fresh captures of the current WPF views using the local G1 catalog. Activation/t
 
 Regenerate the images with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/Capture-AppScreenshots.ps1` after packing the local catalog. See [screenshot notes](docs/Images/README.md).
 
-## Current access policy
+## Approved V2 target (not implemented)
+
+Commercial YariZan V2 will use a Nuxt 4 storefront/customer/Admin portal, NestJS/PostgreSQL backend, per-device common customer username, six independent grade entitlements, ZarinPal checkout, discount campaigns, and **per-product perpetual offline paid licenses**. Two trial entries **per device and grade** require internet **only to start each trial process session**; once entered, an open trial process continues without internet or a heartbeat. Password-based onboarding uses confirmed device pairing; MeliPayamak is planned for a later reset-link stage. **No V2 code, database, or deployment has been shipped.** Refer to the [V2 specification](docs/YARIZAN-TECHNICAL-SPEC-V2.md), [data model](docs/YARIZAN-DATA-MODEL-V2.md), [API contracts](docs/YARIZAN-API-CONTRACTS-V2.md), and [roadmap](docs/YARIZAN-IMPLEMENTATION-ROADMAP-V2.md).
+
+## Current access policy (legacy 1.1.0 code only)
 
 The cover appears first on every launch. Opening the book requires internet: the app validates the saved paid serial or shows the activation/trial screen. New devices register their HWID and PC name with two trial entries; viewing status does not consume an entry. Only pressing the trial entry button consumes one.
 
@@ -121,6 +125,10 @@ The current serial can reactivate after an OS reinstall only if the HWID matches
 
 | Guide | Contents |
 |---|---|
+| [V2 commercial specification](docs/YARIZAN-TECHNICAL-SPEC-V2.md) | Approved target behavior; **not yet implemented** |
+| [V2 database model](docs/YARIZAN-DATA-MODEL-V2.md) | PostgreSQL entities and concurrency invariants |
+| [V2 HTTP contracts](docs/YARIZAN-API-CONTRACTS-V2.md) | API, offline license and trial contracts |
+| [V2 delivery roadmap](docs/YARIZAN-IMPLEMENTATION-ROADMAP-V2.md) | Engineering phases and acceptance gates |
 | [Build and pack](docs/build-and-pack.md) | Setup, keys, games, portable EXE, installer, cleanup |
 | [Hosting and panel](web/licensing/README.md) | Database, private files, admin, FTP/CDN, deployment, API |
 | [Architecture](docs/architecture.md) | Modules/runtime flow |

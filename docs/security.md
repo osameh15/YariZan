@@ -1,5 +1,7 @@
 ﻿# Security and access policy
 
+> **V2 planning notice (2026-10-14):** This document records the **currently implemented legacy 1.1.0** behavior, not the approved future licensing policy. The previous release has not been commercially launched and the V2 design does **not** require protocol/data backwards compatibility. **V2 is not implemented.** Follow the [V2 specification](YARIZAN-TECHNICAL-SPEC-V2.md), [data model](YARIZAN-DATA-MODEL-V2.md), [API contracts](YARIZAN-API-CONTRACTS-V2.md), and [roadmap](YARIZAN-IMPLEMENTATION-ROADMAP-V2.md) for the planned Nuxt/NestJS/PostgreSQL offline-first platform. Current code still requires online authorization for both paid and trial; V2 paid use will be offline and V2 trial will require internet **only for session start**.
+
 ## Current behavior
 
 Paid/trial access requires online validation. A valid local signature or saved activation alone cannot authorize the official app. MySQL controls current serials, trial counters/grants and blocked HWIDs.
