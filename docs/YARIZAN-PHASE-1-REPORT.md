@@ -2,6 +2,93 @@
 
 Date: 2026-10-14. Desktop foundations implemented on an isolated feature branch for independent review. **Phase 1's complete release/acceptance gate is not met:** real backend enrollment/issuance and production public trust roots are blocked, and real disconnected endurance/reboot/multiple-account/installer validation remains unexecuted.
 
+## Independent code-review follow-up (reviewed HEAD 5c7dc59)
+
+This section supersedes the original mission's results below for the review follow-up. Branch remains `feat/yarizan-v2-device-licensing`; [PR #1](https://github.com/osameh15/YariZan/pull/1) remains draft. Reviewed baseline: `5c7dc5969ae59f7d3cb547f871e00ebead08bbbd`. Final follow-up HEAD and current CI URL are recorded in the handoff/PR. No main merge or deployment.
+
+### Finding-by-finding resolution
+
+| Finding | Disposition | Resolution and integration boundary |
+|---|---|---|
+| 1. Signed license device UUID not independently bound offline | **Fixed** desktop; issuance **Blocked by Backend** | VerifyLicense now requires an independently authenticated DeviceEnrollment. Startup/pickup/persistence compare its UUID and fingerprint. Signed enrollment is separately verified against hardware and the profile's persisted public-key digest, DPAPI-stored atomically. Missing/corrupt/foreign record fails closed. No UUID is derived from a license, HWID or online credential. Negative tests use a correctly signed different UUID with the same fingerprint. Secure initial certificate issuance/anti-race/recovery remains blocked. |
+| 2. Commercial device entitlement across legitimate Windows profiles | **Partially Fixed**; enrollment **Blocked by Backend** | Per-user keys and DPAPI remain isolated; no unsafe ACL/private export. Foundation permits separately approved profile certificates/keys to share one machine UUID and the same license. Proposed online approval requires the existing customer's authorization plus existing-profile proof or verified support recovery. Backend must preserve one customer/entitlement and one device+grade counter without another purchase or trial reset. Two-key/two-store simulation passed; a real second Windows account has not been tested. |
+| 3. Commercial packaging prerequisites | **Fixed** | Installer preflight, CommercialRelease builds and ordinary app publishes run ReleaseCheck. Present roots are validated before all app builds to prohibit private/non-P256/trailing PEMs. Commercial roots require reviewed pinned SPKI fingerprints, reject test labels/substituted or renamed disposable keys, and require strict activation configuration. Repository approvals are intentionally empty. A source-level gate still blocks commercial release until actual secure enrollment/credentials exist; no ready flag bypass. Explicit fixture-only publishes remain possible and cannot be combined with CommercialRelease. |
+| 4. CI book suite and evidence distinctions | **Fixed** desktop/CI configuration | Independent Run-BookChecks step added. Actual TokenElevation and enabled Administrators group are reported, with selected TPM/software provider. Earlier successful hosted elevated run is not non-admin evidence. Current local token evidence is below; current hosted evidence is reported separately in handoff. |
+| 5. Preserve trial and perpetual paid contracts | **Fixed** / regression verified | Active trial remains process-only with zero heartbeat/time lease/per-game authorization. Paid startup uses local signed enrollment+license only, including when online credentials/DeviceId are unavailable. Optional sync failures do not revoke or stop games. |
+| 6. Rerun regression/security and physical acceptance | **Fixed** automated; physical checks **Deferred** | All local suites rerun; physical 60+ minute disconnect, reboot, actual second account, actual TPM loss and clean commercial installers remain pending. No modeled minute/profile/transport simulation is represented as physical acceptance. |
+
+### Security implications and supported profile behavior
+
+Previously a server-signed license carrying a foreign internal device UUID but the same reported fingerprint could be accepted offline. A hardware digest is spoofable and cannot establish which server device record is locally enrolled. The fix uses a separate server-authorized profile enrollment under `YariZan-Device-Enrollment-V2\n`, bound to device UUID, fingerprint v2, profile enrollment UUID and SHA256 of the local CNG public SPKI. Its signature is reverified locally with pinned keys. License loading compares against that independent record, not against its own claims or a possibly expired/unavailable online credential. A profile without the record stays locked. Changing established enrollment identity requires a future authenticated recovery contract.
+
+Paid access has no enrollment/credential expiration or required online lookup. After authorized provisioning, it survives ordinary offline restarts in the same profile. Moving another profile's certificate/license is insufficient: DPAPI user scope and distinct public-key binding reject it. A new Windows profile must first enroll online with explicit customer/existing-device or support approval; it must receive the **existing** machine UUID and entitlement. Server counters must be keyed by machine device UUID+SKU across all profiles. New-profile hardware hash and new self-generated key alone do not authorize that association. Issuance/approval transactions, key recovery, anti-first-claim race and hardware attestation remain backend/security work. No machine-wide private-key ACL was introduced.
+
+Two simulated profiles with independent keys/stores, independently signed certificates, the same device UUID and the same purchased license both work offline. This establishes a desktop mechanism, not proof of second-account/backend deployment. Pending acceptance includes two actual non-elevated Windows accounts, authorized online enrollment/pickup without repurchase/reset, unauthorized profile denial, both offline restarts, key/profile deletion, reboot, TPM loss and independent revocation/recovery propagation. Permanently offline profiles can retain old signed state until their next successful sync.
+
+### Changed files for this review follow-up
+
+| File | Reason |
+|---|---|
+| `src/YariZan.Core/V2/DeviceEnrollment.cs` (new) | Independent enrollment model/provider/store, public-key-bound verification, protected atomic writer lock |
+| `src/YariZan.Core/V2/SignedArtifacts.cs` | Enrollment signing domain/schema, trusted UUID comparison; reject private verification keys |
+| `src/YariZan.Core/V2/DesktopAccessController.cs` | Require local enrollment for paid/start/pickup, retain network-independent paid startup |
+| `src/YariZan.Core/V2/LicenseStore.cs` | Reuse bounded atomic DPAPI envelope helpers for enrollment |
+| `src/YariZan.Core/V2/DesktopV2Client.cs` | Registration response foundation carries signed enrollment object; transport still blocked |
+| `src/YariZan.App/Services/DesktopAccessFactory.cs` | Compose independent signed provider and current profile key; validate embedded public roots |
+| `src/YariZan.Core/V2/CommercialReleasePolicy.cs` (new) | Strict public roots, reviewed fingerprints, activation prerequisites and fail-closed production integration gate |
+| `src/YariZan.ReleaseCheck/Program.cs` (new) | Non-sensitive build-time prerequisite validation CLI |
+| `src/YariZan.ReleaseCheck/YariZan.ReleaseCheck.csproj` (new) | Validator references actual Core policy without App/private game resources |
+| `src/YariZan.sln` | Includes release validator in normal builds |
+| `src/YariZan.App/YariZan.App.csproj` | Before-build public input checks and commercial build/publish gates |
+| `release/v2-approved-public-roots.json` (new) | Empty reviewed fingerprint allowlist; fixture inputs cannot silently become production roots |
+| `build-installer.bat` | Validate before grade selection/packing; publish explicitly commercial; no legacy serial public-key prerequisite |
+| `tests/V2Checks/Fixtures.cs` | Independently supplied test enrollments and disposable signed certificates |
+| `tests/V2Checks/Program.cs` | UUID/certificate/profile/release CLI/MSBuild/publish/installer negatives and actual token evidence |
+| `tests/Run-V2Checks.ps1` | Build real validator before integration checks |
+| `.github/workflows/ci.yml` | Independent synthetic book suite |
+| `docs/adr/0004-phase-1-desktop-artifact-profile.md` | Binding/profile/release/evidence decisions and remaining blockers |
+| `docs/YARIZAN-API-CONTRACTS-V2.md` | Independent enrollment and same-machine profile association contract |
+| `docs/YARIZAN-OPENAPI-V2.yaml` | Proposed signed enrollment schema and registration response |
+| `docs/build-and-pack.md` | Commercial vs fixture builds and clear release blockers |
+| `docs/ci.md` | Independent book CI and accurate evidence scope |
+| `docs/YARIZAN-PHASE-1-REPORT.md` | This finding-by-finding follow-up |
+
+### Exact local test execution and token context
+
+Windows `10.0.26300.0` x64; .NET SDK `10.0.401`, runtime `9.0.20`; Node `24.20.0`; Windows PowerShell. Process-only proxy variables were cleared for restore/build commands; machine network/proxy configuration was not changed.
+
+```
+EVIDENCE TokenElevation.TokenIsElevated=0; AdministratorsGroupEnabled=False
+EVIDENCE TPM-preferred provider selected: TPM
+RESULT 150 passed; 0 failed. Windows Microsoft Windows NT 10.0.26300.0; .NET 9.0.20
+```
+
+The same non-elevated local process successfully created/signed/reopened TPM-preferred and forced software keys (including child-process persistence/private-export refusal), and rejected established key loss. It is valid non-elevated operation evidence on this machine, not a statement about the hosted CI token or another Windows account.
+
+| Executed command | Result |
+|---|---|
+| `dotnet build src/YariZan.sln -c Release -p:IncludeGameBundle=false -p:IncludeGameKey=false --nologo` | Five projects built; 0 warnings/errors |
+| `.\tests\Run-V2Checks.ps1` | **150 passed, 0 failed**; includes release policy/CLI/MSBuild/publish/installer tests and signed profile enrollment |
+| `.\tests\Run-AccessChecks.ps1` | **27 passed, 0 failed** |
+| `.\tests\Run-LauncherChecks.ps1` | **8 passed, 0 failed** |
+| `.\tests\Run-GradeChecks.ps1` | **5 acceptance groups passed, 0 failed**; invalid-selection exits intentional |
+| `.\tests\Run-BookChecks.ps1` | **36 passed, 0 failed** |
+| `npx --yes @redocly/cli@2.63.0 lint docs/YARIZAN-OPENAPI-V2.yaml` | Pass; 0 errors/warnings |
+| `py tools/Check-PublicRepository.py` | Pass |
+| `git diff --check` | Pass |
+
+Total local assertions/groups: **226 passed, 0 failed**. Expected commercial gate failures are passing negative checks, not successful commercial builds. V2 additionally executes the real CLI with missing/unapproved/private inputs, actual CommercialRelease MSBuild and ordinary publish refusal, explicit fixture publish success, conflicting fixture/commercial refusal, and installer preflight refusal before packing. The reviewed root list is empty and secure production activation integration is absent, so no commercial installer is produced or claimed verified. Disposable private material used by a negative validator test is never embedded, printed, committed or used as a release root.
+
+### Local versus CI versus physical evidence
+
+All five listed suites were executed locally. Follow-up Windows CI is configured to execute all five independently, including the formerly local-only book suite; its actual final run status/token/provider are provided separately in the handoff. The earlier reviewed successful hosted run used an elevated administrator token and software/TPM-fallback evidence must be read from its actual provider log; it must not be cited as non-admin execution. Local TPM-preferred selection here was **TPM**; forced software checks were separate. CI may select software on a TPM-less VM and still validate safe fallback, not physical TPM possession.
+
+Disconnection was simulated by a failing injectable test transport. Actual WPF navigation and two encrypted synthetic game launches continued with zero subsequent trial network calls; this was not a physical internet cut. Modeled elapsed checkpoints run instantly and do not equal 60-minute endurance. Two profile keys/stores are a simulation within the same Windows user, not a real second account. Physical 60+ minute disconnected endurance, reboot, second Windows account, real TPM removal/loss, clean installers and live backend enrollment/pickup remain **pending**.
+
+Residual risks: spoofed hardware/VM copies, local administrator or modified-binary compromise, rollback of protected signed state, inability to revoke permanently offline profiles, and unresolved server authorization/claim/recovery transactions. Reviewers must verify production root provenance; a public key's bytes cannot prove whether it was generated as a fixture. Deliberately changing source-approved fingerprints or bypassing build scripts is outside tamper-proof claims. No production signing keys, shared ACLs, live service/payment/database/DNS changes, merges or deployments were made.
+
+The original mission sections below remain historical evidence for their original revisions; use this follow-up and final handoff for current results.
+
 ## A. Repository state
 
 - Branch: `feat/yarizan-v2-device-licensing`.

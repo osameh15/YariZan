@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace YariZan.Core.V2;
 
@@ -26,7 +27,10 @@ public sealed class V2ApiException(string code, HttpStatusCode? status = null) :
 public sealed record DeviceChallenge(string ChallengeId, string Nonce, string ExpiresAt);
 public sealed record DeviceRegistrationRequest(int FingerprintVersion, string FingerprintDigest,
     string DevicePublicKey, string ChallengeId, string ChallengeSignature);
-public sealed record RegisteredDevice(string DeviceId, string Username, string SignedEnrollment);
+public sealed record RegisteredDevice(
+    [property: JsonPropertyName("device_id")] string DeviceId,
+    [property: JsonPropertyName("username")] string Username,
+    [property: JsonPropertyName("enrollment")] JsonElement Enrollment);
 public interface IDeviceRegistrationClient
 {
     Task<DeviceChallenge> ChallengeAsync(IDeviceIdentity device, string publicKey, CancellationToken cancellation);

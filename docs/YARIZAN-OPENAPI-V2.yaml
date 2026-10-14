@@ -403,10 +403,12 @@ components:
         challenge_signature: {type: string}
     DevicePublicIdentity:
       type: object
-      required: [device_id, username]
+      required: [device_id, username, enrollment]
       properties:
         device_id: {type: string, format: uuid}
         username: {type: string}
+        enrollment:
+          $ref: '#/components/schemas/SignedDeviceEnrollment'
     Pairing:
       type: object
       required: [pairing_id, user_code, connect_url, expires_at]
@@ -451,6 +453,7 @@ components:
             - $ref: '#/components/schemas/PaidLicensePayload'
             - $ref: '#/components/schemas/TrialStartPayload'
             - $ref: '#/components/schemas/DecisionPayload'
+            - $ref: '#/components/schemas/DeviceEnrollmentPayload'
         signature: {type: string, pattern: '^[A-Za-z0-9_-]{86}$'}
     SignedLicense:
       allOf:
@@ -458,6 +461,26 @@ components:
         - type: object
           properties:
             payload: {$ref: '#/components/schemas/PaidLicensePayload'}
+    SignedDeviceEnrollment:
+      description: Proposed backend-issued profile-key-bound identity; secure issuance and additional-profile approval are not implemented.
+      allOf:
+        - $ref: '#/components/schemas/SignedArtifact'
+        - type: object
+          properties:
+            payload: {$ref: '#/components/schemas/DeviceEnrollmentPayload'}
+    DeviceEnrollmentPayload:
+      type: object
+      additionalProperties: false
+      required: [format, kid, issued_at, device_id, device_fingerprint_version, device_fingerprint_digest, device_key_digest, profile_enrollment_id]
+      properties:
+        format: {type: string, const: YARIZAN-DEVICE-ENROLLMENT-V2}
+        kid: {type: string, minLength: 1, maxLength: 1024}
+        issued_at: {$ref: '#/components/schemas/ArtifactTimestamp'}
+        device_id: {$ref: '#/components/schemas/ArtifactId'}
+        device_fingerprint_version: {type: integer, const: 2}
+        device_fingerprint_digest: {$ref: '#/components/schemas/FingerprintDigest'}
+        device_key_digest: {$ref: '#/components/schemas/FingerprintDigest'}
+        profile_enrollment_id: {$ref: '#/components/schemas/ArtifactId'}
     SignedTrialStart:
       allOf:
         - $ref: '#/components/schemas/SignedArtifact'

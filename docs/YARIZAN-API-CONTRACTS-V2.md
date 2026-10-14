@@ -5,6 +5,8 @@
 
 > Phase 1 refines signed artifact fields/canonical bytes in [ADR-0004](adr/0004-phase-1-desktop-artifact-profile.md). Routes remain future contracts. Secure device enrollment/credential issuance is deliberately blocked pending an anti-claim-race protocol; no anonymous HWID fallback exists.
 
+> Review follow-up: offline paid verification additionally requires a separately signed profile-key-bound device enrollment record. Proposed registration/additional-profile enrollment must return this artifact and preserve the same machine device UUID/customer/entitlement/trial budget across authorized Windows profiles. See ADR-0004 for the exact desktop envelope and blocked approval/issuance protocol. A license's own device_id or HWID cannot bootstrap enrollment.
+
 ## 1. General conventions
 
 - JSON over TLS only; versioned routes. Use RFC 3339 UTC timestamps and UUID/opaque IDs; stable `YARIZAN-G1`–`YARIZAN-G6` SKUs.
