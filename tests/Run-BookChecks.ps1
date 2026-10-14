@@ -14,6 +14,14 @@ Set-Content -Encoding UTF8 (Join-Path $testDir 'Checks.csproj') @"
 </Project>
 "@
 $preview = Join-Path $repo 'publish/book-preview.png'
-$portrait = Get-ChildItem -LiteralPath (Join-Path $repo 'miniApps/1') -Filter '*.jpg' -File | Select-Object -First 1 -ExpandProperty FullName
-dotnet run --project (Join-Path $testDir 'Checks.csproj') -p:IncludeGameBundle=false -- $portrait $preview
+# Synthetic portrait: public-checkout runnable, no private game artwork required.
+Add-Type -AssemblyName System.Drawing
+$portrait = Join-Path $testDir 'portrait.jpg'
+$bitmap = New-Object System.Drawing.Bitmap(600, 900)
+$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+try {
+    $graphics.Clear([System.Drawing.Color]::CornflowerBlue)
+    $bitmap.Save($portrait, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+} finally { $graphics.Dispose(); $bitmap.Dispose() }
+dotnet run --project (Join-Path $testDir 'Checks.csproj') -p:IncludeGameBundle=false -p:IncludeGameKey=false -- $portrait $preview
 if ($LASTEXITCODE -ne 0) { throw 'Book checks failed.' }
