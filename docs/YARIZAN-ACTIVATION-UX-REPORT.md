@@ -7,7 +7,7 @@ This is the current mission report. The [Phase 1 report](YARIZAN-PHASE-1-REPORT.
 ## A. Repository and scope
 
 - Inspected/fetched branch HEAD before edits: `c7a655998f3b3bc7246e12a68f8dfca7d51e4fcf`; remote matched local. Main base remains `aef9bbc78d0a9a4357c3625f56b77ad037f672f7`.
-- Source/test commit: see final handoff/PR and `git log c7a6559..HEAD`; documentation/report commits follow it. Final SHA is recorded in the handoff because the report cannot contain its own commit hash.
+- Commits: `cacfb31` source/tests/screenshots; `f9d4b0d` API/database/security contracts; `f2da303` mission report; followed by this CI evidence update. Final SHA is recorded in the handoff because the report cannot contain its own commit hash.
 - Prior independent signed enrollment/device UUID binding, profile key isolation, release-root gates and independent book CI remain intact. No unsafe ACLs, development trust roots or legacy PHP fallback were added.
 - Untracked user-supplied brand PNG size folder/ICO remain untouched. Selected symbol-only app resource from the prior commit is reused on Lock.
 
@@ -88,7 +88,7 @@ Local token evidence: `TokenElevation.TokenIsElevated=0; AdministratorsGroupEnab
 
 Intermediate issues: an initial small-window assertion used LTR coordinates for an RTL transform and failed; corrected to transformed bounds and rerun successfully. A redirected Windows PowerShell batch stopped on the grade suite's intentional native stderr/nonzero negative case; the exact unredirected Grade command subsequently passed all five groups. These intermediate harness failures are not counted as successful runs.
 
-GitHub CI: existing Windows workflow runs all five suites and OpenAPI lint. The final handoff/PR records the actual current run URL, commit, conclusion, counts and token/provider after completion; local results are not substituted for CI. New screenshots were visually inspected locally. Simulated HTTP disconnect, instantaneous modeled elapsed time and same-user profile fixtures do not equal physical acceptance.
+GitHub CI **passed** at `f2da3030ede8b0d1bf882e47c1978de05822d8fc`: [run 38624429636](https://github.com/osameh15/YariZan/actions/runs/38624429636), job `116059861864`. The workflow independently executed all five commands above: **217 V2 + 27 access + 8 launcher + 5 packaging groups + 36 book = 293 passed, 0 failed**; release build had zero warnings/errors, public scanner/OpenAPI lint/binary smoke check passed. Hosted OS `10.0.26100.0`, runtime `9.0.21`, .NET 9 workflow. Actual hosted evidence: `TokenElevation.TokenIsElevated=1; AdministratorsGroupEnabled=True`, TPM-preferred selected **SOFTWARE**. This is not non-admin or physical-TPM evidence. The subsequent documentation-only CI evidence commit's exact final SHA/run are supplied in the final handoff/PR. New screenshots were visually inspected locally. Simulated HTTP disconnect, instantaneous modeled elapsed time and same-user profile fixtures do not equal physical acceptance.
 
 ## F. Requirement matrix
 
@@ -119,7 +119,7 @@ GitHub CI: existing Windows workflow runs all five suites and OpenAPI lint. The 
 | Updated spec/API/OpenAPI/DB/security/ADR and screenshots | Implemented |
 | Trial online-to-start only; no heartbeat/time/per-game check | Implemented, regression tests pass |
 | Perpetual purchased offline and nonblocking sync | Implemented, regression tests pass |
-| Local/CI commands/results and requirement report | Local evidence implemented; actual current CI recorded in final handoff |
+| Local/CI commands/results and requirement report | Implemented; both 293/0, exact verified CI run above and final handoff |
 | Production merge/deploy forbidden | Preserved; none performed |
 
 ## G. Remaining risks and next steps
