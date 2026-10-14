@@ -1,5 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
+dotnet build (Join-Path $repo 'src/YariZan.ReleaseCheck/YariZan.ReleaseCheck.csproj') -c Release --nologo
+if ($LASTEXITCODE -ne 0) { throw 'Release validator build failed.' }
 $fixture = Join-Path ([IO.Path]::GetTempPath()) ('YariZan-v2-game-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture | Out-Null
 Set-Content -LiteralPath (Join-Path $fixture 'Game.csproj') -Encoding UTF8 -Value @'

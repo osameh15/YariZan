@@ -29,7 +29,9 @@ internal static class Program
     private static void Run(Task task) => task.GetAwaiter().GetResult();
     private static T Run<T>(Task<T> task) => task.GetAwaiter().GetResult();
     private static DesktopAccessController Access(IDeviceIdentity id, SigningFixture signing, ILicenseStore store, IDesktopV2Client server, int grade = 1) =>
-        new(id, new Product(grade), signing.Verifier, store, server);
+        new(id, new Product(grade), signing.Verifier, store, server, new TestEnrollmentProvider(Enrollment(id)));
+    private static DeviceEnrollment Enrollment(IDeviceIdentity identity) => new(SigningFixture.DeviceId,
+        identity.FingerprintVersion, identity.FingerprintDigest, new string('A', 64), SigningFixture.CustomerId);
     private static FileLicenseStore Store(string name) => new(Path.Combine(_root, name));
 
     [STAThread]
@@ -44,6 +46,9 @@ internal static class Program
             var identity = new DeviceIdentityV2(new Signals());
             IdentityChecks(identity);
             CryptoChecks(signing, identity);
+            EnrollmentChecks(signing, identity);
+            ReleasePolicyChecks(signing);
+            ReleaseIntegrationChecks(signing);
             PaidChecks(signing, identity);
             TrialChecks(signing, identity);
             NetworkChecks();
@@ -74,7 +79,7 @@ internal static class Program
             var identity = new DeviceIdentityV2(new Signals());
             var keys = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(args[2]))!;
             using var signing = new SigningFixture();
-            using var access = new DesktopAccessController(identity, G1, new SignedArtifactVerifier(keys), new FileLicenseStore(args[1]), new FakeServer(signing, identity) { Offline = true });
+            using var access = new DesktopAccessController(identity, G1, new SignedArtifactVerifier(keys), new FileLicenseStore(args[1]), new FakeServer(signing, identity) { Offline = true }, new TestEnrollmentProvider(Enrollment(identity)));
             return access.CanEnter == (args[0] == "--child-paid") ? 0 : 1;
         }
         catch { return 2; }
@@ -113,30 +118,30 @@ internal static class Program
     private static void CryptoChecks(SigningFixture signing, IDeviceIdentity identity)
     {
         var verifier = signing.Verifier; string license = signing.License(identity);
-        Check(verifier.VerifyLicense(license, identity, G1).Grade == 1, "valid signed G1 accepted");
-        Check(Reject(() => verifier.VerifyLicense(license, identity, new Product(2))), "G1 rejected by G2");
-        Check(Reject(() => verifier.VerifyLicense(license, new DeviceIdentityV2(new Signals { Fallback = "different", Values = new Dictionary<string, IEnumerable<string>>() }), G1)), "incorrect device rejected");
-        Check(Reject(() => verifier.VerifyLicense(license.Replace("YARIZAN-G1", "YARIZAN-G2"), identity, G1)), "modified payload rejected");
-        Check(Reject(() => new SignedArtifactVerifier(new Dictionary<string, string>()).VerifyLicense(license, identity, G1)), "unknown signing key rejected");
+        Check(verifier.VerifyLicense(license, identity, G1, Enrollment(identity)).Grade == 1, "valid signed G1 accepted");
+        Check(Reject(() => verifier.VerifyLicense(license, identity, new Product(2), Enrollment(identity))), "G1 rejected by G2");
+        Check(Reject(() => verifier.VerifyLicense(license, new DeviceIdentityV2(new Signals { Fallback = "different", Values = new Dictionary<string, IEnumerable<string>>() }), G1, Enrollment(identity))), "incorrect device rejected");
+        Check(Reject(() => verifier.VerifyLicense(license.Replace("YARIZAN-G1", "YARIZAN-G2"), identity, G1, Enrollment(identity))), "modified payload rejected");
+        Check(Reject(() => new SignedArtifactVerifier(new Dictionary<string, string>()).VerifyLicense(license, identity, G1, Enrollment(identity))), "unknown signing key rejected");
         using var other = new SigningFixture();
-        Check(Reject(() => other.Verifier.VerifyLicense(license, identity, G1)), "invalid signature rejected");
+        Check(Reject(() => other.Verifier.VerifyLicense(license, identity, G1, Enrollment(identity))), "invalid signature rejected");
         foreach (var (field, value) in new (string, object?)[] { ("expires_at", "2099-01-01T00:00:00Z"), ("grade", 2), ("device_fingerprint_version", 1), ("license_revision", 0), ("license_id", "not-uuid"), ("issued_at", "2026-10-14T00:00:00+00:00"), ("extra", true), ("format", "YARIZAN-LICENSE-V1") })
         {
             var p = signing.LicensePayload(identity); p[field] = value;
-            Check(Reject(() => verifier.VerifyLicense(signing.Sign(p, SignedArtifactVerifier.LicenseDomain), identity, G1)), "signed invalid claim rejected: " + field);
+            Check(Reject(() => verifier.VerifyLicense(signing.Sign(p, SignedArtifactVerifier.LicenseDomain), identity, G1, Enrollment(identity))), "signed invalid claim rejected: " + field);
         }
-        Check(Reject(() => verifier.VerifyLicense(license.Replace("ES256-P1363", "ES256"), identity, G1)), "DER/algorithm substitution rejected");
+        Check(Reject(() => verifier.VerifyLicense(license.Replace("ES256-P1363", "ES256"), identity, G1, Enrollment(identity))), "DER/algorithm substitution rejected");
         using (var original = StrictJson.Parse(license))
         {
             string shortSignature = JsonSerializer.Serialize(new { algorithm = "ES256-P1363", payload = original.RootElement.GetProperty("payload"), signature = Base64Url.Encode(new byte[63]) });
-            Check(Reject(() => verifier.VerifyLicense(shortSignature, identity, G1)), "63-byte signature rejected");
+            Check(Reject(() => verifier.VerifyLicense(shortSignature, identity, G1, Enrollment(identity))), "63-byte signature rejected");
         }
-        Check(Reject(() => verifier.VerifyLicense(license.Replace("\"algorithm\":", "\"algorithm\":\"ES256-P1363\",\"algorithm\":"), identity, G1)), "duplicate envelope keys rejected");
+        Check(Reject(() => verifier.VerifyLicense(license.Replace("\"algorithm\":", "\"algorithm\":\"ES256-P1363\",\"algorithm\":"), identity, G1, Enrollment(identity))), "duplicate envelope keys rejected");
         Check(Reject(() => StrictJson.Parse("{\"x\":1,\"x\":2}")), "duplicate payload keys rejected");
         Check(Reject(() => StrictJson.Parse("{\"x\":0.5}")) && Reject(() => StrictJson.Parse("{\"x\":9007199254740992}")), "floats and unsafe integers rejected");
         Check(Reject(() => StrictJson.Parse("{\"x\":\"\\ud800\"}")), "lone surrogate rejected");
         Check(Reject(() => StrictJson.Parse(new string(' ', 32769))), "oversized envelope rejected");
-        Check(Reject(() => verifier.VerifyLicense(signing.Sign(signing.LicensePayload(identity), SignedArtifactVerifier.TrialDomain), identity, G1)), "domain substitution rejected");
+        Check(Reject(() => verifier.VerifyLicense(signing.Sign(signing.LicensePayload(identity), SignedArtifactVerifier.TrialDomain), identity, G1, Enrollment(identity))), "domain substitution rejected");
     }
 
     private static void PaidChecks(SigningFixture signing, IDeviceIdentity identity)
@@ -157,13 +162,13 @@ internal static class Program
         Check(paid.CanEnter, "signed revocation does not terminate current purchased process");
         using (var restart = Access(identity, signing, store, server)) Check(!restart.CanEnter && restart.State == DesktopAccessState.Revoked, "signed persisted revocation blocks next launch");
         server.SyncResponse = signing.Decision(identity, 1, "ACTIVE"); Run(paid.SynchronizePurchasedAsync());
-        Check(signing.Verifier.VerifyDecision(store.ReadDecision(G1).Envelope!, signing.Verifier.VerifyLicense(signing.License(identity), identity, G1)).Version == 2, "older decision rejected by high watermark");
+        Check(signing.Verifier.VerifyDecision(store.ReadDecision(G1).Envelope!, signing.Verifier.VerifyLicense(signing.License(identity), identity, G1, Enrollment(identity))).Version == 2, "older decision rejected by high watermark");
         server.SyncResponse = signing.Decision(identity, 2, "ACTIVE"); Run(paid.SynchronizePurchasedAsync());
         using (var restart = Access(identity, signing, store, server)) Check(restart.State == DesktopAccessState.Revoked, "equal-version contradictory decision ignored");
         server.SyncResponse = signing.Decision(identity, 3, sku: "YARIZAN-G2"); Run(paid.SynchronizePurchasedAsync());
         using (var restart = Access(identity, signing, store, server)) Check(restart.State == DesktopAccessState.Revoked, "mismatched revocation target ignored");
         string wrongDeviceDecision = signing.Decision(identity, 3).Replace(SigningFixture.DeviceId, SigningFixture.CustomerId);
-        Check(Reject(() => signing.Verifier.VerifyDecision(wrongDeviceDecision, signing.Verifier.VerifyLicense(signing.License(identity), identity, G1))), "wrong-device revocation rejected");
+        Check(Reject(() => signing.Verifier.VerifyDecision(wrongDeviceDecision, signing.Verifier.VerifyLicense(signing.License(identity), identity, G1, Enrollment(identity)))), "wrong-device revocation rejected");
         using (var differentSigner = new SigningFixture())
         {
             server.SyncResponse = differentSigner.Decision(identity, 3); Run(paid.SynchronizePurchasedAsync());
@@ -171,7 +176,7 @@ internal static class Program
             Check(restart.State == DesktopAccessState.Revoked, "fake signing-key revocation rejected");
         }
         server.SyncResponse = signing.Decision(identity, 3).Replace("REVOKED", "ACTIVE"); Run(paid.SynchronizePurchasedAsync());
-        Check(paid.CanEnter && signing.Verifier.VerifyDecision(store.ReadDecision(G1).Envelope!, signing.Verifier.VerifyLicense(signing.License(identity), identity, G1)).Version == 2, "forged sync cannot change persisted decision");
+        Check(paid.CanEnter && signing.Verifier.VerifyDecision(store.ReadDecision(G1).Envelope!, signing.Verifier.VerifyLicense(signing.License(identity), identity, G1, Enrollment(identity))).Version == 2, "forged sync cannot change persisted decision");
         using (var recovering = Access(identity, signing, store, server))
         {
             server.SyncResponse = signing.Decision(identity, 1, "ACTIVE");
@@ -186,7 +191,7 @@ internal static class Program
         server.SyncResponse = signing.Decision(identity, 4); Run(paid.SynchronizePurchasedAsync());
         var multi = Store("multi");
         foreach (int grade in Enumerable.Range(1, 6)) multi.WriteLicense(new Product(grade), signing.License(identity, grade));
-        Check(Enumerable.Range(1, 6).All(g => signing.Verifier.VerifyLicense(multi.ReadLicense(new Product(g)).Envelope!, identity, new Product(g)).Grade == g), "six licenses persist without overwriting");
+        Check(Enumerable.Range(1, 6).All(g => signing.Verifier.VerifyLicense(multi.ReadLicense(new Product(g)).Envelope!, identity, new Product(g), Enrollment(identity)).Grade == g), "six licenses persist without overwriting");
         multi.WriteLicense(G1, signing.License(identity));
         Check(!Directory.EnumerateFiles(Path.Combine(_root, "multi"), "*.tmp").Any(), "atomic replace leaves no temporary credential");
         File.WriteAllBytes(Path.Combine(_root, "multi", "YARIZAN-G1.license.dat"), [1, 2, 3]);
@@ -214,6 +219,149 @@ internal static class Program
         using var noEnrollment = Access(identity, signing, Store("blocked"), blocked);
         Run(noEnrollment.RefreshTrialStatusAsync());
         Check(noEnrollment.State == DesktopAccessState.EnrollmentRequired && !noEnrollment.CanEnter, "unprovisioned enrollment fails closed without HWID authentication");
+    }
+
+    private static void EnrollmentChecks(SigningFixture signing, IDeviceIdentity identity)
+    {
+        var server = new FakeServer(signing, identity) { Offline = true };
+        var store = Store("uuid-binding");
+        var wrongPayload = signing.LicensePayload(identity); wrongPayload["device_id"] = SigningFixture.CustomerId;
+        string wrongLicense = signing.Sign(wrongPayload, SignedArtifactVerifier.LicenseDomain);
+        Check(Reject(() => signing.Verifier.VerifyLicense(wrongLicense, identity, G1, Enrollment(identity))),
+            "correctly signed different device UUID with identical fingerprint rejected by verifier");
+        store.WriteLicense(G1, wrongLicense);
+        using (var wrong = Access(identity, signing, store, server))
+            Check(!wrong.CanEnter && wrong.State == DesktopAccessState.InvalidLicense, "offline loading rejects same-fingerprint foreign device UUID");
+        store.WriteLicense(G1, signing.License(identity));
+        using (var missing = new DesktopAccessController(identity, G1, signing.Verifier, store, server))
+            Check(!missing.CanEnter && missing.State == DesktopAccessState.EnrollmentRequired,
+                "license and online client UUID cannot bootstrap missing independent enrollment");
+        var pickupStore = Store("foreign-pickup"); server.Offline = false; server.PickupResponse = wrongLicense;
+        using (var pickup = Access(identity, signing, pickupStore, server))
+            Check(RejectAsync(() => pickup.PickupLicenseAsync()) && pickupStore.ReadLicense(G1).Status == StoreReadStatus.Missing,
+                "foreign UUID signed pickup rejected before persistence");
+
+        using var firstKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var secondKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        byte[] firstPublic = firstKey.ExportSubjectPublicKeyInfo(), secondPublic = secondKey.ExportSubjectPublicKeyInfo();
+        string firstDigest = Convert.ToHexString(SHA256.HashData(firstPublic));
+        string secondDigest = Convert.ToHexString(SHA256.HashData(secondPublic));
+        string profileRoot = Path.Combine(_root, "signed-enrollment");
+        var enrollmentStore = new FileDeviceEnrollmentStore(profileRoot);
+        var provider = new VerifiedLocalDeviceEnrollmentProvider(enrollmentStore, signing.Verifier, identity, () => firstPublic);
+        string certificate = signing.Enrollment(identity, firstDigest);
+        provider.StoreAuthenticatedEnrollment(certificate);
+        Check(provider.ReadVerifiedIdentity()?.DeviceId == SigningFixture.DeviceId, "independent signed profile enrollment verifies after protected persistence");
+        var licenseStore = new FileLicenseStore(profileRoot); licenseStore.WriteLicense(G1, signing.License(identity));
+        using var http = new HttpClient(new Handler());
+        var noOnlineIdentity = new DesktopV2Client(http, new UnprovisionedDeviceCredentials());
+        using (var offline = new DesktopAccessController(identity, G1, signing.Verifier, licenseStore, noOnlineIdentity, provider))
+        {
+            Check(offline.CanEnter && offline.IsPurchased, "paid signed enrollment works offline without any online credential or client UUID");
+            Run(offline.SynchronizePurchasedAsync());
+            Check(offline.CanEnter, "missing online credential cannot invalidate verified offline enrollment and license");
+        }
+        var foreignProfile = new VerifiedLocalDeviceEnrollmentProvider(enrollmentStore, signing.Verifier, identity, () => secondPublic);
+        Check(Reject(() => foreignProfile.ReadVerifiedIdentity()), "copied enrollment rejected for different profile public key despite identical hardware");
+        Check(Reject(() => provider.StoreAuthenticatedEnrollment(certificate.Replace(SigningFixture.DeviceId, SigningFixture.CustomerId))),
+            "tampered local enrollment cannot establish a trusted UUID");
+        Check(Reject(() => provider.StoreAuthenticatedEnrollment(signing.Enrollment(identity, firstDigest, deviceId: SigningFixture.CustomerId))),
+            "same-profile device UUID change requires explicit authenticated recovery");
+        using var otherSigner = new SigningFixture();
+        Check(Reject(() => signing.Verifier.VerifyEnrollment(otherSigner.Enrollment(identity, firstDigest), identity, firstDigest)),
+            "untrusted enrollment signer rejected");
+        string secondRoot = Path.Combine(_root, "authorized-profile-b");
+        var secondProvider = new VerifiedLocalDeviceEnrollmentProvider(new FileDeviceEnrollmentStore(secondRoot), signing.Verifier, identity, () => secondPublic);
+        secondProvider.StoreAuthenticatedEnrollment(signing.Enrollment(identity, secondDigest, profileId: SigningFixture.LicenseId));
+        var secondLicenses = new FileLicenseStore(secondRoot); secondLicenses.WriteLicense(G1, signing.License(identity));
+        using (var second = new DesktopAccessController(identity, G1, signing.Verifier, secondLicenses, noOnlineIdentity, secondProvider))
+            Check(second.CanEnter && secondProvider.ReadVerifiedIdentity()?.DeviceId == provider.ReadVerifiedIdentity()?.DeviceId,
+                "backend-authorized distinct profile keys can use the same device entitlement offline (simulated profiles)");
+        File.WriteAllBytes(Path.Combine(profileRoot, "device-enrollment.dat"), [1, 2, 3]);
+        using (var corrupt = new DesktopAccessController(identity, G1, signing.Verifier, licenseStore, noOnlineIdentity, provider))
+            Check(!corrupt.CanEnter, "corrupt independent enrollment fails closed instead of using license UUID");
+    }
+
+    private static void ReleasePolicyChecks(SigningFixture signing)
+    {
+        string pem = signing.Key.ExportSubjectPublicKeyInfoPem();
+        string Roots(string kid, string key) => JsonSerializer.Serialize(new Dictionary<string, string> { [kid] = key });
+        string Approvals(string kid, string digest) => JsonSerializer.Serialize(new
+        { format = "YARIZAN-APPROVED-RELEASE-ROOTS-V2", keys = new Dictionary<string, string> { [kid] = digest } });
+        string roots = Roots("release-key-1", pem);
+        string approvals = Approvals("release-key-1", CommercialReleasePolicy.PublicKeyFingerprint(pem));
+        string config = JsonSerializer.Serialize(new
+        {
+            format = "YARIZAN-ACTIVATION-CONFIG-V2", api_base = DesktopV2Client.ApiBase.AbsoluteUri,
+            enrollment_protocol = "YariZan-Device-Enrollment-V2", additional_profile_enrollment = true
+        });
+        CommercialReleasePolicy.ValidateConfiguration(roots, approvals, config);
+        Check(true, "public P-256 root and matching approval fingerprint validate structurally with disposable unit inputs");
+        Check(Reject(() => CommercialReleasePolicy.ReadPublicRoots("{}")), "empty release roots rejected");
+        Check(Reject(() => CommercialReleasePolicy.ReadPublicRoots(Roots("release-key-1", "not PEM"))), "malformed verification root rejected");
+        Check(Reject(() => CommercialReleasePolicy.ReadPublicRoots(Roots("release-key-1", signing.Key.ExportPkcs8PrivateKeyPem()))), "private signing key forbidden in verification-root input");
+        Check(Reject(() => CommercialReleasePolicy.ReadPublicRoots(Roots("release-key-1", pem + signing.Key.ExportPkcs8PrivateKeyPem()))), "private trailing PEM block forbidden");
+        using var p384 = ECDsa.Create(ECCurve.NamedCurves.nistP384);
+        Check(Reject(() => CommercialReleasePolicy.ReadPublicRoots(Roots("release-key-1", p384.ExportSubjectPublicKeyInfoPem()))), "non-P256 public root forbidden");
+        Check(Reject(() => CommercialReleasePolicy.ValidateConfiguration(Roots("disposable-test", pem), Approvals("disposable-test", CommercialReleasePolicy.PublicKeyFingerprint(pem)), config)),
+            "disposable test root rejected even with matching approval input");
+        Check(Reject(() => CommercialReleasePolicy.ValidateConfiguration(roots, Approvals("release-key-1", new string('0', 64)), config)),
+            "renamed disposable or substituted key fails pinned reviewed fingerprint check");
+        Check(Reject(() => CommercialReleasePolicy.ValidateConfiguration(roots, "{\"format\":\"YARIZAN-APPROVED-RELEASE-ROOTS-V2\",\"keys\":{}}", config)),
+            "repository with no approved roots cannot authorize an accidental test key");
+        Check(Reject(() => CommercialReleasePolicy.ValidateConfiguration(roots, approvals, "{}")), "missing activation configuration rejected");
+        Check(Reject(() => CommercialReleasePolicy.ValidateConfiguration(roots, approvals, config.Replace("https://yarizan.oarnova.games/api/v2/", "http://localhost/"))),
+            "unreviewed activation host rejected");
+        Check(Reject(() => CommercialReleasePolicy.EnsureCommercialRelease(roots, approvals, config)),
+            "commercial release remains blocked with structurally valid inputs until production enrollment integration exists");
+    }
+
+    private static (int Code, string Output) Tool(string executable, params string[] arguments)
+    {
+        var info = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true,
+            RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = FindRepo() };
+        foreach (var argument in arguments) info.ArgumentList.Add(argument);
+        using var child = Process.Start(info)!;
+        var output = child.StandardOutput.ReadToEndAsync(); var error = child.StandardError.ReadToEndAsync();
+        if (!child.WaitForExit(120000)) { child.Kill(entireProcessTree: true); throw new TimeoutException("Release gate check timed out."); }
+        return (child.ExitCode, output.GetAwaiter().GetResult() + error.GetAwaiter().GetResult());
+    }
+
+    private static void ReleaseIntegrationChecks(SigningFixture signing)
+    {
+        string repo = FindRepo();
+        string validator = Path.Combine(repo, "src", "YariZan.ReleaseCheck", "bin", "Release", "net9.0-windows", "YariZan.ReleaseCheck.dll");
+        string fixture = Path.Combine(_root, "release-prerequisites"); Directory.CreateDirectory(fixture);
+        var missing = Tool("dotnet", validator, "--commercial", fixture);
+        Check(missing.Code != 0 && missing.Output.Contains("V2_PUBLIC_ROOTS_MISSING"), "commercial CLI missing-root gate fails clearly");
+        Directory.CreateDirectory(Path.Combine(fixture, "secrets")); Directory.CreateDirectory(Path.Combine(fixture, "release"));
+        string rootsPath = Path.Combine(fixture, "secrets", "v2-license-public-keys.json");
+        File.WriteAllText(rootsPath, JsonSerializer.Serialize(new Dictionary<string, string> { ["renamed-release-key"] = signing.Key.ExportSubjectPublicKeyInfoPem() }));
+        File.WriteAllText(Path.Combine(fixture, "release", "v2-approved-public-roots.json"), "{\"format\":\"YARIZAN-APPROVED-RELEASE-ROOTS-V2\",\"keys\":{}}");
+        File.WriteAllText(Path.Combine(fixture, "secrets", "v2-activation.json"), "{}");
+        var unreviewed = Tool("dotnet", validator, "--commercial", fixture);
+        Check(unreviewed.Code != 0 && unreviewed.Output.Contains("V2_ROOT_NOT_REVIEWED"), "commercial CLI rejects renamed disposable root against repository approval list");
+        File.WriteAllText(rootsPath, JsonSerializer.Serialize(new Dictionary<string, string> { ["release-key"] = signing.Key.ExportPkcs8PrivateKeyPem() }));
+        var privateKey = Tool("dotnet", validator, "--public-roots-only", rootsPath);
+        Check(privateKey.Code != 0 && privateKey.Output.Contains("V2_PUBLIC_SPKI_REQUIRED"), "build public-root input validator refuses disposable private PEM");
+        File.Delete(rootsPath); // Only the disposable negative fixture, never a real signing key.
+        var build = Tool("dotnet", "build", Path.Combine(repo, "src", "YariZan.App", "YariZan.App.csproj"), "-c", "Release", "--no-restore",
+            "-p:CommercialRelease=true", "-p:IncludeGameBundle=false", "-p:IncludeGameKey=false", "--nologo");
+        Check(build.Code != 0 && build.Output.Contains("V2_"), "actual commercial MSBuild target refuses unresolved release prerequisites");
+        var publish = Tool("dotnet", "publish", Path.Combine(repo, "src", "YariZan.App", "YariZan.App.csproj"), "-c", "Release", "--no-restore",
+            "-p:IncludeGameBundle=false", "-p:IncludeGameKey=false", "-o", Path.Combine(_root, "blocked-publish"), "--nologo");
+        Check(publish.Code != 0 && publish.Output.Contains("V2_") && !File.Exists(Path.Combine(_root, "blocked-publish", "YariZan.exe")),
+            "ordinary app publish cannot silently create commercial output without prerequisite gate");
+        var fixturePublish = Tool("dotnet", "publish", Path.Combine(repo, "src", "YariZan.App", "YariZan.App.csproj"), "-c", "Release", "--no-restore",
+            "-p:FixtureOnlyBuild=true", "-p:IncludeGameBundle=false", "-p:IncludeGameKey=false", "-o", Path.Combine(_root, "fixture-publish"), "--nologo");
+        Check(fixturePublish.Code == 0 && File.Exists(Path.Combine(_root, "fixture-publish", "YariZan.exe")),
+            "explicit fixture-only app publish works without production configuration");
+        var combined = Tool("dotnet", "build", Path.Combine(repo, "src", "YariZan.App", "YariZan.App.csproj"), "-c", "Release", "--no-restore",
+            "-p:CommercialRelease=true", "-p:FixtureOnlyBuild=true", "-p:IncludeGameBundle=false", "-p:IncludeGameKey=false", "--nologo");
+        Check(combined.Code != 0 && combined.Output.Contains("FixtureOnlyBuild cannot be combined"), "fixture exemption cannot be combined with commercial release");
+        var installer = Tool("cmd.exe", "/d", "/c", "build-installer.bat", "--noninteractive");
+        Check(installer.Code != 0 && installer.Output.Contains("V2 commercial release prerequisites are not satisfied") && !installer.Output.Contains("[Step 1/5]"),
+            "installer preflight stops before game packing or installer compilation");
     }
 
     private static void TrialChecks(SigningFixture signing, IDeviceIdentity identity)
@@ -322,7 +470,10 @@ internal static class Program
             state?.DeleteValue(CngDeviceKeyStore.ProviderValueName(name), throwOnMissingValue: false);
         }
         using var user = System.Security.Principal.WindowsIdentity.GetCurrent();
-        Console.WriteLine("EVIDENCE elevated administrator token: " + new System.Security.Principal.WindowsPrincipal(user).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator));
+        if (!GetTokenInformation(user.AccessToken, 20, out int elevated, sizeof(int), out _))
+            throw new System.ComponentModel.Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error());
+        Console.WriteLine("EVIDENCE TokenElevation.TokenIsElevated=" + elevated
+            + "; AdministratorsGroupEnabled=" + new System.Security.Principal.WindowsPrincipal(user).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator));
         string probeName = "YariZan.DisposableChecks." + Guid.NewGuid().ToString("N");
         string provider;
         using (var probe = new CngDeviceKeyStore(probeName))
@@ -330,7 +481,7 @@ internal static class Program
             provider = probe.Assurance;
             Check(probe.ExportPublicKey().Length > 0 && probe.SignChallenge("test", new string('A', 64), identity).Length == 64, "TPM-preferred provider signs with safe software fallback");
             Console.WriteLine("EVIDENCE TPM-preferred provider selected: " + provider);
-            Check(ChildSucceeds("--child-key", probeName, Base64Url.Encode(probe.ExportPublicKey())), "TPM-preferred key reopens in separate non-admin process");
+            Check(ChildSucceeds("--child-key", probeName, Base64Url.Encode(probe.ExportPublicKey())), "TPM-preferred key reopens in separate process with the same Windows user");
         }
         using var rawProbe = CngKey.Open(probeName, provider == "TPM" ? new CngProvider("Microsoft Platform Crypto Provider") : CngProvider.MicrosoftSoftwareKeyStorageProvider);
         Check(!rawProbe.IsMachineKey && Reject(() => rawProbe.Export(CngKeyBlobFormat.Pkcs8PrivateBlob)), "TPM-preferred key denies private export and unsafe machine scope");
@@ -339,6 +490,11 @@ internal static class Program
         using var probeState = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(CngDeviceKeyStore.ProviderRegistryPath, writable: true);
         probeState?.DeleteValue(CngDeviceKeyStore.ProviderValueName(probeName), throwOnMissingValue: false);
     }
+
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetTokenInformation(Microsoft.Win32.SafeHandles.SafeAccessTokenHandle token,
+        int informationClass, out int elevation, int length, out int returnedLength);
 
     private static void HttpContractChecks(SigningFixture signing, IDeviceIdentity identity)
     {
@@ -379,7 +535,7 @@ internal static class Program
         Check(result.RootElement.GetProperty("verified").GetBoolean(), ".NET license P1363 signature verified in Node.js");
         Check(result.RootElement.GetProperty("canonical_matches").GetBoolean(), "RFC8785 subset unicode/control/safe-integer bytes match Node.js");
         var nodeVerifier = new SignedArtifactVerifier(new Dictionary<string, string> { ["disposable-test"] = result.RootElement.GetProperty("publicKey").GetString()! });
-        Check(nodeVerifier.VerifyLicense(result.RootElement.GetProperty("envelope").GetRawText(), identity, G1).Grade == 1, "Node.js disposable signed license verifies in .NET");
+        Check(nodeVerifier.VerifyLicense(result.RootElement.GetProperty("envelope").GetRawText(), identity, G1, Enrollment(identity)).Grade == 1, "Node.js disposable signed license verifies in .NET");
     }
 
     private static string FindRepo()

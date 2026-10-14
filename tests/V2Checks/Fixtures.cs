@@ -13,6 +13,11 @@ internal sealed class Signals : IDeviceFingerprintProvider
     public string? ReadMachineFallback() => Fallback;
 }
 
+internal sealed class TestEnrollmentProvider(DeviceEnrollment enrollment) : ILocalDeviceEnrollmentProvider
+{
+    public DeviceEnrollment? ReadVerifiedIdentity() => enrollment;
+}
+
 internal sealed class SigningFixture : IDisposable
 {
     public readonly ECDsa Key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -38,6 +43,12 @@ internal sealed class SigningFixture : IDisposable
         ["expires_at"] = null, ["license_revision"] = 1
     };
     public string License(IDeviceIdentity identity, int grade = 1) => Sign(LicensePayload(identity, grade), SignedArtifactVerifier.LicenseDomain);
+    public string Enrollment(IDeviceIdentity identity, string keyDigest, string? profileId = null, string? deviceId = null) => Sign(new()
+    {
+        ["format"] = "YARIZAN-DEVICE-ENROLLMENT-V2", ["device_id"] = deviceId ?? DeviceId,
+        ["device_fingerprint_version"] = 2, ["device_fingerprint_digest"] = identity.FingerprintDigest,
+        ["device_key_digest"] = keyDigest, ["profile_enrollment_id"] = profileId ?? CustomerId
+    }, SignedArtifactVerifier.EnrollmentDomain);
     public string Decision(IDeviceIdentity identity, long revision, string status = "REVOKED", string? sku = null) => Sign(new()
     {
         ["format"] = "YARIZAN-LICENSE-DECISION-V2", ["license_id"] = LicenseId, ["device_id"] = DeviceId,

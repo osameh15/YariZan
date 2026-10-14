@@ -53,6 +53,10 @@ jobs:
         shell: powershell
         run: .\tests\Run-LauncherChecks.ps1
 
+      - name: Independent synthetic book and navigation checks
+        shell: powershell
+        run: .\tests\Run-BookChecks.ps1
+
       - name: Setup Node for V2 signature interoperability
         uses: actions/setup-node@v4
         with:
