@@ -1,0 +1,188 @@
+import { Injectable } from "@nestjs/common";
+import { Request } from "express";
+import { PoolClient } from "pg";
+import { configuration } from "../config";
+import { Database } from "../database/database";
+import { requireCondition } from "../common/errors";
+import { equal, keyed } from "./crypto";
+
+export interface DeviceContext {
+  device_id: string;
+  key_id: string;
+  customer_id: string;
+  generation: number;
+  fingerprint_digest: string;
+}
+export interface CustomerContext {
+  id: string;
+  device_id: string;
+  generation: number;
+  token_hash: string;
+}
+export interface AdminContext {
+  id: string;
+  token_hash: string;
+}
+@Injectable()
+export class Security {
+  readonly config = configuration();
+  constructor(readonly db: Database) {}
+  tokenHash(value: string) {
+    return keyed(this.config.TOKEN_HMAC_KEY, "YariZan-Session-V2", value);
+  }
+  async rate(key: string, limit: number, seconds = 60) {
+    const bucket = Math.floor(Date.now() / 1000 / seconds);
+    const safe = keyed(this.config.TOKEN_HMAC_KEY, "YariZan-Rate-V2", key);
+    const r = await this.db.query<{ count: number }>(
+      `INSERT INTO rate_buckets VALUES($1,$2,1)
+      ON CONFLICT(key,bucket) DO UPDATE SET count=rate_buckets.count+1 RETURNING count`,
+      [safe, bucket],
+    );
+    requireCondition(r.rows[0].count <= limit, "RATE_LIMITED", 429);
+  }
+  bearer(req: Request) {
+    const h = req.headers.authorization;
+    requireCondition(
+      h && /^Bearer [A-Za-z0-9_-]{43}$/.test(h),
+      "ENROLLMENT_REQUIRED",
+      401,
+    );
+    return h.slice(7);
+  }
+  async device(
+    c: PoolClient,
+    bearer: string,
+    allowHistorical = false,
+  ): Promise<DeviceContext> {
+    const r = await c.query<
+      DeviceContext & {
+        status: string;
+        state: string;
+        current_generation: number;
+        revoked_at: Date | null;
+        expires_at: Date;
+      }
+    >(
+      `SELECT k.device_id,k.id key_id,k.customer_id,k.generation,d.fingerprint_digest,
+      k.status,c.state,d.generation current_generation,t.revoked_at,t.expires_at
+      FROM device_credentials t JOIN device_keys k ON k.id=t.key_id JOIN devices d ON d.id=k.device_id
+      JOIN customers c ON c.id=k.customer_id WHERE t.token_hash=$1 FOR UPDATE OF d`,
+      [this.tokenHash(bearer)],
+    );
+    const row = r.rows[0];
+    requireCondition(
+      row && row.expires_at.getTime() > Date.now(),
+      "ENROLLMENT_REQUIRED",
+      401,
+    );
+    // Old reset keys can read only their own signed tombstones until their credential expires.
+    if (!allowHistorical)
+      requireCondition(
+        !row.revoked_at &&
+          row.status === "ACTIVE" &&
+          row.state === "ACTIVE" &&
+          row.generation === row.current_generation,
+        "ACCOUNT_RESTRICTED",
+        403,
+      );
+    else
+      requireCondition(row.status !== "REPLACED", "ENROLLMENT_REQUIRED", 401);
+    return row;
+  }
+  async customer(req: Request, c?: PoolClient): Promise<CustomerContext> {
+    const raw = (req.cookies as Record<string, string> | undefined)
+      ?.yz_customer;
+    requireCondition(
+      raw && /^[A-Za-z0-9_-]{43}$/.test(raw),
+      "UNAUTHENTICATED",
+      401,
+    );
+    const sql = `SELECT c.id,c.device_id,c.generation,s.token_hash,s.csrf_hash FROM customer_sessions s
+      JOIN customers c ON c.id=s.customer_id JOIN devices d ON d.id=c.device_id
+      WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND c.state='ACTIVE' AND c.generation=d.generation`;
+    const r = c
+      ? await c.query<CustomerContext & { csrf_hash: string }>(sql, [
+          this.tokenHash(raw),
+        ])
+      : await this.db.query<CustomerContext & { csrf_hash: string }>(sql, [
+          this.tokenHash(raw),
+        ]);
+    requireCondition(r.rows[0], "UNAUTHENTICATED", 401);
+    if (!["GET", "HEAD"].includes(req.method))
+      this.csrf(req, r.rows[0].csrf_hash);
+    return r.rows[0];
+  }
+  csrf(req: Request, csrfHash: string) {
+    const csrf = req.headers["x-csrf-token"];
+    requireCondition(
+      req.headers.origin === this.config.BROWSER_ORIGIN &&
+        typeof csrf === "string" &&
+        equal(this.tokenHash(csrf), csrfHash),
+      "CSRF_REJECTED",
+      403,
+    );
+  }
+  async admin(
+    req: Request,
+    permission: string,
+    c: PoolClient,
+  ): Promise<AdminContext> {
+    const raw = (req.cookies as Record<string, string> | undefined)?.yz_admin;
+    requireCondition(
+      raw && /^[A-Za-z0-9_-]{43}$/.test(raw),
+      "UNAUTHENTICATED",
+      401,
+    );
+    const r = await c.query<AdminContext & { csrf_hash: string; mfa_at: Date }>(
+      `SELECT a.id,s.token_hash,s.csrf_hash,s.mfa_at FROM admin_sessions s
+      JOIN admins a ON a.id=s.admin_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND NOT a.disabled FOR UPDATE OF a`,
+      [this.tokenHash(raw)],
+    );
+    requireCondition(r.rows[0], "UNAUTHENTICATED", 401);
+    this.csrf(req, r.rows[0].csrf_hash);
+    requireCondition(
+      Date.now() - r.rows[0].mfa_at.getTime() < 5 * 60 * 1000,
+      "MFA_REQUIRED",
+      403,
+    );
+    const p = await c.query(
+      `SELECT 1 FROM admin_user_roles u JOIN admin_role_permissions p ON p.role=u.role WHERE u.admin_id=$1 AND p.permission=$2`,
+      [r.rows[0].id, permission],
+    );
+    requireCondition(p.rowCount, "FORBIDDEN", 403);
+    return r.rows[0];
+  }
+  async product(
+    c: PoolClient,
+    device: DeviceContext,
+    sku: string,
+    availability: "trial" | "activation" | "none" = "none",
+  ) {
+    const r = await c.query<{
+      sku: string;
+      grade: number;
+      trial_enabled: boolean;
+      activation_enabled: boolean;
+      publication_status: string;
+    }>("SELECT * FROM products WHERE sku=$1 FOR SHARE", [sku]);
+    requireCondition(r.rows[0], "PRODUCT_NOT_AVAILABLE", 404);
+    await c.query(
+      `INSERT INTO device_product_restrictions(device_id,sku,reason) VALUES($1,$2,'initial') ON CONFLICT DO NOTHING`,
+      [device.device_id, sku],
+    );
+    const b = await c.query<{ blocked: boolean }>(
+      "SELECT blocked FROM device_product_restrictions WHERE device_id=$1 AND sku=$2 FOR UPDATE",
+      [device.device_id, sku],
+    );
+    requireCondition(!b.rows[0].blocked, "PRODUCT_BLOCKED", 403);
+    if (availability !== "none")
+      requireCondition(
+        r.rows[0][
+          availability === "trial" ? "trial_enabled" : "activation_enabled"
+        ] && r.rows[0].publication_status === "published",
+        "PRODUCT_NOT_AVAILABLE",
+        403,
+      );
+    return r.rows[0];
+  }
+}
