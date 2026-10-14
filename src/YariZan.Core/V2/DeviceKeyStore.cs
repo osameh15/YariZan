@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Win32;
+using System.Security.Principal;
 
 namespace YariZan.Core.V2;
 
@@ -17,21 +19,53 @@ public sealed class CngDeviceKeyStore : IDeviceKeyStore
     public string Assurance { get; }
     public const string SharedKeyName = "OARNOVA.YariZan.DeviceAuth.V2";
     private static readonly CngProvider Platform = new("Microsoft Platform Crypto Provider");
+    public const string ProviderRegistryPath = @"Software\OARNOVA\YariZan\DeviceKeysV2";
+
+    public static string ProviderValueName(string keyName) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(keyName)));
 
     public CngDeviceKeyStore(string keyName = SharedKeyName, bool preferTpm = true)
     {
-        // Never silently replace an existing TPM key if it becomes inaccessible.
-        if (CngKey.Exists(keyName, Platform))
-        { _key = CngKey.Open(keyName, Platform); Assurance = "TPM"; return; }
-        if (CngKey.Exists(keyName, CngProvider.MicrosoftSoftwareKeyStorageProvider))
-        { _key = CngKey.Open(keyName, CngProvider.MicrosoftSoftwareKeyStorageProvider); Assurance = "SOFTWARE"; return; }
-        if (preferTpm)
+        using var user = WindowsIdentity.GetCurrent();
+        string lockId = ProviderValueName(user.User?.Value + "|" + keyName);
+        using var mutex = new Mutex(false, @"Local\YariZan-DeviceKey-V2-" + lockId);
+        bool acquired;
+        try { acquired = mutex.WaitOne(TimeSpan.FromSeconds(15)); }
+        catch (AbandonedMutexException) { acquired = true; }
+        if (!acquired) throw new IOException("Device key is busy.");
+        try
         {
-            try { _key = Create(keyName, Platform); Assurance = "TPM"; return; }
-            catch (CryptographicException) { }
+            using var state = Registry.CurrentUser.CreateSubKey(ProviderRegistryPath);
+            string valueName = ProviderValueName(keyName);
+            string? recorded = state.GetValue(valueName) as string;
+            if (recorded is not null)
+            {
+                CngProvider provider = recorded switch
+                {
+                    "TPM" => Platform,
+                    "SOFTWARE" => CngProvider.MicrosoftSoftwareKeyStorageProvider,
+                    _ => throw new InvalidDataException("Unknown persisted key provider.")
+                };
+                // Once enrolled/created, provider loss is a recovery error, never key replacement.
+                _key = CngKey.Open(keyName, provider); Assurance = recorded; return;
+            }
+            if (CngKey.Exists(keyName, CngProvider.MicrosoftSoftwareKeyStorageProvider))
+            { _key = CngKey.Open(keyName, CngProvider.MicrosoftSoftwareKeyStorageProvider); Assurance = "SOFTWARE"; }
+            else
+            {
+                CngKey? platformKey = null;
+                if (preferTpm)
+                {
+                    // A TPM-less Windows provider can throw even during Exists, before Create.
+                    try { platformKey = CngKey.Exists(keyName, Platform) ? CngKey.Open(keyName, Platform) : Create(keyName, Platform); }
+                    catch (CryptographicException) { }
+                }
+                _key = platformKey ?? Create(keyName, CngProvider.MicrosoftSoftwareKeyStorageProvider);
+                Assurance = platformKey is null ? "SOFTWARE" : "TPM";
+            }
+            try { state.SetValue(valueName, Assurance, RegistryValueKind.String); state.Flush(); }
+            catch { _key.Dispose(); throw; }
         }
-        _key = Create(keyName, CngProvider.MicrosoftSoftwareKeyStorageProvider);
-        Assurance = "SOFTWARE";
+        finally { mutex.ReleaseMutex(); }
     }
 
     private static CngKey Create(string name, CngProvider provider)

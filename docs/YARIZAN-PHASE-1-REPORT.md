@@ -6,7 +6,7 @@ Date: 2026-10-14. Desktop foundations implemented on an isolated feature branch 
 
 - Branch: `feat/yarizan-v2-device-licensing`.
 - Base/latest main at mission start: `aef9bbc78d0a9a4357c3625f56b77ad037f672f7`.
-- The final SHA and PR URL are provided with the final handoff; a report cannot contain its own Git commit hash. Implementation/test revision before documentation: `eb6b980` plus the settled-screenshot follow-up.
+- The final SHA is provided with the final handoff; a report cannot contain its own Git commit hash. [Draft PR #1](https://github.com/osameh15/YariZan/pull/1) is review-only. Implementation/test revision before documentation: `eb6b980` plus the settled-screenshot and TPM-less runner follow-ups.
 - Commits: `2fbbb51` source review/plan; `1e288ae` core foundations; `4d1cf9f` WPF integration; `3b25596` authenticated recovery/key injection; `eb6b980` deterministic/Windows/HTTP/WPF tests; followed by settled-screenshot and artifact-profile/report commits. Use `git log --reverse aef9bbc..HEAD` for the authoritative complete list.
 - No main merge, release tag or deployment. PR is review-only. Existing licensing deployment workflow and its watched paths are untouched.
 
@@ -105,7 +105,7 @@ Environment: Windows NT `10.0.26300.0` x64, non-elevated Windows token; .NET SDK
 | Executed command | Exact final result |
 |---|---|
 | `dotnet build src/YariZan.sln -c Release -p:IncludeGameBundle=false -p:IncludeGameKey=false --no-restore --nologo` | Success, 0 warnings, 0 errors; four projects |
-| `.\tests\Run-V2Checks.ps1` | **116 passed, 0 failed** |
+| `.\tests\Run-V2Checks.ps1` | **117 passed, 0 failed** |
 | `.\tests\Run-AccessChecks.ps1` | **27 passed, 0 failed**; historical utilities only |
 | `.\tests\Run-LauncherChecks.ps1` | **8 passed, 0 failed**; invisible synthetic encrypted game |
 | `.\tests\Run-GradeChecks.ps1` | **5 reported acceptance groups passed, 0 failed**; invalid CLI exits intentionally exercised |
@@ -114,7 +114,9 @@ Environment: Windows NT `10.0.26300.0` x64, non-elevated Windows token; .NET SDK
 | `npx --yes @redocly/cli lint docs/YARIZAN-OPENAPI-V2.yaml` | Passed, 0 errors/warnings with CLI 2.63.0 |
 | `git diff --check` | Passed |
 
-Total final assertion/acceptance groups across suites: **192 passed, 0 failed**. OpenAPI/scanner/build are additional checks, not added to that assertion total. New suite reruns occurred only after substantive test/recovery/screenshot changes. Initial restore failed due to inherited malformed proxy settings; clearing HTTP_PROXY/HTTPS_PROXY/ALL_PROXY for the restore process allowed it to succeed. No machine proxy configuration was changed.
+Total final assertion/acceptance groups across suites: **193 passed, 0 failed**. OpenAPI/scanner/build are additional checks, not added to that assertion total. New suite reruns occurred only after substantive test/recovery/screenshot/provider changes. Initial restore failed due to inherited malformed proxy settings; clearing HTTP_PROXY/HTTPS_PROXY/ALL_PROXY for the restore process allowed it to succeed. No machine proxy configuration was changed.
+
+First PR CI run (Windows Server 2025 hosted VM) passed restore/build/scanner/legacy suites but stopped after 95 V2 passes in CNG setup; cleanup masked the original provider error. The implementation unnecessarily probed TPM even in a software-only creation path. Follow-up removes that dependency, handles TPM-less fresh creation, persists per-user provider choice so established-key loss fails closed, and avoids cleanup masking. Local rerun passes 117 checks; the final handoff records the subsequent remote CI result separately. This adds a recorded-provider/key-loss rejection test.
 
 Earlier development runs failed on harness compile errors, an uncaught invalid sync artifact, and a reflection-driven WPF game click lacking a dispatcher synchronization context. Those were corrected and the final run passed. The test snapshot explicitly settles page animation because off-screen HWNDs do not necessarily advance composition. No failure is hidden as a skipped test.
 

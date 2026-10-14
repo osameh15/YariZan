@@ -314,7 +314,13 @@ internal static class Program
             Check(reopened.ExportPublicKey().SequenceEqual(publicKey), "persisted software CNG key reopens unchanged");
             Check(ChildSucceeds("--child-key", name, Base64Url.Encode(publicKey)), "CNG software key persisted across OS processes for same Windows user");
         }
-        finally { using var raw = CngKey.Open(name, CngProvider.MicrosoftSoftwareKeyStorageProvider); raw.Delete(); }
+        finally
+        {
+            if (CngKey.Exists(name, CngProvider.MicrosoftSoftwareKeyStorageProvider))
+            { using var raw = CngKey.Open(name, CngProvider.MicrosoftSoftwareKeyStorageProvider); raw.Delete(); }
+            using var state = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(CngDeviceKeyStore.ProviderRegistryPath, writable: true);
+            state?.DeleteValue(CngDeviceKeyStore.ProviderValueName(name), throwOnMissingValue: false);
+        }
         using var user = System.Security.Principal.WindowsIdentity.GetCurrent();
         Console.WriteLine("EVIDENCE elevated administrator token: " + new System.Security.Principal.WindowsPrincipal(user).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator));
         string probeName = "YariZan.DisposableChecks." + Guid.NewGuid().ToString("N");
@@ -329,6 +335,9 @@ internal static class Program
         using var rawProbe = CngKey.Open(probeName, provider == "TPM" ? new CngProvider("Microsoft Platform Crypto Provider") : CngProvider.MicrosoftSoftwareKeyStorageProvider);
         Check(!rawProbe.IsMachineKey && Reject(() => rawProbe.Export(CngKeyBlobFormat.Pkcs8PrivateBlob)), "TPM-preferred key denies private export and unsafe machine scope");
         rawProbe.Delete();
+        Check(Reject(() => new CngDeviceKeyStore(probeName)), "recorded provider/key loss fails closed instead of generating replacement");
+        using var probeState = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(CngDeviceKeyStore.ProviderRegistryPath, writable: true);
+        probeState?.DeleteValue(CngDeviceKeyStore.ProviderValueName(probeName), throwOnMissingValue: false);
     }
 
     private static void HttpContractChecks(SigningFixture signing, IDeviceIdentity identity)
