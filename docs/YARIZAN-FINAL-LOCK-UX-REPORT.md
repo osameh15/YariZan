@@ -1,6 +1,6 @@
 # Final Lock screen UX and functional actions review
 
-Date: 2026-10-14. Branch `feat/yarizan-v2-device-licensing`; [Draft PR #1](https://github.com/osameh15/YariZan/pull/1). Reviewed/fetched starting HEAD `0d3575ef41c3072e448028e781a9a14a54aa81f0`, matching local. Main remains `aef9bbc78d0a9a4357c3625f56b77ad037f672f7`. Final commit SHA and final-HEAD CI run are provided in the handoff/PR; this file cannot contain its own commit hash.
+Date: 2026-10-15 (Asia/Tehran; local validation spanned October 14–15). Branch `feat/yarizan-v2-device-licensing`; [Draft PR #1](https://github.com/osameh15/YariZan/pull/1). Reviewed/fetched starting HEAD `0d3575ef41c3072e448028e781a9a14a54aa81f0`, matching local. Main remains `aef9bbc78d0a9a4357c3625f56b77ad037f672f7`. Commits: `adc84bf` source/tests/screenshots, `818ec2d` engineering report, followed by this verified CI evidence update. Final commit SHA and final-HEAD CI run are provided in the handoff/PR; this file cannot contain its own commit hash.
 
 This supersedes the presentation/action findings in the [activation report](YARIZAN-ACTIVATION-UX-REPORT.md). Earlier screenshots/test counts remain historical evidence. Server and Admin functionality in the [lifecycle contract](YARIZAN-ACTIVATION-AND-LIFECYCLE-V2.md) remains Backend-dependent.
 
@@ -92,7 +92,13 @@ Verified: selected-grade browser action for G1-G6 under test-only configuration,
 
 All prior device/enrollment/signature/revocation/recovery/trial/perpetual-offline and encrypted synthetic game/navigation/shutdown checks pass, including disposable .NET/Node signature interoperability. No real games, production keys or credentials used. Intermediate missing-IO import and initial wheel fixture without enough overflow were corrected before final successful runs; capped height and long feedback now exercise internal scrolling meaningfully.
 
-Actual local token: `TokenElevation.TokenIsElevated=0; AdministratorsGroupEnabled=False`. TPM-preferred selected **TPM**; forced software checks also pass. GitHub Actions must be reported from its own log; an elevated/software runner is not non-admin/TPM evidence. Final verified CI result/URL/counts/token are recorded in the handoff/PR after completion, not inferred from local results.
+Actual local token: `TokenElevation.TokenIsElevated=0; AdministratorsGroupEnabled=False`. TPM-preferred selected **TPM**; forced software checks also pass.
+
+## Verified GitHub Actions evidence
+
+[CI run 38632459580](https://github.com/osameh15/YariZan/actions/runs/38632459580) **passed** at `818ec2dc0383f729d53dca370e21cc713a881e88`, job `116087248134`. All five suites executed independently: **289 V2 + 27 Access + 8 Launcher + 5 Grade groups + 36 Book = 365 passed, 0 failed**. Build had zero warnings/errors; OpenAPI lint, public scanner and binary smoke check passed. Both actual OS clipboard checks executed successfully on the runner, not skipped. Modal keyboard focus/traversal/Escape/wheel/pending-request tests also executed there.
+
+Hosted Windows `10.0.26100.0`, runtime `9.0.21` under the .NET 9 workflow. Actual evidence: `TokenElevation.TokenIsElevated=1; AdministratorsGroupEnabled=True`; TPM-preferred selected **SOFTWARE**. This is elevated/software evidence, not non-admin/TPM evidence. The subsequent documentation-only evidence commit's final SHA/run is supplied in the handoff/PR. No local or physical acceptance result is inferred from CI.
 
 ## Backend dependencies, limitations and safety
 
