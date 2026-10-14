@@ -375,6 +375,14 @@ internal static class Program
         var lostRequest = server.LastRequest;
         Run(first.StartTrialAsync());
         Check(first.CanEnter && server.LastRequest == lostRequest && server.Used() == 1, "same nonce and process retry idempotent");
+        server.PendingPickup = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var upgrade = first.PickupLicenseAsync();
+        Check(first.CanEnter && first.State == DesktopAccessState.TrialStarted && !upgrade.IsCompleted,
+            "pending optional paid pickup cannot suspend an active trial");
+        server.PendingPickup.SetException(new HttpRequestException("Disconnected during optional upgrade"));
+        Check(RejectAsync(() => upgrade) && first.CanEnter && first.State == DesktopAccessState.TrialStarted,
+            "network failure during optional paid pickup preserves trial process access");
+        server.PendingPickup = null;
         int requests = server.StartRequests + server.StatusRequests;
         server.Offline = true;
         // Deterministic elapsed-time model; controller has no clock/expiry dependency.

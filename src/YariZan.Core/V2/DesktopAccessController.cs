@@ -157,7 +157,8 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
             linked.Token.ThrowIfCancellationRequested();
             if (IsPurchased) return;
             var enrollment = OnlineEnrollment();
-            State = DesktopAccessState.ActivationPending;
+            // An optional upgrade/recovery request must not suspend an already-started trial.
+            if (previous != DesktopAccessState.TrialStarted) State = DesktopAccessState.ActivationPending;
             if (LocalLicenseState == DesktopAccessState.Revoked && _license is { } revokedLicense)
             {
                 string recovery = await _client.SynchronizeAsync(revokedLicense, linked.Token);

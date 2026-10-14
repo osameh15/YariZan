@@ -129,6 +129,7 @@ internal static class BookChecks
 
     private static void SavePreview(UserControl page, string path)
     {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         page.Measure(new Size(1200, 740));
         page.Arrange(new Rect(0, 0, 1200, 740));
         page.UpdateLayout();

@@ -45,6 +45,8 @@ Two simulated profiles with independent keys/stores, independently signed certif
 | `tests/V2Checks/Fixtures.cs` | Independently supplied test enrollments and disposable signed certificates |
 | `tests/V2Checks/Program.cs` | UUID/certificate/profile/release CLI/MSBuild/publish/installer negatives and actual token evidence |
 | `tests/Run-V2Checks.ps1` | Build real validator before integration checks |
+| `tests/BookChecks.cs` | Create render artifact directory on clean runners instead of assuming publish already exists |
+| `tests/Run-BookChecks.ps1` | Optional isolated PreviewDirectory enables clean-output regression; default output preserved |
 | `.github/workflows/ci.yml` | Independent synthetic book suite |
 | `docs/adr/0004-phase-1-desktop-artifact-profile.md` | Binding/profile/release/evidence decisions and remaining blockers |
 | `docs/YARIZAN-API-CONTRACTS-V2.md` | Independent enrollment and same-machine profile association contract |
@@ -60,7 +62,7 @@ Windows `10.0.26300.0` x64; .NET SDK `10.0.401`, runtime `9.0.20`; Node `24.20.0
 ```
 EVIDENCE TokenElevation.TokenIsElevated=0; AdministratorsGroupEnabled=False
 EVIDENCE TPM-preferred provider selected: TPM
-RESULT 150 passed; 0 failed. Windows Microsoft Windows NT 10.0.26300.0; .NET 9.0.20
+RESULT 152 passed; 0 failed. Windows Microsoft Windows NT 10.0.26300.0; .NET 9.0.20
 ```
 
 The same non-elevated local process successfully created/signed/reopened TPM-preferred and forced software keys (including child-process persistence/private-export refusal), and rejected established key loss. It is valid non-elevated operation evidence on this machine, not a statement about the hosted CI token or another Windows account.
@@ -68,7 +70,7 @@ The same non-elevated local process successfully created/signed/reopened TPM-pre
 | Executed command | Result |
 |---|---|
 | `dotnet build src/YariZan.sln -c Release -p:IncludeGameBundle=false -p:IncludeGameKey=false --nologo` | Five projects built; 0 warnings/errors |
-| `.\tests\Run-V2Checks.ps1` | **150 passed, 0 failed**; includes release policy/CLI/MSBuild/publish/installer tests and signed profile enrollment |
+| `.\tests\Run-V2Checks.ps1` | **152 passed, 0 failed**; includes release policy/CLI/MSBuild/publish/installer tests, signed profile enrollment and active-trial optional-upgrade preservation |
 | `.\tests\Run-AccessChecks.ps1` | **27 passed, 0 failed** |
 | `.\tests\Run-LauncherChecks.ps1` | **8 passed, 0 failed** |
 | `.\tests\Run-GradeChecks.ps1` | **5 acceptance groups passed, 0 failed**; invalid-selection exits intentional |
@@ -77,7 +79,9 @@ The same non-elevated local process successfully created/signed/reopened TPM-pre
 | `py tools/Check-PublicRepository.py` | Pass |
 | `git diff --check` | Pass |
 
-Total local assertions/groups: **226 passed, 0 failed**. Expected commercial gate failures are passing negative checks, not successful commercial builds. V2 additionally executes the real CLI with missing/unapproved/private inputs, actual CommercialRelease MSBuild and ordinary publish refusal, explicit fixture publish success, conflicting fixture/commercial refusal, and installer preflight refusal before packing. The reviewed root list is empty and secure production activation integration is absent, so no commercial installer is produced or claimed verified. Disposable private material used by a negative validator test is never embedded, printed, committed or used as a release root.
+Total local assertions/groups: **228 passed, 0 failed**. Expected commercial gate failures are passing negative checks, not successful commercial builds. V2 additionally executes the real CLI with missing/unapproved/private inputs, actual CommercialRelease MSBuild and ordinary publish refusal, explicit fixture publish success, conflicting fixture/commercial refusal, and installer preflight refusal before packing. The reviewed root list is empty and secure production activation integration is absent, so no commercial installer is produced or claimed verified. Disposable private material used by a negative validator test is never embedded, printed, committed or used as a release root.
+
+The first follow-up CI run passed build and existing access/launcher/packing suites, then reached the book rendering check and failed because a fresh checkout had no publish artifact directory. SavePreview now creates its parent directory; an isolated previously nonexistent output-directory run validates this fix. Later V2 contract audit also fixed optional paid pickup temporarily suspending an already-started trial; pending/failing upgrade tests now preserve process access. Current CI result is supplied separately in the handoff.
 
 ### Local versus CI versus physical evidence
 

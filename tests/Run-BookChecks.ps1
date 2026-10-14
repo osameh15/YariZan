@@ -1,3 +1,4 @@
+param([string]$PreviewDirectory)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $testDir = Join-Path ([IO.Path]::GetTempPath()) ('YariZan-book-' + [Guid]::NewGuid().ToString('N'))
@@ -13,7 +14,8 @@ Set-Content -Encoding UTF8 (Join-Path $testDir 'Checks.csproj') @"
   <ItemGroup><ProjectReference Include="$projectPath" /></ItemGroup>
 </Project>
 "@
-$preview = Join-Path $repo 'publish/book-preview.png'
+if ([string]::IsNullOrWhiteSpace($PreviewDirectory)) { $PreviewDirectory = Join-Path $repo 'publish' }
+$preview = Join-Path $PreviewDirectory 'book-preview.png'
 # Synthetic portrait: public-checkout runnable, no private game artwork required.
 Add-Type -AssemblyName System.Drawing
 $portrait = Join-Path $testDir 'portrait.jpg'

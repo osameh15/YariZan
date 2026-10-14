@@ -78,6 +78,7 @@ internal sealed class FakeServer(SigningFixture signing, IDeviceIdentity identit
     public string? SyncResponse;
     public string? PickupResponse;
     public TaskCompletionSource<string>? PendingSync;
+    public TaskCompletionSource<string>? PendingPickup;
     public TrialStartRequest? LastRequest;
     public int Used(string sku = "YARIZAN-G1") { lock (_transaction) return _used.GetValueOrDefault((DeviceId!, sku)); }
     private void Network(CancellationToken cancellation) { cancellation.ThrowIfCancellationRequested(); if (Offline) throw new HttpRequestException("Test network disconnected"); }
@@ -110,5 +111,5 @@ internal sealed class FakeServer(SigningFixture signing, IDeviceIdentity identit
     public Task<string> SynchronizeAsync(PaidLicense license, CancellationToken cancellation)
     { Interlocked.Increment(ref SyncRequests); Network(cancellation); return PendingSync?.Task.WaitAsync(cancellation) ?? Task.FromResult(SyncResponse ?? signing.Decision(identity, 1, "ACTIVE")); }
     public Task<string> PickupAsync(Product product, CancellationToken cancellation)
-    { Interlocked.Increment(ref PickupRequests); Network(cancellation); return Task.FromResult(PickupResponse ?? signing.License(identity, product.Grade)); }
+    { Interlocked.Increment(ref PickupRequests); Network(cancellation); return PendingPickup?.Task.WaitAsync(cancellation) ?? Task.FromResult(PickupResponse ?? signing.License(identity, product.Grade)); }
 }
