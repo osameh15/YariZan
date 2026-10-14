@@ -22,7 +22,8 @@ public sealed record TrialStartResponse(string Grant, int Remaining, string Serv
 
 public interface ILicenseVerifier
 {
-    PaidLicense VerifyLicense(string envelope, IDeviceIdentity device, Product product);
+    PaidLicense VerifyLicense(string envelope, IDeviceIdentity device, Product product, DeviceEnrollment enrollment);
+    DeviceEnrollment VerifyEnrollment(string envelope, IDeviceIdentity device, string deviceKeyDigest);
     LicenseDecision VerifyDecision(string envelope, PaidLicense license);
     void VerifyTrial(string envelope, TrialStartRequest request, Product product);
 }
@@ -33,6 +34,7 @@ public sealed class SignedArtifactVerifier(IReadOnlyDictionary<string, string> p
     public const string LicenseDomain = "YariZan-License-V2\n";
     public const string TrialDomain = "YariZan-Trial-Start-V2\n";
     public const string DecisionDomain = "YariZan-License-Decision-V2\n";
+    public const string EnrollmentDomain = "YariZan-Device-Enrollment-V2\n";
 
     private JsonElement Verify(string envelope, string domain, string format, params string[] claims)
     {
@@ -49,6 +51,7 @@ public sealed class SignedArtifactVerifier(IReadOnlyDictionary<string, string> p
         byte[] signature = Base64Url.Decode(Text(root, "signature"));
         if (signature.Length != 64) throw new InvalidDataException("Signature must be P1363 P-256.");
         using var ec = ECDsa.Create();
+        _ = CommercialReleasePolicy.PublicKeyFingerprint(pem);
         ec.ImportFromPem(pem);
         if (ec.KeySize != 256 || ec.ExportParameters(false).Curve.Oid.Value != "1.2.840.10045.3.1.7")
             throw new InvalidDataException("Signing key must use P-256.");
@@ -58,11 +61,14 @@ public sealed class SignedArtifactVerifier(IReadOnlyDictionary<string, string> p
         return payload.Clone();
     }
 
-    public PaidLicense VerifyLicense(string envelope, IDeviceIdentity device, Product product)
+    public PaidLicense VerifyLicense(string envelope, IDeviceIdentity device, Product product, DeviceEnrollment enrollment)
     {
         var p = Verify(envelope, LicenseDomain, "YARIZAN-LICENSE-V2", "license_id", "customer_id", "device_id",
             "sku", "grade", "device_fingerprint_version", "device_fingerprint_digest", "expires_at", "license_revision");
-        if (!device.IsAvailable || Number(p, "grade") != product.Grade || Text(p, "sku") != product.Sku
+        if (enrollment is null) throw new EnrollmentRequiredException();
+        if (!device.IsAvailable || Id(p, "device_id") != enrollment.DeviceId
+            || enrollment.FingerprintVersion != device.FingerprintVersion || enrollment.FingerprintDigest != device.FingerprintDigest
+            || Number(p, "grade") != product.Grade || Text(p, "sku") != product.Sku
             || Number(p, "device_fingerprint_version") != device.FingerprintVersion
             || Text(p, "device_fingerprint_digest") != device.FingerprintDigest
             || !HexDigest(Text(p, "device_fingerprint_digest")) || p.GetProperty("expires_at").ValueKind != JsonValueKind.Null)
@@ -70,6 +76,18 @@ public sealed class SignedArtifactVerifier(IReadOnlyDictionary<string, string> p
         long revision = Positive(p, "license_revision");
         return new(Id(p, "license_id"), Id(p, "customer_id"), Id(p, "device_id"), product.Sku, product.Grade,
             device.FingerprintVersion, device.FingerprintDigest, revision);
+    }
+
+    public DeviceEnrollment VerifyEnrollment(string envelope, IDeviceIdentity device, string deviceKeyDigest)
+    {
+        var p = Verify(envelope, EnrollmentDomain, "YARIZAN-DEVICE-ENROLLMENT-V2", "device_id",
+            "device_fingerprint_version", "device_fingerprint_digest", "device_key_digest", "profile_enrollment_id");
+        if (!device.IsAvailable || Number(p, "device_fingerprint_version") != device.FingerprintVersion
+            || Text(p, "device_fingerprint_digest") != device.FingerprintDigest
+            || !HexDigest(deviceKeyDigest) || Text(p, "device_key_digest") != deviceKeyDigest)
+            throw new InvalidDataException("Enrollment device/profile-key binding mismatch.");
+        return new(Id(p, "device_id"), device.FingerprintVersion, device.FingerprintDigest,
+            deviceKeyDigest, Id(p, "profile_enrollment_id"));
     }
 
     public LicenseDecision VerifyDecision(string envelope, PaidLicense license)

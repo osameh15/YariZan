@@ -32,7 +32,7 @@ public sealed class FileLicenseStore : ILicenseStore
         return new FileStream(PathFor(product, "lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
     }
 
-    private static StoreRead Read(string path)
+    internal static StoreRead Read(string path)
     {
         try
         {
@@ -50,7 +50,7 @@ public sealed class FileLicenseStore : ILicenseStore
         { return new(StoreReadStatus.Corrupt); }
     }
 
-    private static void Write(string path, string envelope)
+    internal static void Write(string path, string envelope)
     {
         using var validated = StrictJson.Parse(envelope);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);

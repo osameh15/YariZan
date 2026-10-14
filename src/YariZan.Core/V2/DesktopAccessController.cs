@@ -39,6 +39,8 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
     private readonly ILicenseVerifier _verifier;
     private readonly ILicenseStore _store;
     private readonly IDesktopV2Client _client;
+    private readonly ILocalDeviceEnrollmentProvider _enrollmentProvider;
+    private DeviceEnrollment? _enrollment;
     private readonly SemaphoreSlim _operation = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly string _processId = Guid.NewGuid().ToString("D");
@@ -54,9 +56,10 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
     public bool CanEnter => !_closed && State is DesktopAccessState.Purchased or DesktopAccessState.TrialStarted;
 
     public DesktopAccessController(IDeviceIdentity device, Product product, ILicenseVerifier verifier,
-        ILicenseStore store, IDesktopV2Client client)
+        ILicenseStore store, IDesktopV2Client client, ILocalDeviceEnrollmentProvider? enrollmentProvider = null)
     {
         _device = device; _product = product; _verifier = verifier; _store = store; _client = client;
+        _enrollmentProvider = enrollmentProvider ?? new UnprovisionedDeviceEnrollment();
         ReadLocalAccess();
     }
 
@@ -67,7 +70,7 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
             var saved = _store.ReadLicense(_product);
             if (saved.Status == StoreReadStatus.Missing) return;
             if (saved.Status != StoreReadStatus.Present) throw new InvalidDataException("Corrupt license storage.");
-            _license = _verifier.VerifyLicense(saved.Envelope!, _device, _product);
+            _license = _verifier.VerifyLicense(saved.Envelope!, _device, _product, Enrollment());
             var decision = _store.ReadDecision(_product);
             if (decision.Status == StoreReadStatus.Corrupt) throw new InvalidDataException("Corrupt decision storage.");
             State = DesktopAccessState.Purchased;
@@ -81,8 +84,17 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
                 else throw new InvalidDataException("License recovery requires authenticated decision replacement.");
             }
         }
+        catch (EnrollmentRequiredException) { State = DesktopAccessState.EnrollmentRequired; LastError = "LOCAL_ENROLLMENT_REQUIRED"; }
         catch (Exception ex) when (IsSafeFailure(ex)) { State = DesktopAccessState.InvalidLicense; LastError = "INVALID_LOCAL_ARTIFACT"; }
         LocalLicenseState = State;
+    }
+
+    private DeviceEnrollment Enrollment() => _enrollment ??= _enrollmentProvider.ReadVerifiedIdentity() ?? throw new EnrollmentRequiredException();
+    private DeviceEnrollment OnlineEnrollment()
+    {
+        var enrollment = Enrollment();
+        if (_client.DeviceId != enrollment.DeviceId) throw new EnrollmentRequiredException();
+        return enrollment;
     }
 
     private static string? DecisionLicenseId(string envelope)
@@ -95,6 +107,7 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
         try
         {
             if (CanEnter || _closed) return;
+            OnlineEnrollment();
             int remaining = await _client.GetTrialStatusAsync(_product, linked.Token);
             linked.Token.ThrowIfCancellationRequested();
             if (remaining is < 0 or > 2) throw new InvalidDataException("Invalid trial count.");
@@ -116,8 +129,9 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
         {
             if (CanEnter) return;
             linked.Token.ThrowIfCancellationRequested();
-            if (!_device.IsAvailable || _client.DeviceId is not { } deviceId) throw new EnrollmentRequiredException();
-            var request = new TrialStartRequest(deviceId, _product.Sku, _nonce, _processId);
+            var enrollment = OnlineEnrollment();
+            if (!_device.IsAvailable) throw new EnrollmentRequiredException();
+            var request = new TrialStartRequest(enrollment.DeviceId, _product.Sku, _nonce, _processId);
             var response = await _client.StartTrialAsync(request, linked.Token);
             linked.Token.ThrowIfCancellationRequested();
             if (response.Remaining is < 0 or > 1) throw new InvalidDataException("Invalid trial remaining count.");
@@ -142,6 +156,7 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
         {
             linked.Token.ThrowIfCancellationRequested();
             if (IsPurchased) return;
+            var enrollment = OnlineEnrollment();
             State = DesktopAccessState.ActivationPending;
             if (LocalLicenseState == DesktopAccessState.Revoked && _license is { } revokedLicense)
             {
@@ -155,7 +170,7 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
             }
             string envelope = await _client.PickupAsync(_product, linked.Token);
             linked.Token.ThrowIfCancellationRequested();
-            var license = _verifier.VerifyLicense(envelope, _device, _product);
+            var license = _verifier.VerifyLicense(envelope, _device, _product, enrollment);
             if (_client.DeviceId != license.DeviceId) throw new InvalidDataException("Pickup device ID mismatch.");
             using (_store.AcquireWriteLock(_product))
             {
@@ -199,7 +214,7 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
         using (_store.AcquireWriteLock(_product))
         {
             var currentLicense = _store.ReadLicense(_product);
-            if (currentLicense.Status != StoreReadStatus.Present || _verifier.VerifyLicense(currentLicense.Envelope!, _device, _product).LicenseId != license.LicenseId) return false;
+            if (currentLicense.Status != StoreReadStatus.Present || _verifier.VerifyLicense(currentLicense.Envelope!, _device, _product, Enrollment()).LicenseId != license.LicenseId) return false;
             var saved = _store.ReadDecision(_product);
             if (saved.Status == StoreReadStatus.Corrupt) throw new InvalidDataException("Corrupt decision.");
             if (saved.Status == StoreReadStatus.Present && _verifier.VerifyDecision(saved.Envelope!, license).Version >= decision.Version) return false;

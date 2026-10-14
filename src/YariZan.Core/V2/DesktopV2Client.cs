@@ -26,7 +26,7 @@ public sealed class V2ApiException(string code, HttpStatusCode? status = null) :
 public sealed record DeviceChallenge(string ChallengeId, string Nonce, string ExpiresAt);
 public sealed record DeviceRegistrationRequest(int FingerprintVersion, string FingerprintDigest,
     string DevicePublicKey, string ChallengeId, string ChallengeSignature);
-public sealed record RegisteredDevice(string DeviceId, string Username);
+public sealed record RegisteredDevice(string DeviceId, string Username, string SignedEnrollment);
 public interface IDeviceRegistrationClient
 {
     Task<DeviceChallenge> ChallengeAsync(IDeviceIdentity device, string publicKey, CancellationToken cancellation);

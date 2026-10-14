@@ -20,10 +20,15 @@ public static class DesktopAccessFactory
         {
             using var stream = assembly.GetManifestResourceStream(resource)!;
             using var reader = new StreamReader(stream);
-            using var json = StrictJson.Parse(reader.ReadToEnd());
-            foreach (var entry in json.RootElement.EnumerateObject()) keys.Add(entry.Name, entry.Value.GetString()!);
+            foreach (var entry in CommercialReleasePolicy.ReadPublicRoots(reader.ReadToEnd())) keys.Add(entry.Key, entry.Value);
         }
-        return new(identity, new Product(grade), new SignedArtifactVerifier(keys), new FileLicenseStore(),
-            new DesktopV2Client(Http, new UnprovisionedDeviceCredentials()));
+        var verifier = new SignedArtifactVerifier(keys);
+        var enrollment = new VerifiedLocalDeviceEnrollmentProvider(new FileDeviceEnrollmentStore(), verifier, identity, () =>
+        {
+            using var deviceKey = new CngDeviceKeyStore();
+            return deviceKey.ExportPublicKey();
+        });
+        return new(identity, new Product(grade), verifier, new FileLicenseStore(),
+            new DesktopV2Client(Http, new UnprovisionedDeviceCredentials()), enrollment);
     }
 }
