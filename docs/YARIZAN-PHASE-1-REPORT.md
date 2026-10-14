@@ -1,5 +1,7 @@
 # YariZan V2 — Phase 1 engineering report
 
+Latest desktop UX follow-up: [Final Lock UX report](YARIZAN-FINAL-LOCK-UX-REPORT.md).
+
 Current follow-on mission: [Activation UX/manual codes/account lifecycle report](YARIZAN-ACTIVATION-UX-REPORT.md), with its own exact test results, screenshots and Backend-dependent requirement matrix. Earlier sections below retain historical Phase 1/review evidence.
 
 Date: 2026-10-14. Desktop foundations implemented on an isolated feature branch for independent review. **Phase 1's complete release/acceptance gate is not met:** real backend enrollment/issuance and production public trust roots are blocked, and real disconnected endurance/reboot/multiple-account/installer validation remains unexecuted.

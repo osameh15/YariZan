@@ -1,5 +1,7 @@
 # YariZan V2 activation UX, manual codes and account lifecycle report
 
+Latest presentation/actions follow-up: [Final Lock UX report](YARIZAN-FINAL-LOCK-UX-REPORT.md), including functional purchase/support dialogs, modal code entry, current screenshots and exact test results. This report's inline-form/support-guidance descriptions and earlier counts are historical.
+
 Date: 2026-10-14. Branch: `feat/yarizan-v2-device-licensing`. Review-only [Draft PR #1](https://github.com/osameh15/YariZan/pull/1); no merge or deployment.
 
 This is the current mission report. The [Phase 1 report](YARIZAN-PHASE-1-REPORT.md) retains earlier implementation/review evidence. Production activation and Admin lifecycle operations remain **Blocked by Backend**; the commercial-release gate stays closed.
