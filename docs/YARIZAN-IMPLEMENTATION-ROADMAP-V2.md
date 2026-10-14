@@ -2,6 +2,10 @@
 
 > **Status:** Planned. Approved product requirements, unimplemented target engineering work. See [Technical specification](YARIZAN-TECHNICAL-SPEC-V2.md), [Data model](YARIZAN-DATA-MODEL-V2.md), and [API contracts](YARIZAN-API-CONTRACTS-V2.md).
 
+## Phase 0 design handoff state (2026-10-14)
+
+The [Phase 0 baseline](YARIZAN-PHASE-0-BASELINE.md), [ADR records](adr/0001-device-identity-and-account-claim.md), [security threat model](YARIZAN-THREAT-MODEL-V2.md), [design OpenAPI](YARIZAN-OPENAPI-V2.yaml) and [Phase 1 agent brief](YARIZAN-PHASE-1-AGENT-BRIEF.md) have been drafted and committed as **documentation only**. This does **not** claim OpenAPI lint, Windows hardware verification, deterministic cross-language crypto test vectors, backup/restore, CI execution or any V2 code completion. Phase 1 agent must close tests applicable to its desktop work; production readiness gates remain in force.
+
 ## 1. Baseline and no-go rules
 
 Baseline as inspected 2026-10-14: `main` commit `12e6553fc6748c2a5bb551dc887957f11e3098c3` has Windows WPF/.NET 9, PHP/MySQL online-only licensing, current per-HWID paid serial, two shared-HWID trial entries, grade-specific packages, packaging/launcher tests and existing GitHub Release 1.1.0. That binary was not commercially launched. **No V2 features have been built or tested by approving this roadmap or committing these documents.**

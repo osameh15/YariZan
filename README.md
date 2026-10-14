@@ -57,6 +57,14 @@ Regenerate the images with `powershell -NoProfile -ExecutionPolicy Bypass -File 
 
 Commercial YariZan V2 will use a Nuxt 4 storefront/customer/Admin portal, NestJS/PostgreSQL backend, per-device common customer username, six independent grade entitlements, ZarinPal checkout, discount campaigns, and **per-product perpetual offline paid licenses**. Two trial entries **per device and grade** require internet **only to start each trial process session**; once entered, an open trial process continues without internet or a heartbeat. Password-based onboarding uses confirmed device pairing; MeliPayamak is planned for a later reset-link stage. **No V2 code, database, or deployment has been shipped.** Refer to the [V2 specification](docs/YARIZAN-TECHNICAL-SPEC-V2.md), [data model](docs/YARIZAN-DATA-MODEL-V2.md), [API contracts](docs/YARIZAN-API-CONTRACTS-V2.md), and [roadmap](docs/YARIZAN-IMPLEMENTATION-ROADMAP-V2.md).
 
+### Phase 0 security and implementation handoff (design baseline; untested)
+
+- [Phase 0 baseline and readiness gates](docs/YARIZAN-PHASE-0-BASELINE.md)
+- [Architecture decisions — device, license/trial, commerce](docs/adr/0001-device-identity-and-account-claim.md)
+- [Threat model and security acceptance](docs/YARIZAN-THREAT-MODEL-V2.md)
+- [Machine-readable design OpenAPI](docs/YARIZAN-OPENAPI-V2.yaml)
+- [Phase 1 desktop implementation agent brief](docs/YARIZAN-PHASE-1-AGENT-BRIEF.md)
+
 ## Current access policy (legacy 1.1.0 code only)
 
 The cover appears first on every launch. Opening the book requires internet: the app validates the saved paid serial or shows the activation/trial screen. New devices register their HWID and PC name with two trial entries; viewing status does not consume an entry. Only pressing the trial entry button consumes one.
@@ -125,6 +133,10 @@ The current serial can reactivate after an OS reinstall only if the HWID matches
 
 | Guide | Contents |
 |---|---|
+| [Phase 0 baseline](docs/YARIZAN-PHASE-0-BASELINE.md) | ADRs, threat model, verification gates; not runtime-tested |
+| [Phase 1 implementation brief](docs/YARIZAN-PHASE-1-AGENT-BRIEF.md) | Reviewable desktop-only agent scope |
+| [V2 design OpenAPI](docs/YARIZAN-OPENAPI-V2.yaml) | Pre-implementation API schema baseline, needs lint |
+| [V2 threat model](docs/YARIZAN-THREAT-MODEL-V2.md) | Assets, attack boundaries, expected tests |
 | [V2 commercial specification](docs/YARIZAN-TECHNICAL-SPEC-V2.md) | Approved target behavior; **not yet implemented** |
 | [V2 database model](docs/YARIZAN-DATA-MODEL-V2.md) | PostgreSQL entities and concurrency invariants |
 | [V2 HTTP contracts](docs/YARIZAN-API-CONTRACTS-V2.md) | API, offline license and trial contracts |

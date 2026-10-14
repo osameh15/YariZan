@@ -1,0 +1,453 @@
+openapi: 3.1.0
+info:
+  title: YariZan V2 Design API
+  version: 0.1.0-design
+  description: >-
+    Architecture baseline for the future NestJS V2 service, NOT a deployed API.
+    Browser sessions are HttpOnly; desktop endpoints require enrolled device
+    challenge proof. See companion API-contract markdown for complete invariants.
+servers:
+  - url: https://yarizan.oarnova.games/api/v2
+    description: Future production target (not live)
+tags:
+  - name: Catalog
+  - name: Identity
+  - name: Trial
+  - name: Licensing
+  - name: Orders
+  - name: Admin
+paths:
+  /products:
+    get:
+      tags: [Catalog]
+      summary: List six catalog products
+      operationId: listProducts
+      responses:
+        '200':
+          description: Catalog including coming-soon grades
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+  /devices/challenges:
+    post:
+      tags: [Identity]
+      summary: Create a short-lived device-key challenge
+      operationId: createDeviceChallenge
+      responses:
+        '201':
+          description: Challenge issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceChallenge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /devices/register:
+    post:
+      tags: [Identity]
+      summary: Register or recover device only after proof verification
+      operationId: registerDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceRequest'
+      responses:
+        '200':
+          description: Stable existing device account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevicePublicIdentity'
+        '201':
+          description: New, unclaimed device record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevicePublicIdentity'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /device-pairings:
+    post:
+      tags: [Identity]
+      summary: Start one-use desktop-to-browser pairing with device proof
+      operationId: createPairing
+      security: [{ deviceProof: [] }]
+      responses:
+        '201':
+          description: One-time pairing details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pairing'
+  /device-pairings/{pairingId}:
+    get:
+      tags: [Identity]
+      summary: Poll pairing status from verified desktop
+      operationId: getPairingStatus
+      security: [{ deviceProof: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PairingId'
+      responses:
+        '200':
+          description: Pairing state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingStatus'
+  /auth/claim:
+    post:
+      tags: [Identity]
+      summary: Claim account and set initial password following pairing
+      operationId: claimAccount
+      security: [{ pairingClaimTicket: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pairing_id, password]
+              properties:
+                pairing_id:
+                  type: string
+                  format: uuid
+                password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                  writeOnly: true
+      responses:
+        '200':
+          description: Account claimed, sessions rotated
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /desktop/trials/{sku}/status:
+    get:
+      tags: [Trial]
+      summary: Get remaining trial entries without consuming
+      operationId: getTrialStatus
+      security: [{ deviceProof: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ProductSku'
+      responses:
+        '200':
+          description: Remaining starts (0..2)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrialStatus'
+  /desktop/trials/{sku}/start:
+    post:
+      tags: [Trial]
+      summary: Explicitly consume one grade-specific trial entry
+      description: >-
+        Grant enables the current application process to continue offline without
+        any heartbeat until full process exit. Duplicate nonce returns same grant.
+      operationId: startTrial
+      security: [{ deviceProof: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ProductSku'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrialStartRequest'
+      responses:
+        '200':
+          description: Trial start grant or idempotent retry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrialStartResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /desktop/licenses/pickup:
+    post:
+      tags: [Licensing]
+      summary: Pick up purchased signed grade/device license
+      operationId: pickupLicense
+      security: [{ deviceProof: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku]
+              properties:
+                sku:
+                  $ref: '#/components/schemas/Sku'
+      responses:
+        '200':
+          description: Signed perpetual license
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedArtifact'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /desktop/licenses/sync:
+    post:
+      tags: [Licensing]
+      summary: Best-effort paid sync, never required for offline local launch
+      operationId: syncLicense
+      security: [{ deviceProof: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [license_id, sku]
+              properties:
+                license_id: {type: string}
+                sku: {$ref: '#/components/schemas/Sku'}
+      responses:
+        '200':
+          description: Signed state with monotonic decision version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedArtifact'
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Create order using server-side prices and coupon logic
+      operationId: createOrder
+      security: [{ customerSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order with immutable money snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Get only own order state
+      operationId: getOrder
+      security: [{ customerSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Customer-owned order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /orders/{orderId}/payment-attempts:
+    post:
+      tags: [Orders]
+      summary: Create payment attempt with authoritative order total
+      operationId: createPaymentAttempt
+      security: [{ customerSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: External gateway redirect details
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [payment_attempt_id, redirect_url]
+                properties:
+                  payment_attempt_id: {type: string, format: uuid}
+                  redirect_url: {type: string, format: uri}
+  /admin/products/{productId}:
+    patch:
+      tags: [Admin]
+      summary: Update future catalog price or availability under RBAC
+      operationId: updateProduct
+      security: [{ adminSession: [] }]
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sale_enabled: {type: boolean}
+                activation_enabled: {type: boolean}
+                price_irr: {type: integer, minimum: 0}
+      responses:
+        '200':
+          description: Updated product
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  securitySchemes:
+    pairingClaimTicket:
+      type: http
+      scheme: bearer
+      bearerFormat: OneTimePairingClaimTicket
+      description: One-time short-lived claim ticket issued only after confirmed device/browser pairing, not a pre-existing customer session.
+    deviceProof:
+      type: http
+      scheme: bearer
+      bearerFormat: DeviceChallengeProof
+      description: >-
+        Placeholder architecture scheme; actual short-lived signed challenge
+        protocol must be defined in security ADR before code generation.
+    customerSession:
+      type: apiKey
+      in: cookie
+      name: yarizan_customer
+    adminSession:
+      type: apiKey
+      in: cookie
+      name: yarizan_admin
+  parameters:
+    ProductSku:
+      name: sku
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Sku'}
+    PairingId:
+      name: pairingId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 16, maxLength: 128}
+  schemas:
+    Sku:
+      type: string
+      enum: [YARIZAN-G1, YARIZAN-G2, YARIZAN-G3, YARIZAN-G4, YARIZAN-G5, YARIZAN-G6]
+    Product:
+      type: object
+      required: [sku, grade, title_fa, price_irr, publication_status, sale_enabled, activation_enabled]
+      properties:
+        sku: {$ref: '#/components/schemas/Sku'}
+        grade: {type: integer, minimum: 1, maximum: 6}
+        title_fa: {type: string}
+        price_irr: {type: integer, minimum: 0}
+        publication_status: {type: string, enum: [published, coming_soon, archived]}
+        sale_enabled: {type: boolean}
+        activation_enabled: {type: boolean}
+    DeviceChallenge:
+      type: object
+      required: [challenge_id, nonce, expires_at]
+      properties:
+        challenge_id: {type: string}
+        nonce: {type: string}
+        expires_at: {type: string, format: date-time}
+    RegisterDeviceRequest:
+      type: object
+      required: [fingerprint_version, fingerprint_digest, device_public_key, challenge_id, challenge_signature]
+      properties:
+        fingerprint_version: {type: integer, const: 2}
+        fingerprint_digest: {type: string, pattern: '^[A-F0-9]{64}$'}
+        device_public_key: {type: string}
+        challenge_id: {type: string}
+        challenge_signature: {type: string}
+    DevicePublicIdentity:
+      type: object
+      required: [device_id, username]
+      properties:
+        device_id: {type: string, format: uuid}
+        username: {type: string}
+    Pairing:
+      type: object
+      required: [pairing_id, user_code, connect_url, expires_at]
+      properties:
+        pairing_id: {type: string, format: uuid}
+        user_code: {type: string}
+        connect_url: {type: string, format: uri}
+        expires_at: {type: string, format: date-time}
+    PairingStatus:
+      type: object
+      required: [pairing_id, status]
+      properties:
+        pairing_id: {type: string, format: uuid}
+        status: {type: string, enum: [pending, confirmed, expired, cancelled]}
+    TrialStatus:
+      type: object
+      required: [remaining]
+      properties:
+        remaining: {type: integer, minimum: 0, maximum: 2}
+    TrialStartRequest:
+      type: object
+      required: [device_id, client_nonce, client_process_session_id]
+      properties:
+        device_id: {type: string, format: uuid}
+        client_nonce: {type: string, pattern: '^[A-F0-9]{64}$'}
+        client_process_session_id: {type: string}
+    TrialStartResponse:
+      type: object
+      required: [grant, remaining, server_time]
+      properties:
+        grant: {$ref: '#/components/schemas/SignedArtifact'}
+        remaining: {type: integer, minimum: 0, maximum: 1}
+        server_time: {type: string, format: date-time}
+    SignedArtifact:
+      type: object
+      required: [payload, signature, algorithm]
+      properties:
+        algorithm: {type: string, const: ES256-P1363}
+        payload:
+          type: object
+          additionalProperties: true
+        signature: {type: string}
+    CreateOrderRequest:
+      type: object
+      required: [sku, device_id]
+      properties:
+        sku: {$ref: '#/components/schemas/Sku'}
+        device_id: {type: string, format: uuid}
+        coupon_code: {type: string}
+    Order:
+      type: object
+      required: [id, sku, status, currency, subtotal_irr, discount_irr, total_irr]
+      properties:
+        id: {type: string, format: uuid}
+        sku: {$ref: '#/components/schemas/Sku'}
+        status: {type: string, enum: [PENDING, PAID, FULFILLMENT_PENDING, FULFILLED, FAILED, CANCELLED, REFUNDED]}
+        currency: {type: string, const: IRR}
+        subtotal_irr: {type: integer, minimum: 0}
+        discount_irr: {type: integer, minimum: 0}
+        total_irr: {type: integer, minimum: 0}
+  responses:
+    Forbidden:
+      description: Insufficient privilege, device blocked or activation not available
+    Conflict:
+      description: Operation conflicts with current state or key reuse
+    RateLimited:
+      description: Rate limited
+      headers:
+        Retry-After:
+          schema: {type: integer}
