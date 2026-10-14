@@ -1,5 +1,7 @@
 # UI flow
 
+> Feature branch desktop behavior and evidence: [Phase 1 report](YARIZAN-PHASE-1-REPORT.md). The remaining sections below describe the legacy release.
+
 ## Desktop
 
 The Persian RTL WPF app always starts on the closed-book cover. Opening it checks access online and shows Information for accepted paid activation or Lock otherwise.

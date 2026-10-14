@@ -53,9 +53,15 @@ Fresh captures of the current WPF views using the local G1 catalog. Activation/t
 
 Regenerate the images with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/Capture-AppScreenshots.ps1` after packing the local catalog. See [screenshot notes](docs/Images/README.md).
 
-## Approved V2 target (not implemented)
+## V2 Phase 1 desktop foundations (feature branch; review required)
 
-Commercial YariZan V2 will use a Nuxt 4 storefront/customer/Admin portal, NestJS/PostgreSQL backend, per-device common customer username, six independent grade entitlements, ZarinPal checkout, discount campaigns, and **per-product perpetual offline paid licenses**. Two trial entries **per device and grade** require internet **only to start each trial process session**; once entered, an open trial process continues without internet or a heartbeat. Password-based onboarding uses confirmed device pairing; MeliPayamak is planned for a later reset-link stage. **No V2 code, database, or deployment has been shipped.** Refer to the [V2 specification](docs/YARIZAN-TECHNICAL-SPEC-V2.md), [data model](docs/YARIZAN-DATA-MODEL-V2.md), [API contracts](docs/YARIZAN-API-CONTRACTS-V2.md), and [roadmap](docs/YARIZAN-IMPLEMENTATION-ROADMAP-V2.md).
+Desktop access now uses a shared versioned device username, grade-bound signed perpetual offline licenses and online-to-start trials. Active trials have no heartbeat, per-game authorization or expiry. Paid sync is asynchronous; revocation affects the next launch. See [Phase 1 report](docs/YARIZAN-PHASE-1-REPORT.md) and [artifact profile](docs/adr/0004-phase-1-desktop-artifact-profile.md).
+
+**Not release-ready:** secure NestJS enrollment/credential issuance and production public-key provisioning are blocked. The stock build grants no access through test keys or legacy PHP. Tests inject disposable trust roots and a transactional fake server. Run `tests/Run-V2Checks.ps1` on Windows with .NET 9 runtime and Node. Close the report's release gates before distribution.
+
+## Approved V2 platform target (backend not implemented)
+
+Commercial YariZan V2 will use a Nuxt 4 storefront/customer/Admin portal, NestJS/PostgreSQL backend, per-device common customer username, six independent grade entitlements, ZarinPal checkout, discount campaigns, and **per-product perpetual offline paid licenses**. Two trial entries **per device and grade** require internet **only to start each trial process session**; once entered, an open trial process continues without internet or a heartbeat. Password-based onboarding uses confirmed device pairing; MeliPayamak is planned for a later reset-link stage. **Phase 1 desktop foundations are under review; no V2 backend, database or deployment has been shipped.** Refer to the [V2 specification](docs/YARIZAN-TECHNICAL-SPEC-V2.md), [data model](docs/YARIZAN-DATA-MODEL-V2.md), [API contracts](docs/YARIZAN-API-CONTRACTS-V2.md), and [roadmap](docs/YARIZAN-IMPLEMENTATION-ROADMAP-V2.md).
 
 ### Phase 0 security and implementation handoff (design baseline; untested)
 
@@ -65,7 +71,7 @@ Commercial YariZan V2 will use a Nuxt 4 storefront/customer/Admin portal, NestJS
 - [Machine-readable design OpenAPI](docs/YARIZAN-OPENAPI-V2.yaml)
 - [Phase 1 desktop implementation agent brief](docs/YARIZAN-PHASE-1-AGENT-BRIEF.md)
 
-## Current access policy (legacy 1.1.0 code only)
+## Historical access policy (legacy 1.1.0 release only)
 
 The cover appears first on every launch. Opening the book requires internet: the app validates the saved paid serial or shows the activation/trial screen. New devices register their HWID and PC name with two trial entries; viewing status does not consume an entry. Only pressing the trial entry button consumes one.
 

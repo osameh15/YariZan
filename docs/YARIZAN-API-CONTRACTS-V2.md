@@ -3,6 +3,8 @@
 > **Status:** Proposed, versioned interface contract (not live endpoints). [Technical specification](YARIZAN-TECHNICAL-SPEC-V2.md) · [Data model](YARIZAN-DATA-MODEL-V2.md).
 > **Base URL target:** `https://yarizan.oarnova.games/api/v2`. NestJS owns API; Nuxt SSR/customer UI must call it through appropriately secured boundaries.
 
+> Phase 1 refines signed artifact fields/canonical bytes in [ADR-0004](adr/0004-phase-1-desktop-artifact-profile.md). Routes remain future contracts. Secure device enrollment/credential issuance is deliberately blocked pending an anti-claim-race protocol; no anonymous HWID fallback exists.
+
 ## 1. General conventions
 
 - JSON over TLS only; versioned routes. Use RFC 3339 UTC timestamps and UUID/opaque IDs; stable `YARIZAN-G1`–`YARIZAN-G6` SKUs.
@@ -111,19 +113,22 @@ Result includes `grant` (a server-signed, product/device/process-scoped start ar
 | POST | `/desktop/licenses/sync` | Device proof | Return signed current license decisions; timeout does not affect valid local license |
 | GET | `/account/licenses` | Customer | Owned products, issued licenses, status and download/activation support |
 
-Example paid license **payload before signature**, canonical serialization still to be specified:
+Example paid license **payload before signature**, using ADR-0002/0004:
 
 ```json
 {
   "format": "YARIZAN-LICENSE-V2",
-  "license_id": "lic_example",
-  "customer_id": "cus_example",
+  "license_id": "20000000-0000-4000-8000-000000000001",
+  "customer_id": "30000000-0000-4000-8000-000000000001",
+  "device_id": "10000000-0000-4000-8000-000000000001",
   "sku": "YARIZAN-G1",
   "grade": 1,
-  "device_fingerprint": "UPPERCASE_SHA256_HEX",
+  "device_fingerprint_version": 2,
+  "device_fingerprint_digest": "UPPERCASE_SHA256_HEX",
   "issued_at": "2026-10-14T00:00:00Z",
   "expires_at": null,
-  "kid": "license-signing-2026-v1"
+  "kid": "license-signing-2026-v1",
+  "license_revision": 1
 }
 ```
 
