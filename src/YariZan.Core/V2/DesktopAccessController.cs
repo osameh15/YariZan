@@ -73,7 +73,7 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
             State = DesktopAccessState.Purchased;
             if (decision.Status == StoreReadStatus.Present)
             {
-                // A reissued license has a new ID; retain old signed decision but do not apply it to another ID.
+                // Reissue across license IDs requires an authenticated recovery contract (Phase 2).
                 var oldId = DecisionLicenseId(decision.Envelope!);
                 if (oldId == _license.LicenseId && _verifier.VerifyDecision(decision.Envelope!, _license).Status == "REVOKED")
                     State = DesktopAccessState.Revoked;
@@ -102,6 +102,7 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
             State = remaining > 0 ? DesktopAccessState.TrialAvailable : DesktopAccessState.TrialExhausted;
             LastError = null;
         }
+        catch (TrialExhaustedException) { if (!_closed) { State = DesktopAccessState.TrialExhausted; TrialRemaining = 0; } }
         catch (EnrollmentRequiredException) { if (!_closed) { State = DesktopAccessState.EnrollmentRequired; LastError = "ENROLLMENT_REQUIRED"; } }
         catch (Exception ex) when (IsSafeFailure(ex)) { if (!_closed) { State = DesktopAccessState.ConnectionUnavailable; LastError = "STATUS_UNAVAILABLE"; } }
         finally { _operation.Release(); }
@@ -142,6 +143,16 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
             linked.Token.ThrowIfCancellationRequested();
             if (IsPurchased) return;
             State = DesktopAccessState.ActivationPending;
+            if (LocalLicenseState == DesktopAccessState.Revoked && _license is { } revokedLicense)
+            {
+                string recovery = await _client.SynchronizeAsync(revokedLicense, linked.Token);
+                linked.Token.ThrowIfCancellationRequested();
+                var decision = _verifier.VerifyDecision(recovery, revokedLicense);
+                if (decision.Status != "ACTIVE" || !PersistDecision(revokedLicense, recovery, decision))
+                    throw new InvalidDataException("No newer authenticated recovery decision.");
+                State = LocalLicenseState = DesktopAccessState.Purchased; LastError = null;
+                return;
+            }
             string envelope = await _client.PickupAsync(_product, linked.Token);
             linked.Token.ThrowIfCancellationRequested();
             var license = _verifier.VerifyLicense(envelope, _device, _product);
@@ -175,20 +186,26 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
                 string envelope = await _client.SynchronizeAsync(license, linked.Token);
                 linked.Token.ThrowIfCancellationRequested();
                 var decision = _verifier.VerifyDecision(envelope, license);
-                using (_store.AcquireWriteLock(_product))
-                {
-                    var currentLicense = _store.ReadLicense(_product);
-                    if (currentLicense.Status != StoreReadStatus.Present || _verifier.VerifyLicense(currentLicense.Envelope!, _device, _product).LicenseId != license.LicenseId) return;
-                    var saved = _store.ReadDecision(_product);
-                    if (saved.Status == StoreReadStatus.Corrupt) throw new InvalidDataException("Corrupt decision.");
-                    if (saved.Status == StoreReadStatus.Present && _verifier.VerifyDecision(saved.Envelope!, license).Version >= decision.Version) return;
-                    _store.WriteDecision(_product, envelope);
-                }
+                PersistDecision(license, envelope, decision);
                 // Freeze access for the current process. Only a new controller reads the learned decision.
             }
             catch (Exception ex) when (IsSafeFailure(ex) || ex is EnrollmentRequiredException)
             { LastError = "SYNC_UNAVAILABLE_OR_INVALID"; }
         });
+    }
+
+    private bool PersistDecision(PaidLicense license, string envelope, LicenseDecision decision)
+    {
+        using (_store.AcquireWriteLock(_product))
+        {
+            var currentLicense = _store.ReadLicense(_product);
+            if (currentLicense.Status != StoreReadStatus.Present || _verifier.VerifyLicense(currentLicense.Envelope!, _device, _product).LicenseId != license.LicenseId) return false;
+            var saved = _store.ReadDecision(_product);
+            if (saved.Status == StoreReadStatus.Corrupt) throw new InvalidDataException("Corrupt decision.");
+            if (saved.Status == StoreReadStatus.Present && _verifier.VerifyDecision(saved.Envelope!, license).Version >= decision.Version) return false;
+            _store.WriteDecision(_product, envelope);
+            return true;
+        }
     }
 
     private static bool IsSafeFailure(Exception ex) => ex is IOException or InvalidDataException or System.Text.Json.JsonException

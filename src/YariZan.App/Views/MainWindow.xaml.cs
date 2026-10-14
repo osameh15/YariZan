@@ -13,15 +13,17 @@ public partial class MainWindow : Window
     private readonly GameLibrary _library = GameLibrary.LoadOrEmpty();
     private readonly GameLauncher _launcher = new();
     private readonly DesktopAccessController _access;
+    private readonly Func<byte[]> _loadGameKey;
     private bool _launching;
     private bool _closed;
     private CancellationTokenSource? _launchCancellation;
 
     public MainWindow() : this(null) { }
 
-    public MainWindow(DesktopAccessController? access)
+    public MainWindow(DesktopAccessController? access, Func<byte[]>? loadGameKey = null)
     {
         _access = access ?? DesktopAccessFactory.Create(_library.Manifest.SelectedGrade);
+        _loadGameKey = loadGameKey ?? AppKeys.LoadEmbeddedMasterKey;
         InitializeComponent();
         Title = $"YariZan G{Math.Clamp(_library.Manifest.SelectedGrade, 1, 6)}";
         Loaded += (_, _) =>
@@ -88,7 +90,7 @@ public partial class MainWindow : Window
         try
         {
             if (!_access.CanEnter) { ShowLock(); return; }
-            var key = AppKeys.LoadEmbeddedMasterKey();
+            var key = _loadGameKey();
             try
             {
                 var path = AppPaths.ResolveGameFile(e.EncryptedFile);
