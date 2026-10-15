@@ -21,6 +21,8 @@ export default defineNuxtConfig({
     },
   },
   routeRules: {
+    '/checkout': { headers: { 'cache-control': 'no-store' } },
+    '/payment/**': { headers: { 'cache-control': 'no-store' } },
     '/account/**': { headers: { 'cache-control': 'no-store' } },
     '/zanyari/**': { headers: { 'cache-control': 'no-store' } },
     '/connect': { headers: { 'cache-control': 'no-store' } },

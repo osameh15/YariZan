@@ -155,3 +155,25 @@ describe('Custom accessible form feedback', () => {
     expect(w.emitted('retry')).toHaveLength(1);
   });
 });
+
+describe('Commerce financial and navigation boundaries', () => {
+  it('formats large aggregate IRR without floating point loss', async () => {
+    const { financialToman } = await import('../../shared/commerce');
+    expect(financialToman('90071992547409915')).toBe(
+      new Intl.NumberFormat('fa-IR').format(9007199254740991n) + '٫۵',
+    );
+    expect(financialToman('-1')).toBe('—');
+  });
+  it('keeps unknown results distinct from paid and fulfilled states', async () => {
+    const { commerceState } = await import('../../shared/commerce');
+    expect(commerceState({ state: 'PENDING', payments: [{ state: 'UNKNOWN' }] })).toContain(
+      'مشخص نیست',
+    );
+    expect(commerceState({ state: 'FULFILLMENT_PENDING', paid_at: 'now' })).toContain('آماده‌سازی');
+    expect(commerceState({ state: 'FULFILLED' })).toContain('آماده است');
+  });
+  it('only retains the exact eligible checkout return path', () => {
+    expect(safeReturn('/checkout?sku=YARIZAN-G1')).toBe('/checkout?sku=YARIZAN-G1');
+    expect(safeReturn('/checkout?sku=YARIZAN-G1&next=https://example.com')).toBe('/account');
+  });
+});

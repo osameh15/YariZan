@@ -60,3 +60,12 @@ Prices and publication/sale/trial/activation flags come from the live catalog. I
 Connect now verifies mobile OTP for first ownership; no initial password is required. Login offers password/OTP, /reset-password is self-service OTP, /support-reset is the independent support-grant fallback, and /account/security supports password/mobile changes. Every form uses the shared novalidate FormShell with Persian inline errors/ARIA/focus; API notices and route errors avoid raw browser/framework text. Admin uses password then SMS, with no TOTP fallback. Notes/search are real permission-scoped backend operations.
 
 Enable only the explicit fake local SMS configuration described in backend/README.md and read fake codes through the operator CLI, not a browser API. Production provider configuration and approved template are absent. Tests use an encrypted fake spool and synthetic mobiles; no real messages are sent. Current acceptance and screenshots are in docs/YARIZAN-PHASE-3-1-REPORT.md; exact APIs/settings in docs/YARIZAN-AUTH-AND-SMS-CONTRACTS.md. Existing Phase 3 reports describe their historical baseline.
+
+
+## Phase 4 synthetic commerce
+
+Commerce is disabled by default. In isolated local configuration set COMMERCE_MODE=fake to enable the explicitly labeled simulator; no merchant credentials or network gateway are used. Compose forwards this explicit setting. PURCHASE_SMS_TEMPLATE is a safe notification template identifier; the durable purchase event is recorded only, not delivered. Real provider selection refuses startup; production remains blocked.
+
+Customer routes now include /checkout?sku=YARIZAN-G1, /payment/simulate, /payment/result, /account/orders and /account/orders/:id. Admin /zanyari/commerce uses actual permission-protected commerce/finance APIs. Orders replace the previous unavailable placeholder. Checkout first creates an authoritative snapshot, then the detail view offers an explicit simulated payment action. No card data is collected. See docs/YARIZAN-COMMERCE-CONTRACTS.md and docs/YARIZAN-PHASE-4-REPORT.md from the repository root for exact API/state/evidence.
+
+Use the existing disposable PostgreSQL and fake SMS setup. Backend build/test exercises commerce, 20-way coupon concurrency and real .NET verification. Browser test:e2e includes synthetic checkout and Admin flows. Stop Compose api/web before Playwright: its managed servers require ports 3100/3200. Never replace fake mode with a live merchant for these checks.

@@ -67,6 +67,7 @@ const sections = [
   ['trials', 'فرصت‌های آزمایشی', 'trials.read'],
   ['activation-codes', 'کدهای فعال‌سازی', 'activation_codes.read'],
   ['audit', 'گزارش فعالیت', 'audit.read'],
+  ['commerce', 'فروش و امور مالی', 'commerce.read'],
 ];
 const allowed = (permission: string) => permissions.value.includes(permission);
 const title = computed(() => sections.find((s) => s[0] === section.value)?.[1] ?? 'مدیریت');

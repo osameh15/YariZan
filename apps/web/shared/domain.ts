@@ -17,7 +17,10 @@ export function toman(irr: number) {
   return new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 1 }).format(irr / 10);
 }
 export function safeReturn(value: unknown, fallback = '/account') {
-  return typeof value === 'string' && /^\/account(?:\/[a-z-]+)?$/.test(value) ? value : fallback;
+  return typeof value === 'string' &&
+    (/^\/account(?:\/[a-z-]+)?$/.test(value) || /^\/checkout\?sku=YARIZAN-G[1-6]$/.test(value))
+    ? value
+    : fallback;
 }
 export function availability(p: Product) {
   return p.publication_status === 'coming_soon'
@@ -31,6 +34,17 @@ export function errorMessage(error: unknown) {
   return (
     (
       {
+        COUPON_UNAVAILABLE: 'این کد برای سفارش شما قابل استفاده نیست. کد و شرایط آن را بررسی کنید.',
+        ZERO_TOTAL_BLOCKED: 'پرداخت بدون مبلغ در این مرحله پشتیبانی نمی‌شود.',
+        COMMERCE_UNAVAILABLE: 'خرید اینترنتی در این محیط فعال نیست. با پشتیبانی تماس بگیرید.',
+        ALREADY_OWNED:
+          'مجوز این پایه قبلاً برای دستگاه ثبت شده است. برای بازیابی با پشتیبانی تماس بگیرید.',
+        ORDER_ALREADY_OPEN:
+          'برای این پایه سفارش باز دارید. ابتدا وضعیت آن را در سفارش‌ها بررسی کنید.',
+        ORDER_NOT_PAYABLE: 'این سفارش اکنون قابل پرداخت نیست. وضعیت سفارش را بررسی کنید.',
+        PAYMENT_ALREADY_PENDING: 'نتیجهٔ پرداخت قبلی هنوز مشخص نیست. دوباره پرداخت نکنید.',
+        PAYMENT_STATE_CONFLICT: 'وضعیت پرداخت تغییر کرده است. اطلاعات سفارش را تازه کنید.',
+        QUOTA_BELOW_ALLOCATED: 'سقف جدید از تعداد سهمیه‌های رزروشده و استفاده‌شده کمتر است.',
         OTP_INVALID:
           'کد تأیید درست نیست، منقضی شده یا قبلاً استفاده شده است. کد را بررسی کنید یا کد تازه بخواهید.',
         OTP_REQUIRED: 'ابتدا شمارهٔ همراه را با کد پیامک تأیید کنید.',

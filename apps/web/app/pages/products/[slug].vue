@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ApiResult } from '#shared/api';
 import { gradeNames, toman, availability } from '#shared/domain';
 const route = useRoute(),
   match = /^(?:grade-|yarizan-g)([1-6])$/.exec(String(route.params.slug));
@@ -9,6 +10,9 @@ useSeoMeta({
   title: () => (product.value ? `${product.value.title_fa} | یاریزان` : 'محصولات یاریزان'),
 });
 const assistance = ref(false);
+const { data: commerce } = await useFetch<ApiResult<'/api/v2/commerce/capabilities', 'get'>>(
+  '/api/v2/commerce/capabilities',
+);
 </script>
 <template>
   <section class="wrap section">
@@ -44,8 +48,17 @@ const assistance = ref(false);
           <p v-if="product.publication_status === 'coming_soon'" class="notice">
             این پایه هنوز عرضه نشده است. فروش و فعال‌سازی آن در دسترس نیست.
           </p>
-          <template v-else
-            ><button v-if="product.sale_enabled" class="button primary" @click="assistance = true">
+          <template v-else>
+            <NuxtLink
+              v-if="product.sale_enabled && commerce?.checkout_enabled"
+              class="button primary"
+              :to="'/checkout?sku=' + product.sku"
+              >خرید آزمایشی این پایه</NuxtLink
+            >
+            <p v-if="commerce?.checkout_enabled" class="muted">
+              پرداخت در این محیط شبیه‌سازی می‌شود؛ هیچ پولی دریافت نمی‌شود.
+            </p>
+            <button v-if="product.sale_enabled" class="button primary" @click="assistance = true">
               راهنمای تهیهٔ این نسخه ↗
             </button>
             <p v-else class="notice">فروش این نسخه فعلاً متوقف است.</p>

@@ -156,15 +156,8 @@ onMounted(load);
             تازه‌سازی ورود در این مرورگر
           </button></template
         >
-        <div v-else class="panel">
-          <h2>ثبت سفارش هنوز فعال نیست.</h2>
-          <p>
-            پرداخت اینترنتی و تاریخچهٔ سفارش در مرحلهٔ آینده اضافه می‌شود. هیچ سفارش یا پرداختی در
-            این صفحه ساخته نمی‌شود.
-          </p>
-          <NuxtLink class="text-link" to="/support">راهنمای خرید ←</NuxtLink>
-        </div></template
-      >
+        <CommerceOrders v-else
+      /></template>
       <div v-else-if="!busy" class="panel">
         <NuxtLink to="/login" class="button primary">ورود به حساب</NuxtLink
         ><button class="button secondary" @click="load">تلاش دوباره</button>
