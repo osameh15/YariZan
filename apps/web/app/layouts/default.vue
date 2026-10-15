@@ -55,7 +55,7 @@ watch(
         <nav aria-label="پیوندهای مرتبط">
           <span>پیوندهای مرتبط</span>
           <a href="https://oarnova.games">اوآر نوا</a>
-          <a href="https://osameh.dev">پروتفولیو توسعه دهنده</a>
+          <a href="https://osameh.dev">نمونه‌کارهای توسعه‌دهنده</a>
         </nav>
         <div>
           <p>کنار شما هستیم</p>
