@@ -32,12 +32,7 @@ const json = (s) => {
   delete result.$schema;
   return result;
 };
-const claim = z.strictObject({
-  pairing_id: schemas.uuid,
-  browser_token: schemas.secret,
-  claim_grant: schemas.secret,
-  password: schemas.password.optional(),
-});
+const claim = schemas.claimSchema;
 const login = z.strictObject({
   username: z.string().max(64),
   password: z.string().max(128),

@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { Global, Module } from "@nestjs/common";
 import { Database } from "./database/database";
 import { Security } from "./security/security";
+import { PasswordHashing } from "./security/passwords";
 import { Audit } from "./audit/audit";
 import { Outbox } from "./outbox/outbox";
 import {
@@ -29,6 +30,7 @@ import {
   providers: [
     Database,
     Security,
+    PasswordHashing,
     Audit,
     Outbox,
     Signing,
@@ -37,7 +39,7 @@ import {
       useFactory: () => new DevelopmentKeyManager(),
     },
   ],
-  exports: [Database, Security, Audit, Outbox, Signing],
+  exports: [Database, Security, PasswordHashing, Audit, Outbox, Signing],
 })
 class FoundationModule {}
 @Module({ providers: [Identity], controllers: [IdentityController] })

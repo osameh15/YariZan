@@ -21,6 +21,7 @@ import { Admin } from "../admin/admin";
 import { Audit, Actor } from "../audit/audit";
 import {
   challengeSchema,
+  claimSchema,
   proofSchema,
   password,
   secret,
@@ -129,36 +130,19 @@ export class IdentityController {
     );
   }
   @Post("auth/claim") claim(@Body() body: unknown, @Req() req: Request) {
-    this.origin(req);
-    const b = z
-      .strictObject({
-        pairing_id: uuid,
-        browser_token: secret,
-        claim_grant: secret,
-        password: password.optional(),
-      })
-      .parse(body);
-    return this.identity.claim(
-      b.pairing_id,
-      b.browser_token,
-      b.claim_grant,
-      b.password,
-      actor(req),
-    );
+    return this.authorizedClaim(body, req);
   }
   @Post("devices/register") register(
     @Body() body: unknown,
     @Req() req: Request,
   ) {
-    // Alias completes approved paired enrollment; anonymous registration is never accepted.
-    const b = z
-      .strictObject({
-        pairing_id: uuid,
-        browser_token: secret,
-        claim_grant: secret,
-        password: password.optional(),
-      })
-      .parse(body);
+    return this.authorizedClaim(body, req);
+  }
+  private async authorizedClaim(body: unknown, req: Request) {
+    this.origin(req);
+    const b = claimSchema.parse(body);
+    // Use the socket address, never an untrusted forwarded header. Aliases share one budget.
+    await this.security.rate("claim-ip:" + req.socket.remoteAddress, 120, 300);
     return this.identity.claim(
       b.pairing_id,
       b.browser_token,

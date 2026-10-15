@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { PoolClient } from "pg";
-import { hashPassword } from "../security/passwords";
+import { PasswordHashing } from "../security/passwords";
 import { Database } from "../database/database";
 import {
   Signing,
@@ -12,7 +12,7 @@ import { Security } from "../security/security";
 import { Audit, Actor } from "../audit/audit";
 import { requireCondition } from "../common/errors";
 import { challengeSchema, Proof } from "../common/schemas";
-import { token } from "../security/crypto";
+import { equal, token } from "../security/crypto";
 import { z } from "zod";
 
 interface Pairing {
@@ -34,6 +34,7 @@ export class Identity {
     private signing: Signing,
     private security: Security,
     private audit: Audit,
+    private passwords: PasswordHashing,
   ) {}
   async challenge(input: z.infer<typeof challengeSchema>) {
     const key = devicePublicKey(input.device_public_key);
@@ -202,22 +203,41 @@ export class Identity {
     password: string | undefined,
     actor: Actor,
   ) {
-    const encoded = password ? await hashPassword(password) : null;
+    // This read is deliberately outside a transaction: no database lock spans Argon2id.
+    // It is only an admission check; the transaction below independently authorizes again.
+    const snapshot = (
+      await this.db.query<Pairing>("SELECT * FROM pairings WHERE id=$1", [id])
+    ).rows[0];
+    this.validateClaim(snapshot, browser, grant);
+    const owner = (
+      await this.db.query<{ id: string }>(
+        `SELECT c.id FROM customers c JOIN devices d ON d.id=c.device_id
+      WHERE d.fingerprint_digest=$1 AND c.state='ACTIVE' AND c.generation=d.generation`,
+        [snapshot.fingerprint_digest],
+      )
+    ).rows[0];
+    if (owner)
+      requireCondition(
+        snapshot.authorized_customer_id === owner.id,
+        "PROFILE_NOT_AUTHORIZED",
+        403,
+      );
+    else
+      requireCondition(
+        !snapshot.authorized_customer_id && password,
+        "PASSWORD_REQUIRED",
+      );
+    // Shared by both route aliases; only a holder of both valid secrets can spend this budget.
+    await this.security.rate("claim-authorized:" + id, 3, 300);
+    const encoded =
+      !owner && password ? await this.passwords.hash(password) : null;
     return this.db.transaction(async (c) => {
       const r = await c.query<Pairing>(
         "SELECT * FROM pairings WHERE id=$1 FOR UPDATE",
         [id],
       );
       const p = r.rows[0];
-      requireCondition(
-        p &&
-          p.status === "DESKTOP_CONFIRMED" &&
-          p.expires_at.getTime() > Date.now() &&
-          p.browser_hash === this.security.tokenHash(browser) &&
-          p.claim_hash === this.security.tokenHash(grant),
-        "PAIRING_INVALID",
-        410,
-      );
+      this.validateClaim(p, browser, grant);
       // Serializes first-claim and reset/key races without trusting a claimed HWID as authentication.
       await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
         p.fingerprint_digest,
@@ -234,6 +254,8 @@ export class Identity {
           [p.fingerprint_digest],
         )
       ).rows[0];
+      // Recheck expiry after waiting for the device/reset lock as well.
+      this.validateClaim(p, browser, grant);
       let customer = (
         await c.query<{ id: string }>(
           "SELECT id FROM customers WHERE device_id=$1 AND state='ACTIVE'",
@@ -295,7 +317,12 @@ export class Identity {
         "INSERT INTO device_enrollment_history(id,key_id,customer_id,generation,signed_enrollment) VALUES($1,$2,$3,$4,$5)",
         [randomUUID(), keyId, customer.id, d.generation, enrollment],
       );
-      await c.query("UPDATE pairings SET status='CONSUMED' WHERE id=$1", [id]);
+      const consumed = await c.query(
+        `UPDATE pairings SET status='CONSUMED' WHERE id=$1 AND status='DESKTOP_CONFIRMED'
+        AND expires_at>clock_timestamp() AND browser_hash=$2 AND claim_hash=$3 RETURNING id`,
+        [id, this.security.tokenHash(browser), this.security.tokenHash(grant)],
+      );
+      requireCondition(consumed.rowCount, "PAIRING_INVALID", 410);
       const credential = await this.credential(c, keyId);
       await this.audit.append(c, actor, "enrollment.approved", d.id, {
         profile_enrollment_id: keyId,
@@ -309,6 +336,23 @@ export class Identity {
         credential,
       };
     });
+  }
+  private validateClaim(
+    p: Pairing | undefined,
+    browser: string,
+    grant: string,
+  ): asserts p is Pairing {
+    requireCondition(
+      p &&
+        p.status === "DESKTOP_CONFIRMED" &&
+        p.expires_at.getTime() > Date.now() &&
+        p.browser_hash &&
+        equal(p.browser_hash, this.security.tokenHash(browser)) &&
+        p.claim_hash &&
+        equal(p.claim_hash, this.security.tokenHash(grant)),
+      "PAIRING_INVALID",
+      410,
+    );
   }
   async authenticate(p: Proof, actor: Actor) {
     return this.db.transaction(async (c) => {

@@ -14,6 +14,7 @@ import path from "node:path";
 import { spawnSync, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { Outbox } from "../src/outbox/outbox";
+import { PasswordHashing } from "../src/security/passwords";
 import { ApiError } from "../src/common/errors";
 import { readFile } from "node:fs/promises";
 import { Pool } from "pg";
@@ -1673,4 +1674,276 @@ test("Reset/reapproved key cannot promote old revoked bearer into new generation
     "ACCOUNT_RESTRICTED",
     e.credential,
   );
+});
+
+function barrier() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+async function waitForSignal(signal: Promise<void>) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      signal,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Test synchronization timed out")),
+          5000,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+test("Invalid, expired, incomplete and consumed pairings never invoke password hashing", async () => {
+  const wrong = await paired(candidate()),
+    expired = await paired(candidate()),
+    consumed = await paired(candidate());
+  await ok("/auth/claim", consumed);
+  await db.query(
+    "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
+    [expired.pairing_id],
+  );
+  const pending = (
+    await ok<{ pairing_id: string }>(
+      "/device-pairings",
+      await proof(candidate(), "PAIR"),
+    )
+  ).body;
+  const hashing = app.get(PasswordHashing),
+    original = hashing.hash;
+  let calls = 0;
+  hashing.hash = (value: string) => {
+    calls++;
+    return original.call(hashing, value);
+  };
+  try {
+    for (const body of [
+      { ...wrong, pairing_id: randomUUID() },
+      { ...wrong, browser_token: randomBytes(32).toString("base64url") },
+      { ...wrong, claim_grant: randomBytes(32).toString("base64url") },
+      expired,
+      consumed,
+      { ...wrong, pairing_id: pending.pairing_id },
+    ])
+      await denied("/auth/claim", body, "PAIRING_INVALID");
+    assert.equal(calls, 0);
+  } finally {
+    hashing.hash = original;
+  }
+});
+test("Claim alias shares Origin checks, DTO validation and one-time authorization", async () => {
+  const b = await paired(candidate()),
+    hashing = app.get(PasswordHashing),
+    original = hashing.hash;
+  let calls = 0;
+  hashing.hash = (value: string) => {
+    calls++;
+    return original.call(hashing, value);
+  };
+  try {
+    for (const route of ["/auth/claim", "/devices/register"])
+      for (const badOrigin of [undefined, "https://attacker.invalid"]) {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (badOrigin) headers.Origin = badOrigin;
+        const response = await fetch(base + route, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(b),
+        });
+        assert.equal(response.status, 403);
+        assert.equal(
+          ((await response.json()) as ErrorBody).error.code,
+          "CSRF_REJECTED",
+        );
+      }
+    assert.equal(calls, 0);
+    await denied(
+      "/devices/register",
+      { ...b, unexpected: true },
+      "INVALID_REQUEST",
+    );
+    await ok("/devices/register", b);
+    assert.equal(calls, 1);
+    await denied("/auth/claim", b, "PAIRING_INVALID");
+    assert.equal(calls, 1);
+  } finally {
+    hashing.hash = original;
+  }
+});
+test("Claim holds no PostgreSQL pairing lock while hashing; expiry is revalidated atomically", async () => {
+  const key = candidate(),
+    b = await paired(key),
+    hashing = app.get(PasswordHashing),
+    original = hashing.hash,
+    started = barrier(),
+    release = barrier();
+  hashing.hash = async (value: string) => {
+    started.resolve();
+    await release.promise;
+    return original.call(hashing, value);
+  };
+  let pending: ReturnType<typeof request<Enrolled>> | undefined;
+  try {
+    pending = request<Enrolled>("/auth/claim", b);
+    await waitForSignal(started.promise);
+    await db.transaction(async (c) => {
+      await c.query("SELECT id FROM pairings WHERE id=$1 FOR UPDATE NOWAIT", [
+        b.pairing_id,
+      ]);
+      await c.query(
+        "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
+        [b.pairing_id],
+      );
+    });
+    release.resolve();
+    const result = await pending;
+    assert.equal(result.status, 410);
+    assert.equal(
+      (result.body as unknown as ErrorBody).error.code,
+      "PAIRING_INVALID",
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*) FROM devices WHERE fingerprint_digest=$1",
+          [key.fingerprint],
+        )
+      ).rows[0].count,
+      "0",
+    );
+  } finally {
+    release.resolve();
+    hashing.hash = original;
+    if (pending) await pending;
+  }
+});
+test("Concurrent same-pair claim commits once; hashing admission cannot bypass consumed token check", async () => {
+  const key = candidate(),
+    b = await paired(key),
+    hashing = app.get(PasswordHashing),
+    original = hashing.hash,
+    started = barrier(),
+    release = barrier();
+  let calls = 0;
+  hashing.hash = async (value: string) => {
+    calls++;
+    if (calls === 1) {
+      started.resolve();
+      await release.promise;
+    }
+    return original.call(hashing, value);
+  };
+  let pending: ReturnType<typeof request<Enrolled>> | undefined;
+  try {
+    pending = request<Enrolled>("/auth/claim", b);
+    await waitForSignal(started.promise);
+    const winner = await ok<Enrolled>("/devices/register", b);
+    release.resolve();
+    const loser = await pending;
+    assert.equal(loser.status, 410);
+    assert.equal(
+      (loser.body as unknown as ErrorBody).error.code,
+      "PAIRING_INVALID",
+    );
+    assert.equal(
+      (
+        await db.query("SELECT count(*) FROM customers WHERE device_id=$1", [
+          winner.body.device_id,
+        ])
+      ).rows[0].count,
+      "1",
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*) FROM device_enrollment_history WHERE customer_id=$1",
+          [winner.body.customer_id],
+        )
+      ).rows[0].count,
+      "1",
+    );
+    await login(winner.body);
+  } finally {
+    release.resolve();
+    hashing.hash = original;
+    if (pending) await pending;
+  }
+});
+test("Authorized pairing hashing budget is shared across claim aliases", async () => {
+  const b = await paired(candidate()),
+    hashing = app.get(PasswordHashing),
+    original = hashing.hash;
+  let calls = 0;
+  hashing.hash = async () => {
+    calls++;
+    throw new ApiError("HASH_UNAVAILABLE", 503);
+  };
+  try {
+    for (let i = 0; i < 3; i++)
+      await denied(
+        i % 2 ? "/devices/register" : "/auth/claim",
+        b,
+        "HASH_UNAVAILABLE",
+      );
+    await denied("/devices/register", b, "RATE_LIMITED");
+    assert.equal(calls, 3);
+    assert.equal(
+      (
+        await db.query("SELECT status FROM pairings WHERE id=$1", [
+          b.pairing_id,
+        ])
+      ).rows[0].status,
+      "DESKTOP_CONFIRMED",
+    );
+  } finally {
+    hashing.hash = original;
+  }
+});
+// Keep the public claim-budget test isolated from the suite's legitimate enrollment traffic.
+test("Claim aliases enforce one shared PostgreSQL endpoint IP budget before hashing", async () => {
+  const original = security.rate,
+    keys: string[] = [];
+  security.rate = async (
+    key: string,
+    limit: number,
+    seconds = 60,
+    instant = Date.now(),
+  ) => {
+    if (key.startsWith("claim-ip:")) {
+      assert.equal(limit, 120);
+      assert.equal(seconds, 300);
+      keys.push(key);
+      return original.call(
+        security,
+        "review-budget:" + key,
+        2,
+        seconds,
+        1740000000000,
+      );
+    }
+    return original.call(security, key, limit, seconds, instant);
+  };
+  const b = {
+    pairing_id: randomUUID(),
+    browser_token: randomBytes(32).toString("base64url"),
+    claim_grant: randomBytes(32).toString("base64url"),
+    password: "Synthetic!Password12345",
+  };
+  try {
+    await denied("/auth/claim", b, "PAIRING_INVALID");
+    await denied("/devices/register", b, "PAIRING_INVALID");
+    await denied("/auth/claim", b, "RATE_LIMITED");
+    assert.equal(new Set(keys).size, 1);
+    assert.equal(keys.length, 3);
+  } finally {
+    security.rate = original;
+  }
 });
