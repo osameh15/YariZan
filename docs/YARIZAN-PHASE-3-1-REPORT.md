@@ -99,7 +99,7 @@ Commands below were executed from the stated directory. All databases/keys/accou
 | apps/web: npm run contracts:check / typecheck / lint / format:check | Pass |
 | apps/web: npm test | 14 unit/component tests passed |
 | apps/web: npm run build | Nuxt production SSR/output build passed |
-| apps/web: PLAYWRIGHT_CHANNEL=msedge npm run test:e2e | 25 browser tests passed; latest exact duration in final logs/CI evidence |
+| apps/web: PLAYWRIGHT_CHANNEL=msedge npm run test:e2e | 25 browser tests passed; latest run 1.2 minutes; CI Chromium 47.1 seconds |
 | apps/web: npm run audit:dependencies | Runtime zero; same two unpatched build advisory roots explicitly reported |
 | apps/web: npm run check:secrets | Pass |
 | root: docker build -t yarizan-backend-fixture backend | Pass |
@@ -150,3 +150,15 @@ Dependency residual remains from Phase 3: runtime web audit zero, full build tre
 ## 10. Safety and publication
 
 Unchanged: main, production/staging/live servers, legacy PHP/MySQL service/workflow, DNS/Traefik/firewall, real customer data, ZarinPal, real MeliPayamak account/services, production signing keys and live payment/refund infrastructure. No merge, deployment, force-push or production private-key generation. Work stays in the existing Phase 3 feature worktree/branch/Draft PR. Only named disposable local databases/containers and synthetic fixtures were used. Stop for independent review after final commit/push and passing CI.
+
+## 11. Passing implementation-head CI and full Compose evidence
+
+Tested implementation/documentation HEAD `9d0444a502c1cca163e5576291fbcc35c1d043d8`, pushed to the existing feature branch. All three workflows succeeded:
+
+- [Backend CI 38753804609](https://github.com/osameh15/YariZan/actions/runs/38753804609), job `116486801402`: 129 tests, zero failures/skips; real C# verifier24/API10/provisioning24 on Ubuntu; eight-migration/five-group schema comparison; 60-route snapshot; lint/build/format/OpenAPI; 60-file backend secret scan/public scanner, zero backend dependency vulnerabilities; non-root Docker/no embedded key/native Argon2 and all six explicit runtime modes including production refusal.
+- [Web/provisioning CI 38753804711](https://github.com/osameh15/YariZan/actions/runs/38753804711), job `116486801348`: 14 unit/component tests, 25 Chromium/PostgreSQL browser tests (47.1s), including 24 real C# software-adapter provisioning checks; strict type/build/lint/format/contracts, secret scan, explicit dependency policy and web Docker build. [Screenshots/HTML/dependency report artifact](https://github.com/osameh15/YariZan/actions/runs/38753804711/artifacts/11983011213). Full build audit remains nonzero as disclosed; runtime audit is zero.
+- [Windows CI 38753804650](https://github.com/osameh15/YariZan/actions/runs/38753804650), job `116486800839`: 300 V2 plus existing 27 access/8 launcher/5 grade groups/36 book = 376 checks/groups; success. Hosted Windows 10.0.26100.0, .NET 9.0.21, elevated token/Administrators group and SOFTWARE provider. This is distinct from local non-elevated TPM-preferred/CNG SOFTWARE/DPAPI evidence.
+
+Fresh local `docker compose --env-file backend/.local/demo.env -f backend/compose.yaml --profile web up --build -d` passed with explicit fake SMS and synthetic independent keys. Existing disposable local data rolled forward from 007 to 008; no live data. A guarded ignored Node smoke script asserted SSR RTL, six real API products, production_gate:closed, operator-only encrypted fake delivery, primary Admin admission without a session, and SMS verification yielding an HttpOnly Admin cookie. No OTP/password/bearer was printed or placed in app logs. A new synthetic local review Admin was created; access notes remain ignored. Log: backend/.local/31-compose-smoke.log. The full browser/backend/C# claim/pickup flow is separately covered above.
+
+The final evidence-only commit corrects remaining historical README wording, records these CI/Compose results and triggers all three workflows again. Exact final HEAD/run links and clean-tree status are recorded in Draft PR #3 and the delivery response. No runtime changes follow the passing implementation head. Main remains e7af35f1771c7d85277aea338a26c957176adb85. Nothing was merged or deployed.

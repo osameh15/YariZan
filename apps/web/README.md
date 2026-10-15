@@ -53,7 +53,7 @@ CI runs the same commands with an isolated PostgreSQL 17 service, .NET 9, Chromi
 
 Public: `/`, `/products`, `/products/grade-1` through grade-6, `/support`, `/connect`, `/login`, `/reset-password`. Customer: `/account`, `/account/devices`, `/account/licenses`, `/account/security`, `/account/orders` (explicitly unavailable). Admin: `/zanyari` and products/customers/devices/licenses/trials/activation-codes/audit sections, permission-filtered and backend-enforced.
 
-Prices and publication/sale/trial/activation flags come from the live catalog. Integer IRR is displayed as Toman. Checkout offers support assistance, never fabricated settlement. The existing release link is used only where supported; Coming Soon never suggests a downloadable/activated grade. Future payment/SMS/finance/support evidence systems need separate contracts and authorization. No runtime code reads PostgreSQL from Nuxt; direct SQL exists only in isolated test tools.
+Prices and publication/sale/trial/activation flags come from the live catalog. Integer IRR is displayed as Toman. Checkout offers support assistance, never fabricated settlement. The existing release link is used only where supported; Coming Soon never suggests a downloadable/activated grade. Future payment/finance/support evidence systems and live SMS acceptance need separate authorization. No runtime code reads PostgreSQL from Nuxt; direct SQL exists only in isolated test tools.
 
 ## Phase 3.1 manual authentication review
 

@@ -6,7 +6,7 @@ See [pre-implementation compatibility review](../docs/YARIZAN-PHASE-2-COMPATIBIL
 
 ## Local development
 
-Requirements: Node 24, .NET 9 for interoperability tests, Docker with Compose. Run from `backend/`. No Redis, broker, gateway, SMS or remote database is used. PostgreSQL binds only `127.0.0.1:55432`. The Compose database/password are disposable public development values.
+Requirements: Node 24, .NET 9 for interoperability tests, Docker with Compose. Run from `backend/`. No Redis, broker, payment gateway or remote database is used. SMS defaults to disabled; explicit fake delivery is used for local tests. PostgreSQL binds only `127.0.0.1:55432`. The Compose database/password are disposable public development values.
 
 Copy `.env.example` to ignored `.env`. Set three **different**, cryptographically random 32-byte hex secrets. Never reuse production material. Compose reads `.env`; Node commands can use Node's `--env-file=.env` option:
 
@@ -25,7 +25,7 @@ Development signing keys are generated at runtime under ignored `.local/developm
 
 ## Pairing and sessions
 
-No anonymous fingerprint registration exists. No email/SMS OTP is required.
+No anonymous fingerprint registration exists. Email is not required; first ownership now requires verified mobile OTP.
 
 1. Desktop creates a persisted per-profile CNG P-256 key and obtains a `PAIR` challenge from `/api/v2/devices/challenges` with fingerprint version 2, uppercase digest and base64url SPKI.
 2. It signs `YariZan-Device-Challenge-V2\n` plus canonical `{challenge_id,nonce,fingerprint_version,fingerprint_digest,device_public_key}` and POSTs proof to `/device-pairings`. It displays the five-minute pairing ID/code. Neither code nor credentials enter a URL. Only the pending public UUID is stored locally.
@@ -48,7 +48,7 @@ Manual codes contain 160 random bits. The backend stores only a versioned domain
 
 ## Admin and independent ownership review
 
-Seed creates roles/permissions, **no Admin account or known password**. For local development only, set temporary `ADMIN_USERNAME`, `ADMIN_PASSWORD` (at least 16 characters), NODE_ENV and three independent secrets; run `node tools/provision-admin.mjs`. It emits a one-time synthetic TOTP SHA1 secret in hex to the local issuer. Protect that output; remove temporary environment variables afterward. Production provisioning is deliberately unavailable.
+Seed creates roles/permissions, **no Admin account or known password**. For local development only, set temporary ADMIN_USERNAME, ADMIN_PASSWORD (at least 16 characters), independently verified ADMIN_MOBILE, NODE_ENV and all required independent keys/provider settings; run `node tools/provision-admin.mjs`. It emits only creation status, never a TOTP secret. Remove temporary credentials afterward. Production provisioning remains unavailable.
 
 Admin login is now two-step SMS MFA: `/admin/auth/login` checks username/password and returns a challenge receipt; `/admin/auth/sms/verify` creates the session only after a valid, unused OTP. Old TOTP login is retired; migration 008 revokes old Admin sessions and requires explicit SMS session provenance. Existing Admins need an independently verified mobile enrollment. Development bootstrap requires ADMIN_MOBILE and MOBILE_ENCRYPTION_KEY and emits no TOTP secret.
 
@@ -56,7 +56,7 @@ Sensitive requests still require a session established within five minutes, scop
 
 Ownership-sensitive operations require an `evidence_ref` to independent support verification. This is an auditable **human verification assertion**, not automatic validation of purchase documents. Staff must not approve evidence based on username/fingerprint alone. Production support policies, external evidence system and dispute escalation remain gates.
 
-Reset preserves the device anchor, username, durable bans, consumed-code history, signed license decisions, audit and commerce history. It tombstones the old customer, clears operational password, revokes sessions/profile credentials, cancels unused codes, and advances generation once. New approved enrollment receives a fresh generation budget. A trial-only Admin reset advances the selected product allocation epoch and replenishes two entries in the existing generation. Historical grants remain immutable. A retired nonce returns HTTP 409 `TRIAL_ALLOCATION_CHANGED` without spending a new entry; it cannot return an old grant. Identical retries return the original result only within their allocation epoch. Admin request retries advance the epoch once. Other grades and profile enrollment remain unchanged.
+Reset preserves the device anchor, username, durable bans, consumed-code history, signed license decisions, audit and commerce history. It tombstones the old customer, clears operational password and mobile data, revokes sessions/profile credentials, cancels unused codes, and advances generation once. New approved enrollment receives a fresh generation budget. A trial-only Admin reset advances the selected product allocation epoch and replenishes two entries in the existing generation. Historical grants remain immutable. A retired nonce returns HTTP 409 `TRIAL_ALLOCATION_CHANGED` without spending a new entry; it cannot return an old grant. Identical retries return the original result only within their allocation epoch. Admin request retries advance the epoch once. Other grades and profile enrollment remain unchanged.
 
 Block affects one SKU, all profiles and future customer generations; it signs revocations for affected licenses. Unblock recreates neither entitlements nor trials. Same-ID recovery requires evidence and a newer ACTIVE decision, preserving trial history. **Arbitrary cross-ID replacement and old desktop snapshot migration remain blocked.** Reset cannot instantly invalidate a permanently offline license. Old proof-capable profiles have a narrow signed-tombstone sync path; they cannot retrieve new-account access.
 
@@ -64,7 +64,7 @@ Block affects one SKU, all profiles and future customer generations; it signs re
 
 Migrations `001`–`007` run in lexical order inside a transaction protected by a PostgreSQL advisory lock. Hashes normalize CRLF to LF. Applied-file changes or ordering drift fail. Explicit SQL supports CHECKs, partial UNIQUE indexes, restrictive FKs, price-range exclusion, immutable-history triggers, and row locks without an ORM shadow schema.
 
-Transactions lock machine before product restriction/counter/code/license. Reset/block/issue/trial/code operations serialize on that machine. Signing or SQL failure rolls back consumption and entitlement creation. Unique business keys remain final protection. Outbox rows commit with business changes; `Outbox.dispatch` uses `FOR UPDATE SKIP LOCKED`. Consumers must deduplicate event IDs because delivery is at least once. No external consumer, timer, SMS or broker is enabled.
+Transactions lock machine before product restriction/counter/code/license. Reset/block/issue/trial/code operations serialize on that machine. Signing or SQL failure rolls back consumption and entitlement creation. Unique business keys remain final protection. Outbox rows commit with business changes; `Outbox.dispatch` uses `FOR UPDATE SKIP LOCKED`. Consumers must deduplicate event IDs because delivery is at least once. No external outbox consumer or broker is enabled. SMS has a separate bounded provider dispatch after admission, described below.
 
 Use a separate migration owner and runtime login in a future reviewed deployment. `tools/runtime-role.sql` defines a NOLOGIN group with no schema/migration/history mutation rights; provision a login outside source. Local Compose deliberately uses a disposable owner for migration/testing. Triggers do not protect against a malicious DB superuser. Retention/pseudonymization rules need legal/operator approval; no automatic financial/audit deletion exists. Expired challenges/sessions/rate buckets can later be removed through a reviewed maintenance job.
 
