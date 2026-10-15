@@ -17,6 +17,7 @@ import { Outbox } from "../src/outbox/outbox";
 import { Audit } from "../src/audit/audit";
 import { Admin } from "../src/admin/admin";
 import { Trials } from "../src/trials/trials";
+import { Identity } from "../src/identity/identity";
 import { PasswordHashing } from "../src/security/passwords";
 import { ApiError } from "../src/common/errors";
 import { readFile } from "node:fs/promises";
@@ -2151,4 +2152,68 @@ test("Admin paginated reads enforce permissions and omit authentication and fing
     "INVALID_REQUEST",
     admin,
   );
+});
+
+test("Real C# provisioning transport, lost delivery, protected storage and offline access", async () => {
+  const fixture = {
+    provisioning: true,
+    apiBase: base.replace("/api/v2", "/"),
+    origin,
+    kid: signing.keys.kid,
+    publicKey: signing.keys.publicKey,
+    adminCookie: admin.cookie,
+    adminCsrf: admin.csrf,
+  };
+  const dir = await mkdtemp(path.join(tmpdir(), "yarizan-provisioning-"));
+  try {
+    const file = path.join(dir, "synthetic.json");
+    await writeFile(file, JSON.stringify(fixture));
+    const projects = [
+      "../tests/BackendInterop",
+      ...(process.platform === "win32" ? ["../tests/ProvisioningChecks"] : []),
+    ];
+    for (const project of projects) {
+      const result = await promisify(execFile)(
+        "dotnet",
+        ["run", "--project", project, "-c", "Release", "--", file],
+        { timeout: 180000 },
+      );
+      assert.match(result.stdout, /DOTNET_PROVISIONING \d+ passed, 0 failed/);
+      console.log(result.stdout.trim());
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("Owner session is revalidated atomically after browser claim admission", async () => {
+  const key = candidate(),
+    e = await enroll(key),
+    owner = await login(e),
+    p = await paired(candidate(key.fingerprint));
+  const service = app.get(Identity),
+    original = service.claim.bind(service),
+    held = barrier(),
+    release = barrier();
+  service.claim = async (...args: Parameters<Identity["claim"]>) => {
+    held.resolve();
+    await release.promise;
+    return original(...args);
+  };
+  const pending = request<ErrorBody>("/auth/claim", p, owner);
+  try {
+    await waitForSignal(held.promise);
+    await ok("/auth/logout", {}, owner);
+    release.resolve();
+    assert.equal((await pending).body.error.code, "UNAUTHENTICATED");
+  } finally {
+    release.resolve();
+    service.claim = original;
+  }
+  assert.equal(
+    (await db.query("SELECT status FROM pairings WHERE id=$1", [p.pairing_id]))
+      .rows[0].status,
+    "PENDING",
+  );
+  await ok("/auth/claim", p, await login(e));
 });

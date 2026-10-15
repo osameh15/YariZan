@@ -163,6 +163,7 @@ internal static partial class Program
         Check(entered && access.IsPurchased && server.RedemptionRequests == 3, "successful UI entry offline does not redeem again");
         host.Close();
         LockDialogChecks(signing, identity, screenshots);
+        ProvisioningUiChecks(signing, identity, screenshots);
         for (int grade = 1; grade <= 6; grade++)
         {
             using var gradeAccess = Access(identity, signing, Store("label-" + grade), server, grade);

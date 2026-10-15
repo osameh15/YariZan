@@ -172,7 +172,7 @@ export class IdentityController {
       b.pairing_id,
       b.pairing_secret,
       b.password,
-      customer?.id,
+      customer,
       customer ? userActor(req, customer.id) : actor(req),
     );
   }

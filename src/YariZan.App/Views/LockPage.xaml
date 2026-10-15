@@ -87,6 +87,7 @@
                 <WrapPanel HorizontalAlignment="Center" Margin="0,8,0,0">
                     <Button x:Name="ManualCodeButton" Content="کد فعال‌سازی دارید؟" Style="{StaticResource SecondaryAction}" Click="ManualCode_Click" />
                     <Button x:Name="PurchaseButton" Content="راهنمای خرید" Style="{StaticResource SecondaryAction}" Click="Purchase_Click" />
+                    <Button x:Name="ConnectButton" Content="اتصال به حساب" Style="{StaticResource SecondaryAction}" Click="Connect_Click" />
                     <Button x:Name="SupportButton" Content="پشتیبانی" Style="{StaticResource SecondaryAction}" Click="Support_Click" />
                 </WrapPanel>
                 <WrapPanel HorizontalAlignment="Center" Margin="0,12,0,0">
@@ -125,7 +126,17 @@
                                         FontSize="16" Padding="12,10" Margin="0,12,0,4" Click="Redeem_Click" KeyboardNavigation.TabIndex="1" />
                             </StackPanel>
                         </Border>
-                        <StackPanel x:Name="ContactPanel" Visibility="Collapsed">
+                        <StackPanel x:Name="PairingPanel" Visibility="Collapsed">
+                    <TextBlock Text="شناسهٔ درخواست" Foreground="{StaticResource InkBrush}" FontSize="14" />
+                    <TextBox x:Name="PairingIdText" IsReadOnly="True" FlowDirection="LeftToRight" TextWrapping="Wrap" Margin="0,4,0,6" />
+                    <Button x:Name="CopyPairingIdButton" Content="کپی شناسهٔ درخواست" Style="{StaticResource SecondaryAction}" Click="CopyPairingId_Click" />
+                    <TextBlock Text="کد موقت اتصال" Foreground="{StaticResource InkBrush}" FontSize="14" Margin="0,12,0,0" />
+                    <TextBox x:Name="PairingCodeText" IsReadOnly="True" FlowDirection="LeftToRight" TextWrapping="Wrap" Margin="0,4,0,6" />
+                    <Button x:Name="CopyPairingCodeButton" Content="کپی کد اتصال" Style="{StaticResource SecondaryAction}" Click="CopyPairingCode_Click" />
+                    <Button x:Name="OpenConnectButton" Content="باز کردن صفحهٔ اتصال" Style="{StaticResource GoldButton}" Click="OpenConnect_Click" Margin="0,12,0,0" />
+                    <TextBlock x:Name="PairingFeedback" TextWrapping="Wrap" Margin="0,12,0,0" Foreground="{StaticResource InkBrush}" FontSize="14" />
+                  </StackPanel>
+                  <StackPanel x:Name="ContactPanel" Visibility="Collapsed">
                             <TextBlock Text="شماره پشتیبانی" FontSize="14" Foreground="{StaticResource LeatherDarkBrush}" />
                             <TextBlock x:Name="PhoneText" Text="0918-876-4024" FontFamily="Consolas, Tahoma" FontSize="22"
                                        FlowDirection="LeftToRight" TextAlignment="Center" Margin="0,8,0,12" />

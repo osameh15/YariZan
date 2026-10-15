@@ -1790,8 +1790,34 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "See the Phase 2 API guide for this operation",
-                  "type": "object"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "reset_grant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{43}$"
+                        }
+                      },
+                      "required": [
+                        "reset_grant"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "secret_already_delivered": {
+                          "type": "boolean",
+                          "const": true
+                        }
+                      },
+                      "required": [
+                        "secret_already_delivered"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
                 }
               }
             }
@@ -6090,67 +6116,6 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": "Successful operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "See the Phase 2 API guide for this operation",
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "410": {
             "description": "Structured error; no secrets or request bodies echoed",
             "content": {
@@ -6160,28 +6125,10 @@
                 }
               }
             }
-          },
-          "429": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Retired Phase 2 development protocol. Always returns 410 PROTOCOL_RETIRED; cannot issue credentials or enroll a profile."
       }
     },
     "/api/v2/device-pairings/{id}/pickup": {
@@ -6893,71 +6840,10 @@
       "post": {
         "operationId": "post__api_v2_devices_register",
         "summary": "POST /api/v2/devices/register",
-        "description": "Browser authorization returns a public receipt only. No device credential, signed enrollment or desktop claim grant is returned. Fresh pairing-bound device-key proof is mandatory at the separate desktop pickup endpoint. Legacy register/desktop-confirm endpoints are retired (410). Commercial startup remains closed.",
+        "description": "Retired Phase 2 development protocol. Always returns 410 PROTOCOL_RETIRED; cannot issue credentials or enroll a profile.",
         "security": [],
         "parameters": [],
         "responses": {
-          "201": {
-            "description": "Successful operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "See the Phase 2 API guide for this operation",
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "410": {
             "description": "Structured error; no secrets or request bodies echoed",
             "content": {
@@ -6967,28 +6853,9 @@
                 }
               }
             }
-          },
-          "429": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Structured error; no secrets or request bodies echoed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/api/v2/products": {

@@ -21,9 +21,10 @@ public partial class LockPage : UserControl
     private readonly DispatcherTimer _lockRefresh = new() { Interval = TimeSpan.FromSeconds(15) };
     private CancellationTokenSource? _visible;
     private bool _busy;
+    private CancellationTokenSource? _pairingCancellation;
     private readonly ILockDesktopActions _desktopActions;
     private readonly StoreDestinations _storeDestinations;
-    private enum DialogKind { None, ManualCode, Purchase, Support }
+    private enum DialogKind { None, ManualCode, Purchase, Support, Pairing }
     private DialogKind _dialog;
     private Button? _dialogTrigger;
     private double _backgroundOffset;
@@ -37,6 +38,8 @@ public partial class LockPage : UserControl
         _desktopActions = desktopActions ?? new WindowsLockDesktopActions();
         _storeDestinations = storeDestinations ?? StoreDestinations.LoadEmbedded();
         InitializeComponent();
+        ConnectButton.IsEnabled = access.Provisioning is not null;
+        ConnectButton.ToolTip = access.Provisioning is null ? "اتصال تجاری تا تأیید امنیت و کلیدهای رسمی بسته است." : "تأیید مرورگر؛ دریافت مجوز فقط در برنامه";
         PurchaseButton.Content = _storeDestinations.ForGrade(access.Grade) is null ? "راهنمای خرید" : "خرید این نسخه";
         ActivationTitle.Text = $"فعال‌سازی یاریزان — پایه {AppBranding.GradeName(access.Grade)}";
         HwidText.Text = access.Username;
@@ -85,6 +88,7 @@ public partial class LockPage : UserControl
     private void SetBusy(bool busy, bool lockCodeInput = false)
     {
         _busy = busy;
+        ConnectButton.IsEnabled = !busy && _access.Provisioning is not null;
         ActivateButton.IsEnabled = RedeemButton.IsEnabled = !busy;
         ActivationCodeInput.IsEnabled = !busy || !lockCodeInput;
         TrialButton.IsEnabled = !busy && (_access.State is DesktopAccessState.TrialAvailable or DesktopAccessState.ConnectionUnavailable);
@@ -144,14 +148,53 @@ public partial class LockPage : UserControl
         OpenDialog(DialogKind.Purchase, PurchaseButton);
     }
 
+    private async void Connect_Click(object sender, RoutedEventArgs e)
+    {
+        if (_dialog != DialogKind.None || _access.Provisioning is null || _busy) return;
+        SetBusy(true);
+        _pairingCancellation?.Dispose();
+        _pairingCancellation=CancellationTokenSource.CreateLinkedTokenSource(_visible?.Token ?? CancellationToken.None);
+        var cancellation=_pairingCancellation.Token;
+        try
+        {
+            if(await _access.Provisioning.ResumeAsync(cancellation))
+            {
+                await _access.ReloadProvisionedIdentityAsync(cancellation); SetBusy(false); await RefreshTrialAsync();
+                Message("اتصال امن دستگاه آماده است."); return;
+            }
+            var pair=await _access.Provisioning.BeginAsync(cancellation);
+            cancellation.ThrowIfCancellationRequested();
+            OpenDialog(DialogKind.Pairing,ConnectButton);
+            PairingIdText.Text=pair.Id; PairingCodeText.Text=pair.BrowserCode;
+            PairingFeedback.Text="پس از تأیید در مرورگر، اتصال خودکار بررسی می‌شود. کد پنج دقیقه اعتبار دارد.";
+            while(DateTimeOffset.UtcNow<pair.ExpiresAt)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5),cancellation);
+                if(await _access.Provisioning.CompleteAsync(cancellation))
+                {
+                    CloseDialog(); await _access.ReloadProvisionedIdentityAsync(_visible?.Token??CancellationToken.None);
+                    SetBusy(false); await RefreshTrialAsync(); Message("دستگاه با موفقیت متصل شد. اکنون می‌توانید آزمایش یا فعال‌سازی را انتخاب کنید."); return;
+                }
+            }
+            PairingCodeText.Clear(); PairingFeedback.Text="درخواست منقضی شد. پنجره را ببندید و دوباره درخواست بگیرید.";
+        }
+        catch(OperationCanceledException) { }
+        catch(Exception ex) { if(_dialog==DialogKind.Pairing)PairingFeedback.Text="اتصال کامل نشد. پنجره را ببندید و دوباره تلاش کنید؛ مجوز آفلاین موجود تغییر نمی‌کند."; else ShowFailure(ex,false); }
+        finally { SetBusy(false); if(_dialog==DialogKind.None && _visible is not null)ConnectButton.Focus(); }
+    }
+    private void CopyPairingId_Click(object sender,RoutedEventArgs e) { try { _desktopActions.CopyText(PairingIdText.Text); PairingFeedback.Text="شناسه کپی شد."; } catch { PairingFeedback.Text="کپی ممکن نشد؛ متن را انتخاب کنید."; } }
+    private void CopyPairingCode_Click(object sender,RoutedEventArgs e) { try { _desktopActions.CopyText(PairingCodeText.Text); PairingFeedback.Text="کد کپی شد؛ فقط در صفحهٔ اتصال وارد کنید."; } catch { PairingFeedback.Text="کپی ممکن نشد؛ متن را انتخاب کنید."; } }
+    private void OpenConnect_Click(object sender,RoutedEventArgs e) { try { _desktopActions.OpenConnectPage(); } catch { PairingFeedback.Text="صفحه باز نشد. نشانی رسمی صفحهٔ اتصال را در مرورگر باز کنید."; } }
+
     private void OpenDialog(DialogKind kind, Button trigger)
     {
         _backgroundOffset = LockScroll.VerticalOffset;
         _dialog = kind; _dialogTrigger = trigger;
         string grade = AppBranding.GradeName(_access.Grade);
-        ModalTitle.Text = kind switch { DialogKind.ManualCode => "ثبت کد فعال‌سازی", DialogKind.Purchase => $"راهنمای خرید — پایه {grade}", _ => $"پشتیبانی یاریزان — پایه {grade}" };
+        ModalTitle.Text = kind switch { DialogKind.Pairing => "اتصال امن به حساب", DialogKind.ManualCode => "ثبت کد فعال‌سازی", DialogKind.Purchase => $"راهنمای خرید — پایه {grade}", _ => $"پشتیبانی یاریزان — پایه {grade}" };
         ModalDescription.Text = kind switch
         {
+            DialogKind.Pairing => "شناسه و کد را فقط در صفحهٔ اتصال وارد کنید. مرورگر دستگاه را تأیید می‌کند؛ مجوز فقط در همین برنامه دریافت می‌شود.",
             DialogKind.ManualCode => "کد این نسخه را وارد کنید. ثبت کد به اتصال اینترنت نیاز دارد.",
             DialogKind.Purchase => "برای خرید این نسخه، پیام آماده را کپی کنید و با پشتیبانی تماس بگیرید.",
             _ => "برای دریافت راهنمایی، شماره یا پیام آماده را کپی کنید و با پشتیبانی تماس بگیرید."
@@ -161,7 +204,8 @@ public partial class LockPage : UserControl
         PreparedMessageText.Text = _preparedMessage.Replace(_access.Username, "\u2066" + _access.Username + "\u2069");
         ModalFeedback.Text = CodeFeedback.Text = "";
         ManualCodePanel.Visibility = kind == DialogKind.ManualCode ? Visibility.Visible : Visibility.Collapsed;
-        ContactPanel.Visibility = kind == DialogKind.ManualCode ? Visibility.Collapsed : Visibility.Visible;
+        ContactPanel.Visibility = kind is DialogKind.ManualCode or DialogKind.Pairing ? Visibility.Collapsed : Visibility.Visible;
+        PairingPanel.Visibility = kind == DialogKind.Pairing ? Visibility.Visible : Visibility.Collapsed;
         ModalOverlay.Visibility = Visibility.Visible;
         LockScroll.IsEnabled = false;
         ModalScroll.ScrollToTop();
@@ -169,15 +213,18 @@ public partial class LockPage : UserControl
         FrameworkElement first = kind == DialogKind.ManualCode && ActivationCodeInput.IsEnabled ? ActivationCodeInput : CopyPhoneButton;
         if (kind == DialogKind.ManualCode && !ActivationCodeInput.IsEnabled) first = CloseModalButton;
         FocusManager.SetFocusedElement(ModalOverlay, first);
+        if(kind==DialogKind.Pairing)first=OpenConnectButton;
         first.Focus();
     }
     private void CloseDialog(bool restoreFocus = true)
     {
         if (_dialog == DialogKind.None) return;
         _activationCancellation?.Cancel();
+        _pairingCancellation?.Cancel();
+        PairingCodeText.Clear(); PairingIdText.Clear();
         ActivationCodeInput.Clear();
         _dialog = DialogKind.None;
-        ModalOverlay.Visibility = ManualCodePanel.Visibility = ContactPanel.Visibility = Visibility.Collapsed;
+        ModalOverlay.Visibility = ManualCodePanel.Visibility = ContactPanel.Visibility = PairingPanel.Visibility = Visibility.Collapsed;
         LockScroll.IsEnabled = true;
         if (_renderAfterDialog && _visible is not null) { _renderAfterDialog = false; RenderState(); }
         if (restoreFocus) _dialogTrigger?.Focus();

@@ -8,7 +8,7 @@ import {
   devicePublicKey,
   verifyDeviceProof,
 } from "../signing/signing";
-import { Security } from "../security/security";
+import { Security, CustomerContext } from "../security/security";
 import { Audit, Actor } from "../audit/audit";
 import { requireCondition } from "../common/errors";
 import { challengeSchema, Proof } from "../common/schemas";
@@ -197,9 +197,10 @@ export class Identity {
     id: string,
     secret: string,
     password: string | undefined,
-    customerId: string | undefined,
+    authorizer: CustomerContext | undefined,
     actor: Actor,
   ) {
+    const customerId = authorizer?.id;
     const snapshot = (
       await this.db.query<Pairing>("SELECT * FROM pairings WHERE id=$1", [id])
     ).rows[0];
@@ -248,13 +249,18 @@ export class Identity {
           [d.id, d.generation],
         )
       ).rows[0];
-      if (customer)
+      if (customer) {
         requireCondition(
           customerId === customer.id,
           "PROFILE_NOT_AUTHORIZED",
           403,
         );
-      else {
+        const session = await c.query(
+          "SELECT 1 FROM customer_sessions WHERE token_hash=$1 AND customer_id=$2 AND revoked_at IS NULL AND expires_at>clock_timestamp() FOR SHARE",
+          [authorizer?.token_hash, customer.id],
+        );
+        requireCondition(session.rowCount, "UNAUTHENTICATED", 401);
+      } else {
         requireCondition(!customerId && encoded, "PASSWORD_REQUIRED");
         customer = { id: randomUUID() };
         await c.query(

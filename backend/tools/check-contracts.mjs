@@ -118,6 +118,23 @@ const page = z.strictObject({
   next_offset: z.number().int().nullable(),
 });
 const responses = {
+  "/api/v2/admin/activation-codes": z.union([
+    z.strictObject({
+      code_id: schemas.uuid,
+      activation_code: z
+        .string()
+        .regex(/^YZ2-(?:[0-9A-HJKMNP-TV-Z]{4}-){7}[0-9A-HJKMNP-TV-Z]{4}$/),
+    }),
+    z.strictObject({
+      code_id: schemas.uuid,
+      secret_already_delivered: z.literal(true),
+    }),
+  ]),
+  "/api/v2/admin/customers/{id}/password-reset": z.union([
+    z.strictObject({ reset_grant: schemas.secret }),
+    z.strictObject({ secret_already_delivered: z.literal(true) }),
+  ]),
+
   "/api/v2/account/devices": z.array(
     z.strictObject({
       id: schemas.uuid,
@@ -287,6 +304,18 @@ for (const r of routes.sort(
       503: error,
     },
   };
+  if (
+    [
+      "/api/v2/devices/register",
+      "/api/v2/device-pairings/{id}/desktop-confirm",
+    ].includes(r.path)
+  ) {
+    paths[r.path][r.method].deprecated = true;
+    paths[r.path][r.method].description =
+      "Retired Phase 2 development protocol. Always returns 410 PROTOCOL_RETIRED; cannot issue credentials or enroll a profile.";
+    paths[r.path][r.method].responses = { 410: error };
+    delete paths[r.path][r.method].requestBody;
+  }
 }
 const spec = {
   openapi: "3.1.0",
