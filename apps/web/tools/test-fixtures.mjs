@@ -7,10 +7,34 @@ const { hash: hashPassword } = require('argon2');
 const { canonical } = await import(
   new URL('../../../backend/dist/src/signing/signing.js', import.meta.url)
 );
-const { seal, totp } = await import(
+const { seal, unseal } = await import(
   new URL('../../../backend/dist/src/security/crypto.js', import.meta.url)
 );
 const base = 'http://127.0.0.1:3100/api/v2';
+export const nextMobile = () => '09' + String(100000000 + Math.floor(Math.random() * 899999999));
+export async function smsCode(id) {
+  for (let n = 0; n < 200; n++) {
+    try {
+      const { readFile } = await import('node:fs/promises');
+      const data = await readFile(
+        new URL('../../../backend/.local/web-sms-outbox.jsonl', import.meta.url),
+        'utf8',
+      );
+      for (const line of data.trim().split('\n').reverse()) {
+        try {
+          const m = JSON.parse(unseal(line, '4'.repeat(64)));
+          if (m.challengeId === id) return m.code;
+        } catch {
+          /* concurrent fixture append */
+        }
+      }
+    } catch {
+      /* delivery has not completed */
+    }
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw Error('Fake SMS delivery missing');
+}
 export const password = 'SyntheticWeb!Password12345';
 const database = new URL(
   process.env.DATABASE_URL ??
@@ -26,6 +50,25 @@ export async function sql(query, args = []) {
   }
 }
 export async function call(route, body, auth) {
+  if (route === '/auth/claim' && body?.password && !body.otp) {
+    const owner = await sql(
+      "SELECT 1 FROM pairings p JOIN customers c ON c.device_id=p.device_id AND c.generation=p.generation AND c.state='ACTIVE' WHERE p.id=$1",
+      [body.pairing_id],
+    );
+    if (!owner.rowCount) {
+      const sent = await call('/auth/claim/otp/request', {
+        pairing_id: body.pairing_id,
+        pairing_secret: body.pairing_secret,
+        mobile: nextMobile(),
+      });
+      assert.equal(sent.status, 201);
+      body = {
+        ...body,
+        otp: { challenge_id: sent.body.challenge_id, code: await smsCode(sent.body.challenge_id) },
+      };
+    }
+  }
+
   const response = await fetch(base + route, {
     method: body === undefined ? 'GET' : 'POST',
     headers: {
@@ -113,15 +156,22 @@ export async function admin(role = 'owner') {
     seal(secret, process.env.MFA_ENCRYPTION_KEY ?? '3'.repeat(64)),
   ]);
   await sql('INSERT INTO admin_user_roles VALUES($1,$2)', [id, role]);
-  return { username, password, code: totp(secret, Math.floor(Date.now() / 30000)) };
+  const mobile = nextMobile();
+  await sql('UPDATE admins SET mobile_ciphertext=$2,mobile_last4=$3 WHERE id=$1', [
+    id,
+    seal(mobile, '4'.repeat(64)),
+    mobile.slice(-4),
+  ]);
+  return { username, password, mobile };
 }
 export async function adminSession() {
-  const a = await admin(),
-    r = await call('/admin/auth/login', {
-      username: a.username,
-      password: a.password,
-      mfa_code: a.code,
-    });
+  const a = await admin();
+  const sent = await call('/admin/auth/login', { username: a.username, password: a.password });
+  assert.equal(sent.status, 201);
+  const r = await call('/admin/auth/sms/verify', {
+    challenge_id: sent.body.challenge_id,
+    code: await smsCode(sent.body.challenge_id),
+  });
   assert.equal(r.status, 201);
   return {
     cookie: r.headers

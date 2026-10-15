@@ -25,6 +25,7 @@ export default defineNuxtConfig({
     '/zanyari/**': { headers: { 'cache-control': 'no-store' } },
     '/connect': { headers: { 'cache-control': 'no-store' } },
     '/login': { headers: { 'cache-control': 'no-store' } },
+    '/support-reset': { headers: { 'cache-control': 'no-store' } },
     '/reset-password': { headers: { 'cache-control': 'no-store' } },
     '/api/**': { headers: { 'cache-control': 'no-store' } },
   },

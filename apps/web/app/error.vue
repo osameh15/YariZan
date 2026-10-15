@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 defineProps<{ error: { statusCode: number } }>();
 useHead({ htmlAttrs: { lang: 'fa', dir: 'rtl' }, title: 'صفحه در دسترس نیست | یاریزان' });
 </script>
@@ -9,8 +9,7 @@ useHead({ htmlAttrs: { lang: 'fa', dir: 'rtl' }, title: 'صفحه در دستر�
       <p class="eyebrow">راه را دوباره پیدا می‌کنیم</p>
       <h1>{{ error.statusCode === 404 ? 'این صفحه پیدا نشد.' : 'صفحه فعلاً در دسترس نیست.' }}</h1>
       <p>
-        نشانی را بررسی کنید یا از خانه ادامه دهید. هیچ خطای شبکه‌ای، مجوز معتبر آفلاین برنامه را لغو
-        نمی‌کند.
+        نشانی را بررسی کنید یا به صفحهٔ اصلی برگردید. اگر مشکل ادامه داشت، با پشتیبانی تماس بگیرید.
       </p>
       <button class="button primary" @click="clearError({ redirect: '/' })">بازگشت به خانه</button
       ><a href="tel:09188764024" class="text-link" dir="ltr">0918-876-4024</a>

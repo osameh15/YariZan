@@ -51,7 +51,7 @@ async function logout() {
 async function rotate() {
   try {
     await api.post('/api/v2/auth/session/rotate', undefined as never);
-    message.value = 'نشست تازه شد.';
+    message.value = 'ورود در این مرورگر تازه شد.';
   } catch (e) {
     message.value = errorMessage(e);
   }
@@ -94,7 +94,7 @@ onMounted(load);
                   owned.filter((o) => o.state === 'ACTIVE').length,
                 )
               }}</span>
-              <p>پایهٔ تحت مالکیت</p>
+              <p>پایهٔ خریداری‌شده</p>
             </article>
             <article class="panel">
               <span>{{
@@ -110,7 +110,7 @@ onMounted(load);
             </article>
           </div>
           <div class="panel">
-            <h2>ماجرای بعدی را انتخاب کنید.</h2>
+            <h2>پایهٔ مناسب فرزندتان را انتخاب کنید.</h2>
             <p>هر پایه مستقل است. برای آشنایی با قیمت و وضعیت عرضه، دنیای پایه‌ها را ببینید.</p>
             <NuxtLink class="button primary" to="/products">دیدن محصولات ←</NuxtLink>
           </div></template
@@ -152,17 +152,9 @@ onMounted(load);
             </p>
           </article></template
         ><template v-else-if="section === 'security'"
-          ><div class="panel">
-            <h2>امنیت حساب</h2>
-            <p>
-              گذرواژه را با دیگران به اشتراک نگذارید. برای بازیابی، پشتیبانی باید مالکیت را مستقل
-              بررسی کند.
-            </p>
-            <div class="actions">
-              <button class="button secondary" @click="rotate">تازه‌سازی نشست</button
-              ><NuxtLink class="button secondary" to="/support">راهنمای بازیابی گذرواژه</NuxtLink>
-            </div>
-          </div></template
+          ><AccountSecurity /><button class="button secondary" @click="rotate">
+            تازه‌سازی ورود در این مرورگر
+          </button></template
         >
         <div v-else class="panel">
           <h2>ثبت سفارش هنوز فعال نیست.</h2>

@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { defineComponent } from 'vue';
+import { defineComponent, ref } from 'vue';
 import ProductCard from '../../app/components/ProductCard.vue';
+import FormShell from '../../app/components/FormShell.vue';
+import ApiNotice from '../../app/components/ApiNotice.vue';
 import LoadState from '../../app/components/LoadState.vue';
 import { toman, safeReturn, productSchema, errorMessage } from '../../shared/domain';
 import { allowedBrowserRoute, backendBase } from '../../shared/proxy-policy';
@@ -108,5 +110,48 @@ describe('Loading and recovery states', () => {
   });
   it('shows an honest empty state', () => {
     expect(mount(LoadState, { props: { empty: true } }).text()).toContain('هنوز');
+  });
+});
+
+describe('Custom accessible form feedback', () => {
+  it('blocks empty submission with Persian inline error and no native validation', async () => {
+    const w = mount(FormShell, {
+      attachTo: document.body,
+      slots: {
+        default:
+          '<label>نام کاربری<input required data-label="نام کاربری"/></label><button>ورود</button>',
+      },
+    });
+    await w.get('form').trigger('submit');
+    expect(w.get('form').attributes()).toHaveProperty('novalidate');
+    expect(w.get('input').attributes('aria-invalid')).toBe('true');
+    expect(w.text()).toContain('نام کاربری را وارد کنید');
+    expect(w.emitted('submit')).toBeUndefined();
+    expect(document.activeElement).toBe(w.get('input').element);
+    expect(w.get('input').attributes('aria-describedby')).toBeTruthy();
+    w.unmount();
+  });
+  it('shows password mismatch and emits only a complete matching form', async () => {
+    const Host = defineComponent({
+      components: { FormShell },
+      setup() {
+        return { a: ref('Long!Password123'), b: ref('different-password') };
+      },
+      template:
+        '<FormShell><label>رمز عبور<input v-model="a" name="password" required minlength="12"/></label><label>تکرار<input v-model="b" data-match="password" required/></label></FormShell>',
+    });
+    const w = mount(Host, { attachTo: document.body });
+    await w.get('form').trigger('submit');
+    expect(w.text()).toContain('یکسان نیستند');
+    await w.findAll('input')[1]!.setValue('Long!Password123');
+    await w.get('form').trigger('submit');
+    expect(w.getComponent(FormShell).emitted('submit')).toHaveLength(1);
+    w.unmount();
+  });
+  it('uses an alert and explicit retry for server errors', async () => {
+    const w = mount(ApiNotice, { props: { message: 'ارسال پیامک در دسترس نیست.', retry: true } });
+    expect(w.get('[role=alert]').text()).toContain('پیامک');
+    await w.get('button').trigger('click');
+    expect(w.emitted('retry')).toHaveLength(1);
   });
 });

@@ -3,6 +3,50 @@ import { errorMessage, toman, gradeNames } from '#shared/domain';
 import type { ApiPath } from '#shared/api';
 type Row = Record<string, unknown>;
 let alive = true;
+const noticeSuccess = ref(false);
+const notesOpen = ref(false),
+  noteRow = ref<Record<string, unknown>>({}),
+  noteText = ref(''),
+  noteMessage = ref(''),
+  noteBusy = ref(false);
+const noteId = (row: Record<string, unknown>) =>
+  section.value === 'products'
+    ? String(row.sku)
+    : section.value === 'trials'
+      ? [row.device_id, row.sku, row.generation].join('~')
+      : String(row.id);
+function editNote(row: Record<string, unknown>) {
+  noteRow.value = row;
+  noteText.value = String(row.note ?? '');
+  noteMessage.value = '';
+  notesOpen.value = true;
+}
+async function saveNote() {
+  noteBusy.value = true;
+  noteMessage.value = '';
+  try {
+    await api.post(
+      '/api/v2/admin/notes/{type}/{id}',
+      { note: noteText.value, expected_revision: Number(noteRow.value.note_revision ?? 0) },
+      { type: section.value, id: noteId(noteRow.value) },
+    );
+    notesOpen.value = false;
+    await load();
+    message.value = 'یادداشت داخلی ذخیره شد.';
+    noticeSuccess.value = true;
+  } catch (e) {
+    noteMessage.value = errorMessage(e);
+  } finally {
+    noteBusy.value = false;
+  }
+}
+watch(notesOpen, (v) => {
+  if (!v) {
+    noteText.value = '';
+    noteRow.value = {};
+  }
+});
+
 const route = useRoute(),
   api = useApi(true),
   busy = ref(true),
@@ -19,7 +63,7 @@ const sections = [
   ['products', 'محصولات و قیمت', 'products.manage'],
   ['customers', 'مشتریان', 'customers.read'],
   ['devices', 'دستگاه‌ها و محدودیت‌ها', 'devices.read'],
-  ['licenses', 'مجوزها و مالکیت', 'licenses.read'],
+  ['licenses', 'مجوزهای خرید', 'licenses.read'],
   ['trials', 'فرصت‌های آزمایشی', 'trials.read'],
   ['activation-codes', 'کدهای فعال‌سازی', 'activation_codes.read'],
   ['audit', 'گزارش فعالیت', 'audit.read'],
@@ -47,15 +91,15 @@ const product = reactive({
 const operationTitles: Record<string, string> = {
   product: 'ویرایش محصول',
   reset: 'بازنشانی حساب مشتری',
-  'password-reset': 'مجوز بازیابی گذرواژه',
-  block: 'محدود کردن یک پایه',
-  unblock: 'برداشتن محدودیت پایه',
-  trial: 'تخصیص تازهٔ آزمایش',
-  issue: 'صدور مالکیت دستی',
-  code: 'صدور کد یک‌بارمصرف',
+  'password-reset': 'ساخت مجوز بازیابی با تأیید پشتیبانی',
+  block: 'مسدود کردن دسترسی یک پایه',
+  unblock: 'برداشتن محدودیت این پایه',
+  trial: 'بازنشانی فرصت‌های آزمایشی این پایه',
+  issue: 'ثبت مجوز خرید برای دستگاه',
+  code: 'ساخت کد فعال‌سازی',
   cancel: 'لغو کد فعال‌سازی',
-  revoke: 'لغو مجوز',
-  reissue: 'بازیابی مجوز با تأیید مالکیت',
+  revoke: 'لغو اعتبار مجوز',
+  reissue: 'بازیابی مجوز خرید',
 };
 const needsEvidence = computed(() =>
   ['password-reset', 'issue', 'code', 'reissue'].includes(kind.value),
@@ -63,6 +107,7 @@ const needsEvidence = computed(() =>
 async function load() {
   busy.value = true;
   message.value = '';
+  noticeSuccess.value = false;
   try {
     const session = await api.get('/api/v2/admin/auth/session');
     permissions.value = session.permissions;
@@ -308,7 +353,7 @@ onBeforeUnmount(() => {
         </div>
         <NuxtLink to="/zanyari/login" class="text-link">ورود مجدد برای تأیید تازه ↗</NuxtLink>
       </header>
-      <p v-if="message" class="notice error" role="alert">{{ message }}</p>
+      <ApiNotice :message="message" :kind="noticeSuccess ? 'success' : 'error'" />
       <p v-if="busy" role="status" class="notice">در حال دریافت اطلاعات…</p>
       <template v-if="section === 'dashboard'"
         ><div v-if="allowed('audit.read')" class="stat-grid">
@@ -335,11 +380,11 @@ onBeforeUnmount(() => {
           </p>
           <p class="danger-copy">
             بازنشانی حساب، محدودیت پایه و بازیابی مجوز سه کار مستقل‌اند. حذف حساب محدودیت دستگاه را
-            برنمی‌دارد. لغو مجوز نمی‌تواند فوراً نسخهٔ همیشه‌آفلاین را متوقف کند.
+            برنمی‌دارد. لغو اعتبار مجوز نمی‌تواند فوراً نسخهٔ همیشه‌آفلاین را متوقف کند.
           </p>
         </div></template
       ><template v-else-if="permissions.length"
-        ><form
+        ><FormShell
           v-if="section !== 'audit'"
           class="data-toolbar"
           @submit.prevent="
@@ -350,14 +395,20 @@ onBeforeUnmount(() => {
           <input
             v-model="search"
             :aria-label="
-              section === 'products' ? 'جست‌وجوی شناسهٔ محصول' : 'جست‌وجوی نام کاربری دستگاه'
+              section === 'products'
+                ? 'جست‌وجوی محصول و یادداشت'
+                : 'جست‌وجوی شناسه، نام کاربری، شماره یا یادداشت'
             "
-            :placeholder="section === 'products' ? 'شناسهٔ محصول' : 'جست‌وجوی نام کاربری دستگاه'"
+            :placeholder="
+              section === 'products'
+                ? 'نام محصول، شناسه یا یادداشت'
+                : 'شناسه، نام کاربری، شمارهٔ کامل همراه یا یادداشت'
+            "
             dir="ltr"
-            maxlength="64"
+            maxlength="128"
           /><button class="button secondary">جست‌وجو</button
           ><button type="button" class="button secondary" @click="load">تازه‌سازی</button>
-        </form>
+        </FormShell>
         <div v-if="!rows.length && !busy" class="panel empty">موردی برای نمایش پیدا نشد.</div>
         <div
           v-else-if="rows.length && !busy"
@@ -378,6 +429,7 @@ onBeforeUnmount(() => {
                 <th v-else-if="section === 'audit'">فعالیت</th>
                 <th v-else>وضعیت</th>
                 <th>جزئیات</th>
+                <th v-if="section !== 'audit'">یادداشت داخلی</th>
                 <th v-if="section !== 'audit'">عملیات</th>
               </tr>
             </thead>
@@ -404,7 +456,7 @@ onBeforeUnmount(() => {
                       >{{ new Intl.NumberFormat('fa-IR').format(2 - Number(row.used)) }} فرصت
                       باقی‌مانده</b
                     ><small
-                      >تخصیص
+                      >دورهٔ آزمایشی
                       {{
                         new Intl.NumberFormat('fa-IR').format(Number(row.allocation_epoch))
                       }}</small
@@ -414,7 +466,7 @@ onBeforeUnmount(() => {
                       >{{ new Intl.NumberFormat('fa-IR').format(Number(row.profiles)) }} پروفایل
                       فعال</b
                     ><small>{{
-                      row.customer_state ? 'مالکیت فعال' : 'بدون مالکیت فعال'
+                      row.customer_state ? 'حساب متصل' : 'بدون حساب متصل'
                     }}</small></template
                   ><span v-else class="badge">{{ state(row.state ?? row.status) }}</span>
                 </td>
@@ -454,6 +506,16 @@ onBeforeUnmount(() => {
                   >
                 </td>
                 <td v-if="section !== 'audit'">
+                  <p class="note-preview">
+                    {{ String(row.note ?? '').slice(0, 100) || 'یادداشتی ثبت نشده' }}
+                  </p>
+                  <button type="button" class="button secondary" @click="editNote(row)">
+                    {{
+                      allowed('notes.manage') ? 'مشاهده و ویرایش یادداشت' : 'مشاهدهٔ یادداشت'
+                    }}</button
+                  ><small v-if="row.mobile_masked" dir="ltr">{{ row.mobile_masked }}</small>
+                </td>
+                <td v-if="section !== 'audit'">
                   <div class="table-actions">
                     <button
                       v-if="section === 'products' && allowed('products.manage')"
@@ -473,7 +535,7 @@ onBeforeUnmount(() => {
                         class="button secondary"
                         @click="open('password-reset', row)"
                       >
-                        بازیابی گذرواژه
+                        بازیابی رمز عبور
                       </button></template
                     ><template v-if="section === 'devices'"
                       ><button
@@ -493,13 +555,13 @@ onBeforeUnmount(() => {
                         class="button secondary"
                         @click="open('issue', row)"
                       >
-                        صدور مالکیت</button
+                        ثبت مجوز خرید</button
                       ><button
                         v-if="allowed('activation_codes.issue') && row.customer_id"
                         class="button secondary"
                         @click="open('code', row)"
                       >
-                        صدور کد
+                        ساخت کد فعال‌سازی
                       </button></template
                     ><template v-if="section === 'licenses'"
                       ><button
@@ -507,13 +569,13 @@ onBeforeUnmount(() => {
                         class="button secondary"
                         @click="open('revoke', row)"
                       >
-                        لغو مجوز</button
+                        لغو اعتبار مجوز</button
                       ><button
                         v-if="allowed('licenses.reissue')"
                         class="button secondary"
                         @click="open('reissue', row)"
                       >
-                        بازیابی با تأیید مالکیت
+                        بازیابی مجوز خرید
                       </button></template
                     ><button
                       v-if="section === 'trials' && allowed('trials.reset')"
@@ -561,14 +623,37 @@ onBeforeUnmount(() => {
         </div></template
       >
     </div>
+    <BaseDialog v-model="notesOpen" title="یادداشت داخلی"
+      ><FormShell @submit="saveNote"
+        ><p class="mono" dir="ltr">{{ noteId(noteRow) }}</p>
+        <p class="muted">
+          برای پیگیری داخلی همکاران است. رمز عبور، کد پیامک و کد فعال‌سازی را در یادداشت ننویسید.
+        </p>
+        <label
+          >یادداشت داخلی<textarea
+            v-model="noteText"
+            class="note-editor"
+            maxlength="2000"
+            :readonly="!allowed('notes.manage')"
+          /></label
+        ><ApiNotice :message="noteMessage" /><button
+          v-if="allowed('notes.manage')"
+          class="button primary"
+          :disabled="noteBusy"
+        >
+          {{ noteBusy ? 'در حال ذخیره…' : 'ذخیرهٔ یادداشت' }}
+        </button></FormShell
+      ></BaseDialog
+    >
     <BaseDialog v-model="dialog" :title="operationTitles[kind] ?? 'تأیید عملیات'"
-      ><form v-if="!submitted" @submit.prevent="commit">
+      ><FormShell v-if="!submitted" @submit.prevent="commit">
         <p class="device-username" dir="ltr">
           {{ selected.username ?? selected.sku ?? selected.id }}
         </p>
         <p v-if="kind === 'reset'" class="danger-copy">
-          مالکیت عملیاتی، نشست‌ها و مجوزهای حساب بسته می‌شوند. نسل حساب جلو می‌رود. محدودیت پایه و
-          تاریخچه حفظ می‌شود؛ نسخهٔ همیشه‌آفلاین فوراً متوقف نمی‌شود.
+          حساب فعلی، شمارهٔ همراه و رمز عبور آن غیرفعال می‌شوند و نشست‌ها و دسترسی‌های آنلاین بسته
+          می‌شوند. اتصال دوباره حساب تازه‌ای ایجاد می‌کند. محدودیت‌های هر پایه و تاریخچه حفظ
+          می‌شوند. مجوز معتبرِ دستگاهی که همیشه آفلاین است فوراً از کار نمی‌افتد.
         </p>
         <p v-else-if="kind === 'trial'" class="notice">
           فقط همین پایه دو فرصت تازه می‌گیرد. درخواست‌های تخصیص قبلی بازگردانده نمی‌شوند؛ تاریخچه
@@ -640,7 +725,7 @@ onBeforeUnmount(() => {
         >
           {{ saving ? 'در حال ثبت…' : 'تأیید و ثبت عملیات' }}
         </button>
-      </form>
+      </FormShell>
       <div v-else>
         <span class="success-mark" aria-hidden="true">✓</span
         ><template v-if="secret"

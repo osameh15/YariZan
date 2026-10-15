@@ -1,9 +1,17 @@
 export const browserRoutes = [
   ['GET', /^products(?:\/YARIZAN-G[1-6])?$/],
-  ['POST', /^auth\/(?:claim|login|logout|session\/rotate|password-reset\/complete)$/],
-  ['GET', /^account(?:\/(?:devices|licenses|entitlements))?$/],
+  [
+    'POST',
+    /^auth\/(?:claim|login|logout|session\/rotate|password-reset\/(?:complete|otp)|otp\/(?:request|verify)|claim\/otp\/request)$/,
+  ],
+  ['GET', /^account(?:\/(?:devices|licenses|entitlements|security))?$/],
   ['POST', /^device-pairings\/[0-9a-f-]{36}\/(?:preview|confirm|cancel)$/],
-  ['POST', /^admin\/auth\/(?:login|logout)$/],
+  ['POST', /^admin\/auth\/(?:login|logout|sms\/verify)$/],
+  ['POST', /^account\/security\/(?:otp|password|mobile)$/],
+  [
+    'POST',
+    /^admin\/notes\/(?:customers|devices|licenses|activation-codes|trials|products)\/[A-Za-z0-9:~-]{1,128}$/,
+  ],
   ['GET', /^admin\/auth\/session$/],
   ['GET', /^admin\/(?:customers|devices|licenses|trials|activation-codes|products|audit|reports)$/],
   ['PATCH', /^admin\/products\/YARIZAN-G[1-6]$/],

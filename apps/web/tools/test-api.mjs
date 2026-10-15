@@ -7,6 +7,10 @@ const require = createRequire(new URL('../../../backend/package.json', import.me
 const { Pool } = require('pg');
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 process.env.NODE_ENV = 'test';
+process.env.SMS_PROVIDER = 'fake';
+process.env.MOBILE_ENCRYPTION_KEY = '4'.repeat(64);
+process.env.OTP_HMAC_KEY = '5'.repeat(64);
+process.env.SMS_FAKE_OUTBOX = '.local/web-sms-outbox.jsonl';
 const base = new URL(
   process.env.DATABASE_URL ??
     'postgresql://yarizan:local-disposable@127.0.0.1:55432/yarizan_phase2_test',

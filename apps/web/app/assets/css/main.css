@@ -779,6 +779,7 @@ img {
   border-bottom: 1px solid var(--line);
 }
 .dialog {
+  margin: auto;
   border: 1px solid #cdbd9d;
   border-radius: 20px;
   padding: 28px;
@@ -1588,4 +1589,74 @@ td .button {
     transition: none !important;
     scroll-behavior: auto !important;
   }
+}
+
+.field-error {
+  display: block;
+  min-height: 1.6em;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+.form-summary {
+  display: grid;
+  gap: 4px;
+  border-inline-start: 4px solid var(--danger);
+  background: #faeee6;
+  padding: 12px 16px;
+  border-radius: 12px;
+  margin-block: 12px;
+  color: #7c2928;
+  font-size: 14px;
+}
+input[aria-invalid='true'],
+textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+  background: #fff8f4;
+}
+.api-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.api-notice > span {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-weight: bold;
+}
+.api-notice p {
+  margin: 0;
+}
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-block: 20px;
+}
+.auth-tabs button {
+  flex: 1;
+}
+.otp-help {
+  font-size: 13px;
+  color: var(--muted);
+}
+.note-preview {
+  max-width: 240px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.security-cards {
+  display: grid;
+  gap: 24px;
+}
+.security-cards .panel {
+  padding: 24px;
+}
+.note-editor {
+  min-height: 160px;
 }

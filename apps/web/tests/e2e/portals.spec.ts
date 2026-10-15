@@ -12,8 +12,13 @@ import {
   issue,
   password,
   sql,
+  smsCode,
+  nextMobile,
 } from '../../tools/test-fixtures.mjs';
-const images = path.resolve('../../docs/Images/phase3');
+const images = path.resolve('../../docs/Images/phase3-1');
+test.beforeEach(async () => {
+  await sql('DELETE FROM rate_buckets');
+});
 async function capture(page: import('@playwright/test').Page, name: string) {
   await mkdir(images, { recursive: true });
   await page.screenshot({
@@ -25,7 +30,7 @@ async function capture(page: import('@playwright/test').Page, name: string) {
 async function customerLogin(page: import('@playwright/test').Page, username: string) {
   await page.goto('/login');
   await page.getByLabel('نام کاربری دستگاه', { exact: true }).fill(username);
-  await page.getByLabel('گذرواژه', { exact: true }).fill(password);
+  await page.getByLabel('رمز عبور', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'ورود به حساب', exact: true }).click();
   await expect(page).toHaveURL(/\/account$/);
   await expect(page.getByRole('heading', { name: 'نمای کلی', exact: true })).toBeVisible();
@@ -34,9 +39,12 @@ async function adminLogin(page: import('@playwright/test').Page, role = 'owner')
   const a = await admin(role);
   await page.goto('/zanyari/login');
   await page.getByLabel('نام کاربری مدیریت').fill(a.username);
-  await page.getByLabel('گذرواژه', { exact: true }).fill(a.password);
-  await page.getByLabel('کد تأیید دومرحله‌ای').fill(a.code);
-  await page.getByRole('button', { name: 'ورود امن', exact: true }).click();
+  await page.getByLabel('رمز عبور', { exact: true }).fill(a.password);
+  const sent = page.waitForResponse((r) => r.url().endsWith('/api/v2/admin/auth/login'));
+  await page.getByRole('button', { name: 'ارسال کد تأیید', exact: true }).click();
+  const challenge = await (await sent).json();
+  await page.getByLabel('کد تأیید پیامکی').fill(await smsCode(challenge.challenge_id));
+  await page.getByRole('button', { name: 'تأیید کد و ورود', exact: true }).click();
   await expect(page).toHaveURL(/\/zanyari$/);
   await expect(page.getByRole('heading', { name: 'نمای کلی', exact: true })).toBeVisible();
   return a;
@@ -99,12 +107,15 @@ test('Browser approves pairing but never receives device enrollment or bearer', 
   await page.getByLabel('شناسهٔ درخواست', { exact: true }).fill(p.pairing_id);
   await page.getByLabel('کد موقت اتصال').fill(p.pairing_secret);
   await page.getByRole('button', { name: 'بررسی درخواست' }).click();
-  await expect(page.getByRole('heading', { name: 'این دستگاهِ شماست؟' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /راه‌اندازی حساب|تأیید پروفایل/ })).toBeVisible();
   await capture(page, '04-connect');
-  await page.getByLabel('گذرواژهٔ جدید', { exact: true }).fill(password);
-  await page.getByLabel('تکرار گذرواژه', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'این دستگاه را تأیید می‌کنم' }).click();
-  await expect(page.getByRole('heading', { name: 'دستگاه تأیید شد.' })).toBeVisible();
+  await page.getByLabel('شمارهٔ همراه', { exact: true }).fill(nextMobile());
+  const sentOtp = page.waitForResponse((r) => r.url().endsWith('/api/v2/auth/claim/otp/request'));
+  await page.getByRole('button', { name: 'ارسال کد تأیید', exact: true }).click();
+  const otp = await (await sentOtp).json();
+  await page.getByLabel('کد تأیید پیامکی').fill(await smsCode(otp.challenge_id));
+  await page.getByRole('button', { name: 'تأیید شماره و اتصال' }).click();
+  await expect(page.getByRole('heading', { name: 'اتصال در مرورگر تأیید شد' })).toBeVisible();
   expect(bodies.join('\n')).not.toMatch(
     /"(?:credential|enrollment|claim_grant|browser_token|private_key)"/,
   );
@@ -154,8 +165,8 @@ test('Customer login, real ownership, session rotation, logout and SSR isolation
   expect(html).not.toContain(e.username);
   expect(html).not.toContain(e.credential);
   await page.goto('/account/security');
-  await page.getByRole('button', { name: 'تازه‌سازی نشست' }).click();
-  await expect(page.getByRole('status')).toContainText('نشست تازه شد');
+  await page.getByRole('button', { name: 'تازه‌سازی ورود در این مرورگر' }).click();
+  await expect(page.getByRole('status')).toContainText('ورود در این مرورگر تازه شد');
   await page.getByRole('button', { name: 'خروج از حساب', exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.goto('/account');
@@ -168,10 +179,10 @@ test('Safe login redirects and wrong-password feedback', async ({ page }) => {
   const e = await customer();
   await page.goto('/login?return=https://evil.invalid');
   await page.getByLabel('نام کاربری دستگاه', { exact: true }).fill(e.username);
-  await page.getByLabel('گذرواژه', { exact: true }).fill('Wrong!Password12345');
+  await page.getByLabel('رمز عبور', { exact: true }).fill('Wrong!Password12345');
   await page.getByRole('button', { name: 'ورود به حساب', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('درست نیست');
-  await page.getByLabel('گذرواژه', { exact: true }).fill(password);
+  await page.getByLabel('رمز عبور', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'ورود به حساب', exact: true }).click();
   await expect(page).toHaveURL(/localhost:3200\/account$/);
 });
@@ -196,7 +207,7 @@ test('Additional profile requires existing owner and shares device and trials', 
   await page.getByLabel('کد موقت اتصال').fill(p.pairing_secret);
   await page.getByRole('button', { name: 'بررسی درخواست' }).click();
   await page.getByRole('button', { name: 'این دستگاه را تأیید می‌کنم' }).click();
-  await expect(page.getByRole('heading', { name: 'دستگاه تأیید شد.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'اتصال در مرورگر تأیید شد' })).toBeVisible();
   const pickup = await call(
     `/device-pairings/${p.pairing_id}/pickup`,
     await proof(p.key, 'CONFIRM', p.pairing_id),
@@ -233,7 +244,9 @@ test('Admin device block/unblock and activation codes display once', async ({ pa
   const e = await customer();
   await adminLogin(page);
   await page.goto('/zanyari/devices');
-  await page.getByRole('textbox', { name: 'جست‌وجوی نام کاربری دستگاه' }).fill(e.username);
+  await page
+    .getByRole('textbox', { name: 'جست‌وجوی شناسه، نام کاربری، شماره یا یادداشت' })
+    .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await expect(page.locator('tbody tr')).toHaveCount(1);
@@ -251,7 +264,7 @@ test('Admin device block/unblock and activation codes display once', async ({ pa
   await page.getByRole('button', { name: 'تأیید و ثبت عملیات' }).click();
   await expect(page.getByRole('dialog').getByRole('status')).toContainText('عملیات ثبت شد');
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'صدور کد', exact: true }).click();
+  await page.getByRole('button', { name: 'ساخت کد فعال‌سازی', exact: true }).click();
   await page.getByLabel('دلیل عملیات').fill('صدور دستی پس از بررسی مالکیت');
   await page
     .getByLabel('مرجع تأیید مستقل مالکیت', { exact: false })
@@ -368,7 +381,9 @@ test('Admin trial allocation reset and customer reset preserve historical device
   expect((await call('/desktop/trials/YARIZAN-G1/start', trial, e.credential)).status).toBe(201);
   await adminLogin(page);
   await page.goto('/zanyari/trials');
-  await page.getByRole('textbox', { name: 'جست‌وجوی نام کاربری دستگاه' }).fill(e.username);
+  await page
+    .getByRole('textbox', { name: 'جست‌وجوی شناسه، نام کاربری، شماره یا یادداشت' })
+    .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await page.getByRole('button', { name: 'دو فرصت تازه' }).click();
@@ -385,18 +400,22 @@ test('Admin trial allocation reset and customer reset preserve historical device
     ).rows[0],
   ).toMatchObject({ used: 0, allocation_epoch: '2' });
   await page.goto('/zanyari/devices');
-  await page.getByRole('textbox', { name: 'جست‌وجوی نام کاربری دستگاه' }).fill(e.username);
+  await page
+    .getByRole('textbox', { name: 'جست‌وجوی شناسه، نام کاربری، شماره یا یادداشت' })
+    .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await page.getByRole('button', { name: 'محدود کردن پایه', exact: true }).click();
   await confirmOperation(page, 'محدودیت پایه پیش از بازنشانی');
   await page.keyboard.press('Escape');
   await page.goto('/zanyari/customers');
-  await page.getByRole('textbox', { name: 'جست‌وجوی نام کاربری دستگاه' }).fill(e.username);
+  await page
+    .getByRole('textbox', { name: 'جست‌وجوی شناسه، نام کاربری، شماره یا یادداشت' })
+    .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await page.getByRole('button', { name: 'بازنشانی حساب', exact: true }).click();
-  await expect(page.getByRole('dialog')).toContainText('تاریخچه حفظ می‌شود');
+  await expect(page.getByRole('dialog')).toContainText('تاریخچه حفظ می‌شوند');
   await confirmOperation(page, 'بازنشانی حساب با تأیید مستقل');
   await page.keyboard.press('Escape');
   expect(
@@ -422,23 +441,31 @@ test('Admin manual ownership, revoke and same-ID recovery use real revisioned op
   const e = await customer();
   await adminLogin(page);
   await page.goto('/zanyari/devices');
-  await page.getByRole('textbox', { name: 'جست‌وجوی نام کاربری دستگاه' }).fill(e.username);
+  await page
+    .getByRole('textbox', { name: 'جست‌وجوی شناسه، نام کاربری، شماره یا یادداشت' })
+    .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
-  await page.getByRole('button', { name: 'صدور مالکیت', exact: true }).click();
-  await confirmOperation(page, 'صدور مالکیت دستی پس از بررسی', 'synthetic-ownership-issue-003');
+  await page.getByRole('button', { name: 'ثبت مجوز خرید', exact: true }).click();
+  await confirmOperation(
+    page,
+    'ثبت مجوز خرید برای دستگاه پس از بررسی',
+    'synthetic-ownership-issue-003',
+  );
   await page.keyboard.press('Escape');
   await page.goto('/zanyari/licenses');
-  await page.getByRole('textbox', { name: 'جست‌وجوی نام کاربری دستگاه' }).fill(e.username);
+  await page
+    .getByRole('textbox', { name: 'جست‌وجوی شناسه، نام کاربری، شماره یا یادداشت' })
+    .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await capture(page, '11-admin-licenses');
-  await page.getByRole('button', { name: 'لغو مجوز', exact: true }).click();
-  await confirmOperation(page, 'لغو مجوز به درخواست بررسی مستقل');
+  await page.getByRole('button', { name: 'لغو اعتبار مجوز', exact: true }).click();
+  await confirmOperation(page, 'لغو اعتبار مجوز به درخواست بررسی مستقل');
   await page.keyboard.press('Escape');
   await expect(page.locator('tbody tr')).toContainText('لغوشده');
-  await page.getByRole('button', { name: 'بازیابی با تأیید مالکیت', exact: true }).click();
+  await page.getByRole('button', { name: 'بازیابی مجوز خرید', exact: true }).click();
   await confirmOperation(page, 'بازیابی همان مجوز پس از بررسی', 'synthetic-ownership-recover-004');
   await page.keyboard.press('Escape');
   await expect(page.locator('tbody tr')).toContainText('فعال');
@@ -455,11 +482,13 @@ test('Support reset grant is shown once and completes a forced password change',
   const e = await customer();
   await adminLogin(page, 'support');
   await page.goto('/zanyari/customers');
-  await page.getByRole('textbox', { name: 'جست‌وجوی نام کاربری دستگاه' }).fill(e.username);
+  await page
+    .getByRole('textbox', { name: 'جست‌وجوی شناسه، نام کاربری، شماره یا یادداشت' })
+    .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'بازنشانی حساب', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'بازیابی گذرواژه', exact: true }).click();
+  await page.getByRole('button', { name: 'بازیابی رمز عبور', exact: true }).click();
   await confirmOperation(
     page,
     'بازیابی پس از احراز مستقل مالکیت',
@@ -467,13 +496,13 @@ test('Support reset grant is shown once and completes a forced password change',
   );
   const grant = await page.getByTestId('one-time-secret').textContent();
   expect(grant?.length).toBe(43);
-  await page.goto('/reset-password');
+  await page.goto('/support-reset');
   expect(await page.locator('body').textContent()).not.toContain(grant);
   await page.getByLabel('مجوز بازیابی', { exact: true }).fill(grant!);
-  await page.getByLabel('گذرواژهٔ جدید', { exact: true }).fill('ChangedSynthetic!Password987');
-  await page.getByLabel('تکرار گذرواژه', { exact: true }).fill('ChangedSynthetic!Password987');
-  await page.getByRole('button', { name: 'ثبت گذرواژهٔ تازه' }).click();
-  await expect(page.getByRole('heading', { name: 'گذرواژه تغییر کرد.' })).toBeVisible();
+  await page.getByLabel('رمز عبور جدید', { exact: true }).fill('ChangedSynthetic!Password987');
+  await page.getByLabel('تکرار رمز عبور', { exact: true }).fill('ChangedSynthetic!Password987');
+  await page.getByRole('button', { name: 'ثبت رمز عبور تازه' }).click();
+  await expect(page.getByRole('heading', { name: 'رمز عبور تغییر کرد.' })).toBeVisible();
   expect((await call('/auth/login', { username: e.username, password })).status).toBe(401);
   expect(
     (await call('/auth/login', { username: e.username, password: 'ChangedSynthetic!Password987' }))
@@ -595,13 +624,20 @@ test('Real C# provisioning and Playwright approval complete one integrated deskt
       await page.getByLabel('شناسهٔ درخواست', { exact: true }).fill(pairing.pairing_id);
       await page.getByLabel('کد موقت اتصال').fill(pairing.pairing_secret);
       await page.getByRole('button', { name: 'بررسی درخواست' }).click();
-      await expect(page.getByRole('heading', { name: 'این دستگاهِ شماست؟' })).toBeVisible();
-      await page.getByLabel('گذرواژهٔ جدید', { exact: true }).fill('Synthetic!Provisioning12345');
-      await page.getByLabel('تکرار گذرواژه', { exact: true }).fill('Synthetic!Provisioning12345');
+      await expect(
+        page.getByRole('heading', { name: /راه‌اندازی حساب|تأیید پروفایل/ }),
+      ).toBeVisible();
+      await page.getByLabel('شمارهٔ همراه', { exact: true }).fill(nextMobile());
+      const sentOtp = page.waitForResponse((r) =>
+        r.url().endsWith('/api/v2/auth/claim/otp/request'),
+      );
+      await page.getByRole('button', { name: 'ارسال کد تأیید', exact: true }).click();
+      const otp = await (await sentOtp).json();
+      await page.getByLabel('کد تأیید پیامکی').fill(await smsCode(otp.challenge_id));
       const responsePromise = page.waitForResponse((r) => r.url().endsWith('/api/v2/auth/claim'));
-      await page.getByRole('button', { name: 'این دستگاه را تأیید می‌کنم' }).click();
+      await page.getByRole('button', { name: 'تأیید شماره و اتصال' }).click();
       const receipt = await (await responsePromise).json();
-      await expect(page.getByRole('heading', { name: 'دستگاه تأیید شد.' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'اتصال در مرورگر تأیید شد' })).toBeVisible();
       expect(Object.keys(receipt).sort()).toEqual(['expires_at', 'status', 'username']);
       approvals++;
       res.setHeader('Content-Type', 'application/json');
@@ -670,7 +706,9 @@ test('A delayed one-time code response cannot populate a different Admin dialog'
   const e = await customer();
   await adminLogin(page);
   await page.goto('/zanyari/devices');
-  await page.getByRole('textbox', { name: 'جست‌وجوی نام کاربری دستگاه' }).fill(e.username);
+  await page
+    .getByRole('textbox', { name: 'جست‌وجوی شناسه، نام کاربری، شماره یا یادداشت' })
+    .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
   let arrived!: () => void, release!: () => void;
@@ -693,17 +731,17 @@ test('A delayed one-time code response cannot populate a different Admin dialog'
       /* Closing/navigating may abort delivery; no plaintext is retained by the view. */
     }
   });
-  await page.getByRole('button', { name: 'صدور کد', exact: true }).click();
-  await page.getByLabel('دلیل عملیات').fill('آزمایش پاسخ دیرهنگام صدور کد');
+  await page.getByRole('button', { name: 'ساخت کد فعال‌سازی', exact: true }).click();
+  await page.getByLabel('دلیل عملیات').fill('آزمایش پاسخ دیرهنگام ساخت کد فعال‌سازی');
   await page
     .getByLabel('مرجع تأیید مستقل مالکیت', { exact: false })
     .fill('synthetic-late-response-006');
   await page.getByRole('button', { name: 'تأیید و ثبت عملیات' }).click();
   await captured;
   await page.getByRole('dialog').getByRole('button', { name: 'بستن پنجره' }).click();
-  await page.getByRole('button', { name: 'صدور مالکیت', exact: true }).click();
+  await page.getByRole('button', { name: 'ثبت مجوز خرید', exact: true }).click();
   release();
-  await expect(page.getByRole('dialog', { name: 'صدور مالکیت دستی' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'ثبت مجوز خرید برای دستگاه' })).toBeVisible();
   await expect(
     page.getByRole('dialog').getByRole('button', { name: 'تأیید و ثبت عملیات' }),
   ).toBeEnabled();
