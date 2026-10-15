@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { configuration } from "../dist/src/config.js";
+import { unseal } from "../dist/src/security/crypto.js";
 import { generateKeyPairSync, randomBytes, sign } from "node:crypto";
 import { canonical } from "../dist/src/signing/signing.js";
 if (process.env.NODE_ENV !== "development")
@@ -9,8 +12,17 @@ if (
 )
   throw new Error("Local test API only");
 const password = process.env.HARNESS_PASSWORD;
-if (!password || password.length < 12)
-  throw new Error("Set HARNESS_PASSWORD for synthetic test account");
+if (password && password.length < 12)
+  throw new Error("HARNESS_PASSWORD must have at least 12 characters");
+const cfg = configuration();
+if (
+  cfg.SMS_PROVIDER !== "fake" ||
+  !cfg.SMS_FAKE_OUTBOX ||
+  !cfg.MOBILE_ENCRYPTION_KEY
+)
+  throw new Error(
+    "Synthetic harness requires explicit fake SMS and encrypted local delivery fixture",
+  );
 const call = async (route, body) => {
   const r = await fetch(new URL("/api/v2/" + route, base), {
     method: "POST",
@@ -56,10 +68,39 @@ const proof = async (purpose, pairing_id) => {
   };
 };
 const p = await call("device-pairings", await proof("PAIR"));
+const sent = await call("auth/claim/otp/request", {
+  pairing_id: p.pairing_id,
+  pairing_secret: p.pairing_secret,
+  mobile: "09" + String(100000000 + Math.floor(Math.random() * 899999999)),
+});
+let code = "";
+for (let n = 0; n < 200 && !code; n++) {
+  try {
+    const lines = (await readFile(cfg.SMS_FAKE_OUTBOX, "utf8"))
+      .trim()
+      .split("\n");
+    for (const line of lines.reverse()) {
+      try {
+        const m = JSON.parse(unseal(line, cfg.MOBILE_ENCRYPTION_KEY));
+        if (m.challengeId === sent.challenge_id) {
+          code = m.code;
+          break;
+        }
+      } catch {
+        /* Concurrent fixture append. */
+      }
+    }
+  } catch {
+    /* Await synthetic delivery. */
+  }
+  if (!code) await new Promise((resolve) => setTimeout(resolve, 25));
+}
+if (!code) throw new Error("Synthetic SMS delivery unavailable");
 await call("auth/claim", {
   pairing_id: p.pairing_id,
   pairing_secret: p.pairing_secret,
-  password,
+  ...(password ? { password } : {}),
+  otp: { challenge_id: sent.challenge_id, code },
 });
 const e = await call(
   `device-pairings/${p.pairing_id}/pickup`,
