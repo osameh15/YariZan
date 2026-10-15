@@ -61,14 +61,16 @@ watch(
           <p class="muted">فروش اینترنتی در مرحلهٔ آماده‌سازی است.</p>
         </div>
       </div>
-      <div class="wrap footer-bottom">
-        <a class="studio-credit" href="https://oarnova.games" dir="ltr">
-          <img src="/brand/oar-nova-games.png" width="64" height="64" alt="" />
-          <span>OAR Nova Games Studio</span>
-        </a>
-        <span>طراحی و توسعه: <a href="https://osameh.dev" dir="ltr">osameh.dev</a></span>
+      <div class="footer-credits">
+        <div class="wrap footer-bottom">
+          <a class="studio-credit" href="https://oarnova.games" dir="ltr">
+            <img src="/brand/oar-nova-games.png" width="64" height="64" alt="" />
+            <span>OAR Nova Games Studio</span>
+          </a>
+          <span>طراحی و توسعه: <a href="https://osameh.dev" dir="ltr">osameh.dev</a></span>
+        </div>
+        <p class="wrap footer-copyright">حق مالکیت سایت برای یاریزان محفوظ است.</p>
       </div>
-      <p class="wrap footer-copyright">حق مالکیت سایت برای یاریزان محفوظ است.</p>
     </footer>
   </div>
 </template>

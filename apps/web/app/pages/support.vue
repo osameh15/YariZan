@@ -12,7 +12,10 @@ useSeoMeta({ title: 'همراه شما | پشتیبانی یاریزان' });
       <article class="panel">
         <span class="feature-icon" aria-hidden="true">☏</span>
         <h2>یک تماس، یک راه روشن</h2>
-        <a href="tel:09188764024" class="support-number" dir="ltr">0918-876-4024</a>
+        <div class="support-phones">
+          <a href="tel:09188764024" class="support-number" dir="ltr">0918-876-4024</a>
+          <a href="tel:09369642754" class="support-number" dir="ltr">0936-964-2754</a>
+        </div>
         <p>
           پایهٔ موردنظر و نام کاربری نمایشی برنامه را آماده کنید. رمز عبور، کد فعال‌سازی و اطلاعات
           خصوصی را در پیام عمومی نفرستید.
