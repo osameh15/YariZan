@@ -153,10 +153,10 @@ useSeoMeta({ title: 'اتصال برنامه به حساب | یاریزان' });
         ><span class="success-mark" aria-hidden="true">✓</span>
         <h2>اتصال در مرورگر تأیید شد</h2>
         <p role="status">
-          به برنامهٔ ویندوز برگردید تا اتصال کامل شود. برای ورود به حساب، نام کاربری دستگاه و شمارهٔ
-          تأییدشده را وارد کنید.
+          حساب شما در این مرورگر باز است. می‌توانید وارد پیشخوان شوید؛ برای تکمیل اتصال دستگاه، به
+          برنامهٔ ویندوز برگردید.
         </p>
-        <NuxtLink class="button primary" to="/login">ورود به حساب</NuxtLink></template
+        <NuxtLink class="button primary" to="/account">رفتن به پیشخوان حساب</NuxtLink></template
       >
       <FormShell v-else-if="!preview" @submit="inspect"
         ><h2>درخواست اتصال شما</h2>

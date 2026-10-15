@@ -4360,6 +4360,9 @@ export interface operations {
           'application/json': {
             /** @constant */
             status: 'APPROVED';
+            /** @constant */
+            authenticated: true;
+            csrf_token?: string;
             username: string;
             /** Format: date-time */
             expires_at: string;
@@ -6134,6 +6137,10 @@ export interface operations {
         'application/json': {
           pairing_secret: string;
           password?: string;
+          otp?: {
+            challenge_id: string;
+            code: string;
+          };
         };
       };
     };
@@ -6147,6 +6154,9 @@ export interface operations {
           'application/json': {
             /** @constant */
             status: 'APPROVED';
+            /** @constant */
+            authenticated: true;
+            csrf_token?: string;
             username: string;
             /** Format: date-time */
             expires_at: string;

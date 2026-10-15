@@ -29,6 +29,7 @@ async function capture(page: import('@playwright/test').Page, name: string) {
 }
 async function customerLogin(page: import('@playwright/test').Page, username: string) {
   await page.goto('/login');
+  await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
   await page.getByLabel('نام کاربری دستگاه', { exact: true }).fill(username);
   await page.getByLabel('رمز عبور', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'ورود به حساب', exact: true }).click();
@@ -178,6 +179,7 @@ test('Customer login, real ownership, session rotation, logout and SSR isolation
 test('Safe login redirects and wrong-password feedback', async ({ page }) => {
   const e = await customer();
   await page.goto('/login?return=https://evil.invalid');
+  await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
   await page.getByLabel('نام کاربری دستگاه', { exact: true }).fill(e.username);
   await page.getByLabel('رمز عبور', { exact: true }).fill('Wrong!Password12345');
   await page.getByRole('button', { name: 'ورود به حساب', exact: true }).click();
@@ -620,6 +622,7 @@ test('Real C# provisioning and Playwright approval complete one integrated deskt
         if (Buffer.byteLength(body) > 4096) throw new Error('Oversize fixture request');
       }
       const pairing = JSON.parse(body);
+      await page.context().clearCookies();
       await page.goto('/connect');
       await page.getByLabel('شناسهٔ درخواست', { exact: true }).fill(pairing.pairing_id);
       await page.getByLabel('کد موقت اتصال').fill(pairing.pairing_secret);
@@ -638,7 +641,13 @@ test('Real C# provisioning and Playwright approval complete one integrated deskt
       await page.getByRole('button', { name: 'تأیید شماره و اتصال' }).click();
       const receipt = await (await responsePromise).json();
       await expect(page.getByRole('heading', { name: 'اتصال در مرورگر تأیید شد' })).toBeVisible();
-      expect(Object.keys(receipt).sort()).toEqual(['expires_at', 'status', 'username']);
+      expect(Object.keys(receipt).sort()).toEqual([
+        'authenticated',
+        'csrf_token',
+        'expires_at',
+        'status',
+        'username',
+      ]);
       approvals++;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify(receipt));

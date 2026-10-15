@@ -9,7 +9,7 @@ const username = ref(''),
   mobile = ref(''),
   code = ref(''),
   challenge = ref(''),
-  method = ref<'password' | 'otp'>('password'),
+  method = ref<'password' | 'otp'>('otp'),
   busy = ref(false),
   message = ref(''),
   done = ref(false),
@@ -139,17 +139,6 @@ function restart() {
         <button
           type="button"
           class="button"
-          :class="method === 'password' ? 'primary' : 'secondary'"
-          :aria-pressed="method === 'password'"
-          @click="
-            method = 'password';
-            restart();
-          "
-        >
-          ورود با رمز عبور</button
-        ><button
-          type="button"
-          class="button"
           :class="method === 'otp' ? 'primary' : 'secondary'"
           :aria-pressed="method === 'otp'"
           @click="
@@ -158,6 +147,18 @@ function restart() {
           "
         >
           ورود با کد یک‌بارمصرف
+        </button>
+        <button
+          type="button"
+          class="button"
+          :class="method === 'password' ? 'primary' : 'secondary'"
+          :aria-pressed="method === 'password'"
+          @click="
+            method = 'password';
+            restart();
+          "
+        >
+          ورود با رمز عبور
         </button>
       </div>
       <template v-if="!challenge"

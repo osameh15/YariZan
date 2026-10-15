@@ -49,7 +49,7 @@ await db.query('DROP SCHEMA public CASCADE');
 await db.query('CREATE SCHEMA public');
 await migrate(db);
 await seed(db);
-await db.onModuleDestroy();
+await db.onApplicationShutdown();
 const { createApp } = await import(new URL('../../../backend/dist/src/main.js', import.meta.url));
 const app = await createApp();
 const { Signing } = await import(

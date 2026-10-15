@@ -7,12 +7,43 @@ import {
   customer,
   call,
   proof,
+  password,
   admin,
   sql,
   smsCode,
   nextMobile,
 } from '../../tools/test-fixtures.mjs';
 const images = path.resolve('../../docs/Images/phase3-1');
+test('Customer OTP is default, keyboard switching preserves password alternative and Admin primary factor', async ({
+  page,
+}) => {
+  const e = await customer();
+  await page.goto('/login');
+  const otp = page.getByRole('button', { name: 'ورود با کد یک‌بارمصرف', exact: true });
+  const pwd = page.getByRole('button', { name: 'ورود با رمز عبور', exact: true });
+  await expect(otp).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('شمارهٔ همراه', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('رمز عبور', { exact: true })).toHaveCount(0);
+  await pwd.focus();
+  await page.keyboard.press('Enter');
+  await expect(pwd).toHaveAttribute('aria-pressed', 'true');
+  await expect(otp).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByLabel('رمز عبور', { exact: true })).toBeVisible();
+  await otp.focus();
+  await page.keyboard.press('Space');
+  await expect(otp).toHaveAttribute('aria-pressed', 'true');
+  await pwd.focus();
+  await page.keyboard.press('Enter');
+  await page.getByLabel('نام کاربری دستگاه', { exact: true }).fill(e.username);
+  await page.getByLabel('رمز عبور', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'ورود به حساب', exact: true }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await page.getByRole('button', { name: 'خروج از حساب', exact: true }).click();
+  await expect(otp).toHaveAttribute('aria-pressed', 'true');
+  await page.goto('/zanyari/login');
+  await expect(page.getByLabel('رمز عبور', { exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'روش ورود' })).toHaveCount(0);
+});
 async function shot(page: Page, name: string) {
   await mkdir(images, { recursive: true });
   await page.screenshot({
@@ -33,7 +64,9 @@ async function send(page: Page, route: string) {
 }
 async function otpLogin(page: Page, username: string, mobile: string) {
   await page.goto('/login');
-  await page.getByRole('button', { name: 'ورود با کد یک‌بارمصرف', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'ورود با کد یک‌بارمصرف', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel('نام کاربری دستگاه', { exact: true }).fill(username);
   await page.getByLabel('شمارهٔ همراه', { exact: true }).fill(mobile);
   const id = await send(page, '/api/v2/auth/otp/request');
@@ -105,7 +138,26 @@ test('OTP-only first claim, OTP login, optional password setup and masked mobile
       )
     ).status,
   ).toBe(201);
-  await otpLogin(page, username, mobile);
+  await shot(page, '29-first-claim-authenticated');
+  await page.getByRole('link', { name: 'رفتن به پیشخوان حساب', exact: true }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByRole('heading', { name: 'نمای کلی', exact: true })).toBeVisible();
+  expect(bodies.filter((b) => /"challenge_id"/.test(b))).toHaveLength(1);
+  expect((await page.context().cookies()).find((c) => c.name === 'yz_customer')?.httpOnly).toBe(
+    true,
+  );
+  expect(
+    (await sql('SELECT count(*) FROM otp_challenges WHERE pairing_id=$1', [p.pairing_id])).rows[0]
+      .count,
+  ).toBe('1');
+  expect(
+    (
+      await sql(
+        "SELECT count(*) FROM otp_challenges WHERE purpose='LOGIN' AND principal_id=(SELECT authorized_customer_id FROM pairings WHERE id=$1)",
+        [p.pairing_id],
+      )
+    ).rows[0].count,
+  ).toBe('0');
   await page.goto('/account/security');
   await expect(page.getByText('هنوز رمز عبور ندارید', { exact: false })).toBeVisible();
   await expect(page.getByText('09•••••' + mobile.slice(-4), { exact: true })).toBeVisible();
@@ -119,6 +171,7 @@ test('OTP-only first claim, OTP login, optional password setup and masked mobile
   await page.getByLabel('تکرار رمز عبور', { exact: true }).fill('ChosenOptional!Password123');
   await page.getByRole('button', { name: 'ثبت تغییر و بستن نشست‌ها' }).click();
   await expect(page).toHaveURL(/\/login$/);
+  await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
   await page.getByLabel('نام کاربری دستگاه').fill(username);
   await page.getByLabel('رمز عبور', { exact: true }).fill('ChosenOptional!Password123');
   await page.getByRole('button', { name: 'ورود به حساب', exact: true }).click();
@@ -141,6 +194,8 @@ test('Password and OTP login designs, self-service reset and mobile validation',
     ],
   );
   await page.goto('/login');
+  await shot(page, '30-login-otp-default');
+  await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
   await shot(page, '17-login-password');
   await page.getByRole('button', { name: 'ورود با کد یک‌بارمصرف' }).click();
   await page.getByLabel('نام کاربری دستگاه').fill(e.username);
@@ -219,6 +274,7 @@ test('Existing password changes and both-number mobile verification revoke brows
 }) => {
   const e = await customer();
   await page.goto('/login');
+  await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
   await page.getByLabel('نام کاربری دستگاه').fill(e.username);
   await page.getByLabel('رمز عبور', { exact: true }).fill('SyntheticWeb!Password12345');
   await page.getByRole('button', { name: 'ورود به حساب', exact: true }).click();
@@ -231,6 +287,7 @@ test('Existing password changes and both-number mobile verification revoke brows
   await page.getByLabel('تکرار رمز عبور', { exact: true }).fill('ChangedOnWeb!Password123');
   await page.getByRole('button', { name: 'ثبت تغییر و بستن نشست‌ها' }).click();
   await expect(page).toHaveURL(/\/login$/);
+  await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
   await page.getByLabel('نام کاربری دستگاه').fill(e.username);
   await page.getByLabel('رمز عبور', { exact: true }).fill('ChangedOnWeb!Password123');
   await page.getByRole('button', { name: 'ورود به حساب', exact: true }).click();
