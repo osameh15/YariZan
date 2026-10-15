@@ -13,7 +13,9 @@ Date: 2026-10-15, Asia/Tehran. Scope: implemented backend foundations for isolat
 - `09bc63c`: paired enrollment, password sessions and security primitives.
 - `25adf99`: transactional trials and signed licenses.
 - `2d1a4fb`: activation codes and audited Admin lifecycle.
-- Subsequent hardening/test/documentation commits, exact final HEAD and Draft PR URL are recorded in the delivery handoff and PR body. This report cannot contain the hash of its own final commit. [Current branch commits](https://github.com/osameh15/YariZan/commits/feat/yarizan-v2-backend-core).
+- `bdcaa5b78961f1de81bb50a1f351df2421e63973`: complete implementation, hardening, tests, CI and documentation.
+- [Draft PR #2](https://github.com/osameh15/YariZan/pull/2), open and unmerged. Final delivery is a documentation-only evidence commit after that implementation. Exact final HEAD/run links are in the PR body and delivery handoff; a report cannot contain its own commit hash. [Current branch commits](https://github.com/osameh15/YariZan/commits/feat/yarizan-v2-backend-core).
+- Feature worktree is clean after delivery; all five implementation checkpoints are pushed. Original branding assets remain untouched in the original worktree.
 
 Graph indexing/coverage calls returned `Transport closed`. No complete graph claim is made. Source verification covers the mandatory merged V2 files, relevant fixtures and documents. The [compatibility report](YARIZAN-PHASE-2-COMPATIBILITY.md) was written before implementation.
 
@@ -122,7 +124,14 @@ The standalone C# project compiles the **unchanged production** SignedArtifactVe
 
 ### Final validation / CI evidence
 
-Pending final local/CI handoff update. Only the preflight main run and local results explicitly stated above are currently claimed. Backend CI is separate from unchanged Windows CI; it runs PostgreSQL 17, strict/lint/format, API/concurrency/.NET, migration drift, OpenAPI, secret/dependency checks and local image build. No deployment job is added. Exact final SHA/run URLs will be recorded here after successful execution.
+Implementation HEAD `bdcaa5b78961f1de81bb50a1f351df2421e63973` passed both independent workflows:
+
+- [Backend CI 38693113913](https://github.com/osameh15/YariZan/actions/runs/38693113913), Ubuntu runner, job `116283369535`: **89 Node tests, zero failed**, plus **24 C# verifier and 10 actual C# API/controller checks**. PostgreSQL 17 service, five-group migration catalog comparison, 39-route snapshot, strict/lint/format, OpenAPI lint, backend/public secret scanners and dependency audit all passed. Docker build, native Argon2 loading, uid 1000/no embedded key check, readiness and catalog smoke passed. The API container was removed by the job; no deployment occurred.
+- [Windows CI 38693113846](https://github.com/osameh15/YariZan/actions/runs/38693113846), job `116283369370`: **289 V2 + 27 Access + 8 Launcher + 5 Grade groups + 36 Book = 365 checks/groups, zero failed**. Build had **0 warnings/errors**; OpenAPI/public scanner/smoke checks passed. Actual hosted token `TokenIsElevated=1`, `AdministratorsGroupEnabled=True`; provider **SOFTWARE**, runtime **9.0.21**, Windows **10.0.26100.0**. Clipboard round-trip executed. This is elevated/software evidence, distinct from local non-elevated/TPM evidence.
+
+Final local rerun: **89 passed, zero failed, zero skipped**. The .NET nested check counts above are not added again to the Node test count. Both OpenAPI documents linted cleanly. Backend scanner checked 49 tracked backend/interop files. A final five-migration fresh PostgreSQL comparison passed. Final local Docker build/start applied all five migrations; health/readiness/catalog and synthetic browser/desktop pairing passed. Production-mode image startup refused with exit 1. Public signing-key digest remained unchanged across local container restart; only the public digest was inspected, not private-key bytes. Runtime PID 1 is Node, with shutdown hooks enabled.
+
+The final documentation-only delivery commit is checked again by both workflows; its exact SHA and run links are recorded in Draft PR #2 and the handoff. No runtime source changes follow the implementation evidence above.
 
 ## G. Requirement and milestone matrix
 
@@ -140,7 +149,7 @@ Pending final local/CI handoff update. Only the preflight main run and local res
 | Admin MFA/RBAC/CSRF, reset/ban/unban/trial/manual issue/catalog | Implemented | Real operator onboarding/evidence and retention review required |
 | Immutable audit and outbox | Implemented | External consumers and maintenance schedules not enabled |
 | Future-commerce data model | Implemented | No working checkout, payment, coupons settlement or refund API |
-| E: Automated API/PostgreSQL/.NET/Windows hardening | Implemented locally; CI pending | Physical Windows and production acceptance not substituted |
+| E: Automated API/PostgreSQL/.NET/Windows hardening | Implemented | Physical Windows and production acceptance not substituted |
 | Cross-ID recovery | Blocked | Official desktop lacks authenticated atomic replacement protocol |
 | Commercial production enrollment/signing | Blocked | No source/config bypass; no real roots or keys introduced |
 | Nuxt portal, real ZarinPal, MeliPayamak | Not Started (excluded scope) | Subsequent authorized phases |
