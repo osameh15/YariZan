@@ -67,9 +67,9 @@ watch(
             <img src="/brand/oar-nova-games.png" width="64" height="64" alt="" />
             <span>OAR Nova Games Studio</span>
           </a>
+          <p class="footer-copyright">حق مالکیت سایت برای یاریزان محفوظ است.</p>
           <span>طراحی و توسعه: <a href="https://osameh.dev" dir="ltr">osameh.dev</a></span>
         </div>
-        <p class="wrap footer-copyright">حق مالکیت سایت برای یاریزان محفوظ است.</p>
       </div>
     </footer>
   </div>
