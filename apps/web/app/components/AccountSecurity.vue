@@ -13,15 +13,22 @@ const api = useApi(),
   mobile = ref(''),
   currentPassword = ref(''),
   message = ref(''),
-  busy = ref(false);
-onMounted(async () => {
+  busy = ref(false),
+  loading = ref(true);
+async function load() {
+  loading.value = true;
+  message.value = '';
   try {
     info.value = await api.get('/api/v2/account/security');
   } catch (e) {
     message.value = errorMessage(e);
+  } finally {
+    loading.value = false;
   }
-});
+}
+onMounted(load);
 async function send() {
+  if (!info.value) return;
   busy.value = true;
   message.value = '';
   try {
@@ -104,7 +111,7 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div class="security-cards">
+  <div v-if="info" class="security-cards">
     <div class="panel">
       <h2>امنیت حساب</h2>
       <p>
@@ -232,5 +239,9 @@ onBeforeUnmount(() => {
         بازگشت و درخواست کد تازه</button
       ><ApiNotice :message="message" /></FormShell
     ><NuxtLink to="/reset-password" class="text-link">بازیابی رمز عبور با پیامک</NuxtLink>
+  </div>
+  <div v-else class="panel" :aria-busy="loading">
+    <p v-if="loading" role="status">در حال دریافت اطلاعات امنیت حساب…</p>
+    <ApiNotice v-else :message="message" retry @retry="load" />
   </div>
 </template>

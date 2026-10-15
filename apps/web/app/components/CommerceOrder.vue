@@ -25,6 +25,7 @@ async function copyOrderId() {
     await navigator.clipboard.writeText(order.value.id);
     copied.value = true;
   } catch {
+    noticeSuccess.value = false;
     message.value = 'کپی خودکار ممکن نشد؛ شمارهٔ سفارش را انتخاب کنید.';
   }
 }

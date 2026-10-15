@@ -307,3 +307,35 @@ test('Existing password changes and both-number mobile verification revoke brows
   await expect(page).toHaveURL(/\/login$/);
   await otpLogin(page, e.username, mobile);
 });
+
+test('Security actions wait for verified account data instead of assuming an unverified mobile', async ({
+  page,
+}) => {
+  const e = await customer();
+  await page.goto('/login');
+  await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
+  await page.getByLabel('نام کاربری دستگاه').fill(e.username);
+  await page.getByLabel('رمز عبور', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'ورود به حساب', exact: true }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  let release!: () => void;
+  const loaded = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/v2/account/security', async (route) => {
+    await loaded;
+    await route.continue();
+  });
+  await page.goto('/account/security');
+  await expect(page.getByText('در حال دریافت اطلاعات امنیت حساب…')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'تغییر شمارهٔ همراه', exact: true })).toHaveCount(
+    0,
+  );
+  await expect(page.locator('.security-cards form')).toHaveCount(0);
+  release();
+  await page.getByRole('button', { name: 'تغییر شمارهٔ همراه', exact: true }).click();
+  await expect(page.getByLabel('رمز عبور فعلی', { exact: true })).toHaveCount(0);
+  const requested = page.waitForRequest((r) => r.url().endsWith('/api/v2/account/security/otp'));
+  await send(page, '/api/v2/account/security/otp');
+  expect((await requested).postDataJSON().purpose).toBe('MOBILE_OLD');
+});

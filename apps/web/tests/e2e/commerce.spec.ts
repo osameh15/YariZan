@@ -130,6 +130,10 @@ test('Real checkout, coupon quote, simulated payment and one desktop license', a
   await page.getByRole('button', { name: 'ثبت سفارش و بررسی پرداخت' }).click();
   await expect(page).toHaveURL(/\/account\/orders\/[0-9a-f-]{36}$/);
   const order = page.url().split('/').pop()!;
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.getByRole('button', { name: 'کپی شماره', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'کپی شد', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(order);
   await page.getByRole('button', { name: 'ادامه در شبیه‌ساز پرداخت' }).click();
   await expect(page).toHaveURL(/\/payment\/simulate\?order=/);
   await shot(page, '05-simulated-gateway');
