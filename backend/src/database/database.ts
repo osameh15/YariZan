@@ -1,9 +1,9 @@
-import { Injectable, OnModuleDestroy } from "@nestjs/common";
+import { Injectable, OnApplicationShutdown } from "@nestjs/common";
 import { Pool, PoolClient, QueryResultRow } from "pg";
 import { configuration } from "../config";
 
 @Injectable()
-export class Database implements OnModuleDestroy {
+export class Database implements OnApplicationShutdown {
   readonly pool: Pool;
   constructor() {
     this.pool = new Pool({
@@ -36,7 +36,7 @@ export class Database implements OnModuleDestroy {
       client.release();
     }
   }
-  async onModuleDestroy() {
+  async onApplicationShutdown() {
     await this.pool.end();
   }
 }

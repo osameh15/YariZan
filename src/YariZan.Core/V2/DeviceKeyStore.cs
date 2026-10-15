@@ -5,11 +5,9 @@ using System.Security.Principal;
 
 namespace YariZan.Core.V2;
 
-public interface IDeviceKeyStore : IDisposable
+public interface IDeviceKeyStore : IDeviceProofKey
 {
     string Assurance { get; }
-    byte[] ExportPublicKey();
-    byte[] SignChallenge(string challengeId, string nonce, IDeviceIdentity identity);
 }
 
 /// <summary>Persisted per-Windows-user key shared by every grade. No machine ACL changes.</summary>
@@ -89,7 +87,7 @@ public sealed class CngDeviceKeyStore : IDeviceKeyStore
     {
         if (!identity.IsAvailable || challengeId.Length is < 1 or > 128 || nonce.Length is < 32 or > 512)
             throw new InvalidDataException("Invalid challenge.");
-        // Proposed transcript, explicitly not a live enrollment protocol.
+        // Versioned transcript shared with the key-proof enrollment backend.
         string json = System.Text.Json.JsonSerializer.Serialize(new
         {
             challenge_id = challengeId, nonce, fingerprint_version = identity.FingerprintVersion,

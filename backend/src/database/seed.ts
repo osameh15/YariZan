@@ -3,6 +3,12 @@ import { Database } from "./database";
 import { ConfigurationError } from "../config";
 
 export const permissions = [
+  "notes.manage",
+  "customers.read",
+  "devices.read",
+  "licenses.read",
+  "trials.read",
+  "activation_codes.read",
   "customers.reset",
   "device_products.block",
   "device_products.unblock",
@@ -56,6 +62,10 @@ export async function seed(db: Database) {
     }
     for (const [role, p] of [
       ["support", "support.password_reset"],
+      ["support", "customers.read"],
+      ["support", "devices.read"],
+      ["support", "licenses.read"],
+      ["support", "trials.read"],
       ["auditor", "audit.read"],
       ["catalog", "products.manage"],
     ])
@@ -78,7 +88,7 @@ if (require.main === module) {
       );
       process.exitCode = 1;
     } finally {
-      await db?.onModuleDestroy();
+      await db?.onApplicationShutdown();
     }
   })();
 }

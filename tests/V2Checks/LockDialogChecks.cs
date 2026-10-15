@@ -18,6 +18,7 @@ internal static partial class Program
         public Uri? Opened;
         public bool FailCopy, FailBrowser;
         public int BrowserCalls;
+        public void OpenConnectPage() { BrowserCalls++; if(FailBrowser)throw new IOException("Browser unavailable in test"); Opened=DesktopProvisioningClient.ConnectPage; }
         public void CopyText(string text) { if (FailCopy) throw new IOException("Clipboard unavailable in test"); Copied = text; }
         public void OpenProductPage(Uri destination)
         { BrowserCalls++; if (FailBrowser) throw new IOException("Browser unavailable in test"); StoreDestinations.ValidateDestination(destination); Opened = destination; }

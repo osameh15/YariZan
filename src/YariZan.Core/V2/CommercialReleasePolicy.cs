@@ -69,7 +69,7 @@ public static class CommercialReleasePolicy
     public static void EnsureCommercialRelease(string rootsJson, string approvedJson, string activationJson)
     {
         ValidateConfiguration(rootsJson, approvedJson, activationJson);
-        // No property/config/environment switch can promote the unimplemented credential provider.
-        throw new InvalidOperationException("V2_ACTIVATION_INTEGRATION_BLOCKED: secure initial/additional-profile enrollment and production credentials are not implemented in this source revision.");
+        // No property/config/environment switch can bypass independent commercial security acceptance.
+        throw new InvalidOperationException("V2_ACTIVATION_INTEGRATION_BLOCKED: commercial ownership assurance, external signing custody and Windows provisioning acceptance require independent approval.");
     }
 }

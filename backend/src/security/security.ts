@@ -147,7 +147,7 @@ export class Security {
     );
     const r = await c.query<AdminContext & { csrf_hash: string; mfa_at: Date }>(
       `SELECT a.id,s.token_hash,s.csrf_hash,s.mfa_at FROM admin_sessions s
-      JOIN admins a ON a.id=s.admin_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND NOT a.disabled FOR UPDATE OF a`,
+      JOIN admins a ON a.id=s.admin_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND s.mfa_method='SMS' AND NOT a.disabled FOR UPDATE OF a`,
       [this.tokenHash(raw)],
     );
     requireCondition(r.rows[0], "UNAUTHENTICATED", 401);

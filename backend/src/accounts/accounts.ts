@@ -5,7 +5,8 @@ import { Database } from "../database/database";
 import { Security } from "../security/security";
 import { Audit, Actor } from "../audit/audit";
 import { requireCondition } from "../common/errors";
-import { token, totp, unseal } from "../security/crypto";
+import { token } from "../security/crypto";
+import { customerSession } from "./sessions";
 
 @Injectable()
 export class Accounts {
@@ -28,11 +29,12 @@ export class Accounts {
       row?.password_hash ?? (await this.dummy),
       password,
     );
-    requireCondition(
-      row && row.password_hash && valid,
-      "INVALID_CREDENTIALS",
-      401,
-    );
+    if (!(row && row.password_hash && valid)) {
+      await this.db.transaction((c) =>
+        this.audit.append(c, actor, "customer.login_failed", "authentication"),
+      );
+      requireCondition(false, "INVALID_CREDENTIALS", 401);
+    }
     return this.db.transaction(async (c) => {
       const current = await c.query<{ password_hash: string | null }>(
         "SELECT password_hash FROM customers WHERE id=$1 AND state='ACTIVE' FOR UPDATE",
@@ -43,23 +45,14 @@ export class Accounts {
         "INVALID_CREDENTIALS",
         401,
       );
-      const session = token(),
-        csrf = token();
-      await c.query(
-        `INSERT INTO customer_sessions(token_hash,customer_id,csrf_hash,expires_at) VALUES($1,$2,$3,now()+interval '8 hours')`,
-        [
-          this.security.tokenHash(session),
-          row.id,
-          this.security.tokenHash(csrf),
-        ],
-      );
+      const session = await customerSession(c, this.security, row.id);
       await this.audit.append(
         c,
         { ...actor, type: "CUSTOMER", id: row.id },
         "customer.login",
         row.id,
       );
-      return { session, csrf };
+      return session;
     });
   }
   async rotate(tokenHash: string, customerId: string, actor: Actor) {
@@ -74,18 +67,9 @@ export class Accounts {
         [tokenHash],
       );
       requireCondition(r.rowCount, "UNAUTHENTICATED", 401);
-      const session = token(),
-        csrf = token();
-      await c.query(
-        `INSERT INTO customer_sessions VALUES($1,$2,$3,now()+interval '8 hours',null)`,
-        [
-          this.security.tokenHash(session),
-          customerId,
-          this.security.tokenHash(csrf),
-        ],
-      );
+      const session = await customerSession(c, this.security, customerId);
       await this.audit.append(c, actor, "customer.session_rotated", customerId);
-      return { session, csrf };
+      return session;
     });
   }
   async logout(tokenHash: string, actor: Actor) {
@@ -104,6 +88,11 @@ export class Accounts {
     return { revoked: true };
   }
   async completeReset(grant: string, password: string, actor: Actor) {
+    const admission = await this.db.query(
+      `SELECT 1 FROM password_resets r JOIN customers c ON c.id=r.customer_id WHERE r.token_hash=$1 AND r.used_at IS NULL AND r.expires_at>now() AND c.state='ACTIVE'`,
+      [this.security.tokenHash(grant)],
+    );
+    requireCondition(admission.rowCount, "RESET_INVALID", 410);
     const encoded = await hashPassword(password);
     return this.db.transaction(async (c) => {
       const r = await c.query<{ id: string; customer_id: string }>(
@@ -131,64 +120,6 @@ export class Accounts {
         p.customer_id,
       );
       return { password_changed: true };
-    });
-  }
-  async adminLogin(
-    username: string,
-    password: string,
-    code: string,
-    actor: Actor,
-  ) {
-    const row = (
-      await this.db.query<{
-        id: string;
-        password_hash: string;
-        mfa_ciphertext: string;
-      }>("SELECT * FROM admins WHERE username=$1 AND NOT disabled", [username])
-    ).rows[0];
-    const valid = await verifyPassword(
-      row?.password_hash ?? (await this.dummy),
-      password,
-    );
-    requireCondition(row && valid, "INVALID_CREDENTIALS", 401);
-    return this.db.transaction(async (c) => {
-      const admin = (
-        await c.query<{ last_mfa_step: string; disabled: boolean }>(
-          "SELECT last_mfa_step,disabled FROM admins WHERE id=$1 FOR UPDATE",
-          [row.id],
-        )
-      ).rows[0];
-      requireCondition(!admin.disabled, "INVALID_CREDENTIALS", 401);
-      const secret = unseal(
-        row.mfa_ciphertext,
-        this.security.config.MFA_ENCRYPTION_KEY,
-      );
-      const step = Math.floor(Date.now() / 30000);
-      const matched = [step - 1, step, step + 1].find(
-        (s) => s > Number(admin.last_mfa_step) && totp(secret, s) === code,
-      );
-      requireCondition(matched !== undefined, "MFA_REQUIRED", 401);
-      await c.query("UPDATE admins SET last_mfa_step=$2 WHERE id=$1", [
-        row.id,
-        matched,
-      ]);
-      const session = token(),
-        csrf = token();
-      await c.query(
-        `INSERT INTO admin_sessions VALUES($1,$2,$3,now(),now()+interval '1 hour',null)`,
-        [
-          this.security.tokenHash(session),
-          row.id,
-          this.security.tokenHash(csrf),
-        ],
-      );
-      await this.audit.append(
-        c,
-        { ...actor, type: "ADMIN", id: row.id },
-        "admin.login",
-        row.id,
-      );
-      return { session, csrf };
     });
   }
   async issueReset(

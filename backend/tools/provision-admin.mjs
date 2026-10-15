@@ -9,13 +9,22 @@ const username = process.env.ADMIN_USERNAME,
   password = process.env.ADMIN_PASSWORD;
 if (!username || !password || password.length < 16)
   throw new Error("Set ADMIN_USERNAME and a strong ADMIN_PASSWORD temporarily");
+const mobile = process.env.ADMIN_MOBILE;
+if (
+  !mobile ||
+  !/^09[0-9]{9}$/.test(mobile) ||
+  !process.env.MOBILE_ENCRYPTION_KEY
+)
+  throw new Error(
+    "Set verified ADMIN_MOBILE and MOBILE_ENCRYPTION_KEY through an independently verified operator procedure",
+  );
 const db = new Database(),
   secret = randomBytes(20).toString("hex"),
   id = randomUUID();
 try {
   await db.transaction(async (c) => {
     await c.query(
-      "INSERT INTO admins(id,username,password_hash,mfa_ciphertext) VALUES($1,$2,$3,$4)",
+      "INSERT INTO admins(id,username,password_hash,mfa_ciphertext,mobile_ciphertext,mobile_last4) VALUES($1,$2,$3,$4,$5,$6)",
       [
         id,
         username,
@@ -26,14 +35,15 @@ try {
           parallelism: 1,
         }),
         seal(secret, process.env.MFA_ENCRYPTION_KEY),
+        seal(mobile, process.env.MOBILE_ENCRYPTION_KEY),
+        mobile.slice(-4),
       ],
     );
     await c.query("INSERT INTO admin_user_roles VALUES($1,'owner')", [id]);
   });
-  // Explicit one-time secret delivery to local issuer, not application logging.
   process.stdout.write(
-    `Development Admin created. TOTP SHA1 secret (hex), shown once: ${secret}\n`,
+    "Development Admin created with SMS MFA. No TOTP fallback or secret output.\n",
   );
 } finally {
-  await db.onModuleDestroy();
+  await db.onApplicationShutdown();
 }

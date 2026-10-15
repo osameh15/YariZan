@@ -11,10 +11,14 @@ import {
   DevelopmentKeyManager,
 } from "./signing/signing";
 import { Identity } from "./identity/identity";
+import { Sms } from "./accounts/sms";
+import { Otp } from "./accounts/otp";
+import { AuthFlows } from "./accounts/auth-flows";
 import { Accounts } from "./accounts/accounts";
 import { Trials } from "./trials/trials";
 import { Licenses } from "./licenses/licenses";
 import { Activation } from "./activation/activation";
+import { Notes } from "./admin/notes";
 import { Admin } from "./admin/admin";
 import {
   AccountsController,
@@ -30,6 +34,9 @@ import {
   providers: [
     Database,
     Security,
+    Sms,
+    Otp,
+    AuthFlows,
     PasswordHashing,
     Audit,
     Outbox,
@@ -39,7 +46,17 @@ import {
       useFactory: () => new DevelopmentKeyManager(),
     },
   ],
-  exports: [Database, Security, PasswordHashing, Audit, Outbox, Signing],
+  exports: [
+    Sms,
+    Otp,
+    AuthFlows,
+    Database,
+    Security,
+    PasswordHashing,
+    Audit,
+    Outbox,
+    Signing,
+  ],
 })
 class FoundationModule {}
 @Module({ providers: [Identity], controllers: [IdentityController] })
@@ -66,7 +83,7 @@ class ActivationModule {}
 class DesktopModule {}
 @Module({
   imports: [LicensesModule, ActivationModule, AccountsModule],
-  providers: [Admin],
+  providers: [Admin, Notes],
   controllers: [AdminController],
 })
 class AdminModule {}

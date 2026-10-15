@@ -9,10 +9,12 @@ public interface ILockDesktopActions
 {
     void CopyText(string text);
     void OpenProductPage(Uri destination);
+    void OpenConnectPage() => throw new InvalidOperationException("Connect browser action unavailable.");
 }
 
 public sealed class WindowsLockDesktopActions : ILockDesktopActions
 {
+    public void OpenConnectPage() => Process.Start(new ProcessStartInfo(DesktopProvisioningClient.ConnectPage.AbsoluteUri) { UseShellExecute = true });
     public void CopyText(string text) => Clipboard.SetText(text);
     public void OpenProductPage(Uri destination)
     {

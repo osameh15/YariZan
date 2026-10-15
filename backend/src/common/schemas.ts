@@ -6,11 +6,16 @@ export const digest = z.string().regex(/^[A-F0-9]{64}$/);
 export const sku = z.string().regex(/^YARIZAN-G[1-6]$/);
 export const secret = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 export const password = z.string().min(12).max(128);
+export const otpProofSchema = z.strictObject({
+  challenge_id: uuid,
+  code: z.string().regex(/^[0-9]{6}$/),
+});
+export const mobile = z.string().min(10).max(20);
 export const claimSchema = z.strictObject({
   pairing_id: uuid,
-  browser_token: secret,
-  claim_grant: secret,
+  pairing_secret: secret,
   password: password.optional(),
+  otp: otpProofSchema.optional(),
 });
 export const challengeSchema = z.strictObject({
   fingerprint_version: z.literal(2),

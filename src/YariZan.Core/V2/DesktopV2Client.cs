@@ -37,7 +37,7 @@ public interface IDeviceRegistrationClient
     Task<RegisteredDevice> RegisterAsync(DeviceRegistrationRequest request, CancellationToken cancellation);
 }
 
-/// <summary>Future API contracts only. Does not contact PHP or implement anonymous account claim.</summary>
+/// <summary>Versioned desktop API client. No PHP fallback or browser-cookie authentication.</summary>
 public sealed class DesktopV2Client : IDesktopV2Client, IDeviceRegistrationClient
 {
     public static readonly Uri ApiBase = new("https://yarizan.oarnova.games/api/v2/");

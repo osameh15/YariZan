@@ -1,0 +1,43 @@
+export const browserRoutes = [
+  ['GET', /^products(?:\/YARIZAN-G[1-6])?$/],
+  [
+    'POST',
+    /^auth\/(?:claim|login|logout|session\/rotate|password-reset\/(?:complete|otp)|otp\/(?:request|verify)|claim\/otp\/request)$/,
+  ],
+  ['GET', /^account(?:\/(?:devices|licenses|entitlements|security))?$/],
+  ['POST', /^device-pairings\/[0-9a-f-]{36}\/(?:preview|confirm|cancel)$/],
+  ['POST', /^admin\/auth\/(?:login|logout|sms\/verify)$/],
+  ['POST', /^account\/security\/(?:otp|password|mobile)$/],
+  [
+    'POST',
+    /^admin\/notes\/(?:customers|devices|licenses|activation-codes|trials|products)\/[A-Za-z0-9:~-]{1,128}$/,
+  ],
+  ['GET', /^admin\/auth\/session$/],
+  ['GET', /^admin\/(?:customers|devices|licenses|trials|activation-codes|products|audit|reports)$/],
+  ['PATCH', /^admin\/products\/YARIZAN-G[1-6]$/],
+  [
+    'POST',
+    /^admin\/(?:customers\/[0-9a-f-]{36}\/(?:reset|password-reset)|devices\/[0-9a-f-]{36}\/products\/YARIZAN-G[1-6]\/(?:block|unblock)|trials\/[0-9a-f-]{36}\/YARIZAN-G[1-6]\/reset|licenses(?:\/issue|\/[0-9a-f-]{36}\/(?:revoke|reissue))|activation-codes(?:\/[0-9a-f-]{36}\/cancel)?)$/,
+  ],
+] as const;
+export function allowedBrowserRoute(method: string, path: string) {
+  return (
+    !/[%\\?#]/.test(path) &&
+    browserRoutes.some(([verb, pattern]) => verb === method && pattern.test(path))
+  );
+}
+export function backendBase(value: string) {
+  const url = new URL(value);
+  if (
+    !['http:', 'https:'].includes(url.protocol) ||
+    !['localhost', '127.0.0.1', 'api'].includes(url.hostname) ||
+    url.port !== '3100' ||
+    url.pathname !== '/api/v2/' ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  )
+    throw new Error('Local backend destination required');
+  return url;
+}

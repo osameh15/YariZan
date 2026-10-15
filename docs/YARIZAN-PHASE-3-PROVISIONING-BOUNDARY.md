@@ -1,8 +1,8 @@
 # Phase 3 desktop provisioning boundary
 
-Status: required integration design and acceptance criteria; **not implemented production provisioning**. Phase 2 remains development/test only, with production startup closed.
+Status: historical Phase 2 boundary, superseded for executable development contracts by [ADR-0006](adr/0006-web-and-desktop-provisioning.md) and the [Phase 3 report](YARIZAN-PHASE-3-REPORT.md). The browser receipt / key-proven desktop pickup split is implemented and tested in Phase 3. Commercial production provisioning remains blocked. The following original description records the Phase 2 integration gap; it is **not the current API**.
 
-## Current development response
+## Historical Phase 2 development response
 
 `POST /api/v2/auth/claim` and its `/devices/register` alias accept the same strict pairing ID, browser token, one-time desktop claim grant and optional initial password. They return `{device_id, customer_id, username, enrollment, credential}`. The enrollment is the existing signed V2 profile certificate; the bearer expires after 15 minutes. Both routes have identical Origin, ownership, one-time consumption and rate checks. Neither route accepts a fingerprint as an authentication secret.
 

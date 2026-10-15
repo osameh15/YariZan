@@ -28,7 +28,8 @@ public static class DesktopAccessFactory
             using var deviceKey = new CngDeviceKeyStore();
             return deviceKey.ExportPublicKey();
         });
+        var provisioning = new DesktopProvisioningClient(Http, identity, () => new CngDeviceKeyStore(), enrollment, new FilePendingPairingStore());
         return new(identity, new Product(grade), verifier, new FileLicenseStore(),
-            new DesktopV2Client(Http, new UnprovisionedDeviceCredentials()), enrollment);
+            new DesktopV2Client(Http, provisioning), enrollment, keys.Count > 0 ? provisioning : null);
     }
 }

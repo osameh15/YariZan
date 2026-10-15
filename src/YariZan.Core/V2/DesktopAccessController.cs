@@ -48,6 +48,7 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
     private bool _closed;
     private PaidLicense? _license;
     private ActivationCodeRequest? _redemption;
+    public IDesktopProvisioning? Provisioning { get; }
     public string Username => _device.Username;
     public int Grade => _product.Grade;
     public DesktopAccessState State { get; private set; } = DesktopAccessState.NoLicense;
@@ -58,10 +59,11 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
     public bool CanEnter => !_closed && State is DesktopAccessState.Purchased or DesktopAccessState.TrialStarted;
 
     public DesktopAccessController(IDeviceIdentity device, Product product, ILicenseVerifier verifier,
-        ILicenseStore store, IDesktopV2Client client, ILocalDeviceEnrollmentProvider? enrollmentProvider = null)
+        ILicenseStore store, IDesktopV2Client client, ILocalDeviceEnrollmentProvider? enrollmentProvider = null, IDesktopProvisioning? provisioning = null)
     {
         _device = device; _product = product; _verifier = verifier; _store = store; _client = client;
         _enrollmentProvider = enrollmentProvider ?? new UnprovisionedDeviceEnrollment();
+        Provisioning = provisioning;
         ReadLocalAccess();
     }
 
@@ -89,6 +91,13 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
         catch (EnrollmentRequiredException) { State = DesktopAccessState.EnrollmentRequired; LastError = "LOCAL_ENROLLMENT_REQUIRED"; }
         catch (Exception ex) when (IsSafeFailure(ex)) { State = DesktopAccessState.InvalidLicense; LastError = "INVALID_LOCAL_ARTIFACT"; }
         LocalLicenseState = State;
+    }
+
+    public async Task ReloadProvisionedIdentityAsync(CancellationToken cancellation=default)
+    {
+        await _operation.WaitAsync(cancellation);
+        try { if(CanEnter || _closed)return; _enrollment=null; ReadLocalAccess(); }
+        finally { _operation.Release(); }
     }
 
     private DeviceEnrollment Enrollment() => _enrollment ??= _enrollmentProvider.ReadVerifiedIdentity() ?? throw new EnrollmentRequiredException();

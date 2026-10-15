@@ -141,15 +141,15 @@ export class Admin {
       [customerId],
     );
     await c.query(
-      "UPDATE pairings SET status='CONSUMED' WHERE authorized_customer_id=$1",
-      [customerId],
+      "UPDATE pairings SET cancelled_at=now() WHERE device_id=$1 AND generation=$2",
+      [found.device_id, d.generation],
     );
     await c.query(
       "UPDATE activation_codes SET status='CANCELLED' WHERE customer_id=$1 AND status='ISSUED'",
       [customerId],
     );
     await c.query(
-      "UPDATE customers SET state='RESET',password_hash=NULL,reset_at=now() WHERE id=$1",
+      "UPDATE customers SET state='RESET',password_hash=NULL,mobile_ciphertext=NULL,mobile_lookup=NULL,mobile_last4=NULL,mobile_verified_at=NULL,reset_at=now() WHERE id=$1",
       [customerId],
     );
     await c.query("UPDATE devices SET generation=generation+1 WHERE id=$1", [

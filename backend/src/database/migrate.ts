@@ -51,7 +51,7 @@ if (require.main === module) {
       );
       process.exitCode = 1;
     } finally {
-      await db?.onModuleDestroy();
+      await db?.onApplicationShutdown();
     }
   })();
 }

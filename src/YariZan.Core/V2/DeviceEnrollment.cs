@@ -38,7 +38,7 @@ public sealed class FileDeviceEnrollmentStore : IDeviceEnrollmentStore
 
 /// <summary>Only a reviewed backend enrollment response can provision this record. No network at launch.</summary>
 public sealed class VerifiedLocalDeviceEnrollmentProvider(IDeviceEnrollmentStore store, ILicenseVerifier verifier,
-    IDeviceIdentity identity, Func<byte[]> readPersistedPublicKey) : ILocalDeviceEnrollmentProvider
+    IDeviceIdentity identity, Func<byte[]> readPersistedPublicKey) : IProvisionedEnrollmentStore
 {
     public DeviceEnrollment? ReadVerifiedIdentity()
     {
@@ -48,7 +48,7 @@ public sealed class VerifiedLocalDeviceEnrollmentProvider(IDeviceEnrollmentStore
         return verifier.VerifyEnrollment(saved.Envelope!, identity, KeyDigest());
     }
 
-    // Foundation only; initial/additional-profile enrollment transports remain blocked by backend security review.
+    // Called only after the desktop-controlled key-proof pickup or authenticated renewal.
     public void StoreAuthenticatedEnrollment(string envelope)
     {
         var incoming = verifier.VerifyEnrollment(envelope, identity, KeyDigest());
@@ -60,4 +60,27 @@ public sealed class VerifiedLocalDeviceEnrollmentProvider(IDeviceEnrollmentStore
     }
 
     private string KeyDigest() => Convert.ToHexString(SHA256.HashData(readPersistedPublicKey()));
+}
+
+/// <summary>DPAPI-protected public pending UUID; no browser code, bearer or trial grant is persisted.</summary>
+public sealed class FilePendingPairingStore : IPendingPairingStore
+{
+    private readonly string _path;
+    public FilePendingPairingStore(string? root=null) => _path=Path.Combine(root??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"OARNOVA","YariZan","V2"),"pending-pairing.dat");
+    public string? Read()
+    {
+        var r=FileLicenseStore.Read(_path);
+        if(r.Status==StoreReadStatus.Missing)return null;
+        if(r.Status!=StoreReadStatus.Present)throw new InvalidDataException("Invalid pending pairing.");
+        using var data=StrictJson.Parse(r.Envelope!);StrictJson.Fields(data.RootElement,"pairing_id");
+        string? value=data.RootElement.GetProperty("pairing_id").GetString();
+        if(!Guid.TryParseExact(value,"D",out var id)||id.ToString("D")!=value)throw new InvalidDataException("Invalid pending pairing.");
+        return value;
+    }
+    public void Write(string id)
+    {
+        if(!Guid.TryParseExact(id,"D",out _))throw new InvalidDataException("Invalid pairing.");
+        FileLicenseStore.Write(_path,System.Text.Json.JsonSerializer.Serialize(new{pairing_id=id}));
+    }
+    public void Clear() { if(File.Exists(_path)) File.Delete(_path); }
 }

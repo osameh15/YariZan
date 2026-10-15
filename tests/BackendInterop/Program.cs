@@ -5,6 +5,7 @@ using YariZan.Core.V2;
 
 using var input = JsonDocument.Parse(File.ReadAllText(args[0]));
 var p = input.RootElement;
+if(p.TryGetProperty("provisioning",out _)){await ProvisioningTransportChecks.Run(p);return;}
 if(p.TryGetProperty("apiBase",out _)){await TransportChecks.Run(p);return;}
 string Text(string name) => p.GetProperty(name).GetString()!;
 var roots = new Dictionary<string,string> {[Text("kid")]=Text("publicKey")};

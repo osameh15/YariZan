@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { before, after, test } from "node:test";
+import { before, beforeEach, after, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   randomUUID,
@@ -17,6 +17,7 @@ import { Outbox } from "../src/outbox/outbox";
 import { Audit } from "../src/audit/audit";
 import { Admin } from "../src/admin/admin";
 import { Trials } from "../src/trials/trials";
+import { Identity } from "../src/identity/identity";
 import { PasswordHashing } from "../src/security/passwords";
 import { ApiError } from "../src/common/errors";
 import { readFile } from "node:fs/promises";
@@ -28,9 +29,15 @@ import { migrate } from "../src/database/migrate";
 import { seed } from "../src/database/seed";
 import { Signing, Envelope, canonical, profiles } from "../src/signing/signing";
 import { Security } from "../src/security/security";
-import { seal, totp, hash } from "../src/security/crypto";
+import { seal, unseal, hash } from "../src/security/crypto";
 
+import { Otp } from "../src/accounts/otp";
+import { Sms } from "../src/accounts/sms";
 process.env.NODE_ENV = "test";
+process.env.SMS_PROVIDER = "fake";
+process.env.MOBILE_ENCRYPTION_KEY = "4".repeat(64);
+process.env.OTP_HMAC_KEY = "5".repeat(64);
+process.env.SMS_FAKE_OUTBOX = ".local/sms-test-outbox.jsonl";
 process.env.DATABASE_URL ??=
   "postgresql://yarizan:local-disposable@127.0.0.1:55432/yarizan_phase2_test";
 for (const [key, value] of [
@@ -153,35 +160,62 @@ async function proof(
     ).toString("base64url"),
   };
 }
-async function paired(key: Candidate, owner?: Browser) {
+let mobileCounter = 10000000;
+const nextMobile = () => "091" + (++mobileCounter).toString().padStart(8, "0");
+async function otpCode(id: string) {
+  for (let n = 0; n < 100; n++) {
+    const code = app.get(Sms).fake.codeFor(id);
+    if (
+      code &&
+      (await db.query("SELECT delivered FROM otp_challenges WHERE id=$1", [id]))
+        .rows[0]?.delivered
+    )
+      return code;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  throw Error("Fake delivery not completed");
+}
+async function paired(key: Candidate) {
   const p = (
     await ok<{ pairing_id: string; pairing_secret: string }>(
       "/device-pairings",
       await proof(key, "PAIR"),
     )
   ).body;
-  const b = (
-    await ok<{ browser_token: string }>(
-      `/device-pairings/${p.pairing_id}/confirm`,
-      { pairing_secret: p.pairing_secret },
-      owner,
+  const owner = (
+    await db.query(
+      "SELECT 1 FROM pairings p JOIN customers c ON c.device_id=p.device_id AND c.generation=p.generation AND c.state='ACTIVE' WHERE p.id=$1",
+      [p.pairing_id],
     )
-  ).body;
-  const d = (
-    await ok<{ claim_grant: string }>(
-      `/device-pairings/${p.pairing_id}/desktop-confirm`,
-      await proof(key, "CONFIRM", p.pairing_id),
-    )
-  ).body;
+  ).rowCount;
+  let otp: { challenge_id: string; code: string } | undefined;
+  if (!owner) {
+    const sent = await ok<{ challenge_id: string }>("/auth/claim/otp/request", {
+      pairing_id: p.pairing_id,
+      pairing_secret: p.pairing_secret,
+      mobile: nextMobile(),
+    });
+    otp = {
+      challenge_id: sent.body.challenge_id,
+      code: await otpCode(sent.body.challenge_id),
+    };
+  }
   return {
+    ...(otp ? { otp } : {}),
     pairing_id: p.pairing_id,
-    browser_token: b.browser_token,
-    claim_grant: d.claim_grant,
-    ...(!owner ? { password: "Synthetic!Password12345" } : {}),
+    pairing_secret: p.pairing_secret,
+    password: "Synthetic!Password12345",
   };
 }
 async function enroll(key: Candidate, owner?: Browser) {
-  return (await ok<Enrolled>("/auth/claim", await paired(key, owner))).body;
+  const p = await paired(key);
+  await ok("/auth/claim", p, owner);
+  return (
+    await ok<Enrolled>(
+      `/device-pairings/${p.pairing_id}/pickup`,
+      await proof(key, "CONFIRM", p.pairing_id),
+    )
+  ).body;
 }
 async function login(
   e: Enrolled,
@@ -215,10 +249,18 @@ async function adminLogin(role = "owner"): Promise<Browser> {
     ],
   );
   await db.query("INSERT INTO admin_user_roles VALUES($1,$2)", [id, role]);
-  const r = await ok<{ csrf_token: string }>("/admin/auth/login", {
+  const phone = nextMobile();
+  await db.query(
+    "UPDATE admins SET mobile_ciphertext=$2,mobile_last4=$3 WHERE id=$1",
+    [id, seal(phone, process.env.MOBILE_ENCRYPTION_KEY!), phone.slice(-4)],
+  );
+  const sent = await ok<{ challenge_id: string }>("/admin/auth/login", {
     username,
     password: "Synthetic!Admin123456",
-    mfa_code: totp(secret, Math.floor(Date.now() / 30000)),
+  });
+  const r = await ok<{ csrf_token: string }>("/admin/auth/sms/verify", {
+    challenge_id: sent.body.challenge_id,
+    code: await otpCode(sent.body.challenge_id),
   });
   return {
     cookie: r.headers.get("set-cookie")!.split(";")[0],
@@ -262,9 +304,12 @@ before(async () => {
   owner = await login(primary);
   admin = await adminLogin();
 });
+beforeEach(async () => {
+  await db.query("DELETE FROM rate_buckets");
+});
 after(async () => {
   await app?.close();
-  await db?.onModuleDestroy();
+  await db?.onApplicationShutdown();
 });
 
 test("Actual PostgreSQL 17 and six exact products/prices", async () => {
@@ -352,8 +397,7 @@ test("First claim requires both browser and desktop confirmation", async () => {
     "/auth/claim",
     {
       pairing_id: p.pairing_id,
-      browser_token: randomBytes(32).toString("base64url"),
-      claim_grant: randomBytes(32).toString("base64url"),
+      pairing_secret: randomBytes(32).toString("base64url"),
       password: "Synthetic!Password12345",
     },
     "PAIRING_INVALID",
@@ -1172,15 +1216,36 @@ test("Admin wrong MFA, reused MFA and expired recent authentication denied", asy
       seal(secret, process.env.MFA_ENCRYPTION_KEY!),
     ],
   );
-  const b = {
-    username,
-    password: "Synthetic!Admin123456",
-    mfa_code: "not-six-digits",
-  };
-  await denied("/admin/auth/login", b, "INVALID_REQUEST");
-  const code = totp(secret, Math.floor(Date.now() / 30000));
-  await ok("/admin/auth/login", { ...b, mfa_code: code });
-  await denied("/admin/auth/login", { ...b, mfa_code: code }, "MFA_REQUIRED");
+  const phone = nextMobile();
+  await db.query(
+    "UPDATE admins SET mobile_ciphertext=$2,mobile_last4=$3 WHERE id=$1",
+    [id, seal(phone, process.env.MOBILE_ENCRYPTION_KEY!), phone.slice(-4)],
+  );
+  const b = { username, password: "Synthetic!Admin123456" };
+  await denied(
+    "/admin/auth/login",
+    { ...b, mfa_code: "123456" },
+    "INVALID_REQUEST",
+  );
+  const challenge = await ok<{ challenge_id: string }>("/admin/auth/login", b),
+    code = await otpCode(challenge.body.challenge_id);
+  await denied(
+    "/admin/auth/sms/verify",
+    {
+      challenge_id: challenge.body.challenge_id,
+      code: code === "000000" ? "111111" : "000000",
+    },
+    "OTP_INVALID",
+  );
+  await ok("/admin/auth/sms/verify", {
+    challenge_id: challenge.body.challenge_id,
+    code,
+  });
+  await denied(
+    "/admin/auth/sms/verify",
+    { challenge_id: challenge.body.challenge_id, code },
+    "OTP_INVALID",
+  );
   const old = await adminLogin();
   await db.query(
     "UPDATE admin_sessions SET mfa_at=now()-interval '6 minutes' WHERE token_hash=$1",
@@ -1703,254 +1768,6 @@ async function waitForSignal(signal: Promise<void>) {
   }
 }
 
-test("Invalid, expired, incomplete and consumed pairings never invoke password hashing", async () => {
-  const wrong = await paired(candidate()),
-    expired = await paired(candidate()),
-    consumed = await paired(candidate());
-  await ok("/auth/claim", consumed);
-  await db.query(
-    "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
-    [expired.pairing_id],
-  );
-  const pending = (
-    await ok<{ pairing_id: string }>(
-      "/device-pairings",
-      await proof(candidate(), "PAIR"),
-    )
-  ).body;
-  const hashing = app.get(PasswordHashing),
-    original = hashing.hash;
-  let calls = 0;
-  hashing.hash = (value: string) => {
-    calls++;
-    return original.call(hashing, value);
-  };
-  try {
-    for (const body of [
-      { ...wrong, pairing_id: randomUUID() },
-      { ...wrong, browser_token: randomBytes(32).toString("base64url") },
-      { ...wrong, claim_grant: randomBytes(32).toString("base64url") },
-      expired,
-      consumed,
-      { ...wrong, pairing_id: pending.pairing_id },
-    ])
-      await denied("/auth/claim", body, "PAIRING_INVALID");
-    assert.equal(calls, 0);
-  } finally {
-    hashing.hash = original;
-  }
-});
-test("Claim alias shares Origin checks, DTO validation and one-time authorization", async () => {
-  const b = await paired(candidate()),
-    hashing = app.get(PasswordHashing),
-    original = hashing.hash;
-  let calls = 0;
-  hashing.hash = (value: string) => {
-    calls++;
-    return original.call(hashing, value);
-  };
-  try {
-    for (const route of ["/auth/claim", "/devices/register"])
-      for (const badOrigin of [undefined, "https://attacker.invalid"]) {
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (badOrigin) headers.Origin = badOrigin;
-        const response = await fetch(base + route, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(b),
-        });
-        assert.equal(response.status, 403);
-        assert.equal(
-          ((await response.json()) as ErrorBody).error.code,
-          "CSRF_REJECTED",
-        );
-      }
-    assert.equal(calls, 0);
-    await denied(
-      "/devices/register",
-      { ...b, unexpected: true },
-      "INVALID_REQUEST",
-    );
-    await ok("/devices/register", b);
-    assert.equal(calls, 1);
-    await denied("/auth/claim", b, "PAIRING_INVALID");
-    assert.equal(calls, 1);
-  } finally {
-    hashing.hash = original;
-  }
-});
-test("Claim holds no PostgreSQL pairing lock while hashing; expiry is revalidated atomically", async () => {
-  const key = candidate(),
-    b = await paired(key),
-    hashing = app.get(PasswordHashing),
-    original = hashing.hash,
-    started = barrier(),
-    release = barrier();
-  hashing.hash = async (value: string) => {
-    started.resolve();
-    await release.promise;
-    return original.call(hashing, value);
-  };
-  let pending: ReturnType<typeof request<Enrolled>> | undefined;
-  try {
-    pending = request<Enrolled>("/auth/claim", b);
-    await waitForSignal(started.promise);
-    await db.transaction(async (c) => {
-      await c.query("SELECT id FROM pairings WHERE id=$1 FOR UPDATE NOWAIT", [
-        b.pairing_id,
-      ]);
-      await c.query(
-        "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
-        [b.pairing_id],
-      );
-    });
-    release.resolve();
-    const result = await pending;
-    assert.equal(result.status, 410);
-    assert.equal(
-      (result.body as unknown as ErrorBody).error.code,
-      "PAIRING_INVALID",
-    );
-    assert.equal(
-      (
-        await db.query(
-          "SELECT count(*) FROM devices WHERE fingerprint_digest=$1",
-          [key.fingerprint],
-        )
-      ).rows[0].count,
-      "0",
-    );
-  } finally {
-    release.resolve();
-    hashing.hash = original;
-    if (pending) await pending;
-  }
-});
-test("Concurrent same-pair claim commits once; hashing admission cannot bypass consumed token check", async () => {
-  const key = candidate(),
-    b = await paired(key),
-    hashing = app.get(PasswordHashing),
-    original = hashing.hash,
-    started = barrier(),
-    release = barrier();
-  let calls = 0;
-  hashing.hash = async (value: string) => {
-    calls++;
-    if (calls === 1) {
-      started.resolve();
-      await release.promise;
-    }
-    return original.call(hashing, value);
-  };
-  let pending: ReturnType<typeof request<Enrolled>> | undefined;
-  try {
-    pending = request<Enrolled>("/auth/claim", b);
-    await waitForSignal(started.promise);
-    const winner = await ok<Enrolled>("/devices/register", b);
-    release.resolve();
-    const loser = await pending;
-    assert.equal(loser.status, 410);
-    assert.equal(
-      (loser.body as unknown as ErrorBody).error.code,
-      "PAIRING_INVALID",
-    );
-    assert.equal(
-      (
-        await db.query("SELECT count(*) FROM customers WHERE device_id=$1", [
-          winner.body.device_id,
-        ])
-      ).rows[0].count,
-      "1",
-    );
-    assert.equal(
-      (
-        await db.query(
-          "SELECT count(*) FROM device_enrollment_history WHERE customer_id=$1",
-          [winner.body.customer_id],
-        )
-      ).rows[0].count,
-      "1",
-    );
-    await login(winner.body);
-  } finally {
-    release.resolve();
-    hashing.hash = original;
-    if (pending) await pending;
-  }
-});
-test("Authorized pairing hashing budget is shared across claim aliases", async () => {
-  const b = await paired(candidate()),
-    hashing = app.get(PasswordHashing),
-    original = hashing.hash;
-  let calls = 0;
-  hashing.hash = async () => {
-    calls++;
-    throw new ApiError("HASH_UNAVAILABLE", 503);
-  };
-  try {
-    for (let i = 0; i < 3; i++)
-      await denied(
-        i % 2 ? "/devices/register" : "/auth/claim",
-        b,
-        "HASH_UNAVAILABLE",
-      );
-    await denied("/devices/register", b, "RATE_LIMITED");
-    assert.equal(calls, 3);
-    assert.equal(
-      (
-        await db.query("SELECT status FROM pairings WHERE id=$1", [
-          b.pairing_id,
-        ])
-      ).rows[0].status,
-      "DESKTOP_CONFIRMED",
-    );
-  } finally {
-    hashing.hash = original;
-  }
-});
-// Keep the public claim-budget test isolated from the suite's legitimate enrollment traffic.
-test("Claim aliases enforce one shared PostgreSQL endpoint IP budget before hashing", async () => {
-  const original = security.rate,
-    keys: string[] = [];
-  security.rate = async (
-    key: string,
-    limit: number,
-    seconds = 60,
-    instant = Date.now(),
-  ) => {
-    if (key.startsWith("claim-ip:")) {
-      assert.equal(limit, 120);
-      assert.equal(seconds, 300);
-      keys.push(key);
-      return original.call(
-        security,
-        "review-budget:" + key,
-        2,
-        seconds,
-        1740000000000,
-      );
-    }
-    return original.call(security, key, limit, seconds, instant);
-  };
-  const b = {
-    pairing_id: randomUUID(),
-    browser_token: randomBytes(32).toString("base64url"),
-    claim_grant: randomBytes(32).toString("base64url"),
-    password: "Synthetic!Password12345",
-  };
-  try {
-    await denied("/auth/claim", b, "PAIRING_INVALID");
-    await denied("/devices/register", b, "PAIRING_INVALID");
-    await denied("/auth/claim", b, "RATE_LIMITED");
-    assert.equal(new Set(keys).size, 1);
-    assert.equal(keys.length, 3);
-  } finally {
-    security.rate = original;
-  }
-});
-
 const trialInput = (device_id: string) => ({
   device_id,
   client_nonce: hash(randomBytes(32)),
@@ -2176,4 +1993,1198 @@ test("Trials queued behind reset use its new epoch; old retry cannot return reti
     audit.append = original;
     trials.start = originalStart;
   }
+});
+
+test("Invalid and expired browser pairings invoke no password hashing", async () => {
+  const valid = await paired(candidate()),
+    expired = await paired(candidate()),
+    consumed = await paired(candidate());
+  await ok("/auth/claim", consumed);
+  await db.query(
+    "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
+    [expired.pairing_id],
+  );
+  const hashing = app.get(PasswordHashing),
+    original = hashing.hash;
+  let calls = 0;
+  hashing.hash = () => {
+    calls++;
+    throw new Error("Unexpected hashing");
+  };
+  try {
+    for (const body of [
+      { ...valid, pairing_id: randomUUID() },
+      { ...valid, pairing_secret: randomBytes(32).toString("base64url") },
+      expired,
+      consumed,
+    ])
+      await denied("/auth/claim", body, "PAIRING_INVALID");
+    assert.equal(calls, 0);
+  } finally {
+    hashing.hash = original;
+  }
+});
+test("Retired credential-delivery endpoints cannot bypass browser-only approval", async () => {
+  await denied("/devices/register", {}, "PROTOCOL_RETIRED");
+  await denied(
+    `/device-pairings/${randomUUID()}/desktop-confirm`,
+    {},
+    "PROTOCOL_RETIRED",
+  );
+  const p = await paired(candidate());
+  const r = await fetch(base + "/auth/claim", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "https://attacker.invalid",
+    },
+    body: JSON.stringify(p),
+  });
+  assert.equal(r.status, 403);
+  const receipt = (await ok("/auth/claim", p)).body;
+  assert.deepEqual(Object.keys(receipt).sort(), [
+    "authenticated",
+    "csrf_token",
+    "expires_at",
+    "status",
+    "username",
+  ]);
+  assert.equal(receipt.status, "APPROVED");
+  assert.ok(
+    !JSON.stringify(receipt).match(
+      /credential|enrollment|claim_grant|browser_token/,
+    ),
+  );
+});
+test("Browser claim holds no PostgreSQL row lock across Argon2id and rechecks expiry", async () => {
+  const key = candidate(),
+    p = await paired(key),
+    hashing = app.get(PasswordHashing),
+    original = hashing.hash,
+    held = barrier(),
+    release = barrier();
+  hashing.hash = async (value) => {
+    held.resolve();
+    await release.promise;
+    return original.call(hashing, value);
+  };
+  const pending = request<ErrorBody>("/auth/claim", p);
+  try {
+    await waitForSignal(held.promise);
+    await db.transaction(async (c) => {
+      await c.query("SELECT id FROM pairings WHERE id=$1 FOR UPDATE NOWAIT", [
+        p.pairing_id,
+      ]);
+      await c.query(
+        "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
+        [p.pairing_id],
+      );
+    });
+    release.resolve();
+    assert.equal((await pending).body.error.code, "PAIRING_INVALID");
+  } finally {
+    release.resolve();
+    hashing.hash = original;
+  }
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM customers c JOIN devices d ON d.id=c.device_id WHERE d.fingerprint_digest=$1",
+        [key.fingerprint],
+      )
+    ).rows[0].count,
+    "0",
+  );
+});
+test("Concurrent browser claims approve once and only the correct key can pick up", async () => {
+  const key = candidate(),
+    p = await paired(key);
+  const r = await Promise.all([
+    request("/auth/claim", p),
+    request(`/device-pairings/${p.pairing_id}/confirm`, {
+      pairing_secret: p.pairing_secret,
+      password: p.password,
+      otp: p.otp,
+    }),
+  ]);
+  assert.equal(r.filter((x) => x.status === 201).length, 1);
+  assert.equal(r.filter((x) => x.status === 410).length, 1);
+  await denied(
+    `/device-pairings/${p.pairing_id}/pickup`,
+    await proof(candidate(key.fingerprint), "CONFIRM", p.pairing_id),
+    "PAIRING_INVALID",
+  );
+  const picked = (
+    await ok<Enrolled>(
+      `/device-pairings/${p.pairing_id}/pickup`,
+      await proof(key, "CONFIRM", p.pairing_id),
+    )
+  ).body;
+  assert.ok(picked.credential);
+  await login(picked);
+});
+test("Pending and lost-response pickup never duplicate profile issuance; fresh AUTH recovers certificate", async () => {
+  const key = candidate(),
+    p = await paired(key),
+    route = `/device-pairings/${p.pairing_id}/pickup`;
+  assert.deepEqual(
+    (await ok(route, await proof(key, "CONFIRM", p.pairing_id))).body,
+    { status: "PENDING" },
+  );
+  await ok("/auth/claim", p);
+  const signed = await proof(key, "CONFIRM", p.pairing_id),
+    first = (await ok<Enrolled>(route, signed)).body;
+  await denied(route, signed, "CHALLENGE_INVALID");
+  const retry = (
+    await ok<Enrolled>(route, await proof(key, "CONFIRM", p.pairing_id))
+  ).body;
+  assert.deepEqual(retry.enrollment, first.enrollment);
+  assert.notEqual(retry.credential, first.credential);
+  await denied(
+    "/desktop/trials/YARIZAN-G1/status",
+    undefined,
+    "ACCOUNT_RESTRICTED",
+    first.credential,
+  );
+  const renewed = (await ok("/devices/authenticate", await proof(key, "AUTH")))
+    .body;
+  assert.deepEqual(renewed.enrollment, first.enrollment);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM device_enrollment_history WHERE key_id=$1",
+        [first.enrollment.payload.profile_enrollment_id],
+      )
+    ).rows[0].count,
+    "1",
+  );
+});
+test("Reset invalidates pending and approved pairing generations", async () => {
+  const key = candidate(),
+    first = await enroll(key),
+    owner = await login(first),
+    second = candidate(key.fingerprint),
+    pending = await paired(second),
+    approved = await paired(candidate(key.fingerprint));
+  await ok("/auth/claim", approved, owner);
+  await ok(`/admin/customers/${first.customer_id}/reset`, mutation(), admin);
+  await denied("/auth/claim", pending, "PAIRING_INVALID");
+  await denied(
+    `/device-pairings/${approved.pairing_id}/pickup`,
+    await proof(second, "CONFIRM", approved.pairing_id),
+    "PAIRING_INVALID",
+  );
+});
+test("Cancelled pairing cannot authorize or provision", async () => {
+  const key = candidate(),
+    p = await paired(key);
+  await ok(`/device-pairings/${p.pairing_id}/cancel`, {
+    pairing_secret: p.pairing_secret,
+  });
+  await denied("/auth/claim", p, "PAIRING_INVALID");
+  await denied(
+    `/device-pairings/${p.pairing_id}/pickup`,
+    await proof(key, "CONFIRM", p.pairing_id),
+    "PAIRING_INVALID",
+  );
+});
+test("Admin paginated reads enforce permissions and omit authentication and fingerprint secrets", async () => {
+  for (const route of [
+    "customers",
+    "devices",
+    "licenses",
+    "trials",
+    "activation-codes",
+    "products",
+  ]) {
+    const r = (
+      await ok<{
+        items: Record<string, unknown>[];
+        next_offset: number | null;
+      }>(`/admin/${route}?limit=1`, undefined, admin)
+    ).body;
+    assert.ok(r.items.length <= 1);
+    assert.ok(
+      !JSON.stringify(r).match(
+        /password_hash|verifier|fingerprint_digest|public_key|token_hash|signed_enrollment/,
+      ),
+    );
+  }
+  const auditor = await adminLogin("auditor");
+  await denied("/admin/customers", undefined, "FORBIDDEN", auditor);
+  assert.ok(
+    (
+      await ok<{ permissions: string[] }>(
+        "/admin/auth/session",
+        undefined,
+        admin,
+      )
+    ).body.permissions.includes("customers.reset"),
+  );
+  await denied(
+    "/admin/devices?limit=1000",
+    undefined,
+    "INVALID_REQUEST",
+    admin,
+  );
+});
+
+test("Real C# provisioning transport, lost delivery, protected storage and offline access", async () => {
+  const fixture = {
+    provisioning: true,
+    sms_fixture_path: path.resolve(".local/sms-test-outbox.jsonl"),
+    mobile_key: process.env.MOBILE_ENCRYPTION_KEY,
+    apiBase: base.replace("/api/v2", "/"),
+    origin,
+    kid: signing.keys.kid,
+    publicKey: signing.keys.publicKey,
+    adminCookie: admin.cookie,
+    adminCsrf: admin.csrf,
+  };
+  const dir = await mkdtemp(path.join(tmpdir(), "yarizan-provisioning-"));
+  try {
+    const file = path.join(dir, "synthetic.json");
+    await writeFile(file, JSON.stringify(fixture));
+    const projects = [
+      "../tests/BackendInterop",
+      ...(process.platform === "win32" ? ["../tests/ProvisioningChecks"] : []),
+    ];
+    for (const project of projects) {
+      const result = await promisify(execFile)(
+        "dotnet",
+        ["run", "--project", project, "-c", "Release", "--", file],
+        { timeout: 180000 },
+      );
+      assert.match(result.stdout, /DOTNET_PROVISIONING \d+ passed, 0 failed/);
+      console.log(result.stdout.trim());
+    }
+  } finally {
+    assert.ok(
+      path
+        .resolve(dir)
+        .startsWith(path.join(path.resolve(tmpdir()), "yarizan-provisioning-")),
+    );
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("Owner session is revalidated atomically after browser claim admission", async () => {
+  const key = candidate(),
+    e = await enroll(key),
+    owner = await login(e),
+    p = await paired(candidate(key.fingerprint));
+  const service = app.get(Identity),
+    original = service.claim.bind(service),
+    held = barrier(),
+    release = barrier();
+  service.claim = async (...args: Parameters<Identity["claim"]>) => {
+    held.resolve();
+    await release.promise;
+    return original(...args);
+  };
+  const pending = request<ErrorBody>("/auth/claim", p, owner);
+  try {
+    await waitForSignal(held.promise);
+    await ok("/auth/logout", {}, owner);
+    release.resolve();
+    assert.equal((await pending).body.error.code, "UNAUTHENTICATED");
+  } finally {
+    release.resolve();
+    service.claim = original;
+  }
+  assert.equal(
+    (await db.query("SELECT status FROM pairings WHERE id=$1", [p.pairing_id]))
+      .rows[0].status,
+    "PENDING",
+  );
+  await ok("/auth/claim", p, await login(e));
+});
+
+async function mobileFor(e: Enrolled) {
+  return unseal(
+    (
+      await db.query("SELECT mobile_ciphertext FROM customers WHERE id=$1", [
+        e.customer_id,
+      ])
+    ).rows[0].mobile_ciphertext,
+    process.env.MOBILE_ENCRYPTION_KEY!,
+  );
+}
+async function requestOtp(e: Enrolled, purpose = "LOGIN") {
+  const r = await ok<{ challenge_id: string }>("/auth/otp/request", {
+    username: e.username,
+    mobile: await mobileFor(e),
+    purpose,
+  });
+  return {
+    challenge_id: r.body.challenge_id,
+    code: await otpCode(r.body.challenge_id),
+  };
+}
+async function browserOtp(e: Enrolled) {
+  const r = await ok<{ csrf_token: string }>(
+    "/auth/otp/verify",
+    await requestOtp(e),
+  );
+  return {
+    cookie: r.headers
+      .getSetCookie()
+      .find((v) => v.startsWith("yz_customer="))!
+      .split(";")[0],
+    csrf: r.body.csrf_token,
+  };
+}
+test("Mobile-only first claim creates an initial browser session without another OTP", async () => {
+  const k = candidate(),
+    p = await paired(k);
+  const { password: ignored, ...body } = p;
+  void ignored;
+  const r = await ok("/auth/claim", body);
+  assert.deepEqual(Object.keys(r.body).sort(), [
+    "authenticated",
+    "csrf_token",
+    "expires_at",
+    "status",
+    "username",
+  ]);
+  const e = (
+    await ok<Enrolled>(
+      `/device-pairings/${p.pairing_id}/pickup`,
+      await proof(k, "CONFIRM", p.pairing_id),
+    )
+  ).body;
+  assert.equal(
+    (
+      await db.query("SELECT password_hash FROM customers WHERE id=$1", [
+        e.customer_id,
+      ])
+    ).rows[0].password_hash,
+    null,
+  );
+  await denied(
+    "/auth/login",
+    { username: e.username, password: "Synthetic!Password12345" },
+    "INVALID_CREDENTIALS",
+  );
+  const browser = {
+    cookie: r.headers
+      .getSetCookie()
+      .find((v) => v.startsWith("yz_customer="))!
+      .split(";")[0],
+    csrf: r.body.csrf_token as string,
+  };
+  assert.match(
+    r.headers.getSetCookie().find((v) => v.startsWith("yz_customer="))!,
+    /HttpOnly/,
+  );
+  assert.match(
+    r.headers.getSetCookie().find((v) => v.startsWith("yz_customer="))!,
+    /SameSite=Strict/,
+  );
+  const details = (await ok("/account/security", undefined, browser)).body;
+  assert.equal(details.has_password, false);
+  assert.ok(!JSON.stringify(details).includes(await mobileFor(e)));
+});
+
+test("Concurrent initial claims mint one session; replay and invalid claim never set cookies", async () => {
+  const p = await paired(candidate());
+  const { password: ignored, ...body } = p;
+  void ignored;
+  const results = await Promise.all(
+    Array.from({ length: 3 }, () => request("/auth/claim", body)),
+  );
+  const success = results.filter((r) => r.status === 201);
+  assert.equal(success.length, 1);
+  assert.equal(results.filter((r) => r.headers.has("set-cookie")).length, 1);
+  const id = (
+    await db.query("SELECT authorized_customer_id FROM pairings WHERE id=$1", [
+      p.pairing_id,
+    ])
+  ).rows[0].authorized_customer_id;
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM customer_sessions WHERE customer_id=$1",
+        [id],
+      )
+    ).rows[0].count,
+    "1",
+  );
+  const replay = await denied("/auth/claim", body, "PAIRING_INVALID");
+  assert.equal(replay.headers.has("set-cookie"), false);
+  for (const state of ["expired", "cancelled", "mismatch", "otp-used"]) {
+    const q = await paired(candidate());
+    if (state === "expired")
+      await db.query(
+        "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
+        [q.pairing_id],
+      );
+    if (state === "cancelled")
+      await ok(`/device-pairings/${q.pairing_id}/cancel`, {
+        pairing_secret: q.pairing_secret,
+      });
+    if (state === "mismatch") q.pairing_secret = "A".repeat(43);
+    if (state === "otp-used")
+      await db.query("UPDATE otp_challenges SET used_at=now() WHERE id=$1", [
+        q.otp!.challenge_id,
+      ]);
+    const rejected = await request("/auth/claim", q);
+    assert.ok(rejected.status >= 400);
+    assert.equal(rejected.headers.has("set-cookie"), false);
+  }
+});
+
+test("Existing-owner profile approval preserves its session without minting another", async () => {
+  const e = await enroll(candidate()),
+    owner = await login(e);
+  const p = await paired(
+    candidate(
+      (
+        await db.query("SELECT fingerprint_digest FROM devices WHERE id=$1", [
+          e.device_id,
+        ])
+      ).rows[0].fingerprint_digest,
+    ),
+  );
+  const count = async () =>
+    (
+      await db.query(
+        "SELECT count(*) FROM customer_sessions WHERE customer_id=$1",
+        [e.customer_id],
+      )
+    ).rows[0].count;
+  const before = await count();
+  const r = await ok(
+    `/device-pairings/${p.pairing_id}/confirm`,
+    { pairing_secret: p.pairing_secret },
+    owner,
+  );
+  assert.equal(r.body.authenticated, true);
+  assert.equal(r.body.csrf_token, undefined);
+  assert.equal(r.headers.has("set-cookie"), false);
+  assert.equal(await count(), before);
+  await ok("/account", undefined, owner);
+});
+
+test("Initial-session audit failure rolls back account, OTP and pairing together", async () => {
+  const p = await paired(candidate()),
+    audit = app.get(Audit),
+    original = audit.append;
+  audit.append = async (c, actor, action, entity, metadata) => {
+    if (action === "customer.login_claim")
+      throw new Error("synthetic transaction rollback");
+    return original.call(audit, c, actor, action, entity, metadata);
+  };
+  try {
+    const r = await request("/auth/claim", p);
+    assert.equal(r.status, 503);
+    assert.equal(r.headers.has("set-cookie"), false);
+    assert.equal(
+      (
+        await db.query("SELECT status FROM pairings WHERE id=$1", [
+          p.pairing_id,
+        ])
+      ).rows[0].status,
+      "PENDING",
+    );
+    assert.equal(
+      (
+        await db.query("SELECT used_at FROM otp_challenges WHERE id=$1", [
+          p.otp!.challenge_id,
+        ])
+      ).rows[0].used_at,
+      null,
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*) FROM customers c JOIN pairings p ON p.device_id=c.device_id WHERE p.id=$1",
+          [p.pairing_id],
+        )
+      ).rows[0].count,
+      "0",
+    );
+  } finally {
+    audit.append = original;
+  }
+  const r = await ok("/auth/claim", p);
+  assert.ok(r.headers.has("set-cookie"));
+});
+
+async function eventually(check: () => Promise<boolean>) {
+  for (let i = 0; i < 300; i++) {
+    if (await check()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.fail("Asynchronous delivery did not settle");
+}
+function controlledDelivery() {
+  const sms = new Sms(security),
+    service = new Otp(db, security, sms, app.get(Audit));
+  const release = barrier(),
+    started: string[] = [];
+  sms.fake.send = async (m) => {
+    started.push(m.challengeId);
+    await release.promise;
+  };
+  const actor = { type: "SYSTEM" as const, correlationId: randomUUID() };
+  const issue = (deliver = true) =>
+    service.issue("LOGIN", nextMobile(), actor, {}, deliver);
+  return { sms, service, release, started, issue };
+}
+
+test("Bounded FIFO admits every accepted concurrent OTP, including decoys, and explicitly rejects excess", async () => {
+  const d = controlledDelivery();
+  try {
+    const first = await Promise.all(Array.from({ length: 4 }, () => d.issue()));
+    await eventually(async () => d.started.length === 4);
+    const rest = await Promise.allSettled(
+      Array.from({ length: 36 }, (_, i) => d.issue(i % 2 === 0)),
+    );
+    assert.equal(rest.filter((r) => r.status === "fulfilled").length, 16);
+    assert.equal(rest.filter((r) => r.status === "rejected").length, 20);
+    for (const r of rest)
+      if (r.status === "rejected")
+        assert.equal(r.reason.code, "SMS_UNAVAILABLE");
+    assert.equal(d.started.length, 4);
+    d.release.resolve();
+    await eventually(async () => d.started.length === 12);
+    const accepted = [
+      ...first,
+      ...rest.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
+    ];
+    await eventually(
+      async () =>
+        (
+          await db.query(
+            "SELECT count(*) FROM otp_challenges WHERE id=ANY($1::uuid[]) AND delivered",
+            [accepted.map((r) => r.challenge_id)],
+          )
+        ).rows[0].count === "12",
+    );
+    assert.equal(new Set(d.started).size, 12);
+    for (const r of accepted)
+      assert.deepEqual(Object.keys(r).sort(), [
+        "challenge_id",
+        "expires_in",
+        "retry_after",
+      ]);
+  } finally {
+    d.release.resolve();
+    await d.service.beforeApplicationShutdown();
+  }
+});
+
+test("Saturated public login admission rejects matched and unknown accounts identically without waiting for SMS", async () => {
+  const e = await enroll(candidate()),
+    sms = app.get(Sms),
+    original = sms.fake.send;
+  const release = barrier(),
+    sent: string[] = [];
+  sms.fake.send = async (m) => {
+    sent.push(m.challengeId);
+    await release.promise;
+  };
+  try {
+    const service = app.get(Otp),
+      actor = { type: "SYSTEM" as const, correlationId: randomUUID() };
+    await Promise.all(
+      Array.from({ length: 20 }, () =>
+        service.issue("LOGIN", nextMobile(), actor, {}),
+      ),
+    );
+    await eventually(async () => sent.length === 4);
+    const mobile = await mobileFor(e);
+    const results = await Promise.all(
+      [e.username, "unknown-device"].map((username) =>
+        request<ErrorBody>("/auth/otp/request", {
+          username,
+          mobile,
+          purpose: "LOGIN",
+        }),
+      ),
+    );
+    for (const r of results) {
+      assert.equal(r.status, 503);
+      assert.equal(r.body.error.code, "SMS_UNAVAILABLE");
+    }
+    release.resolve();
+    await eventually(async () => sent.length === 20);
+    await eventually(
+      async () =>
+        (
+          await db.query(
+            "SELECT count(*) FROM otp_challenges WHERE id=ANY($1::uuid[]) AND delivered",
+            [sent],
+          )
+        ).rows[0].count === "20",
+    );
+  } finally {
+    release.resolve();
+    sms.fake.send = original;
+  }
+});
+
+test("Queued OTPs recheck expiry and supersession before provider dispatch", async () => {
+  const d = controlledDelivery();
+  try {
+    await Promise.all(Array.from({ length: 4 }, () => d.issue()));
+    await eventually(async () => d.started.length === 4);
+    const expired = await d.issue(),
+      superseded = await d.issue(),
+      current = await d.issue();
+    await db.query(
+      "UPDATE otp_challenges SET created_at=now()-interval '6 minutes',expires_at=now()-interval '1 minute' WHERE id=$1",
+      [expired.challenge_id],
+    );
+    await db.query("UPDATE otp_challenges SET used_at=now() WHERE id=$1", [
+      superseded.challenge_id,
+    ]);
+    d.release.resolve();
+    await eventually(async () => d.started.includes(current.challenge_id));
+    await d.service.beforeApplicationShutdown();
+    assert.equal(d.started.includes(expired.challenge_id), false);
+    assert.equal(d.started.includes(superseded.challenge_id), false);
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*) FROM audit_logs WHERE entity_id=ANY($1::text[]) AND action='otp.delivery_unavailable'",
+          [[expired.challenge_id, superseded.challenge_id]],
+        )
+      ).rows[0].count,
+      "2",
+    );
+  } finally {
+    d.release.resolve();
+    await d.service.beforeApplicationShutdown();
+  }
+});
+
+test("Interrupted queued delivery is audited and not sent; ambiguous provider failures are never retried", async () => {
+  const d = controlledDelivery();
+  try {
+    await Promise.all(Array.from({ length: 4 }, () => d.issue()));
+    await eventually(async () => d.started.length === 4);
+    const pending = await d.issue();
+    const stopped = d.service.beforeApplicationShutdown();
+    d.release.resolve();
+    await stopped;
+    assert.equal(d.started.includes(pending.challenge_id), false);
+    assert.equal(
+      (
+        await db.query("SELECT delivered FROM otp_challenges WHERE id=$1", [
+          pending.challenge_id,
+        ])
+      ).rows[0].delivered,
+      false,
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*) FROM audit_logs WHERE entity_id=$1 AND action='otp.delivery_unavailable'",
+          [pending.challenge_id],
+        )
+      ).rows[0].count,
+      "1",
+    );
+    await assert.rejects(
+      d.issue(),
+      (e: unknown) => (e as ApiError).code === "SMS_UNAVAILABLE",
+    );
+  } finally {
+    d.release.resolve();
+    await d.service.beforeApplicationShutdown();
+  }
+  const failed = controlledDelivery();
+  let calls = 0;
+  failed.sms.fake.send = async () => {
+    calls++;
+    throw Error("ambiguous timeout secret");
+  };
+  try {
+    const r = await failed.issue();
+    await eventually(
+      async () =>
+        (
+          await db.query(
+            "SELECT 1 FROM audit_logs WHERE entity_id=$1 AND action='otp.delivery_unavailable'",
+            [r.challenge_id],
+          )
+        ).rowCount === 1,
+    );
+    assert.equal(calls, 1);
+    await assert.rejects(
+      failed.service.admit(r.challenge_id, "LOGIN", "123456"),
+      (e: unknown) => (e as ApiError).code === "OTP_INVALID",
+    );
+  } finally {
+    await failed.service.beforeApplicationShutdown();
+  }
+});
+test("Unverified first claim and cross-pairing OTP cannot approve another key", async () => {
+  const a = await paired(candidate()),
+    b = await paired(candidate());
+  await denied(
+    "/auth/claim",
+    { pairing_id: a.pairing_id, pairing_secret: a.pairing_secret },
+    "OTP_REQUIRED",
+  );
+  await denied("/auth/claim", { ...a, otp: b.otp }, "OTP_INVALID");
+  await ok("/auth/claim", b);
+});
+test("Unknown username/mobile requests have identical public receipts and never deliver", async () => {
+  const e = await enroll(candidate()),
+    known = await requestOtp(e);
+  const r = await ok<{ challenge_id: string }>("/auth/otp/request", {
+    username: "unknown-device",
+    mobile: nextMobile(),
+    purpose: "LOGIN",
+  });
+  assert.deepEqual(Object.keys(r.body).sort(), [
+    "challenge_id",
+    "expires_in",
+    "retry_after",
+  ]);
+  assert.equal(app.get(Sms).fake.codeFor(r.body.challenge_id), undefined);
+  await denied(
+    "/auth/otp/verify",
+    { challenge_id: r.body.challenge_id, code: known.code },
+    "OTP_INVALID",
+  );
+  assert.ok(!JSON.stringify(r.body).includes(known.code));
+});
+test("OTP five wrong attempts persist, expire and replay fail closed", async () => {
+  const e = await enroll(candidate()),
+    p = await requestOtp(e);
+  const wrong = p.code === "000000" ? "111111" : "000000";
+  for (let n = 0; n < 5; n++)
+    await denied("/auth/otp/verify", { ...p, code: wrong }, "OTP_INVALID");
+  await denied("/auth/otp/verify", p, "OTP_INVALID");
+  assert.equal(
+    (
+      await db.query("SELECT attempts FROM otp_challenges WHERE id=$1", [
+        p.challenge_id,
+      ])
+    ).rows[0].attempts,
+    5,
+  );
+  const e2 = await enroll(candidate()),
+    q = await requestOtp(e2);
+  await db.query(
+    "UPDATE otp_challenges SET created_at=now()-interval '6 minutes',expires_at=now()-interval '1 minute' WHERE id=$1",
+    [q.challenge_id],
+  );
+  await denied("/auth/otp/verify", q, "OTP_INVALID");
+});
+test("Parallel OTP login consumes once and retries cannot mint another session", async () => {
+  const e = await enroll(candidate()),
+    p = await requestOtp(e);
+  const r = await Promise.all([
+    request("/auth/otp/verify", p),
+    request("/auth/otp/verify", p),
+  ]);
+  assert.equal(r.filter((x) => x.status === 201).length, 1);
+  await denied("/auth/otp/verify", p, "OTP_INVALID");
+});
+test("Set optional password with existing-mobile OTP, revoke sessions and retain password login", async () => {
+  const k = candidate(),
+    p = await paired(k);
+  await ok("/auth/claim", {
+    pairing_id: p.pairing_id,
+    pairing_secret: p.pairing_secret,
+    otp: p.otp,
+  });
+  const e = (
+      await ok<Enrolled>(
+        `/device-pairings/${p.pairing_id}/pickup`,
+        await proof(k, "CONFIRM", p.pairing_id),
+      )
+    ).body,
+    browser = await browserOtp(e);
+  const sent = await ok<{ challenge_id: string }>(
+      "/account/security/otp",
+      { purpose: "PASSWORD" },
+      browser,
+    ),
+    passwordProof = {
+      challenge_id: sent.body.challenge_id,
+      code: await otpCode(sent.body.challenge_id),
+    };
+  await ok(
+    "/account/security/password",
+    { ...passwordProof, password: "NewOptional!Password123" },
+    browser,
+  );
+  await denied("/account", undefined, "UNAUTHENTICATED", browser);
+  await login(e, "NewOptional!Password123");
+});
+test("Password change requires mobile proof, revokes sessions and old password", async () => {
+  const e = await enroll(candidate()),
+    browser = await login(e),
+    sent = await ok<{ challenge_id: string }>(
+      "/account/security/otp",
+      { purpose: "PASSWORD" },
+      browser,
+    );
+  await ok(
+    "/account/security/password",
+    {
+      challenge_id: sent.body.challenge_id,
+      code: await otpCode(sent.body.challenge_id),
+      password: "Changed!Password12345",
+    },
+    browser,
+  );
+  await denied(
+    "/auth/login",
+    { username: e.username, password: "Synthetic!Password12345" },
+    "INVALID_CREDENTIALS",
+  );
+  await denied("/account", undefined, "UNAUTHENTICATED", browser);
+  await login(e, "Changed!Password12345");
+});
+test("Self-service mobile password reset invalidates sessions and stale login proofs", async () => {
+  const e = await enroll(candidate()),
+    browser = await login(e),
+    stale = await requestOtp(e),
+    p = await requestOtp(e, "RESET");
+  await ok("/auth/password-reset/otp", {
+    ...p,
+    password: "ResetMobile!Password123",
+  });
+  await denied("/auth/otp/verify", stale, "OTP_INVALID");
+  await denied("/account", undefined, "UNAUTHENTICATED", browser);
+  await denied(
+    "/auth/password-reset/otp",
+    { ...p, password: "Repeat!Password12345" },
+    "OTP_INVALID",
+  );
+  await login(e, "ResetMobile!Password123");
+});
+test("Mobile change needs both current and new number proofs, never a bare session", async () => {
+  const e = await enroll(candidate()),
+    browser = await login(e),
+    mobile = nextMobile();
+  await denied(
+    "/account/security/otp",
+    { purpose: "MOBILE_NEW", mobile },
+    "OTP_REQUIRED",
+    browser,
+  );
+  const old = await ok<{ challenge_id: string }>(
+      "/account/security/otp",
+      { purpose: "MOBILE_OLD" },
+      browser,
+    ),
+    current = {
+      challenge_id: old.body.challenge_id,
+      code: await otpCode(old.body.challenge_id),
+    };
+  const fresh = await ok<{ challenge_id: string }>(
+      "/account/security/otp",
+      { purpose: "MOBILE_NEW", mobile, current },
+      browser,
+    ),
+    proof = {
+      challenge_id: fresh.body.challenge_id,
+      code: await otpCode(fresh.body.challenge_id),
+    };
+  await denied("/account/security/mobile", proof, "OTP_REQUIRED", browser);
+  await ok("/account/security/mobile", { ...proof, current }, browser);
+  assert.equal(await mobileFor(e), mobile);
+  await denied("/account", undefined, "UNAUTHENTICATED", browser);
+});
+test("Account reset retires mobile OTP generation without changing desktop access policy", async () => {
+  const e = await enroll(candidate()),
+    p = await requestOtp(e);
+  await ok(`/admin/customers/${e.customer_id}/reset`, mutation(), admin);
+  await denied("/auth/otp/verify", p, "OTP_INVALID");
+});
+test("OTP requests enforce cooldown, IP and mobile budgets", async () => {
+  const e = await enroll(candidate());
+  await requestOtp(e);
+  await denied(
+    "/auth/otp/request",
+    { username: e.username, mobile: await mobileFor(e), purpose: "LOGIN" },
+    "RATE_LIMITED",
+  );
+});
+test("SMS provider outage returns generic receipt and no usable OTP", async () => {
+  const e = await enroll(candidate()),
+    sms = app.get(Sms),
+    send = sms.fake.send;
+  sms.fake.send = async () => {
+    throw Error("vendor-secret-do-not-expose");
+  };
+  try {
+    const r = await ok<{ challenge_id: string }>("/auth/otp/request", {
+      username: e.username,
+      mobile: await mobileFor(e),
+      purpose: "RESET",
+    });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(
+      (
+        await db.query("SELECT delivered FROM otp_challenges WHERE id=$1", [
+          r.body.challenge_id,
+        ])
+      ).rows[0].delivered,
+      false,
+    );
+    await denied(
+      "/auth/password-reset/otp",
+      {
+        challenge_id: r.body.challenge_id,
+        code: "123456",
+        password: "Unused!Password12345",
+      },
+      "OTP_INVALID",
+    );
+    assert.ok(!JSON.stringify(r.body).includes("vendor-secret"));
+  } finally {
+    sms.fake.send = send;
+  }
+});
+test("Notes support optimistic edits, entity references, scoped RBAC and note/phone/id search", async () => {
+  const e = await enroll(candidate()),
+    note = "Independent synthetic note searchable purple-orbit",
+    route = `/admin/notes/devices/${e.device_id}`;
+  const r = await ok<{ revision: number }>(
+    route,
+    { note, expected_revision: 0 },
+    admin,
+  );
+  assert.equal(r.body.revision, 1);
+  await denied(
+    route,
+    { note: "stale", expected_revision: 0 },
+    "STALE_REVISION",
+    admin,
+  );
+  await ok(route, { note: note + " updated", expected_revision: 1 }, admin);
+  for (const search of ["purple-orbit", e.device_id, await mobileFor(e)]) {
+    const result = (
+      await ok<{ items: { id: string; note: string }[] }>(
+        "/admin/devices?search=" + encodeURIComponent(search),
+        undefined,
+        admin,
+      )
+    ).body;
+    assert.ok(
+      result.items.some((r) => r.id === e.device_id && r.note.includes(note)),
+    );
+  }
+  const auditor = await adminLogin("auditor");
+  await denied(
+    route,
+    { note: "forbidden", expected_revision: 2 },
+    "FORBIDDEN",
+    auditor,
+  );
+  await denied(
+    `/admin/notes/devices/${randomUUID()}`,
+    { note: "missing", expected_revision: 0 },
+    "NOT_FOUND",
+    admin,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM audit_logs WHERE entity_id=$1 AND action IN ('note.created','note.updated')",
+        [e.device_id],
+      )
+    ).rows[0].count,
+    "2",
+  );
+});
+test("Trial notes are scoped to machine, SKU and account generation", async () => {
+  const e = await enroll(candidate());
+  await ok(
+    "/desktop/trials/YARIZAN-G1/start",
+    {
+      device_id: e.device_id,
+      client_nonce: hash(randomBytes(32)),
+      client_process_session_id: randomUUID(),
+    },
+    e.credential,
+  );
+  const id = e.device_id + "~YARIZAN-G1~1";
+  await ok(
+    "/admin/notes/trials/" + id,
+    { note: "Trial support note grade one", expected_revision: 0 },
+    admin,
+  );
+  const r = (
+    await ok<{ items: Record<string, unknown>[] }>(
+      "/admin/trials?search=Trial%20support%20note",
+      undefined,
+      admin,
+    )
+  ).body;
+  assert.ok(r.items.some((r) => r.device_id === e.device_id));
+});
+
+test("Notes CRUD and search cover customers, licenses, codes and product records", async () => {
+  const e = await enroll(candidate());
+  const license = (
+    await ok<Envelope>(
+      "/admin/licenses/issue",
+      { ...mutation(), device_id: e.device_id, sku: "YARIZAN-G1" },
+      admin,
+    )
+  ).body;
+  const activation = (
+    await ok<{ code_id: string }>(
+      "/admin/activation-codes",
+      {
+        ...mutation(),
+        device_id: e.device_id,
+        sku: "YARIZAN-G1",
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      },
+      admin,
+    )
+  ).body;
+  for (const [type, id] of [
+    ["customers", e.customer_id],
+    ["licenses", String(license.payload.license_id)],
+    ["activation-codes", activation.code_id],
+    ["products", "YARIZAN-G1"],
+  ]) {
+    const note = "Record context " + type + " " + randomUUID();
+    await ok(
+      `/admin/notes/${type}/${id}`,
+      { note, expected_revision: 0 },
+      admin,
+    );
+    const found = (
+      await ok<{ items: Record<string, unknown>[] }>(
+        `/admin/${type}?search=` + encodeURIComponent(note),
+        undefined,
+        admin,
+      )
+    ).body.items;
+    assert.ok(found.some((r) => r.note === note));
+    await ok(
+      `/admin/notes/${type}/${id}`,
+      { note: note + " edited", expected_revision: 1 },
+      admin,
+    );
+  }
+});
+test("Credential changes reject a valid OTP from another customer/session before password work", async () => {
+  const a = await enroll(candidate()),
+    b = await enroll(candidate()),
+    ownerA = await login(a),
+    ownerB = await login(b);
+  const sent = await ok<{ challenge_id: string }>(
+    "/account/security/otp",
+    { purpose: "PASSWORD" },
+    ownerA,
+  );
+  await denied(
+    "/account/security/password",
+    {
+      challenge_id: sent.body.challenge_id,
+      code: await otpCode(sent.body.challenge_id),
+      password: "Foreign!Password12345",
+    },
+    "OTP_INVALID",
+    ownerB,
+  );
+});
+
+test("First-claim resend retires prior phone proof and limits one pairing to three requests", async () => {
+  const p = await paired(candidate());
+  const newer = await ok<{ challenge_id: string }>("/auth/claim/otp/request", {
+    pairing_id: p.pairing_id,
+    pairing_secret: p.pairing_secret,
+    mobile: nextMobile(),
+  });
+  await otpCode(newer.body.challenge_id);
+  await denied("/auth/claim", p, "OTP_INVALID");
+  await ok("/auth/claim/otp/request", {
+    pairing_id: p.pairing_id,
+    pairing_secret: p.pairing_secret,
+    mobile: nextMobile(),
+  });
+  await denied(
+    "/auth/claim/otp/request",
+    {
+      pairing_id: p.pairing_id,
+      pairing_secret: p.pairing_secret,
+      mobile: nextMobile(),
+    },
+    "RATE_LIMITED",
+  );
+});
+
+test("Public OTP cooldown cannot distinguish a matching username through bucket differences", async () => {
+  const e = await enroll(candidate()),
+    mobile = await mobileFor(e);
+  await ok("/auth/otp/request", {
+    username: "unknown-public-name",
+    mobile,
+    purpose: "LOGIN",
+  });
+  await denied(
+    "/auth/otp/request",
+    { username: e.username, mobile, purpose: "LOGIN" },
+    "RATE_LIMITED",
+  );
+  await db.query("DELETE FROM rate_buckets");
+  await requestOtp(e);
+  await denied(
+    "/auth/otp/request",
+    { username: "unknown-public-name", mobile, purpose: "LOGIN" },
+    "RATE_LIMITED",
+  );
+});
+test("Disabled SMS fails closed while customer password login remains independent", async () => {
+  const e = await enroll(candidate()),
+    browser = await login(e),
+    sms = app.get(Sms),
+    available = sms.available;
+  sms.available = () => {
+    throw new ApiError("SMS_UNAVAILABLE", 503);
+  };
+  try {
+    await login(e);
+    await denied(
+      "/auth/otp/request",
+      { username: e.username, mobile: await mobileFor(e), purpose: "LOGIN" },
+      "SMS_UNAVAILABLE",
+    );
+    await denied(
+      "/account/security/otp",
+      { purpose: "PASSWORD" },
+      "SMS_UNAVAILABLE",
+      browser,
+    );
+  } finally {
+    sms.available = available;
+  }
+});
+test("Schema rejects password-only new accounts and non-SMS active Admin sessions", async () => {
+  const p = await paired(candidate()),
+    device = (
+      await db.query("SELECT device_id,generation FROM pairings WHERE id=$1", [
+        p.pairing_id,
+      ])
+    ).rows[0];
+  await assert.rejects(
+    db.query(
+      "INSERT INTO customers(id,device_id,generation,username,password_hash,state) VALUES($1,$2,$3,$4,'unused','ACTIVE')",
+      [randomUUID(), device.device_id, device.generation, "unverified-claim"],
+    ),
+    (e) => (e as { code: string }).code === "23514",
+  );
+  const adminId = (await db.query("SELECT id FROM admins LIMIT 1")).rows[0].id;
+  await assert.rejects(
+    db.query(
+      "INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,mfa_at,expires_at,mfa_method) VALUES($1,$2,$3,now(),now()+interval '1 hour','LEGACY_TOTP')",
+      [security.tokenHash("legacy"), adminId, security.tokenHash("csrf")],
+    ),
+    (e) => (e as { code: string }).code === "23514",
+  );
 });
