@@ -195,6 +195,9 @@ Host/toolchain remains Windows `10.0.26300.0`, Node `24.20.0`, npm `12.0.2`, Typ
 | `npx --yes @redocly/cli@2.63.0 lint ../docs/YARIZAN-OPENAPI-BACKEND-V2.json` | Passed, no warnings/errors |
 | `npx --yes @redocly/cli@2.63.0 lint ../docs/YARIZAN-OPENAPI-V2.yaml` | Passed, no warnings/errors |
 | `npm audit --audit-level=high` | Zero vulnerabilities |
+| `npm run check:secrets` | 51 tracked backend/interop files checked; no private-key blocks or token patterns |
+| `python ../tools/Check-PublicRepository.py` | Passed: no private runtime files or signing keys tracked |
+| `git diff --check` (repository root) | Passed |
 | `docker build -t yarizan-backend-fixture backend` (repository root) | Passed |
 | `node tools/check-runtime-env.mjs yarizan-backend-fixture` | All six cases pass: missing/empty refuse `NODE_ENV_REQUIRED`; staging refuses `NODE_ENV_INVALID`; production refuses `PRODUCTION_GATE_CLOSED`; explicit development/test apply migrations/seed, become ready, select correct synthetic-key persistence, and stop gracefully with exit 0. Refusals exit 1. Image has no mode default, embedded key or root runtime; native Argon2 loads. |
 
@@ -209,3 +212,13 @@ Physical first-claim assurance, fingerprint preemption/dispute recovery, commerc
 Migration 006 is additive and assigns historical rows epoch 1. Apply once through the checksum-verified migration runner, then run fresh catalog comparison. Do not edit applied migrations or delete history. Roll forward on issues; do not downgrade runtime to a version that ignores allocation epochs after any trial reset. No destructive down migration is provided.
 
 Main, production/staging servers, PHP/MySQL, DNS/Traefik, real customer data, ZarinPal, MeliPayamak, production signing keys and live payment/refund operations remain **unchanged**. Only the feature branch, local disposable containers and PR review material are changed. Stop for independent review; no merge or deployment is authorized by this report.
+
+### Follow-up CI evidence and commits
+
+Implementation/documentation HEAD `99cf3631ef94f9f1c2213f25491947a76caa8d1c` is pushed. Focused commits are `4a5ca92` (claim admission), `ad4c454` (trial allocation epochs), `03b20b4` (explicit runtime), and `99cf363` (review documentation/OpenAPI/provisioning boundary). The evidence-only commit after these does not change runtime code. Exact final delivery HEAD is recorded in Draft PR #2 and the handoff rather than attempting a self-referential report hash.
+
+- [Backend CI 38697716940](https://github.com/osameh15/YariZan/actions/runs/38697716940), Ubuntu job `116298135484`: **success**. Logs confirm 100 Node tests, zero failed/skipped, 24 C# verifier checks and 10 C# API/controller checks; fresh five-group migration comparison; 39 routes/five response profiles; build/lint/format; OpenAPI; 51-file secret scan; public scanner and zero dependency vulnerabilities. Docker logs confirm uid 1000, native Argon2, no embedded key and every missing/empty/invalid/production refusal plus successful development/test readiness and graceful shutdown.
+
+- [Windows CI 38697716933](https://github.com/osameh15/YariZan/actions/runs/38697716933), job `116298135401`: **success**. Existing Windows build and 365-check/group baseline pass: 289 V2, 27 access, 8 launcher, 5 grade groups and 36 book checks. Hosted evidence is elevated/software (`TokenIsElevated=1`, `AdministratorsGroupEnabled=True`, provider SOFTWARE), Windows `10.0.26100.0`, .NET `9.0.21`. This follow-up relies on the rerun Windows CI; historical local non-elevated/TPM evidence in section F was not rerun or reclassified.
+
+Both workflows are rerun on the final evidence-only commit. Their final run links and exact final SHA are recorded in the PR body and delivery response. No runtime changes follow the passing implementation HEAD above. Remote main remains `c9ebb75c3d8fad98c2a685965cf6d9fc5c3a5d20`; the feature worktree is clean after commit/push.
