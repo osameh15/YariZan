@@ -3337,7 +3337,7 @@ test("Commerce uses real snapshots, idempotency, ownership and disabled product 
   );
   await assert.rejects(
     db.query("UPDATE orders SET total_irr=1 WHERE id=$1", [o.id]),
-    /immutable/,
+    /immutable/i,
   );
 });
 
@@ -3937,7 +3937,7 @@ test("Expired uninitiated orders release coupon; held unknowns exhaust quotas; p
       "UPDATE orders SET expires_at=now()-interval '1 minute' WHERE id=$1",
       [o.id],
     ),
-    /immutable/,
+    /immutable/i,
   );
   const other = await buyer();
   await denied(
@@ -3959,4 +3959,142 @@ test("Expired uninitiated orders release coupon; held unknowns exhaust quotas; p
     "RATE_LIMITED",
     other.browser,
   );
+});
+
+test("Coupon account quotas, SKU restrictions and fixed snapshots survive campaign edits", async () => {
+  const e = await buyer(),
+    d = await discountFixture();
+  const o = await saleOrder(e, d.body.code);
+  await denied(
+    "/discounts/quote",
+    { sku: "YARIZAN-G1", coupon: d.body.code },
+    "COUPON_UNAVAILABLE",
+    e.browser,
+  );
+  await ok(
+    `/admin/commerce/coupons/${d.code.id}`,
+    { ...d.body, ...mutation(), skus: ["YARIZAN-G2"] },
+    admin,
+    "PATCH",
+  );
+  const other = await buyer();
+  await denied(
+    "/discounts/quote",
+    { sku: "YARIZAN-G1", coupon: d.body.code },
+    "COUPON_UNAVAILABLE",
+    other.browser,
+  );
+  assert.equal(
+    (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body
+      .total_irr,
+    o.total_irr,
+  );
+});
+
+test("Expired worker lease recovers after crash; review retries preserve durable history and idempotency", async () => {
+  const e = await buyer(),
+    o = await saleOrder(e),
+    p = await salePayment(e, o);
+  await db.query(
+    "UPDATE commerce_jobs SET state='RUNNING',lease_until=now()-interval '1 second',lease_token=$2,due_at=now() WHERE target_id=$1",
+    [p.attempt_id, randomUUID()],
+  );
+  await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+  await recoverCommerce();
+  assert.equal(
+    (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body.state,
+    "FULFILLED",
+  );
+  const runs = (
+    await db.query(
+      "SELECT event FROM commerce_job_runs WHERE job_id IN (SELECT id FROM commerce_jobs WHERE order_id=$1)",
+      [o.id],
+    )
+  ).rows;
+  assert.ok(runs.some((r) => r.event === "STARTED"));
+  assert.ok(runs.some((r) => r.event === "DONE"));
+  await assert.rejects(
+    db.query(
+      "DELETE FROM commerce_job_runs WHERE job_id IN (SELECT id FROM commerce_jobs WHERE order_id=$1)",
+      [o.id],
+    ),
+    /immutable/i,
+  );
+  const pending = await buyer(),
+    po = await saleOrder(pending),
+    pp = await salePayment(pending, po);
+  await db.query(
+    "UPDATE commerce_jobs SET attempts=7,due_at=now() WHERE target_id=$1",
+    [pp.attempt_id],
+  );
+  await recoverCommerce();
+  assert.equal(
+    (
+      await db.query("SELECT state FROM commerce_jobs WHERE target_id=$1", [
+        pp.attempt_id,
+      ])
+    ).rows[0].state,
+    "REVIEW",
+  );
+  const view = (
+    await ok<{ revision: number }>(
+      `/admin/commerce/orders/${po.id}`,
+      undefined,
+      admin,
+    )
+  ).body;
+  const b = mutation(view.revision);
+  const first = await ok(`/admin/commerce/orders/${po.id}/reconcile`, b, admin);
+  const retry = await ok(`/admin/commerce/orders/${po.id}/reconcile`, b, admin);
+  assert.deepEqual(retry.body, first.body);
+  await ok(
+    `/orders/${po.id}/simulate`,
+    { outcome: "SUCCESS" },
+    pending.browser,
+  );
+  await recoverCommerce();
+  assert.equal(
+    (await ok<SaleOrder>(`/orders/${po.id}`, undefined, pending.browser)).body
+      .state,
+    "FULFILLED",
+  );
+});
+
+test("Refund request and review never execute a refund or revoke the purchased license", async () => {
+  const e = await buyer(),
+    other = await buyer(),
+    o = await saleOrder(e);
+  await salePayment(e, o);
+  await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+  await recoverCommerce();
+  await denied(
+    `/orders/${o.id}/refund-request`,
+    { reason: "Independent synthetic refund request" },
+    "NOT_FOUND",
+    other.browser,
+  );
+  const r = (
+    await ok<{ id: string }>(
+      `/orders/${o.id}/refund-request`,
+      { reason: "Independent synthetic refund request" },
+      e.browser,
+    )
+  ).body;
+  r.id = (
+    await db.query("SELECT id FROM refund_requests WHERE order_id=$1", [o.id])
+  ).rows[0].id;
+  const reviewed = (
+    await ok<{ money_returned: boolean }>(
+      `/admin/commerce/refunds/${r.id}/review`,
+      { ...mutation(), state: "APPROVED" },
+      admin,
+    )
+  ).body;
+  assert.equal(reviewed.money_returned, false);
+  assert.equal(
+    (await db.query("SELECT count(*) FROM refunds WHERE request_id=$1", [r.id]))
+      .rows[0].count,
+    "0",
+  );
+  await ok("/desktop/licenses/pickup", { sku: "YARIZAN-G1" }, e.credential);
 });

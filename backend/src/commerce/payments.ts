@@ -321,10 +321,16 @@ export class Payments
       const actor = system(),
         reservation = await this.reservation(c, o.id);
       if (result.authority && !a.authority) {
-        await c.query("UPDATE payment_attempts SET authority=$2 WHERE id=$1", [
-          id,
-          result.authority,
-        ]);
+        await c.query(
+          "UPDATE payment_attempts SET authority=$2,redirect_url=$3 WHERE id=$1",
+          [
+            id,
+            result.authority,
+            result.authority === "FAKE-" + id
+              ? "/payment/simulate?order=" + o.id
+              : null,
+          ],
+        );
         a.authority = result.authority;
       }
       const verified = result.state === "VERIFIED";
@@ -524,6 +530,10 @@ export class Payments
           [row.id, row.lease_token],
         );
         row.attempts++;
+        await c.query(
+          "INSERT INTO commerce_job_runs(id,job_id,attempt,event) VALUES($1,$2,$3,'STARTED')",
+          [randomUUID(), row.id, row.attempts],
+        );
       }
       return rows;
     });
@@ -631,6 +641,17 @@ export class Payments
             job.lease_token,
           ],
         );
+        if (completed.rowCount)
+          await c.query(
+            "INSERT INTO commerce_job_runs(id,job_id,attempt,event,error) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
+            [
+              randomUUID(),
+              job.id,
+              job.attempts,
+              done ? "DONE" : review ? "REVIEW" : "RETRY",
+              done ? null : error,
+            ],
+          );
         if (reviewOrder && completed.rowCount) {
           const o = reviewOrder;
           await this.exception(

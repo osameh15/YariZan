@@ -145,7 +145,9 @@ export class CommerceAdministration {
     else if (type === "coupons")
       sql =
         "SELECT d.*,c.name campaign_name,ARRAY(SELECT sku FROM discount_products WHERE code_id=d.id ORDER BY sku) skus FROM discount_codes d JOIN discount_campaigns c ON c.id=d.campaign_id";
-    else if (type === "jobs") sql = "SELECT j.* FROM commerce_jobs j";
+    else if (type === "jobs")
+      sql =
+        "SELECT j.id,j.kind,j.target_id,j.order_id,j.state,j.attempts,j.due_at,j.last_error,j.created_at FROM commerce_jobs j";
     else if (type === "exceptions")
       sql =
         "SELECT x.*,o.sku,c.username FROM commerce_exceptions x JOIN orders o ON o.id=x.order_id JOIN customers c ON c.id=o.customer_id";
@@ -206,7 +208,7 @@ export class CommerceAdministration {
       [id],
     );
     await c.query(
-      "UPDATE commerce_jobs SET state='PENDING',attempts=0,due_at=now(),lease_until=NULL,lease_token=NULL WHERE order_id=$1 AND state IN ('PENDING','REVIEW')",
+      "UPDATE commerce_jobs SET state='PENDING',due_at=now(),lease_until=NULL,lease_token=NULL WHERE order_id=$1 AND state IN ('PENDING','REVIEW')",
       [id],
     );
     return { scheduled: true, revision: Number(o.revision) + 1 };
@@ -230,7 +232,14 @@ export class CommerceAdministration {
         [f.from ?? null, f.to ?? null],
       )
     ).rows[0];
+    const capture = (
+      await c.query(
+        "SELECT COALESCE(sum(amount_irr),0)::text verified_captures_irr FROM payment_attempts WHERE state='VERIFIED' AND ($1::timestamptz IS NULL OR verified_at >=$1) AND ($2::timestamptz IS NULL OR verified_at<$2)",
+        [f.from ?? null, f.to ?? null],
+      )
+    ).rows[0];
     return {
+      ...capture,
       currency: "IRR",
       mode: "simulated",
       period_basis: "order_created_at",

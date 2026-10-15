@@ -146,3 +146,11 @@ CREATE FUNCTION purchase_entitlement_scope() RETURNS trigger LANGUAGE plpgsql AS
 CREATE TRIGGER purchase_scope BEFORE INSERT OR UPDATE ON entitlements FOR EACH ROW EXECUTE FUNCTION purchase_entitlement_scope();
 ALTER TABLE discount_campaigns ADD COLUMN created_at timestamptz NOT NULL DEFAULT now();
 ALTER TABLE discount_codes ADD COLUMN created_at timestamptz NOT NULL DEFAULT now();
+
+CREATE TABLE commerce_job_runs (
+ id uuid PRIMARY KEY, job_id uuid NOT NULL REFERENCES commerce_jobs ON DELETE RESTRICT,
+ attempt integer NOT NULL CHECK(attempt>0), event text NOT NULL CHECK(event IN ('STARTED','DONE','RETRY','REVIEW')),
+ error text, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(job_id,attempt,event)
+);
+CREATE TRIGGER job_runs_history BEFORE UPDATE OR DELETE ON commerce_job_runs FOR EACH ROW EXECUTE FUNCTION immutable_history();
+CREATE INDEX commerce_job_history ON commerce_job_runs(job_id,attempt,created_at);

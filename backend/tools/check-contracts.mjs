@@ -197,6 +197,7 @@ const responses = {
   "/api/v2/admin/commerce/{section}": z.record(z.string(), z.unknown()),
   "/api/v2/admin/commerce/orders/{id}": commerce.orderView.extend({
     transitions: z.array(z.record(z.string(), z.unknown())),
+    reconciliation: z.array(z.record(z.string(), z.unknown())),
   }),
 
   "/api/v2/admin/auth/login": otpReceipt,

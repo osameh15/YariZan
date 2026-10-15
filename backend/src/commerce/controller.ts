@@ -182,6 +182,12 @@ export class CommerceController {
       const order = await this.orders.view(c, uuid.parse(id));
       return {
         ...order,
+        reconciliation: (
+          await c.query(
+            "SELECT r.job_id,r.attempt,r.event,r.error,r.created_at FROM commerce_job_runs r JOIN commerce_jobs j ON j.id=r.job_id WHERE j.order_id=$1 ORDER BY r.created_at,r.id",
+            [id],
+          )
+        ).rows,
         transitions: (
           await c.query(
             "SELECT t.* FROM payment_transitions t JOIN payment_attempts p ON p.id=t.attempt_id WHERE p.order_id=$1 ORDER BY t.created_at,t.id",

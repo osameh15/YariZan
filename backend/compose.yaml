@@ -19,6 +19,8 @@ services:
     profiles: ["api", "web"]
     environment:
       NODE_ENV: development
+      COMMERCE_MODE: ${COMMERCE_MODE:-disabled}
+      PURCHASE_SMS_TEMPLATE: ${PURCHASE_SMS_TEMPLATE:-purchase-confirmation-unconfigured}
       SMS_PROVIDER: ${SMS_PROVIDER:-disabled}
       MOBILE_ENCRYPTION_KEY: ${MOBILE_ENCRYPTION_KEY:-}
       OTP_HMAC_KEY: ${OTP_HMAC_KEY:-}

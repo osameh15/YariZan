@@ -107,3 +107,12 @@ SMS_PROVIDER defaults to disabled and fails OTP issuance closed. Explicit fake m
 For manual local review, set SMS_PROVIDER=fake, two independent synthetic keys and SMS_FAKE_OUTBOX=.local/local-sms-outbox.jsonl in ignored .env. Rebuild/start the local Compose stack. After a UI request, `docker compose exec api node dist/src/accounts/read-fake-sms.js` explicitly inspects only an unused/unexpired encrypted fake delivery. No browser OTP mailbox exists. The equivalent host command is `node --env-file=.env dist/src/accounts/read-fake-sms.js`. Synthetic code output is an explicit operator action, never application logging or production delivery.
 
 Migration 008 adds phone encryption/lookup, purpose-bound OTP records, SMS session provenance, new-account mobile constraints and revisioned notes with actual parent FKs/trigram indexes. It preserves old password accounts for verified phone attachment. Do not roll back to password-first/TOTP runtime after applying it; use reviewed roll-forward. No real customer data or production schema was changed. See [Phase 3.1 report](../docs/YARIZAN-PHASE-3-1-REPORT.md).
+
+
+## Phase 4 synthetic commerce
+
+Commerce is disabled by default. In isolated local configuration set COMMERCE_MODE=fake to enable the explicitly labeled simulator; no merchant credentials or network gateway are used. Compose forwards this explicit setting. PURCHASE_SMS_TEMPLATE is a safe notification template identifier; the durable purchase event is recorded only, not delivered. Real provider selection refuses startup; production remains blocked.
+
+Customer routes now include /checkout?sku=YARIZAN-G1, /payment/simulate, /payment/result, /account/orders and /account/orders/:id. Admin /zanyari/commerce uses actual permission-protected commerce/finance APIs. Orders replace the previous unavailable placeholder. Checkout first creates an authoritative snapshot, then the detail view offers an explicit simulated payment action. No card data is collected. See docs/YARIZAN-COMMERCE-CONTRACTS.md and docs/YARIZAN-PHASE-4-REPORT.md from the repository root for exact API/state/evidence.
+
+Use the existing disposable PostgreSQL and fake SMS setup. Backend build/test exercises commerce, 20-way coupon concurrency and real .NET verification. Browser test:e2e includes synthetic checkout and Admin flows. Stop Compose api/web before Playwright: its managed servers require ports 3100/3200. Never replace fake mode with a live merchant for these checks.

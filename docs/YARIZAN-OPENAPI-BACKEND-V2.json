@@ -3739,6 +3739,16 @@
                         },
                         "additionalProperties": {}
                       }
+                    },
+                    "reconciliation": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
                     }
                   },
                   "required": [
@@ -3761,7 +3771,8 @@
                     "revision",
                     "mode",
                     "payments",
-                    "transitions"
+                    "transitions",
+                    "reconciliation"
                   ]
                 }
               }
