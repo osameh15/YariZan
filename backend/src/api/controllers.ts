@@ -53,7 +53,7 @@ export class HealthController {
     const r = await this.db.query<{ count: string }>(
       "SELECT count(*) FROM schema_migrations",
     );
-    requireCondition(Number(r.rows[0].count) === 6, "MIGRATIONS_REQUIRED", 503);
+    requireCondition(Number(r.rows[0].count) === 7, "MIGRATIONS_REQUIRED", 503);
     return { status: "ready", production_gate: "closed" };
   }
 }
@@ -101,54 +101,79 @@ export class IdentityController {
   @Post("device-pairings") pair(@Body() body: unknown, @Req() req: Request) {
     return this.identity.pairing(proofSchema.parse(body), actor(req));
   }
-  @Post("device-pairings/:id/confirm") async confirm(
+  @Post("device-pairings/:id/preview") async preview(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    this.origin(req);
+    await this.security.rate(
+      "pairing-preview:" + req.socket.remoteAddress,
+      60,
+      300,
+    );
+    return this.identity.preview(
+      uuid.parse(id),
+      z.strictObject({ pairing_secret: secret }).parse(body).pairing_secret,
+    );
+  }
+  @Post("device-pairings/:id/confirm") confirm(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = z
+      .strictObject({ pairing_secret: secret, password: password.optional() })
+      .parse(body);
+    return this.authorizedClaim({ ...b, pairing_id: uuid.parse(id) }, req);
+  }
+  @Post("device-pairings/:id/cancel") async cancel(
     @Param("id") id: string,
     @Body() body: unknown,
     @Req() req: Request,
   ) {
     this.origin(req);
     const b = z.strictObject({ pairing_secret: secret }).parse(body);
-    const customer = (req.cookies as Record<string, string>)?.yz_customer
-      ? await this.security.customer(req)
-      : undefined;
-    return this.identity.browserConfirm(
-      uuid.parse(id),
-      b.pairing_secret,
-      customer?.id,
-      customer ? userActor(req, customer.id) : actor(req),
-    );
+    return this.identity.cancel(uuid.parse(id), b.pairing_secret, actor(req));
   }
-  @Post("device-pairings/:id/desktop-confirm") desktop(
+  @Post("device-pairings/:id/pickup") async pickup(
     @Param("id") id: string,
     @Body() body: unknown,
     @Req() req: Request,
   ) {
-    return this.identity.desktopConfirm(
+    await this.security.rate(
+      "pairing-pickup:" + req.socket.remoteAddress,
+      120,
+      300,
+    );
+    return this.identity.pickup(
       uuid.parse(id),
       proofSchema.parse(body),
       actor(req),
     );
   }
-  @Post("auth/claim") claim(@Body() body: unknown, @Req() req: Request) {
-    return this.authorizedClaim(body, req);
+  @Post("device-pairings/:id/desktop-confirm") retiredDesktop() {
+    requireCondition(false, "PROTOCOL_RETIRED", 410);
   }
-  @Post("devices/register") register(
-    @Body() body: unknown,
-    @Req() req: Request,
-  ) {
+  @Post("devices/register") retiredRegister() {
+    requireCondition(false, "PROTOCOL_RETIRED", 410);
+  }
+  @Post("auth/claim") claim(@Body() body: unknown, @Req() req: Request) {
     return this.authorizedClaim(body, req);
   }
   private async authorizedClaim(body: unknown, req: Request) {
     this.origin(req);
     const b = claimSchema.parse(body);
-    // Use the socket address, never an untrusted forwarded header. Aliases share one budget.
     await this.security.rate("claim-ip:" + req.socket.remoteAddress, 120, 300);
+    const customer = (req.cookies as Record<string, string>)?.yz_customer
+      ? await this.security.customer(req)
+      : undefined;
     return this.identity.claim(
       b.pairing_id,
-      b.browser_token,
-      b.claim_grant,
+      b.pairing_secret,
       b.password,
-      actor(req),
+      customer?.id,
+      customer ? userActor(req, customer.id) : actor(req),
     );
   }
   @Post("devices/authenticate") authenticate(
@@ -199,6 +224,17 @@ export class AccountsController {
       actor(req),
     );
     this.cookie(res, "yz_customer", result.session);
+    res.cookie(
+      "yz_csrf_" + (req.path.includes("/admin/") ? "admin" : "customer"),
+      result.csrf,
+      {
+        httpOnly: false,
+        sameSite: "strict",
+        secure: this.security.config.NODE_ENV === "production",
+        path: "/",
+        maxAge: 8 * 3600000,
+      },
+    );
     return { csrf_token: result.csrf };
   }
   @Post("auth/session/rotate") async rotate(
@@ -212,6 +248,17 @@ export class AccountsController {
       userActor(req, c.id),
     );
     this.cookie(res, "yz_customer", result.session);
+    res.cookie(
+      "yz_csrf_" + (req.path.includes("/admin/") ? "admin" : "customer"),
+      result.csrf,
+      {
+        httpOnly: false,
+        sameSite: "strict",
+        secure: this.security.config.NODE_ENV === "production",
+        path: "/",
+        maxAge: 8 * 3600000,
+      },
+    );
     return { csrf_token: result.csrf };
   }
   @Post("auth/logout") async logout(
@@ -224,6 +271,7 @@ export class AccountsController {
       userActor(req, c.id),
     );
     res.clearCookie("yz_customer", { path: "/api/v2" });
+    res.clearCookie("yz_csrf_customer", { path: "/" });
     return result;
   }
   @Post("auth/password-reset/complete") reset(
@@ -246,6 +294,15 @@ export class AccountsController {
         [c.id],
       )
     ).rows[0];
+  }
+  @Get("account/entitlements") async entitlements(@Req() req: Request) {
+    const owner = await this.security.customer(req);
+    return (
+      await this.db.query(
+        "SELECT id,sku,state,created_at FROM entitlements WHERE customer_id=$1 AND generation=$2 ORDER BY sku",
+        [owner.id, owner.generation],
+      )
+    ).rows;
   }
   @Get("account/devices") async devices(@Req() req: Request) {
     const c = await this.security.customer(req);
@@ -290,6 +347,17 @@ export class AccountsController {
       actor(req),
     );
     this.cookie(res, "yz_admin", result.session);
+    res.cookie(
+      "yz_csrf_" + (req.path.includes("/admin/") ? "admin" : "customer"),
+      result.csrf,
+      {
+        httpOnly: false,
+        sameSite: "strict",
+        secure: this.security.config.NODE_ENV === "production",
+        path: "/",
+        maxAge: 8 * 3600000,
+      },
+    );
     return { csrf_token: result.csrf };
   }
   @Post("admin/auth/logout") async adminLogout(
@@ -310,6 +378,7 @@ export class AccountsController {
       );
     });
     res.clearCookie("yz_admin", { path: "/api/v2" });
+    res.clearCookie("yz_csrf_admin", { path: "/" });
     return { revoked: true };
   }
 }
@@ -380,6 +449,87 @@ export class AdminController {
     private db: Database,
     private security: Security,
   ) {}
+  @Get("auth/session") session(@Req() req: Request) {
+    return this.db.transaction(async (c) => {
+      const a = await this.security.admin(req, undefined, c);
+      const permissions = (
+        await c.query<{ permission: string }>(
+          "SELECT DISTINCT p.permission FROM admin_user_roles u JOIN admin_role_permissions p ON p.role=u.role WHERE u.admin_id=$1 ORDER BY p.permission",
+          [a.id],
+        )
+      ).rows.map((r) => r.permission);
+      return { id: a.id, permissions };
+    });
+  }
+  private async list(req: Request, permission: string, sql: string) {
+    const q = z
+      .strictObject({
+        limit: z.coerce.number().int().min(1).max(50).default(20),
+        offset: z.coerce.number().int().min(0).max(100000).default(0),
+        search: z.string().max(64).default(""),
+      })
+      .parse(req.query);
+    return this.db.transaction(async (c) => {
+      await this.security.admin(req, permission, c);
+      const rows = (
+        await c.query(sql, [
+          q.limit + 1,
+          q.offset,
+          "%" + q.search.replace(/[\\%_]/g, "\\$&") + "%",
+        ])
+      ).rows;
+      return {
+        items: rows.slice(0, q.limit),
+        next_offset: rows.length > q.limit ? q.offset + q.limit : null,
+      };
+    });
+  }
+  @Get("customers") customers(@Req() req: Request) {
+    return this.list(
+      req,
+      "customers.read",
+      `SELECT id,device_id,username,generation,state,claimed_at FROM customers WHERE username ILIKE $3 ORDER BY claimed_at DESC,id LIMIT $1 OFFSET $2`,
+    );
+  }
+  @Get("devices") devices(@Req() req: Request) {
+    return this.list(
+      req,
+      "devices.read",
+      `SELECT d.id,d.username,d.generation,c.id customer_id,c.state customer_state,
+    (SELECT count(*) FROM device_keys k WHERE k.device_id=d.id AND k.generation=d.generation AND k.status='ACTIVE') profiles,
+    COALESCE((SELECT jsonb_agg(jsonb_build_object('id',k.id,'status',k.status,'created_at',k.created_at)) FROM device_keys k WHERE k.device_id=d.id AND k.generation=d.generation),'[]') profile_details,
+    COALESCE((SELECT jsonb_agg(jsonb_build_object('sku',r.sku,'blocked',r.blocked,'revision',r.revision)) FROM device_product_restrictions r WHERE r.device_id=d.id),'[]') restrictions
+    FROM devices d LEFT JOIN customers c ON c.device_id=d.id AND c.generation=d.generation AND c.state='ACTIVE' WHERE d.username ILIKE $3 ORDER BY d.created_at DESC,d.id LIMIT $1 OFFSET $2`,
+    );
+  }
+  @Get("licenses") licenses(@Req() req: Request) {
+    return this.list(
+      req,
+      "licenses.read",
+      `SELECT l.id,l.device_id,e.customer_id,e.generation,l.sku,l.state,l.license_revision,l.decision_version,e.state entitlement_state,d.username FROM licenses l JOIN entitlements e ON e.id=l.entitlement_id JOIN devices d ON d.id=l.device_id WHERE d.username ILIKE $3 ORDER BY l.issued_at DESC,l.id LIMIT $1 OFFSET $2`,
+    );
+  }
+  @Get("trials") trials(@Req() req: Request) {
+    return this.list(
+      req,
+      "trials.read",
+      `SELECT t.device_id,t.sku,t.generation,t.used,t.allocation_epoch,d.username FROM trial_counters t JOIN devices d ON d.id=t.device_id WHERE d.username ILIKE $3 ORDER BY t.device_id,t.sku,t.generation LIMIT $1 OFFSET $2`,
+    );
+  }
+  @Get("activation-codes") codes(@Req() req: Request) {
+    return this.list(
+      req,
+      "activation_codes.read",
+      `SELECT a.id,a.device_id,a.customer_id,a.generation,a.sku,a.status,a.expires_at,d.username FROM activation_codes a JOIN devices d ON d.id=a.device_id WHERE d.username ILIKE $3 ORDER BY a.created_at DESC,a.id LIMIT $1 OFFSET $2`,
+    );
+  }
+  @Get("products") products(@Req() req: Request) {
+    return this.list(
+      req,
+      "products.manage",
+      `SELECT p.*,price.amount_irr::float8 price_irr FROM products p JOIN product_prices price ON price.sku=p.sku AND price.ended_at IS NULL WHERE p.sku ILIKE $3 ORDER BY p.grade LIMIT $1 OFFSET $2`,
+    );
+  }
   @Post("customers/:id/reset") reset(
     @Param("id") id: string,
     @Body() body: unknown,

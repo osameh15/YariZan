@@ -42,10 +42,17 @@ const requests = {
   "/api/v2/device-pairings": schemas.proofSchema,
   "/api/v2/device-pairings/{id}/confirm": z.strictObject({
     pairing_secret: schemas.secret,
+    password: schemas.password.optional(),
   }),
-  "/api/v2/device-pairings/{id}/desktop-confirm": schemas.proofSchema,
+  "/api/v2/device-pairings/{id}/pickup": schemas.proofSchema,
+  "/api/v2/device-pairings/{id}/preview": z.strictObject({
+    pairing_secret: schemas.secret,
+  }),
+  "/api/v2/device-pairings/{id}/cancel": z.strictObject({
+    pairing_secret: schemas.secret,
+  }),
   "/api/v2/devices/authenticate": schemas.proofSchema,
-  "/api/v2/devices/register": claim,
+
   "/api/v2/auth/claim": claim,
   "/api/v2/auth/login": login,
   "/api/v2/auth/password-reset/complete": z.strictObject({
@@ -89,7 +96,98 @@ const envelope = (type) =>
     }),
     signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/),
   });
+const product = z.strictObject({
+  sku: schemas.sku,
+  grade: z.number().int().min(1).max(6),
+  title_fa: z.string(),
+  publication_status: z.enum(["published", "coming_soon", "hidden"]),
+  sale_enabled: z.boolean(),
+  trial_enabled: z.boolean(),
+  activation_enabled: z.boolean(),
+  revision: z.number().int(),
+  price_irr: z.number().int().nonnegative(),
+});
+const receipt = z.strictObject({
+  status: z.literal("APPROVED"),
+  username: z.string(),
+  expires_at: z.iso.datetime(),
+});
+const metadata = z.record(z.string(), z.unknown());
+const page = z.strictObject({
+  items: z.array(metadata),
+  next_offset: z.number().int().nullable(),
+});
 const responses = {
+  "/api/v2/account/devices": z.array(
+    z.strictObject({
+      id: schemas.uuid,
+      status: z.string(),
+      created_at: z.iso.datetime(),
+    }),
+  ),
+  "/api/v2/account/licenses": z.array(
+    z.strictObject({
+      id: schemas.uuid,
+      sku: schemas.sku,
+      state: z.string(),
+      decision_version: z.string(),
+    }),
+  ),
+  "/api/v2/account/entitlements": z.array(
+    z.strictObject({
+      id: schemas.uuid,
+      sku: schemas.sku,
+      state: z.string(),
+      created_at: z.iso.datetime(),
+    }),
+  ),
+  "/api/v2/admin/audit": z.array(metadata),
+  ...Object.fromEntries(
+    [
+      "products",
+      "customers",
+      "devices",
+      "licenses",
+      "trials",
+      "activation-codes",
+    ].map((name) => ["/api/v2/admin/" + name, page]),
+  ),
+
+  "/api/v2/products": z.array(product),
+  "/api/v2/products/{sku}": product,
+  "/api/v2/auth/claim": receipt,
+  "/api/v2/device-pairings/{id}/confirm": receipt,
+  "/api/v2/device-pairings/{id}/preview": z.strictObject({
+    username: z.string(),
+    requires_owner: z.boolean(),
+    status: z.literal("PENDING"),
+    expires_at: z.iso.datetime(),
+  }),
+  "/api/v2/device-pairings/{id}/cancel": z.strictObject({
+    status: z.literal("CANCELLED"),
+  }),
+  "/api/v2/device-pairings/{id}/pickup": z.union([
+    z.strictObject({ status: z.literal("PENDING") }),
+    z.strictObject({
+      status: z.literal("ENROLLED"),
+      device_id: schemas.uuid,
+      customer_id: schemas.uuid,
+      username: z.string(),
+      enrollment: envelope("enrollment"),
+      credential: schemas.secret,
+    }),
+  ]),
+  "/api/v2/account": z.strictObject({
+    id: schemas.uuid,
+    username: z.string(),
+    device_id: schemas.uuid,
+    generation: z.number().int(),
+  }),
+  "/api/v2/admin/auth/session": z.strictObject({
+    id: schemas.uuid,
+    permissions: z.array(z.string()),
+  }),
+
   "/api/v2/desktop/trials/{sku}/status": z.strictObject({
     remaining: z.number().int().min(0).max(2),
   }),
@@ -107,7 +205,7 @@ for (const r of routes.sort(
   (a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method),
 )) {
   const desktop = r.path.includes("/desktop/"),
-    admin = r.path.includes("/admin/") && !r.path.includes("/auth/"),
+    admin = r.path.includes("/admin/") && !r.path.endsWith("/auth/login"),
     customer =
       r.path.startsWith("/api/v2/account") ||
       ["/api/v2/auth/logout", "/api/v2/auth/session/rotate"].includes(r.path);
@@ -156,7 +254,7 @@ for (const r of routes.sort(
     ...(["/api/v2/auth/claim", "/api/v2/devices/register"].includes(r.path)
       ? {
           description:
-            "Development-only paired claim response includes enrollment and a desktop bearer. Production browser integration must use a reviewed desktop-controlled pickup flow; see YARIZAN-PHASE-3-PROVISIONING-BOUNDARY.md. Both aliases enforce identical Origin, ownership and rate checks before password hashing.",
+            "Browser authorization returns a public receipt only. No device credential, signed enrollment or desktop claim grant is returned. Fresh pairing-bound device-key proof is mandatory at the separate desktop pickup endpoint. Legacy register/desktop-confirm endpoints are retired (410). Commercial startup remains closed.",
         }
       : r.path === "/api/v2/desktop/trials/{sku}/start"
         ? {

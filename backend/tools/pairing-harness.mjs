@@ -56,19 +56,15 @@ const proof = async (purpose, pairing_id) => {
   };
 };
 const p = await call("device-pairings", await proof("PAIR"));
-const b = await call(`device-pairings/${p.pairing_id}/confirm`, {
-  pairing_secret: p.pairing_secret,
-});
-const d = await call(
-  `device-pairings/${p.pairing_id}/desktop-confirm`,
-  await proof("CONFIRM", p.pairing_id),
-);
-const e = await call("auth/claim", {
+await call("auth/claim", {
   pairing_id: p.pairing_id,
-  browser_token: b.browser_token,
-  claim_grant: d.claim_grant,
+  pairing_secret: p.pairing_secret,
   password,
 });
+const e = await call(
+  `device-pairings/${p.pairing_id}/pickup`,
+  await proof("CONFIRM", p.pairing_id),
+);
 console.log(
   `Synthetic paired account created: ${e.username}. No credential or private key printed. Not physical ownership evidence.`,
 );

@@ -8,8 +8,7 @@ export const secret = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 export const password = z.string().min(12).max(128);
 export const claimSchema = z.strictObject({
   pairing_id: uuid,
-  browser_token: secret,
-  claim_grant: secret,
+  pairing_secret: secret,
   password: password.optional(),
 });
 export const challengeSchema = z.strictObject({

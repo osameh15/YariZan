@@ -104,6 +104,11 @@ export class Accounts {
     return { revoked: true };
   }
   async completeReset(grant: string, password: string, actor: Actor) {
+    const admission = await this.db.query(
+      `SELECT 1 FROM password_resets r JOIN customers c ON c.id=r.customer_id WHERE r.token_hash=$1 AND r.used_at IS NULL AND r.expires_at>now() AND c.state='ACTIVE'`,
+      [this.security.tokenHash(grant)],
+    );
+    requireCondition(admission.rowCount, "RESET_INVALID", 410);
     const encoded = await hashPassword(password);
     return this.db.transaction(async (c) => {
       const r = await c.query<{ id: string; customer_id: string }>(

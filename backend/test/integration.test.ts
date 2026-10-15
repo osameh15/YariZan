@@ -153,35 +153,28 @@ async function proof(
     ).toString("base64url"),
   };
 }
-async function paired(key: Candidate, owner?: Browser) {
+async function paired(key: Candidate) {
   const p = (
     await ok<{ pairing_id: string; pairing_secret: string }>(
       "/device-pairings",
       await proof(key, "PAIR"),
     )
   ).body;
-  const b = (
-    await ok<{ browser_token: string }>(
-      `/device-pairings/${p.pairing_id}/confirm`,
-      { pairing_secret: p.pairing_secret },
-      owner,
-    )
-  ).body;
-  const d = (
-    await ok<{ claim_grant: string }>(
-      `/device-pairings/${p.pairing_id}/desktop-confirm`,
-      await proof(key, "CONFIRM", p.pairing_id),
-    )
-  ).body;
   return {
     pairing_id: p.pairing_id,
-    browser_token: b.browser_token,
-    claim_grant: d.claim_grant,
-    ...(!owner ? { password: "Synthetic!Password12345" } : {}),
+    pairing_secret: p.pairing_secret,
+    password: "Synthetic!Password12345",
   };
 }
 async function enroll(key: Candidate, owner?: Browser) {
-  return (await ok<Enrolled>("/auth/claim", await paired(key, owner))).body;
+  const p = await paired(key);
+  await ok("/auth/claim", p, owner);
+  return (
+    await ok<Enrolled>(
+      `/device-pairings/${p.pairing_id}/pickup`,
+      await proof(key, "CONFIRM", p.pairing_id),
+    )
+  ).body;
 }
 async function login(
   e: Enrolled,
@@ -352,8 +345,7 @@ test("First claim requires both browser and desktop confirmation", async () => {
     "/auth/claim",
     {
       pairing_id: p.pairing_id,
-      browser_token: randomBytes(32).toString("base64url"),
-      claim_grant: randomBytes(32).toString("base64url"),
+      pairing_secret: randomBytes(32).toString("base64url"),
       password: "Synthetic!Password12345",
     },
     "PAIRING_INVALID",
@@ -1703,254 +1695,6 @@ async function waitForSignal(signal: Promise<void>) {
   }
 }
 
-test("Invalid, expired, incomplete and consumed pairings never invoke password hashing", async () => {
-  const wrong = await paired(candidate()),
-    expired = await paired(candidate()),
-    consumed = await paired(candidate());
-  await ok("/auth/claim", consumed);
-  await db.query(
-    "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
-    [expired.pairing_id],
-  );
-  const pending = (
-    await ok<{ pairing_id: string }>(
-      "/device-pairings",
-      await proof(candidate(), "PAIR"),
-    )
-  ).body;
-  const hashing = app.get(PasswordHashing),
-    original = hashing.hash;
-  let calls = 0;
-  hashing.hash = (value: string) => {
-    calls++;
-    return original.call(hashing, value);
-  };
-  try {
-    for (const body of [
-      { ...wrong, pairing_id: randomUUID() },
-      { ...wrong, browser_token: randomBytes(32).toString("base64url") },
-      { ...wrong, claim_grant: randomBytes(32).toString("base64url") },
-      expired,
-      consumed,
-      { ...wrong, pairing_id: pending.pairing_id },
-    ])
-      await denied("/auth/claim", body, "PAIRING_INVALID");
-    assert.equal(calls, 0);
-  } finally {
-    hashing.hash = original;
-  }
-});
-test("Claim alias shares Origin checks, DTO validation and one-time authorization", async () => {
-  const b = await paired(candidate()),
-    hashing = app.get(PasswordHashing),
-    original = hashing.hash;
-  let calls = 0;
-  hashing.hash = (value: string) => {
-    calls++;
-    return original.call(hashing, value);
-  };
-  try {
-    for (const route of ["/auth/claim", "/devices/register"])
-      for (const badOrigin of [undefined, "https://attacker.invalid"]) {
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (badOrigin) headers.Origin = badOrigin;
-        const response = await fetch(base + route, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(b),
-        });
-        assert.equal(response.status, 403);
-        assert.equal(
-          ((await response.json()) as ErrorBody).error.code,
-          "CSRF_REJECTED",
-        );
-      }
-    assert.equal(calls, 0);
-    await denied(
-      "/devices/register",
-      { ...b, unexpected: true },
-      "INVALID_REQUEST",
-    );
-    await ok("/devices/register", b);
-    assert.equal(calls, 1);
-    await denied("/auth/claim", b, "PAIRING_INVALID");
-    assert.equal(calls, 1);
-  } finally {
-    hashing.hash = original;
-  }
-});
-test("Claim holds no PostgreSQL pairing lock while hashing; expiry is revalidated atomically", async () => {
-  const key = candidate(),
-    b = await paired(key),
-    hashing = app.get(PasswordHashing),
-    original = hashing.hash,
-    started = barrier(),
-    release = barrier();
-  hashing.hash = async (value: string) => {
-    started.resolve();
-    await release.promise;
-    return original.call(hashing, value);
-  };
-  let pending: ReturnType<typeof request<Enrolled>> | undefined;
-  try {
-    pending = request<Enrolled>("/auth/claim", b);
-    await waitForSignal(started.promise);
-    await db.transaction(async (c) => {
-      await c.query("SELECT id FROM pairings WHERE id=$1 FOR UPDATE NOWAIT", [
-        b.pairing_id,
-      ]);
-      await c.query(
-        "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
-        [b.pairing_id],
-      );
-    });
-    release.resolve();
-    const result = await pending;
-    assert.equal(result.status, 410);
-    assert.equal(
-      (result.body as unknown as ErrorBody).error.code,
-      "PAIRING_INVALID",
-    );
-    assert.equal(
-      (
-        await db.query(
-          "SELECT count(*) FROM devices WHERE fingerprint_digest=$1",
-          [key.fingerprint],
-        )
-      ).rows[0].count,
-      "0",
-    );
-  } finally {
-    release.resolve();
-    hashing.hash = original;
-    if (pending) await pending;
-  }
-});
-test("Concurrent same-pair claim commits once; hashing admission cannot bypass consumed token check", async () => {
-  const key = candidate(),
-    b = await paired(key),
-    hashing = app.get(PasswordHashing),
-    original = hashing.hash,
-    started = barrier(),
-    release = barrier();
-  let calls = 0;
-  hashing.hash = async (value: string) => {
-    calls++;
-    if (calls === 1) {
-      started.resolve();
-      await release.promise;
-    }
-    return original.call(hashing, value);
-  };
-  let pending: ReturnType<typeof request<Enrolled>> | undefined;
-  try {
-    pending = request<Enrolled>("/auth/claim", b);
-    await waitForSignal(started.promise);
-    const winner = await ok<Enrolled>("/devices/register", b);
-    release.resolve();
-    const loser = await pending;
-    assert.equal(loser.status, 410);
-    assert.equal(
-      (loser.body as unknown as ErrorBody).error.code,
-      "PAIRING_INVALID",
-    );
-    assert.equal(
-      (
-        await db.query("SELECT count(*) FROM customers WHERE device_id=$1", [
-          winner.body.device_id,
-        ])
-      ).rows[0].count,
-      "1",
-    );
-    assert.equal(
-      (
-        await db.query(
-          "SELECT count(*) FROM device_enrollment_history WHERE customer_id=$1",
-          [winner.body.customer_id],
-        )
-      ).rows[0].count,
-      "1",
-    );
-    await login(winner.body);
-  } finally {
-    release.resolve();
-    hashing.hash = original;
-    if (pending) await pending;
-  }
-});
-test("Authorized pairing hashing budget is shared across claim aliases", async () => {
-  const b = await paired(candidate()),
-    hashing = app.get(PasswordHashing),
-    original = hashing.hash;
-  let calls = 0;
-  hashing.hash = async () => {
-    calls++;
-    throw new ApiError("HASH_UNAVAILABLE", 503);
-  };
-  try {
-    for (let i = 0; i < 3; i++)
-      await denied(
-        i % 2 ? "/devices/register" : "/auth/claim",
-        b,
-        "HASH_UNAVAILABLE",
-      );
-    await denied("/devices/register", b, "RATE_LIMITED");
-    assert.equal(calls, 3);
-    assert.equal(
-      (
-        await db.query("SELECT status FROM pairings WHERE id=$1", [
-          b.pairing_id,
-        ])
-      ).rows[0].status,
-      "DESKTOP_CONFIRMED",
-    );
-  } finally {
-    hashing.hash = original;
-  }
-});
-// Keep the public claim-budget test isolated from the suite's legitimate enrollment traffic.
-test("Claim aliases enforce one shared PostgreSQL endpoint IP budget before hashing", async () => {
-  const original = security.rate,
-    keys: string[] = [];
-  security.rate = async (
-    key: string,
-    limit: number,
-    seconds = 60,
-    instant = Date.now(),
-  ) => {
-    if (key.startsWith("claim-ip:")) {
-      assert.equal(limit, 120);
-      assert.equal(seconds, 300);
-      keys.push(key);
-      return original.call(
-        security,
-        "review-budget:" + key,
-        2,
-        seconds,
-        1740000000000,
-      );
-    }
-    return original.call(security, key, limit, seconds, instant);
-  };
-  const b = {
-    pairing_id: randomUUID(),
-    browser_token: randomBytes(32).toString("base64url"),
-    claim_grant: randomBytes(32).toString("base64url"),
-    password: "Synthetic!Password12345",
-  };
-  try {
-    await denied("/auth/claim", b, "PAIRING_INVALID");
-    await denied("/devices/register", b, "PAIRING_INVALID");
-    await denied("/auth/claim", b, "RATE_LIMITED");
-    assert.equal(new Set(keys).size, 1);
-    assert.equal(keys.length, 3);
-  } finally {
-    security.rate = original;
-  }
-});
-
 const trialInput = (device_id: string) => ({
   device_id,
   client_nonce: hash(randomBytes(32)),
@@ -2176,4 +1920,235 @@ test("Trials queued behind reset use its new epoch; old retry cannot return reti
     audit.append = original;
     trials.start = originalStart;
   }
+});
+
+test("Invalid and expired browser pairings invoke no password hashing", async () => {
+  const valid = await paired(candidate()),
+    expired = await paired(candidate()),
+    consumed = await paired(candidate());
+  await ok("/auth/claim", consumed);
+  await db.query(
+    "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
+    [expired.pairing_id],
+  );
+  const hashing = app.get(PasswordHashing),
+    original = hashing.hash;
+  let calls = 0;
+  hashing.hash = () => {
+    calls++;
+    throw new Error("Unexpected hashing");
+  };
+  try {
+    for (const body of [
+      { ...valid, pairing_id: randomUUID() },
+      { ...valid, pairing_secret: randomBytes(32).toString("base64url") },
+      expired,
+      consumed,
+    ])
+      await denied("/auth/claim", body, "PAIRING_INVALID");
+    assert.equal(calls, 0);
+  } finally {
+    hashing.hash = original;
+  }
+});
+test("Retired credential-delivery endpoints cannot bypass browser-only approval", async () => {
+  await denied("/devices/register", {}, "PROTOCOL_RETIRED");
+  await denied(
+    `/device-pairings/${randomUUID()}/desktop-confirm`,
+    {},
+    "PROTOCOL_RETIRED",
+  );
+  const p = await paired(candidate());
+  const r = await fetch(base + "/auth/claim", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "https://attacker.invalid",
+    },
+    body: JSON.stringify(p),
+  });
+  assert.equal(r.status, 403);
+  const receipt = (await ok("/auth/claim", p)).body;
+  assert.deepEqual(Object.keys(receipt).sort(), [
+    "expires_at",
+    "status",
+    "username",
+  ]);
+  assert.equal(receipt.status, "APPROVED");
+  assert.ok(
+    !JSON.stringify(receipt).match(
+      /credential|enrollment|claim_grant|browser_token/,
+    ),
+  );
+});
+test("Browser claim holds no PostgreSQL row lock across Argon2id and rechecks expiry", async () => {
+  const key = candidate(),
+    p = await paired(key),
+    hashing = app.get(PasswordHashing),
+    original = hashing.hash,
+    held = barrier(),
+    release = barrier();
+  hashing.hash = async (value) => {
+    held.resolve();
+    await release.promise;
+    return original.call(hashing, value);
+  };
+  const pending = request<ErrorBody>("/auth/claim", p);
+  try {
+    await waitForSignal(held.promise);
+    await db.transaction(async (c) => {
+      await c.query("SELECT id FROM pairings WHERE id=$1 FOR UPDATE NOWAIT", [
+        p.pairing_id,
+      ]);
+      await c.query(
+        "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
+        [p.pairing_id],
+      );
+    });
+    release.resolve();
+    assert.equal((await pending).body.error.code, "PAIRING_INVALID");
+  } finally {
+    release.resolve();
+    hashing.hash = original;
+  }
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM customers c JOIN devices d ON d.id=c.device_id WHERE d.fingerprint_digest=$1",
+        [key.fingerprint],
+      )
+    ).rows[0].count,
+    "0",
+  );
+});
+test("Concurrent browser claims approve once and only the correct key can pick up", async () => {
+  const key = candidate(),
+    p = await paired(key);
+  const r = await Promise.all([
+    request("/auth/claim", p),
+    request(`/device-pairings/${p.pairing_id}/confirm`, {
+      pairing_secret: p.pairing_secret,
+      password: p.password,
+    }),
+  ]);
+  assert.equal(r.filter((x) => x.status === 201).length, 1);
+  assert.equal(r.filter((x) => x.status === 410).length, 1);
+  await denied(
+    `/device-pairings/${p.pairing_id}/pickup`,
+    await proof(candidate(key.fingerprint), "CONFIRM", p.pairing_id),
+    "PAIRING_INVALID",
+  );
+  const picked = (
+    await ok<Enrolled>(
+      `/device-pairings/${p.pairing_id}/pickup`,
+      await proof(key, "CONFIRM", p.pairing_id),
+    )
+  ).body;
+  assert.ok(picked.credential);
+  await login(picked);
+});
+test("Pending and lost-response pickup never duplicate profile issuance; fresh AUTH recovers certificate", async () => {
+  const key = candidate(),
+    p = await paired(key),
+    route = `/device-pairings/${p.pairing_id}/pickup`;
+  assert.deepEqual(
+    (await ok(route, await proof(key, "CONFIRM", p.pairing_id))).body,
+    { status: "PENDING" },
+  );
+  await ok("/auth/claim", p);
+  const signed = await proof(key, "CONFIRM", p.pairing_id),
+    first = (await ok<Enrolled>(route, signed)).body;
+  await denied(route, signed, "CHALLENGE_INVALID");
+  const retry = (
+    await ok<Enrolled>(route, await proof(key, "CONFIRM", p.pairing_id))
+  ).body;
+  assert.deepEqual(retry.enrollment, first.enrollment);
+  assert.notEqual(retry.credential, first.credential);
+  await denied(
+    "/desktop/trials/YARIZAN-G1/status",
+    undefined,
+    "ACCOUNT_RESTRICTED",
+    first.credential,
+  );
+  const renewed = (await ok("/devices/authenticate", await proof(key, "AUTH")))
+    .body;
+  assert.deepEqual(renewed.enrollment, first.enrollment);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM device_enrollment_history WHERE key_id=$1",
+        [first.enrollment.payload.profile_enrollment_id],
+      )
+    ).rows[0].count,
+    "1",
+  );
+});
+test("Reset invalidates pending and approved pairing generations", async () => {
+  const key = candidate(),
+    first = await enroll(key),
+    owner = await login(first),
+    second = candidate(key.fingerprint),
+    pending = await paired(second),
+    approved = await paired(candidate(key.fingerprint));
+  await ok("/auth/claim", approved, owner);
+  await ok(`/admin/customers/${first.customer_id}/reset`, mutation(), admin);
+  await denied("/auth/claim", pending, "PAIRING_INVALID");
+  await denied(
+    `/device-pairings/${approved.pairing_id}/pickup`,
+    await proof(second, "CONFIRM", approved.pairing_id),
+    "PAIRING_INVALID",
+  );
+});
+test("Cancelled pairing cannot authorize or provision", async () => {
+  const key = candidate(),
+    p = await paired(key);
+  await ok(`/device-pairings/${p.pairing_id}/cancel`, {
+    pairing_secret: p.pairing_secret,
+  });
+  await denied("/auth/claim", p, "PAIRING_INVALID");
+  await denied(
+    `/device-pairings/${p.pairing_id}/pickup`,
+    await proof(key, "CONFIRM", p.pairing_id),
+    "PAIRING_INVALID",
+  );
+});
+test("Admin paginated reads enforce permissions and omit authentication and fingerprint secrets", async () => {
+  for (const route of [
+    "customers",
+    "devices",
+    "licenses",
+    "trials",
+    "activation-codes",
+    "products",
+  ]) {
+    const r = (
+      await ok<{
+        items: Record<string, unknown>[];
+        next_offset: number | null;
+      }>(`/admin/${route}?limit=1`, undefined, admin)
+    ).body;
+    assert.ok(r.items.length <= 1);
+    assert.ok(
+      !JSON.stringify(r).match(
+        /password_hash|verifier|fingerprint_digest|public_key|token_hash|signed_enrollment/,
+      ),
+    );
+  }
+  const auditor = await adminLogin("auditor");
+  await denied("/admin/customers", undefined, "FORBIDDEN", auditor);
+  assert.ok(
+    (
+      await ok<{ permissions: string[] }>(
+        "/admin/auth/session",
+        undefined,
+        admin,
+      )
+    ).body.permissions.includes("customers.reset"),
+  );
+  await denied(
+    "/admin/devices?limit=1000",
+    undefined,
+    "INVALID_REQUEST",
+    admin,
+  );
 });

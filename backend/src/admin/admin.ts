@@ -141,8 +141,8 @@ export class Admin {
       [customerId],
     );
     await c.query(
-      "UPDATE pairings SET status='CONSUMED' WHERE authorized_customer_id=$1",
-      [customerId],
+      "UPDATE pairings SET cancelled_at=now() WHERE device_id=$1 AND generation=$2",
+      [found.device_id, d.generation],
     );
     await c.query(
       "UPDATE activation_codes SET status='CANCELLED' WHERE customer_id=$1 AND status='ISSUED'",
