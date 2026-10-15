@@ -236,3 +236,14 @@ From root: docker build --progress=plain -f apps/web/Dockerfile -t yarizan-web-r
 Runtime high/critical web audit remains zero; full build audit still explicitly reports the inherited unpatched braces and node-forge advisories. No dependency was added and no finding suppressed. Local ignored logs: review-backend.log, review-openapi.log, review-v2/access/launcher/book.log under backend/.local; review-build/docker/browser-full/audit.log under apps/web/.local. Final-head CI links are recorded in the delivery evidence/PR after completion.
 
 Changed files: CommerceConsole.vue (mapping/controlled unsupported state/dialog composition), main.css (dialog scrolling/footer), nuxt.config.ts (ES2022), commerce.spec.ts (four API-backed browser regressions), web.test.ts (integer remainder regression), web-ci.yml (build warning gates/artifacts), this report, web README and commerce screenshots. API/migration contracts are unchanged. Main, production, real payments/SMS, production credentials/signing keys, PHP/MySQL and infrastructure are untouched. PR #4 remains Draft, unmerged and undeployed for independent review.
+
+
+### Follow-up commit and CI evidence
+
+- a6863c0: supported/typed finance navigation, controlled unsupported URLs, persistent dialog footer and API-backed browser coverage/screenshots.
+- 0f1e88f: explicit ES2022 targets, large-integer unit regression and CI warning gates for production/Docker builds.
+- 570666a080be06cf61300166775fa5e05dd20c7b: review report/development documentation; this is the runtime implementation verification checkpoint.
+
+Implementation-checkpoint CI links: [Backend 38818182774](https://github.com/osameh15/YariZan/actions/runs/38818182774), [Web/provisioning 38818183328](https://github.com/osameh15/YariZan/actions/runs/38818183328), [Windows 38818182951](https://github.com/osameh15/YariZan/actions/runs/38818182951). Final delivery checks their actual conclusions and the final evidence-only commit workflows separately; final HEAD/run links are also recorded in Draft PR #4 and the delivery reply. No result is inferred from the earlier reviewed head.
+
+All three requested areas are implemented for development review. The remaining limitations are unchanged commercial/merchant/physical-device gates and the two disclosed unpatched build dependencies. No backend financial behavior or release gate was relaxed. Final delivery verifies clean working tree, pushed branch equality, unchanged main base and Draft/unmerged PR state.
