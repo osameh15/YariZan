@@ -6,7 +6,7 @@ Status: implemented isolated review foundation; independent approval required. *
 
 Base/main: `e7af35f1771c7d85277aea338a26c957176adb85`, merged PR #2. Preflight fetched main, verified ancestry/merge and successful completed main CI [38703949800](https://github.com/osameh15/YariZan/actions/runs/38703949800); no running main workflow remained. Clean new worktree `YariZan-Web`, branch `feat/yarizan-v2-nuxt-portals`. Original worktrees/untracked brand files were preserved. Required source/docs/ADRs and implemented OpenAPI were inspected before changes. Codebase-memory index/coverage calls returned Transport closed; direct source inspection was used, without claiming graph coverage.
 
-Focused checkpoints: `a23aea8` split provisioning/backend authority, `bd0271a` Windows provisioning, `e883715` Nuxt storefront/customer, `f3226ca` MFA/RBAC Admin. `fe1d027` adds browser/C# integration, local Docker and CI checks. Evidence commits and exact final HEAD/Draft PR are recorded below after publication. The report cannot embed its own commit hash; the PR and delivery identify the final evidence commit. Working tree must be clean after final commit/push. No history rewrite is used.
+Focused checkpoints: `a23aea8` split provisioning/backend authority, `bd0271a` Windows provisioning, `e883715` Nuxt storefront/customer, `f3226ca` MFA/RBAC Admin. `fe1d027` adds browser/C# integration, local Docker and CI checks. Draft PR: [#3](https://github.com/osameh15/YariZan/pull/3). `7aeabca` contains the report/screenshots; subsequent evidence-only commits are listed in the PR. The report cannot embed its own commit hash; the PR and delivery identify the final evidence commit. Working tree must be clean after final commit/push. No history rewrite is used.
 
 ## B. Architecture
 
@@ -137,3 +137,9 @@ Independent security review of this split, physical-device first-claim assurance
 ## H. Safety confirmation
 
 **Unchanged:** main branch, production/staging/live server, existing PHP/MySQL, DNS/Traefik/firewall, real customer data, ZarinPal merchant, MeliPayamak, production signing keys, live payment/refund infrastructure. Only this feature worktree/branch, local disposable Docker/test data and Draft PR review material are authorized changes. No force-push, merge, deployment or production private-key generation. Stop for independent review.
+
+## Publication and validation follow-up
+
+Draft PR [#3](https://github.com/osameh15/YariZan/pull/3), implementation/report HEAD `7aeabcac55ee8094677c6d5550a7a60325a69392`. This follow-up normalizes ADR-0006 text encoding to UTF-8 and updates review evidence; no runtime behavior changes. Final delivery HEAD is recorded in the PR/handoff after evidence commit. Public tracked-file scanner passes; web secret scan covers 49 text files, backend scan 53. `git diff --check` passes.
+
+Initial web CI [38727253964](https://github.com/osameh15/YariZan/actions/runs/38727253964) passed strict checks, build, 11 unit tests and all 19 Chromium/PostgreSQL browser tests (40.6s), including 24 C# provisioning checks, then failed because the Dockerfile path was resolved from apps/web instead of repository root. The focused CI fix sets that step working directory explicitly to repository root. Hidden-file artifact inclusion is enabled only for the explicitly named dependency-audit JSON path. The full workflow is rerun after this fix.

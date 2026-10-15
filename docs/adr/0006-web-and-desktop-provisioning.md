@@ -1,4 +1,4 @@
-# ADR-0006 — Browser authorization and desktop-only provisioning
+# ADR-0006 â€” Browser authorization and desktop-only provisioning
 
 Status: Phase 3 implementation, independent review required; commercial enrollment remains blocked.
 
@@ -15,3 +15,5 @@ Legacy claim/register/desktop-confirm credential delivery is retired, rather tha
 Nuxt proxies only an explicit set of browser-facing API routes to a configured loopback/container backend. Desktop challenge/pickup/authentication routes cannot be called through the web proxy. Original Origin and CSRF validation are retained. No privileged service credential, device bearer or password is serialized into SSR payloads. Authentication pages are client-loaded and no-store; public catalog can use SSR with no cookie forwarding. Browser sessions remain HttpOnly and path /api/v2. A separate CSRF cookie contains only the synchronizer token, never the session credential, and allows reload without putting credentials in localStorage. Admin and customer CSRF/session namespaces remain separate.
 
 This does not solve first-claim hardware assurance. An attacker-generated key plus a spoofed unclaimed fingerprint can preempt a device account. Production startup and commercial root approval remain closed pending independent assurance, disputes/support policy, external signing custody and physical Windows acceptance. No attestation, live payment, SMS, deployment or cross-ID license recovery is claimed.
+
+Final claim approval locks and revalidates the current authorizing session after password work. Browser dialogs discard late secret responses after close or replacement. CSP uses per-render nonces. Actual Windows CNG/DPAPI provisioning is exercised together with Playwright browser approval; this is synthetic ownership evidence, not hardware attestation.
