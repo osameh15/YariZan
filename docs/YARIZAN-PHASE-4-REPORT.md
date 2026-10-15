@@ -348,3 +348,10 @@ The first premium checkpoint web run completed 36/37 browser tests: the existing
 
 
 Corrected local verification: **38/38 full browser tests passed (1.8m), 18/18 unit tests passed**, including deterministic account-security loading and both-number verification. The final public order-ID clipboard check and its error styling are additionally validated by rerunning the affected commerce file after rebuilding; this is a rerun of existing unique tests, not an inflated test count. The corrected final CI runs and exact delivery HEAD are linked in PR #4. AccountSecurity.vue and auth-31.spec.ts are additional changed files for this loading correction.
+
+
+### Corrected implementation checkpoint
+
+`f71c8c661d36691276c45aa19df1f0f9937d1c9f` includes the verified-data loading correction and public order-ID clipboard regression. Corrected workflow links: [Backend 38824178786](https://github.com/osameh15/YariZan/actions/runs/38824178786), [Web/provisioning 38824178776](https://github.com/osameh15/YariZan/actions/runs/38824178776), [Windows 38824178760](https://github.com/osameh15/YariZan/actions/runs/38824178760). Final delivery verifies these actual results and the following report-only HEAD separately; exact final-head conclusions/URLs are in PR #4 and the handoff. Final local affected-commerce rerun: 10/10 passed (49.2s), including clipboard readback of the public order ID. Latest production and Docker builds pass without unsupported BigInt warnings. Local preview restored at http://localhost:3200 with fake checkout only.
+
+Follow-up commits: `8739928` presentation/system; `7b5d284` acceptance/gallery; `9ccc8d2` initial CI references; `f71c8c6` deterministic loading correction/clipboard regression; final documentation-only evidence commit. No source changed after the corrected checkpoint. All 32 screenshot files remain reviewable, and the old Phase 4 images are preserved for comparison. Working tree is checked clean and remote feature branch equality is checked at delivery; main and production are never modified.
