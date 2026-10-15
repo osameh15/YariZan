@@ -153,6 +153,17 @@ for (const r of routes.sort(
   paths[r.path][r.method] = {
     operationId: r.method + "_" + r.path.replace(/[^a-zA-Z0-9]/g, "_"),
     summary: r.method.toUpperCase() + " " + r.path,
+    ...(["/api/v2/auth/claim", "/api/v2/devices/register"].includes(r.path)
+      ? {
+          description:
+            "Development-only paired claim response includes enrollment and a desktop bearer. Production browser integration must use a reviewed desktop-controlled pickup flow; see YARIZAN-PHASE-3-PROVISIONING-BOUNDARY.md. Both aliases enforce identical Origin, ownership and rate checks before password hashing.",
+        }
+      : r.path === "/api/v2/desktop/trials/{sku}/start"
+        ? {
+            description:
+              "Exactly two starts per machine, grade, account generation and authorized allocation epoch. Identical current-epoch retries return the stored result. A nonce retired by Admin trial reset returns HTTP 409 TRIAL_ALLOCATION_CHANGED without consuming the new quota. Already-started processes continue offline indefinitely.",
+          }
+        : {}),
     security,
     parameters,
     ...(body

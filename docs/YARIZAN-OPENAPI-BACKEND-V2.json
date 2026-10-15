@@ -2617,6 +2617,7 @@
       "post": {
         "operationId": "post__api_v2_auth_claim",
         "summary": "POST /api/v2/auth/claim",
+        "description": "Development-only paired claim response includes enrollment and a desktop bearer. Production browser integration must use a reviewed desktop-controlled pickup flow; see YARIZAN-PHASE-3-PROVISIONING-BOUNDARY.md. Both aliases enforce identical Origin, ownership and rate checks before password hashing.",
         "security": [],
         "parameters": [],
         "requestBody": {
@@ -3985,6 +3986,7 @@
       "post": {
         "operationId": "post__api_v2_desktop_trials__sku__start",
         "summary": "POST /api/v2/desktop/trials/{sku}/start",
+        "description": "Exactly two starts per machine, grade, account generation and authorized allocation epoch. Identical current-epoch retries return the stored result. A nonce retired by Admin trial reset returns HTTP 409 TRIAL_ALLOCATION_CHANGED without consuming the new quota. Already-started processes continue offline indefinitely.",
         "security": [
           {
             "DeviceBearer": []
@@ -5050,6 +5052,7 @@
       "post": {
         "operationId": "post__api_v2_devices_register",
         "summary": "POST /api/v2/devices/register",
+        "description": "Development-only paired claim response includes enrollment and a desktop bearer. Production browser integration must use a reviewed desktop-controlled pickup flow; see YARIZAN-PHASE-3-PROVISIONING-BOUNDARY.md. Both aliases enforce identical Origin, ownership and rate checks before password hashing.",
         "security": [],
         "parameters": [],
         "requestBody": {

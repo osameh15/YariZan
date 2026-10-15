@@ -2,6 +2,8 @@
 
 Date: 2026-10-15, Asia/Tehran. Scope: implemented backend foundations for isolated development and independent review, **not commercial release approval**. Production startup deliberately fails closed. Trial remains online-to-start only; purchased access remains perpetual/offline.
 
+The independent-review follow-up is recorded in section J below. Its 100-test results and six-migration evidence supersede the historical 89-test delivery evidence in section F. Production provisioning remains blocked; see the [Phase 3 boundary](YARIZAN-PHASE-3-PROVISIONING-BOUNDARY.md).
+
 ## A. Repository and commits
 
 - Repository: `osameh15/YariZan`.
@@ -40,6 +42,7 @@ Signing is an injectable interface, not JWT. Every artifact uses unchanged ADR-0
 | `003_integrity.sql` | Username/digest consistency, product publication checks, composite scope FKs, customer-generation trial/redemption links, immutable operations/recovery history and query indexes |
 | `004_enrollment_history.sql` | Immutable profile enrollment issuance history and future cross-ID replacement records; no replacement endpoint |
 | `005_credential_scope.sql` | Issuance-time customer/device/generation binding, immutable credential authority; pre-migration revoked bearers expire fail-closed |
+| `006_trial_allocation_epochs.sql` | Positive safe-integer allocation epochs on counters and immutable starts, allocation lookup index; nonce uniqueness remains across epochs |
 
 Six products seed exactly once at 12,990,000 IRR each. G1 is published with sales/trial/activation enabled; G2–G6 are coming soon with all three disabled. Repeated seed preserves operator-edited prices/availability. Catalog visibility, sales, trials and activation have distinct fields. Existing issued entitlements survive disabled new activation/sales.
 
@@ -47,7 +50,7 @@ Actual constraints include restrictive FKs; unique fingerprint/version, public u
 
 Migrations run in lexical order in one transaction with an advisory lock. Applied-file hashes normalize CRLF to LF. Hash/order mismatch fails. Fresh-schema comparison checks columns, indexes, constraints, triggers and function definitions. Only explicitly named disposable test/reference databases are rebuilt. `tools/runtime-role.sql` provides a NOLOGIN runtime group without schema/migration/history mutation rights; local Compose intentionally uses a disposable migration owner. Superuser compromise remains outside trigger protection.
 
-Trials lock the device and product restriction, insert-or-lock the generation-scoped counter, look up nonce and digest, then sign/store the response and increment once. Identical retries return stored response, including after exhaustion. Code redemption locks the same device/restriction then code, verifies recipient/generation/status/expiry, checks request digest and revocation policy, and commits consumption, entitlement/license, audit, outbox and exact retry result together. Signing failure rolls back all business changes. Admin operations serialize on Admin and relevant device/revision; immutable request-bound results prevent duplicate mutations.
+Trials lock the device and product restriction, insert-or-lock the generation-scoped counter, look up nonce and digest, then sign/store the response and increment once. Identical current-allocation retries return the stored response, including after exhaustion. Trial-only reset increments the SKU allocation epoch; retired nonces fail without spending new quota. Code redemption locks the same device/restriction then code, verifies recipient/generation/status/expiry, checks request digest and revocation policy, and commits consumption, entitlement/license, audit, outbox and exact retry result together. Signing failure rolls back all business changes. Admin operations serialize on Admin and relevant device/revision; immutable request-bound results prevent duplicate mutations.
 
 Outbox dispatch uses SKIP LOCKED and requires idempotent consumers. No external consumer is enabled. Failed delivery remains retryable; crash-after-delivery can redeliver. Retention, legal pseudonymization, production backups and restore drills remain operational dependencies. Prefer safe roll-forward after real issuance/commerce; never restore an old snapshot without reconciling later rights, decisions and money. No live MySQL migration or destructive down-migration is included.
 
@@ -164,3 +167,45 @@ Payment checkout, authoritative gateway verification/reconciliation, discount se
 ## I. Safety confirmation
 
 No main branch changes, merge, production/staging server modifications, existing PHP/MySQL changes, DNS/Traefik changes, real customer-data access, ZarinPal merchant calls/settings, MeliPayamak changes, production signing-key generation/rotation, live payments or refunds occurred. The existing legacy deployment workflow is unchanged. All PostgreSQL data and cryptographic material used here are disposable local/test data. Feature-branch pushes and a Draft PR are the authorized delivery only; stop for independent review before merge/deploy.
+
+## J. Independent review follow-up
+
+Reviewed starting HEAD: `2ba9f0ea271a65c0c3ceccb6f821b80a4857fab0`. Work remains on `feat/yarizan-v2-backend-core` and [Draft PR #2](https://github.com/osameh15/YariZan/pull/2). This is a focused security correction, not a backend rewrite.
+
+### Resolutions and changed files
+
+1. **Password hashing admission ? Implemented.** `4a5ca92` changes `src/identity/identity.ts`, `src/security/passwords.ts`, `src/app.ts`, `src/common/schemas.ts`, `src/api/controllers.ts`, `test/integration.test.ts` and `tools/check-contracts.mjs` under `backend/`. Cheap nonlocking pairing/expiry/constant-time secret and owner checks precede Argon2id. Both claim aliases share strict DTO, exact Origin and socket-IP limit of 120 attempts/300 seconds. A valid-secret pairing limit is three attempts/300 seconds; global password concurrency remains four. Hashing holds no PostgreSQL transaction lock. The final transaction rechecks pairing, expiry, ownership and key scope, serializes competing fingerprint claims, and conditionally consumes the exact unexpired secrets before commit. Invalid requests invoke zero hashes. A real PostgreSQL NOWAIT check proves the pairing row remains unlocked during deliberately delayed hashing. Concurrent same-pair claims commit one customer/certificate; a consumed or expired pairing cannot commit. Additional profiles still require existing-owner approval; HWID never becomes an authentication secret.
+2. **Trial reset/idempotency ? Implemented.** `ad4c454` changes `backend/src/trials/trials.ts`, `backend/src/admin/admin.ts`, readiness in `backend/src/api/controllers.ts`, `backend/test/integration.test.ts` and adds migration `006_trial_allocation_epochs.sql`. Reset creates/locks the device/SKU/generation counter, advances its allocation epoch and restores two entries atomically. Old start rows remain immutable at their original epoch. Existing per-device/SKU/generation nonce uniqueness is deliberately retained across epochs: a retired request returns HTTP 409 `TRIAL_ALLOCATION_CHANGED`, produces no new grant and spends no new entry. Identical current-epoch retries preserve the exact original response, including after quota exhaustion; changed content remains `IDEMPOTENCY_MISMATCH`. Admin request idempotency advances the epoch once. The response adds `allocation_epoch`; the Admin input `expected_revision` still means customer generation. Reset audit includes retired/current epoch and retired usage. Other grades and account generations remain independent; authorized profiles share one allocation. Device/counter locks serialize starts on both sides of reset. No signed claim, desktop DTO, heartbeat, trial deadline or active-process internet requirement changes.
+3. **Explicit runtime selection ? Implemented.** `03b20b4` changes `backend/src/config.ts`, `backend/src/main.ts`, migration/seed executable entrypoints, `backend/Dockerfile`, `backend/test/core.test.ts`, `backend/tools/check-runtime-env.mjs` and `.github/workflows/backend-ci.yml`. The image no longer supplies `NODE_ENV`. Missing/empty configuration fails clearly with `NODE_ENV_REQUIRED`; unsupported or padded/case-changed selection fails with `NODE_ENV_INVALID`. Development/test are explicit; production always refuses with `PRODUCTION_GATE_CLOSED`. Safe typed configuration messages propagate from all executable entrypoints without dumping environment values. Compose and CI already select their mode explicitly. Docker startup matrix runs in CI using only synthetic secrets and disposable PostgreSQL.
+4. **Phase 3 delivery boundary ? Documented; production integration Blocked.** `docs/YARIZAN-PHASE-3-PROVISIONING-BOUNDARY.md` describes the current development-only claim response, exact browser receipt / desktop-controlled pickup dependency, required CNG proof/bindings/retry behavior, DPAPI persistence and security acceptance. Current `/devices/authenticate` returns a bearer/scope but not the certificate; a reviewed extension or new pickup contract plus Nuxt/Windows integration is required. Browser code must never receive desktop bearer/claim proof. No production provisioning endpoint is claimed. Backend README, ADR-0005 and generated OpenAPI descriptions carry this boundary and allocation behavior.
+
+### Executed follow-up validation
+
+Host/toolchain remains Windows `10.0.26300.0`, Node `24.20.0`, npm `12.0.2`, TypeScript `5.9.3`, NestJS `11.2.7`, .NET SDK `10.0.401` with runtime `9.0.20`, Docker client/engine `29.8.2`, isolated PostgreSQL `17.11`. Backend commands below run from `backend/` unless noted.
+
+| Exact command | Follow-up result |
+|---|---|
+| `npm run build` | Passed strict compilation |
+| `npm run lint` | Passed, zero warnings |
+| `npm run format:check` | Passed |
+| `npm test` | **100 passed, zero failed/cancelled/skipped**; final local log `.local/review-final-tests.log` (ignored) |
+| .NET invoked by that suite | `DOTNET_INTEROP 24 passed, 0 failed`; `DOTNET_API 10 passed, 0 failed`; unchanged real C# verifier/client/controller |
+| `node tools/check-schema.mjs` | Six ordered migrations; five fresh PostgreSQL catalog groups match |
+| `node tools/check-contracts.mjs --write` followed by `npm run check:contracts` | 39 actual routes and five unchanged desktop response profiles verified |
+| `npx --yes @redocly/cli@2.63.0 lint ../docs/YARIZAN-OPENAPI-BACKEND-V2.json` | Passed, no warnings/errors |
+| `npx --yes @redocly/cli@2.63.0 lint ../docs/YARIZAN-OPENAPI-V2.yaml` | Passed, no warnings/errors |
+| `npm audit --audit-level=high` | Zero vulnerabilities |
+| `docker build -t yarizan-backend-fixture backend` (repository root) | Passed |
+| `node tools/check-runtime-env.mjs yarizan-backend-fixture` | All six cases pass: missing/empty refuse `NODE_ENV_REQUIRED`; staging refuses `NODE_ENV_INVALID`; production refuses `PRODUCTION_GATE_CLOSED`; explicit development/test apply migrations/seed, become ready, select correct synthetic-key persistence, and stop gracefully with exit 0. Refusals exit 1. Image has no mode default, embedded key or root runtime; native Argon2 loads. |
+
+Schema validation used explicit `NODE_ENV=test`, `DATABASE_URL=postgresql://yarizan:local-disposable@127.0.0.1:55432/yarizan_phase2_test`, and three independent synthetic hex secrets (repeated 1/2/3 characters). Runtime matrix additionally used `RUNTIME_DOCKER_NETWORK=yarizan-v2-local_default` and `RUNTIME_DATABASE_URL=postgresql://yarizan:local-disposable@db:5432/yarizan_phase2_test`. No production database/configuration was used. Local logs are ignored and do not contain issued secrets.
+
+The 11 additional Node tests cover six claim admission/alias/rate/expiry/concurrency cases, four allocation/history/profile/grade/generation/reset-race cases and explicit runtime mode validation. The two reset race tests hold real PostgreSQL business transactions at audit boundaries; starts queued before and after reset yield exactly two fresh-allocation successes. A 20-request post-reset burst returns two successes and 18 `TRIAL_EXHAUSTED` errors. Old nonce retries return `TRIAL_ALLOCATION_CHANGED`. Same-epoch retries still return the original signed grant. One initial new assertion expected `ENROLLMENT_INVALID` after customer reset; actual established response was `ACCOUNT_RESTRICTED`. The assertion was corrected; no authorization behavior was weakened. Final suite passes. Deliberately injected hashing failures produce redacted HTTP 503 events, as expected.
+
+### Remaining risks and safety
+
+Physical first-claim assurance, fingerprint preemption/dispute recovery, commercial external signing custody/root retention and real Windows multi-profile acceptance remain production gates. Software key proof plus a reported fingerprint does not prove hardware ownership. Browser credential delivery is explicitly unfinished pending the documented Phase 3 split. Arbitrary cross-license-ID recovery stays blocked. Existing support evidence references remain human verification assertions. Resource budgets are development limits and require operational tuning before any separately approved production deployment.
+
+Migration 006 is additive and assigns historical rows epoch 1. Apply once through the checksum-verified migration runner, then run fresh catalog comparison. Do not edit applied migrations or delete history. Roll forward on issues; do not downgrade runtime to a version that ignores allocation epochs after any trial reset. No destructive down migration is provided.
+
+Main, production/staging servers, PHP/MySQL, DNS/Traefik, real customer data, ZarinPal, MeliPayamak, production signing keys and live payment/refund operations remain **unchanged**. Only the feature branch, local disposable containers and PR review material are changed. Stop for independent review; no merge or deployment is authorized by this report.
