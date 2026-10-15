@@ -1810,7 +1810,10 @@ textarea[aria-invalid='true'] {
 .commerce-dialog {
   width: min(800px, calc(100% - 32px));
 }
-.commerce-editor {
+.commerce-editor-fields {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 4px 6px 20px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 20px;
@@ -1837,13 +1840,43 @@ textarea[aria-invalid='true'] {
 .commerce-editor fieldset .field-error {
   display: none;
 }
-.commerce-editor > p,
-.commerce-editor > .form-summary,
-.commerce-editor > .api-notice {
+.commerce-editor-fields > p,
+.commerce-editor-fields > .api-notice {
   grid-column: 1 / -1;
 }
 @media (max-width: 600px) {
-  .commerce-editor {
+  .commerce-editor-fields {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.commerce-dialog-editor[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.commerce-dialog-editor .dialog-top {
+  flex-shrink: 0;
+}
+.commerce-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.commerce-editor > .form-summary {
+  flex-shrink: 0;
+}
+.dialog-action-footer {
+  flex-shrink: 0;
+  padding-block-start: 16px;
+  border-top: 1px solid var(--line);
+  background: #fffaf0;
+}
+.dialog-action-footer .actions {
+  gap: 12px;
+}
+.dialog-action-footer .api-notice {
+  max-height: 20dvh;
+  overflow-y: auto;
 }

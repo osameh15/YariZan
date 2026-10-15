@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { errorMessage } from '#shared/domain';
 import { financialToman, commerceState } from '#shared/commerce';
+import type { paths } from '#shared/api.generated';
+type CommerceSection =
+  paths['/api/v2/admin/commerce/{section}']['get']['parameters']['path']['section'];
 const api = useApi(true),
   route = useRoute(),
   rows = ref<Record<string, unknown>[]>([]),
@@ -24,21 +27,28 @@ const sections = [
   ['redemptions', 'تخفیف‌های استفاده‌شده'],
   ['jobs', 'بررسی و آماده‌سازی'],
   ['exceptions', 'موارد نیازمند بررسی'],
-  ['paid_orders', 'سفارش‌های پرداخت‌شده'],
-  ['redemptions', 'دفعات استفاده از تخفیف'],
-  ['refund_requests', 'درخواست‌های بازپرداخت'],
   ['finance', 'گزارش مالی'],
   ['refunds', 'درخواست‌های بازپرداخت'],
-];
+] as const satisfies ReadonlyArray<readonly [CommerceSection, string]>;
 const section = computed(() => String(route.query.section ?? 'orders'));
-const title = computed(() => sections.find((s) => s[0] === section.value)?.[1] ?? 'فروش');
+const supportedSection = computed(() => sections.some((s) => s[0] === section.value));
+const title = computed(
+  () => sections.find((s) => s[0] === section.value)?.[1] ?? 'بخش مدیریت پیدا نشد',
+);
 const allowed = (p: string) => permissions.value.includes(p);
 async function load() {
   busy.value = true;
   message.value = '';
+  rows.value = [];
+  report.value = {};
+  next.value = null;
   try {
     const session = await api.get('/api/v2/admin/auth/session');
     permissions.value = session.permissions;
+    if (!supportedSection.value) {
+      message.value = 'این بخش مدیریت وجود ندارد. یکی از بخش‌های فهرست فروش را انتخاب کنید.';
+      return;
+    }
     const r = await api.get(
       '/api/v2/admin/commerce/{section}',
       { section: section.value },
@@ -242,7 +252,9 @@ const stateLabel = (row: Record<string, unknown>) =>
       <NuxtLink class="text-link" to="/zanyari">بازگشت به مدیریت</NuxtLink>
       <nav aria-label="مدیریت فروش">
         <NuxtLink
-          v-for="s in sections.filter((s) => s[0] !== 'finance' || allowed('finance.read'))"
+          v-for="s in sections.filter((s) =>
+            allowed(s[0] === 'finance' ? 'finance.read' : 'commerce.read'),
+          )"
           :key="s[0]"
           :to="{ path: '/zanyari/commerce', query: { section: s[0] } }"
           >{{ s[1] }}</NuxtLink
@@ -256,199 +268,207 @@ const stateLabel = (row: Record<string, unknown>) =>
         kind="info"
         message="هیچ پرداخت یا بازپرداخت واقعی اجرا نمی‌شود. ثبت درخواست یا تأیید مدیر به معنی بازگشت وجه نیست."
       /><ApiNotice :message="message" :kind="success ? 'success' : 'error'" />
-      <FormShell
-        class="data-toolbar"
-        @submit="
-          offset = 0;
-          load();
-        "
-        ><label
-          >جست‌وجو<input
-            v-model="search"
-            maxlength="120"
-            placeholder="شناسه، نام کاربری، پایه یا یادداشت" /></label
-        ><label>از تاریخ<input v-model="from" type="date" /></label
-        ><label>تا تاریخ (بدون این روز)<input v-model="to" type="date" /></label
-        ><label v-if="['orders', 'payments', 'jobs'].includes(section)"
-          >وضعیت<select v-model="state">
-            <option value="">همه</option>
-            <option value="PENDING">در انتظار</option>
-            <option value="UNKNOWN">نامشخص</option>
-            <option value="VERIFIED">تأییدشده</option>
-            <option value="FULFILLED">مجوز آماده</option>
-            <option value="FULFILLMENT_PENDING">در انتظار مجوز</option>
-            <option value="REVIEW">نیازمند بررسی</option>
-            <option value="FAILED">ناموفق</option>
-          </select></label
-        ><button class="button secondary" :disabled="busy">جست‌وجو و تازه‌سازی</button></FormShell
-      >
-      <button
-        v-if="['campaigns', 'coupons'].includes(section) && allowed('commerce.manage')"
-        class="button primary"
-        @click="open(section)"
-      >
-        {{ section === 'campaigns' ? 'ساخت طرح تخفیف' : 'ساخت کد تخفیف' }}
-      </button>
-      <p v-if="section === 'finance'">
-        سفارش‌ها بر اساس تاریخ ثبت گزارش می‌شوند؛ دریافت‌های تأییدشده بر اساس زمان تأیید درگاه و با
-        احتساب دریافت تکراری هستند. این گزارش جایگزین تسویهٔ بانکی نیست.
-      </p>
-      <div v-if="section === 'finance'" class="stat-grid">
-        <article
-          v-for="[key, label] in [
-            ['gross_irr', 'مبلغ اولیهٔ سفارش‌های پرداخت‌شده'],
-            ['discount_irr', 'تخفیف ثبت‌شده'],
-            ['net_irr', 'خالص سفارش‌های پرداخت‌شده'],
-            ['verified_captures_irr', 'دریافت‌های تأییدشده، شامل موارد تکراری'],
-            ['paid_unfulfilled', 'پرداخت‌شده؛ مجوز آماده نیست'],
-            ['exceptions', 'موارد نیازمند بررسی'],
-            ['paid_orders', 'سفارش‌های پرداخت‌شده'],
-            ['redemptions', 'دفعات استفاده از تخفیف'],
-            ['refund_requests', 'درخواست‌های بازپرداخت'],
-          ]"
-          :key="key"
-          class="panel"
+      <template v-if="supportedSection">
+        <FormShell
+          class="data-toolbar"
+          @submit="
+            offset = 0;
+            load();
+          "
+          ><label
+            >جست‌وجو<input
+              v-model="search"
+              maxlength="120"
+              placeholder="شناسه، نام کاربری، پایه یا یادداشت" /></label
+          ><label>از تاریخ<input v-model="from" type="date" /></label
+          ><label>تا تاریخ (بدون این روز)<input v-model="to" type="date" /></label
+          ><label v-if="['orders', 'payments', 'jobs'].includes(section)"
+            >وضعیت<select v-model="state">
+              <option value="">همه</option>
+              <option value="PENDING">در انتظار</option>
+              <option value="UNKNOWN">نامشخص</option>
+              <option value="VERIFIED">تأییدشده</option>
+              <option value="FULFILLED">مجوز آماده</option>
+              <option value="FULFILLMENT_PENDING">در انتظار مجوز</option>
+              <option value="REVIEW">نیازمند بررسی</option>
+              <option value="FAILED">ناموفق</option>
+            </select></label
+          ><button class="button secondary" :disabled="busy">جست‌وجو و تازه‌سازی</button></FormShell
         >
-          <h2>
-            {{ key.endsWith('_irr') ? financialToman(report[key]) : (report[key] ?? '۰') }}
-            {{ key.endsWith('_irr') ? 'تومان' : '' }}
-          </h2>
-          <p>{{ label }}</p>
-        </article>
-      </div>
-      <div v-if="section === 'finance'" class="panel">
-        <h2>وضعیت تلاش‌های پرداخت</h2>
-        <ul class="record-list">
-          <li v-for="(r, i) in report.payment_states as Record<string, unknown>[]" :key="i">
-            {{ stateLabel(r) }}: {{ r.count }} · {{ financialToman(r.amount_irr) }} تومان
-          </li>
-        </ul>
-      </div>
-      <div v-else class="table-scroll">
-        <table>
-          <caption>
-            {{
-              title
-            }}
-          </caption>
-          <thead>
-            <tr>
-              <th>شناسه / عنوان</th>
-              <th>اطلاعات</th>
-              <th>وضعیت</th>
-              <th>یادداشت داخلی</th>
-              <th>عملیات</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in rows" :key="String(row.id)">
-              <td>
-                <b>{{ row.name ?? row.code ?? row.username ?? row.sku ?? 'رکورد' }}</b
-                ><small class="record-id" dir="ltr">{{ row.id }}</small>
-              </td>
-              <td>
-                <p v-if="row.total_irr ?? row.amount_irr">
-                  {{ financialToman(row.total_irr ?? row.amount_irr) }} تومان
-                </p>
-                <p v-if="row.type">
-                  {{ row.type === 'percent' ? 'درصدی' : 'مبلغ ثابت' }}: {{ row.value }}
-                </p>
-                <p v-if="row.max_redemptions">
-                  سقف کل: {{ row.max_redemptions }} · سقف مشتری:
-                  {{ row.max_per_customer ?? 'بدون سقف' }}
-                </p>
-                <p v-if="row.held !== undefined">
-                  رزروشده: {{ row.held }} · استفاده‌شده: {{ row.redeemed }} · باقی‌مانده:
-                  {{
-                    row.max_redemptions
-                      ? Math.max(
-                          0,
-                          Number(row.max_redemptions) - Number(row.held) - Number(row.redeemed),
-                        )
-                      : 'بدون سقف کل'
-                  }}
-                </p>
-                <small v-if="row.provider_ref" dir="ltr">{{ row.provider_ref }}</small
-                ><small v-if="row.starts_at"
-                  >{{ new Date(String(row.starts_at)).toLocaleDateString('fa-IR') }} تا
-                  {{ new Date(String(row.ends_at)).toLocaleDateString('fa-IR') }}</small
-                >
-                <p v-if="row.exception_code">این مورد نیاز به بررسی مالی دارد.</p>
-              </td>
-              <td>
-                {{ row.enabled === undefined ? stateLabel(row) : row.enabled ? 'فعال' : 'غیرفعال' }}
-              </td>
-              <td class="note-preview">{{ row.note ?? '—' }}</td>
-              <td>
-                <div class="table-actions">
-                  <button
-                    v-if="['campaigns', 'coupons'].includes(section) && allowed('commerce.manage')"
-                    class="button secondary"
-                    @click="open(section, row)"
-                  >
-                    ویرایش</button
-                  ><button
-                    v-if="['orders', 'payments'].includes(section)"
-                    class="button secondary"
-                    @click="open('detail', row)"
-                  >
-                    جزئیات سفارش</button
-                  ><button
-                    v-if="
-                      ['orders', 'payments', 'exceptions', 'jobs'].includes(section) &&
-                      allowed('finance.reconcile')
-                    "
-                    class="button secondary"
-                    @click="open('reconcile', row)"
-                  >
-                    بررسی دوبارهٔ سفارش</button
-                  ><button
-                    v-if="
-                      ['orders', 'payments', 'campaigns', 'coupons'].includes(section) &&
-                      allowed('notes.manage')
-                    "
-                    class="button secondary"
-                    @click="open('note', row)"
-                  >
-                    یادداشت داخلی</button
-                  ><button
-                    v-if="section === 'refunds' && allowed('refunds.review')"
-                    class="button secondary"
-                    @click="open('refund', row)"
-                  >
-                    شروع بررسی درخواست
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-if="!busy && !rows.length">رکوردی با این شرایط پیدا نشد.</p>
-      </div>
-      <div v-if="section !== 'finance'" class="actions">
         <button
-          v-if="offset"
-          class="button secondary"
-          @click="
-            offset = Math.max(0, offset - 20);
-            load();
-          "
+          v-if="['campaigns', 'coupons'].includes(section) && allowed('commerce.manage')"
+          class="button primary"
+          @click="open(section)"
         >
-          صفحهٔ قبل</button
-        ><button
-          v-if="next !== null"
-          class="button secondary"
-          @click="
-            offset = next!;
-            load();
-          "
-        >
-          صفحهٔ بعد
+          {{ section === 'campaigns' ? 'ساخت طرح تخفیف' : 'ساخت کد تخفیف' }}
         </button>
-      </div>
+        <p v-if="section === 'finance'">
+          سفارش‌ها بر اساس تاریخ ثبت گزارش می‌شوند؛ دریافت‌های تأییدشده بر اساس زمان تأیید درگاه و
+          با احتساب دریافت تکراری هستند. این گزارش جایگزین تسویهٔ بانکی نیست.
+        </p>
+        <div v-if="section === 'finance'" class="stat-grid">
+          <article
+            v-for="[key, label] in [
+              ['gross_irr', 'مبلغ اولیهٔ سفارش‌های پرداخت‌شده'],
+              ['discount_irr', 'تخفیف ثبت‌شده'],
+              ['net_irr', 'خالص سفارش‌های پرداخت‌شده'],
+              ['verified_captures_irr', 'دریافت‌های تأییدشده، شامل موارد تکراری'],
+              ['paid_unfulfilled', 'پرداخت‌شده؛ مجوز آماده نیست'],
+              ['exceptions', 'موارد نیازمند بررسی'],
+              ['paid_orders', 'سفارش‌های پرداخت‌شده'],
+              ['redemptions', 'دفعات استفاده از تخفیف'],
+              ['refund_requests', 'درخواست‌های بازپرداخت'],
+            ]"
+            :key="key"
+            class="panel"
+          >
+            <h2>
+              {{ key.endsWith('_irr') ? financialToman(report[key]) : (report[key] ?? '۰') }}
+              {{ key.endsWith('_irr') ? 'تومان' : '' }}
+            </h2>
+            <p>{{ label }}</p>
+          </article>
+        </div>
+        <div v-if="section === 'finance'" class="panel">
+          <h2>وضعیت تلاش‌های پرداخت</h2>
+          <ul class="record-list">
+            <li v-for="(r, i) in report.payment_states as Record<string, unknown>[]" :key="i">
+              {{ stateLabel(r) }}: {{ r.count }} · {{ financialToman(r.amount_irr) }} تومان
+            </li>
+          </ul>
+        </div>
+        <div v-else class="table-scroll">
+          <table>
+            <caption>
+              {{
+                title
+              }}
+            </caption>
+            <thead>
+              <tr>
+                <th>شناسه / عنوان</th>
+                <th>اطلاعات</th>
+                <th>وضعیت</th>
+                <th>یادداشت داخلی</th>
+                <th>عملیات</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in rows" :key="String(row.id)">
+                <td>
+                  <b>{{ row.name ?? row.code ?? row.username ?? row.sku ?? 'رکورد' }}</b
+                  ><small class="record-id" dir="ltr">{{ row.id }}</small>
+                </td>
+                <td>
+                  <p v-if="row.total_irr ?? row.amount_irr">
+                    {{ financialToman(row.total_irr ?? row.amount_irr) }} تومان
+                  </p>
+                  <p v-if="row.type">
+                    {{ row.type === 'percent' ? 'درصدی' : 'مبلغ ثابت' }}: {{ row.value }}
+                  </p>
+                  <p v-if="row.max_redemptions">
+                    سقف کل: {{ row.max_redemptions }} · سقف مشتری:
+                    {{ row.max_per_customer ?? 'بدون سقف' }}
+                  </p>
+                  <p v-if="row.held !== undefined">
+                    رزروشده: {{ row.held }} · استفاده‌شده: {{ row.redeemed }} · باقی‌مانده:
+                    {{
+                      row.max_redemptions
+                        ? Math.max(
+                            0,
+                            Number(row.max_redemptions) - Number(row.held) - Number(row.redeemed),
+                          )
+                        : 'بدون سقف کل'
+                    }}
+                  </p>
+                  <small v-if="row.provider_ref" dir="ltr">{{ row.provider_ref }}</small
+                  ><small v-if="row.starts_at"
+                    >{{ new Date(String(row.starts_at)).toLocaleDateString('fa-IR') }} تا
+                    {{ new Date(String(row.ends_at)).toLocaleDateString('fa-IR') }}</small
+                  >
+                  <p v-if="row.exception_code">این مورد نیاز به بررسی مالی دارد.</p>
+                </td>
+                <td>
+                  {{
+                    row.enabled === undefined ? stateLabel(row) : row.enabled ? 'فعال' : 'غیرفعال'
+                  }}
+                </td>
+                <td class="note-preview">{{ row.note ?? '—' }}</td>
+                <td>
+                  <div class="table-actions">
+                    <button
+                      v-if="
+                        ['campaigns', 'coupons'].includes(section) && allowed('commerce.manage')
+                      "
+                      class="button secondary"
+                      @click="open(section, row)"
+                    >
+                      ویرایش</button
+                    ><button
+                      v-if="['orders', 'payments'].includes(section)"
+                      class="button secondary"
+                      @click="open('detail', row)"
+                    >
+                      جزئیات سفارش</button
+                    ><button
+                      v-if="
+                        ['orders', 'payments', 'exceptions', 'jobs'].includes(section) &&
+                        allowed('finance.reconcile')
+                      "
+                      class="button secondary"
+                      @click="open('reconcile', row)"
+                    >
+                      بررسی دوبارهٔ سفارش</button
+                    ><button
+                      v-if="
+                        ['orders', 'payments', 'campaigns', 'coupons'].includes(section) &&
+                        allowed('notes.manage')
+                      "
+                      class="button secondary"
+                      @click="open('note', row)"
+                    >
+                      یادداشت داخلی</button
+                    ><button
+                      v-if="section === 'refunds' && allowed('refunds.review')"
+                      class="button secondary"
+                      @click="open('refund', row)"
+                    >
+                      شروع بررسی درخواست
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-if="!busy && !rows.length">رکوردی با این شرایط پیدا نشد.</p>
+        </div>
+        <div v-if="section !== 'finance'" class="actions">
+          <button
+            v-if="offset"
+            class="button secondary"
+            @click="
+              offset = Math.max(0, offset - 20);
+              load();
+            "
+          >
+            صفحهٔ قبل</button
+          ><button
+            v-if="next !== null"
+            class="button secondary"
+            @click="
+              offset = next!;
+              load();
+            "
+          >
+            صفحهٔ بعد
+          </button>
+        </div>
+      </template>
+      <NuxtLink v-else class="button secondary" to="/zanyari/commerce">بازگشت به سفارش‌ها</NuxtLink>
     </div>
     <BaseDialog
       class="commerce-dialog"
+      :class="{ 'commerce-dialog-editor': kind !== 'detail' }"
       v-model="dialog"
       :title="
         kind === 'detail'
@@ -501,104 +521,119 @@ const stateLabel = (row: Record<string, unknown>) =>
         </ul></template
       >
       <FormShell v-else class="commerce-editor" @submit="save"
-        ><template v-if="kind === 'note'"
-          ><label>یادداشت داخلی<textarea v-model="note" maxlength="2000" /></label></template
-        ><template v-else
-          ><template v-if="kind === 'campaigns'"
-            ><label
-              >نام طرح<input v-model="form.name" required minlength="2" maxlength="120" /></label
-            ><label
-              >شروع (زمان محلی)<input
-                v-model="form.starts_at"
-                type="datetime-local"
-                required /></label
-            ><label
-              >پایان (زمان محلی)<input
-                v-model="form.ends_at"
-                type="datetime-local"
-                required /></label></template
-          ><template v-if="kind === 'coupons'"
-            ><label
-              >طرح تخفیف<select v-model="form.campaign_id" required :disabled="!!selected.id">
-                <option v-for="c in campaigns" :key="String(c.id)" :value="c.id">
-                  {{ c.name }}
-                </option>
+        ><div class="commerce-editor-fields">
+          <template v-if="kind === 'note'"
+            ><label>یادداشت داخلی<textarea v-model="note" maxlength="2000" /></label></template
+          ><template v-else
+            ><template v-if="kind === 'campaigns'"
+              ><label
+                >نام طرح<input v-model="form.name" required minlength="2" maxlength="120" /></label
+              ><label
+                >شروع (زمان محلی)<input
+                  v-model="form.starts_at"
+                  type="datetime-local"
+                  required /></label
+              ><label
+                >پایان (زمان محلی)<input
+                  v-model="form.ends_at"
+                  type="datetime-local"
+                  required /></label></template
+            ><template v-if="kind === 'coupons'"
+              ><label
+                >طرح تخفیف<select v-model="form.campaign_id" required :disabled="!!selected.id">
+                  <option v-for="c in campaigns" :key="String(c.id)" :value="c.id">
+                    {{ c.name }}
+                  </option>
+                </select></label
+              ><label
+                >کد تخفیف<input
+                  v-model="form.code"
+                  required
+                  dir="ltr"
+                  pattern="[A-Za-z0-9_-]+"
+                  maxlength="64" /></label
+              ><label
+                >نوع تخفیف<select v-model="form.type">
+                  <option value="percent">درصدی</option>
+                  <option value="fixed">مبلغ ثابت به ریال</option>
+                </select></label
+              ><label
+                >{{ form.type === 'percent' ? 'درصد تخفیف' : 'مبلغ تخفیف به ریال'
+                }}<input
+                  v-model.number="form.value"
+                  type="number"
+                  min="1"
+                  :max="form.type === 'percent' ? 100 : 9007199254740991"
+                  required /></label
+              ><label
+                >حداکثر تخفیف درصدی (ریال؛ صفر بدون سقف)<input
+                  v-model.number="form.max_discount_irr"
+                  type="number"
+                  min="0" /></label
+              ><label
+                >حداقل خرید (ریال)<input v-model.number="form.min_order_irr" type="number" min="0"
+              /></label>
+              <fieldset>
+                <legend>پایه‌های مجاز</legend>
+                <label v-for="grade in 6" :key="grade" class="checkbox"
+                  ><input v-model="form.skus" type="checkbox" :value="'YARIZAN-G' + grade" />پایهٔ
+                  {{ grade }}</label
+                >
+              </fieldset></template
+            ><template v-if="['campaigns', 'coupons'].includes(kind)"
+              ><label
+                >سقف کل استفاده (صفر بدون سقف)<input
+                  v-model.number="form.max_redemptions"
+                  type="number"
+                  min="0" /></label
+              ><label
+                >سقف هر مشتری (صفر بدون سقف)<input
+                  v-model.number="form.max_per_customer"
+                  type="number"
+                  min="0" /></label
+              ><label class="checkbox"
+                ><input v-model="form.enabled" type="checkbox" />فعال باشد</label
+              ></template
+            >
+            <p v-if="kind === 'reconcile'">
+              فقط بررسی و آماده‌سازی دوباره زمان‌بندی می‌شود؛ پرداخت تازه‌ای ساخته نمی‌شود و محدودیت
+              دستگاه یا نسل حساب دور زده نخواهد شد.
+            </p>
+            <label v-if="kind === 'refund'"
+              >نتیجهٔ بررسی<select v-model="refundState">
+                <option value="UNDER_REVIEW">در حال بررسی</option>
+                <option value="APPROVED">درخواست پذیرفته شد؛ وجه هنوز بازنگشته است</option>
+                <option value="REJECTED">درخواست رد شد</option>
               </select></label
-            ><label
-              >کد تخفیف<input
-                v-model="form.code"
+            >
+            <p v-if="kind === 'refund'">
+              این عملیات فقط نتیجهٔ بررسی پرونده را ثبت می‌کند. هیچ وجهی بازگردانده نمی‌شود و مجوز
+              خرید تغییر نمی‌کند.
+            </p>
+            <label
+              >دلیل تغییر<textarea
+                v-model="reason"
                 required
-                dir="ltr"
-                pattern="[A-Za-z0-9_-]+"
-                maxlength="64" /></label
-            ><label
-              >نوع تخفیف<select v-model="form.type">
-                <option value="percent">درصدی</option>
-                <option value="fixed">مبلغ ثابت به ریال</option>
-              </select></label
-            ><label
-              >{{ form.type === 'percent' ? 'درصد تخفیف' : 'مبلغ تخفیف به ریال'
-              }}<input
-                v-model.number="form.value"
-                type="number"
-                min="1"
-                :max="form.type === 'percent' ? 100 : 9007199254740991"
-                required /></label
-            ><label
-              >حداکثر تخفیف درصدی (ریال؛ صفر بدون سقف)<input
-                v-model.number="form.max_discount_irr"
-                type="number"
-                min="0" /></label
-            ><label
-              >حداقل خرید (ریال)<input v-model.number="form.min_order_irr" type="number" min="0"
-            /></label>
-            <fieldset>
-              <legend>پایه‌های مجاز</legend>
-              <label v-for="grade in 6" :key="grade" class="checkbox"
-                ><input v-model="form.skus" type="checkbox" :value="'YARIZAN-G' + grade" />پایهٔ
-                {{ grade }}</label
-              >
-            </fieldset></template
-          ><template v-if="['campaigns', 'coupons'].includes(kind)"
-            ><label
-              >سقف کل استفاده (صفر بدون سقف)<input
-                v-model.number="form.max_redemptions"
-                type="number"
-                min="0" /></label
-            ><label
-              >سقف هر مشتری (صفر بدون سقف)<input
-                v-model.number="form.max_per_customer"
-                type="number"
-                min="0" /></label
-            ><label class="checkbox"
-              ><input v-model="form.enabled" type="checkbox" />فعال باشد</label
-            ></template
-          >
-          <p v-if="kind === 'reconcile'">
-            فقط بررسی و آماده‌سازی دوباره زمان‌بندی می‌شود؛ پرداخت تازه‌ای ساخته نمی‌شود و محدودیت
-            دستگاه یا نسل حساب دور زده نخواهد شد.
-          </p>
-          <label v-if="kind === 'refund'"
-            >نتیجهٔ بررسی<select v-model="refundState">
-              <option value="UNDER_REVIEW">در حال بررسی</option>
-              <option value="APPROVED">درخواست پذیرفته شد؛ وجه هنوز بازنگشته است</option>
-              <option value="REJECTED">درخواست رد شد</option>
-            </select></label
-          >
-          <p v-if="kind === 'refund'">
-            این عملیات فقط نتیجهٔ بررسی پرونده را ثبت می‌کند. هیچ وجهی بازگردانده نمی‌شود و مجوز
-            خرید تغییر نمی‌کند.
-          </p>
-          <label
-            >دلیل تغییر<textarea
-              v-model="reason"
-              required
-              minlength="10"
-              maxlength="1000"
-            /></label></template
-        ><ApiNotice :message="message" /><button class="button primary" :disabled="saving">
-          {{ kind === 'note' ? 'ذخیرهٔ یادداشت' : 'ثبت تغییرات' }}
-        </button></FormShell
+                minlength="10"
+                maxlength="1000"
+              /></label
+          ></template>
+        </div>
+        <footer class="dialog-action-footer" aria-label="عملیات فرم">
+          <ApiNotice :message="message" />
+          <div class="actions">
+            <button class="button primary" :disabled="saving">
+              {{ kind === 'note' ? 'ذخیرهٔ یادداشت' : 'ثبت تغییرات' }}</button
+            ><button
+              type="button"
+              class="button secondary"
+              :disabled="saving"
+              @click="dialog = false"
+            >
+              انصراف
+            </button>
+          </div>
+        </footer></FormShell
       >
     </BaseDialog>
   </section>

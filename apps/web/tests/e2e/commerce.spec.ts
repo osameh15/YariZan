@@ -248,3 +248,149 @@ test('Cancelled synthetic payment never presents a successful purchase', async (
     page.getByText('مجوز این پایه آمادهٔ دریافت در برنامهٔ ویندوز است.', { exact: false }),
   ).toHaveCount(0);
 });
+
+test('Every visible commerce section loads its real API and unsupported sections fail clearly', async ({
+  page,
+}) => {
+  await manager(page);
+  const navigation = page.getByRole('navigation', { name: 'مدیریت فروش' });
+  await expect(navigation.getByRole('link')).toHaveCount(10);
+  const links = await navigation
+    .getByRole('link')
+    .evaluateAll((nodes) =>
+      nodes.map((n) => ({ href: n.getAttribute('href')!, label: n.textContent!.trim() })),
+    );
+  expect(new Set(links.map((l) => l.href)).size).toBe(10);
+  expect(new Set(links.map((l) => l.label)).size).toBe(10);
+  for (const link of links) {
+    const section = new URL(link.href, 'http://localhost').searchParams.get('section');
+    const loaded = page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/v2/admin/commerce/' + section + '?') &&
+        r.request().method() === 'GET',
+    );
+    await page.goto(link.href);
+    const response = await loaded;
+    expect(response.status(), section!).toBe(200);
+    const data = await response.json();
+    await expect(page.getByRole('heading', { name: link.label, exact: true })).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    if (section !== 'finance') {
+      expect(Array.isArray(data.items)).toBe(true);
+      if (!data.items.length)
+        await expect(page.getByText('رکوردی با این شرایط پیدا نشد.')).toBeVisible();
+    } else expect(data.currency).toBe('IRR');
+  }
+  const unexpected: string[] = [];
+  page.on('request', (r) => {
+    if (/admin\/commerce\/(paid_orders|refund_requests|not-real)/.test(r.url()))
+      unexpected.push(r.url());
+  });
+  for (const section of ['paid_orders', 'refund_requests', 'not-real']) {
+    await page.goto('/zanyari/commerce?section=' + section);
+    await expect(page.getByRole('alert')).toContainText('این بخش مدیریت وجود ندارد');
+    await expect(page.locator('table')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'بازگشت به سفارش‌ها', exact: true })).toBeVisible();
+  }
+  expect(unexpected).toEqual([]);
+  const a = await adminSession();
+  expect((await call('/admin/commerce/paid_orders', undefined, a)).status).toBe(404);
+});
+
+for (const width of [1440, 390])
+  test(`Coupon editor keeps save visible and fields keyboard reachable at ${width}px`, async ({
+    page,
+  }) => {
+    await discount();
+    await page.setViewportSize({ width, height: width === 390 ? 700 : 900 });
+    await manager(page);
+    await page.getByRole('link', { name: 'کدهای تخفیف', exact: true }).click();
+    const trigger = page.getByRole('button', { name: 'ساخت کد تخفیف', exact: true });
+    await trigger.click();
+    const dialog = page.getByRole('dialog'),
+      save = dialog.getByRole('button', { name: 'ثبت تغییرات', exact: true });
+    await expect(save).toBeInViewport();
+    await expect(dialog).toBeVisible();
+    await page.screenshot({
+      path: path.join(images, `18-coupon-actions-${width}.png`),
+      fullPage: false,
+      animations: 'disabled',
+    });
+    const fields = dialog.locator('.commerce-editor-fields');
+    const reason = dialog.getByLabel('دلیل تغییر', { exact: true });
+    await dialog.getByRole('button', { name: 'بستن پنجره', exact: true }).focus();
+    let reachedReason = false,
+      reachedSave = false;
+    for (let n = 0; n < 40; n++) {
+      await page.keyboard.press('Tab');
+      await expect(dialog.locator(':focus')).toBeInViewport();
+      await expect(save).toBeInViewport();
+      if (await reason.evaluate((el) => el === document.activeElement)) reachedReason = true;
+      if (await save.evaluate((el) => el === document.activeElement)) {
+        reachedSave = true;
+        break;
+      }
+    }
+    expect(reachedReason).toBe(true);
+    expect(reachedSave).toBe(true);
+    if (await fields.evaluate((el) => el.scrollHeight > el.clientHeight))
+      expect(await fields.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    await page.keyboard.press('Tab');
+    await expect(dialog.getByRole('button', { name: 'انصراف', exact: true })).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(save).toBeFocused();
+    await page.screenshot({
+      path: path.join(images, `19-coupon-keyboard-${width}.png`),
+      fullPage: false,
+      animations: 'disabled',
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+
+test('Production browser renders exact large IRR in checkout, paid order and finance', async ({
+  page,
+}) => {
+  await sql(
+    "UPDATE product_prices SET amount_irr=9007199254740983 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
+  );
+  try {
+    const e = await customer();
+    await login(page, e);
+    await page.goto('/checkout?sku=YARIZAN-G1');
+    await expect(page.locator('.commerce-totals')).toContainText('۹۰۰٬۷۱۹٬۹۲۵٬۴۷۴٬۰۹۸٫۳');
+    await page.getByRole('button', { name: 'ثبت سفارش و بررسی پرداخت' }).click();
+    await expect(page.locator('.commerce-totals')).toContainText('۹۰۰٬۷۱۹٬۹۲۵٬۴۷۴٬۰۹۸٫۳');
+    await page.getByRole('button', { name: 'ادامه در شبیه‌ساز پرداخت' }).click();
+    await page.getByRole('button', { name: 'تأیید پرداخت آزمایشی' }).click();
+    await expect(page.locator('.order-state')).toContainText('مجوز خرید آماده است', {
+      timeout: 20000,
+    });
+    await manager(page);
+    await page.getByRole('link', { name: 'گزارش مالی', exact: true }).click();
+    const n = BigInt(
+      (
+        await sql(
+          'SELECT COALESCE(sum(total_irr),0)::text amount FROM orders WHERE paid_at IS NOT NULL AND accepted_payment_id IS NOT NULL',
+        )
+      ).rows[0].amount,
+    );
+    const expected =
+      new Intl.NumberFormat('fa-IR').format(n / 10n) +
+      (n % 10n ? '٫' + new Intl.NumberFormat('fa-IR').format(n % 10n) : '');
+    await expect(
+      page
+        .locator('.stat-grid article')
+        .filter({ hasText: 'خالص سفارش‌های پرداخت‌شده' })
+        .locator('h2'),
+    ).toContainText(expected);
+  } finally {
+    await sql(
+      "UPDATE product_prices SET amount_irr=12990000 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
+    );
+  }
+});
