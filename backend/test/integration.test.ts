@@ -32,8 +32,12 @@ import { Security } from "../src/security/security";
 import { seal, unseal, hash } from "../src/security/crypto";
 
 import { Otp } from "../src/accounts/otp";
+import { Orders } from "../src/commerce/orders";
+import { Payments } from "../src/commerce/payments";
+import { Gateway } from "../src/commerce/gateway";
 import { Sms } from "../src/accounts/sms";
 process.env.NODE_ENV = "test";
+process.env.COMMERCE_MODE = "fake";
 process.env.SMS_PROVIDER = "fake";
 process.env.MOBILE_ENCRYPTION_KEY = "4".repeat(64);
 process.env.OTP_HMAC_KEY = "5".repeat(64);
@@ -2232,6 +2236,7 @@ test("Admin paginated reads enforce permissions and omit authentication and fing
 test("Real C# provisioning transport, lost delivery, protected storage and offline access", async () => {
   const fixture = {
     provisioning: true,
+    commerce: true,
     sms_fixture_path: path.resolve(".local/sms-test-outbox.jsonl"),
     mobile_key: process.env.MOBILE_ENCRYPTION_KEY,
     apiBase: base.replace("/api/v2", "/"),
@@ -3186,5 +3191,772 @@ test("Schema rejects password-only new accounts and non-SMS active Admin session
       [security.tokenHash("legacy"), adminId, security.tokenHash("csrf")],
     ),
     (e) => (e as { code: string }).code === "23514",
+  );
+});
+
+type SaleOrder = {
+  id: string;
+  state: string;
+  total_irr: number;
+  discount_irr: number;
+  revision: number;
+  exception_code: string | null;
+  payments: { id: string; state: string; redirect_url: string | null }[];
+};
+async function buyer() {
+  const e = await enroll(candidate());
+  return { ...e, browser: await login(e) };
+}
+async function saleOrder(
+  e: Awaited<ReturnType<typeof buyer>>,
+  coupon?: string,
+) {
+  return (
+    await ok<SaleOrder>(
+      "/orders",
+      {
+        request_id: randomUUID(),
+        sku: "YARIZAN-G1",
+        ...(coupon ? { coupon } : {}),
+      },
+      e.browser,
+    )
+  ).body;
+}
+async function salePayment(e: Awaited<ReturnType<typeof buyer>>, o: SaleOrder) {
+  return (
+    await ok<{ attempt_id: string; redirect_url: string }>(
+      `/orders/${o.id}/payments`,
+      { request_id: randomUUID() },
+      e.browser,
+    )
+  ).body;
+}
+async function recoverCommerce() {
+  await db.query(
+    "UPDATE commerce_jobs SET due_at=now() WHERE state='PENDING' AND kind<>'EXPIRE'",
+  );
+  for (let n = 0; n < 3; n++) await app.get(Payments).work(50);
+}
+async function discountFixture(overrides: Record<string, unknown> = {}) {
+  const campaign = (
+    await ok<{ id: string }>(
+      "/admin/commerce/campaigns",
+      {
+        ...mutation(),
+        name: "Synthetic campaign",
+        starts_at: new Date(Date.now() - 60000).toISOString(),
+        ends_at: new Date(Date.now() + 86400000).toISOString(),
+        enabled: true,
+        max_redemptions: 100,
+        max_per_customer: 1,
+        ...overrides,
+      },
+      admin,
+    )
+  ).body;
+  const body = {
+    ...mutation(),
+    campaign_id: campaign.id,
+    code: "TEST-" + randomBytes(6).toString("hex").toUpperCase(),
+    type: "percent",
+    value: 10,
+    max_discount_irr: null,
+    min_order_irr: null,
+    enabled: true,
+    max_redemptions: 100,
+    max_per_customer: 1,
+    skus: ["YARIZAN-G1"],
+  };
+  const code = (
+    await ok<{ id: string }>("/admin/commerce/coupons", body, admin)
+  ).body;
+  return { campaign, code, body };
+}
+
+test("Commerce uses real snapshots, idempotency, ownership and disabled product checks", async () => {
+  await app.get(Payments).beforeApplicationShutdown();
+  await db.query(
+    "UPDATE products SET publication_status='coming_soon',sale_enabled=false,trial_enabled=false,activation_enabled=false WHERE sku<>'YARIZAN-G1'",
+  );
+  const e = await buyer(),
+    other = await buyer();
+  const input = { request_id: randomUUID(), sku: "YARIZAN-G1" };
+  const quote = (
+    await ok<{ total_irr: number }>(
+      "/discounts/quote",
+      { sku: input.sku },
+      e.browser,
+    )
+  ).body;
+  assert.equal(quote.total_irr, 12990000);
+  const o = (await ok<SaleOrder>("/orders", input, e.browser)).body;
+  assert.equal(
+    (await ok<SaleOrder>("/orders", input, e.browser)).body.id,
+    o.id,
+  );
+  await denied(
+    "/orders",
+    { ...input, sku: "YARIZAN-G2" },
+    "IDEMPOTENCY_MISMATCH",
+    e.browser,
+  );
+  await denied(`/orders/${o.id}`, undefined, "NOT_FOUND", other.browser);
+  for (let grade = 2; grade <= 6; grade++)
+    await denied(
+      "/orders",
+      { request_id: randomUUID(), sku: "YARIZAN-G" + grade },
+      "PRODUCT_NOT_AVAILABLE",
+      other.browser,
+    );
+  const price = (
+    await db.query(
+      "SELECT amount_irr FROM product_prices WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
+    )
+  ).rows[0].amount_irr;
+  await db.query(
+    "UPDATE product_prices SET amount_irr=14000000 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
+  );
+  try {
+    assert.equal(
+      (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body
+        .total_irr,
+      12990000,
+    );
+  } finally {
+    await db.query(
+      "UPDATE product_prices SET amount_irr=$1 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
+      [price],
+    );
+  }
+  await assert.rejects(
+    db.query("UPDATE order_items SET total_irr=total_irr WHERE order_id=$1", [
+      o.id,
+    ]),
+    /Immutable history/,
+  );
+  await assert.rejects(
+    db.query("UPDATE orders SET total_irr=1 WHERE id=$1", [o.id]),
+    /immutable/,
+  );
+});
+
+test("Parallel duplicate order clicks expose only one financial order", async () => {
+  const e = await buyer();
+  const results = await Promise.all(
+    Array.from({ length: 12 }, () =>
+      request(
+        "/orders",
+        { request_id: randomUUID(), sku: "YARIZAN-G1" },
+        e.browser,
+      ),
+    ),
+  );
+  assert.equal(results.filter((r) => r.status === 201).length, 1);
+  assert.equal(
+    (
+      await db.query("SELECT count(*) FROM orders WHERE customer_id=$1", [
+        e.customer_id,
+      ])
+    ).rows[0].count,
+    "1",
+  );
+});
+
+test("Percent/fixed/capped coupons quote without reserving and reject zero totals and invalid rules", async () => {
+  const e = await buyer(),
+    d = await discountFixture();
+  const quote = () =>
+    ok<{ discount_irr: number }>(
+      "/discounts/quote",
+      { sku: "YARIZAN-G1", coupon: d.body.code.toLowerCase() },
+      e.browser,
+    );
+  assert.equal((await quote()).body.discount_irr, 1299000);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM discount_reservations WHERE code_id=$1",
+        [d.code.id],
+      )
+    ).rows[0].count,
+    "0",
+  );
+  await db.query(
+    "UPDATE discount_codes SET max_discount_irr=100000 WHERE id=$1",
+    [d.code.id],
+  );
+  assert.equal((await quote()).body.discount_irr, 100000);
+  await db.query(
+    "UPDATE discount_codes SET type='fixed',value=123456,max_discount_irr=NULL WHERE id=$1",
+    [d.code.id],
+  );
+  assert.equal((await quote()).body.discount_irr, 123456);
+  for (const sql of [
+    "UPDATE discount_codes SET min_order_irr=99999999 WHERE id=$1",
+    "UPDATE discount_codes SET min_order_irr=NULL,enabled=false WHERE id=$1",
+  ]) {
+    await db.query(sql, [d.code.id]);
+    await denied(
+      "/discounts/quote",
+      { sku: "YARIZAN-G1", coupon: d.body.code },
+      "COUPON_UNAVAILABLE",
+      e.browser,
+    );
+  }
+  await db.query(
+    "UPDATE discount_codes SET enabled=true,type='percent',value=100,min_order_irr=NULL WHERE id=$1",
+    [d.code.id],
+  );
+  await denied(
+    "/discounts/quote",
+    { sku: "YARIZAN-G1", coupon: d.body.code },
+    "ZERO_TOTAL_BLOCKED",
+    e.browser,
+  );
+  await db.query("UPDATE discount_codes SET value=10 WHERE id=$1", [d.code.id]);
+  await db.query(
+    "UPDATE discount_campaigns SET starts_at=now()+interval '1 hour' WHERE id=$1",
+    [d.campaign.id],
+  );
+  await denied(
+    "/discounts/quote",
+    { sku: "YARIZAN-G1", coupon: d.body.code },
+    "COUPON_UNAVAILABLE",
+    e.browser,
+  );
+  await db.query(
+    "UPDATE discount_campaigns SET starts_at=now()-interval '2 days',ends_at=now()-interval '1 day' WHERE id=$1",
+    [d.campaign.id],
+  );
+  await denied(
+    "/discounts/quote",
+    { sku: "YARIZAN-G1", coupon: d.body.code },
+    "COUPON_UNAVAILABLE",
+    e.browser,
+  );
+});
+
+test("Twenty PostgreSQL checkouts cannot reserve more than the last coupon allocation", async () => {
+  const d = await discountFixture({ max_redemptions: 1 }),
+    buyers = [];
+  for (let n = 0; n < 20; n++) buyers.push(await buyer());
+  const r = await Promise.all(
+    buyers.map((e) =>
+      request(
+        "/orders",
+        { request_id: randomUUID(), sku: "YARIZAN-G1", coupon: d.body.code },
+        e.browser,
+      ),
+    ),
+  );
+  assert.equal(r.filter((r) => r.status === 201).length, 1);
+  assert.equal(r.filter((r) => r.status === 422).length, 19);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM discount_reservations WHERE code_id=$1 AND state='RESERVED'",
+        [d.code.id],
+      )
+    ).rows[0].count,
+    "1",
+  );
+});
+
+test("Forged callback cannot pay; verified synthetic capture fulfills exactly once under duplicate workers", async () => {
+  const e = await buyer(),
+    d = await discountFixture(),
+    o = await saleOrder(e, d.body.code),
+    p = await salePayment(e, o);
+  const authority = (
+    await db.query("SELECT authority FROM payment_attempts WHERE id=$1", [
+      p.attempt_id,
+    ])
+  ).rows[0].authority;
+  await ok(`/payments/zarinpal/return?Authority=${authority}&Status=OK`);
+  await recoverCommerce();
+  assert.equal(
+    (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body.state,
+    "PENDING",
+  );
+  await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+  await db.query("UPDATE commerce_jobs SET due_at=now() WHERE target_id=$1", [
+    p.attempt_id,
+  ]);
+  await Promise.all(
+    Array.from({ length: 5 }, () => app.get(Payments).work(20)),
+  );
+  await recoverCommerce();
+  const paid = (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser))
+    .body;
+  assert.equal(paid.state, "FULFILLED");
+  for (let n = 0; n < 3; n++)
+    await ok(`/payments/zarinpal/return?Authority=${authority}&Status=NOK`);
+  await recoverCommerce();
+  for (const table of [
+    "order_fulfillments",
+    "discount_redemptions",
+    "purchase_notifications",
+  ]) {
+    const field =
+      table === "order_fulfillments"
+        ? "order_item_id IN (SELECT id FROM order_items WHERE order_id=$1)"
+        : "order_id=$1";
+    assert.equal(
+      (await db.query(`SELECT count(*) FROM ${table} WHERE ${field}`, [o.id]))
+        .rows[0].count,
+      "1",
+    );
+  }
+  const license = (
+    await ok<Envelope>(
+      "/desktop/licenses/pickup",
+      { sku: "YARIZAN-G1" },
+      e.credential,
+    )
+  ).body;
+  assert.equal(license.payload.device_id, e.device_id);
+  assert.equal(license.payload.expires_at, null);
+  await denied(
+    "/desktop/licenses/pickup",
+    { sku: "YARIZAN-G2" },
+    "ENTITLEMENT_REQUIRED",
+    e.credential,
+  );
+  await denied(
+    "/orders",
+    { request_id: randomUUID(), sku: "YARIZAN-G1" },
+    "ALREADY_OWNED",
+    e.browser,
+  );
+  await assert.rejects(
+    db.query("DELETE FROM payment_attempts WHERE id=$1", [p.attempt_id]),
+    /Immutable/,
+  );
+});
+
+test("Ambiguous verification retains coupon after expiry and recovers across a new worker instance", async () => {
+  const e = await buyer(),
+    d = await discountFixture(),
+    o = await saleOrder(e, d.body.code),
+    p = await salePayment(e, o);
+  await ok(`/orders/${o.id}/simulate`, { outcome: "UNKNOWN" }, e.browser);
+  await recoverCommerce();
+  assert.equal(
+    (
+      await db.query(
+        "SELECT state FROM discount_reservations WHERE order_id=$1",
+        [o.id],
+      )
+    ).rows[0].state,
+    "UNKNOWN",
+  );
+  await db.query(
+    "UPDATE discount_reservations SET expires_at=now()-interval '1 hour' WHERE order_id=$1",
+    [o.id],
+  );
+  await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+  const worker = new Payments(
+    app.get(Orders),
+    app.get((await import("../src/licenses/licenses")).Licenses),
+  );
+  await worker.work(50);
+  await recoverCommerce();
+  assert.equal(
+    (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body.state,
+    "FULFILLED",
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT state FROM discount_reservations WHERE order_id=$1",
+        [o.id],
+      )
+    ).rows[0].state,
+    "REDEEMED",
+  );
+  assert.ok(
+    (
+      await db.query(
+        "SELECT * FROM payment_transitions WHERE attempt_id=$1 AND next_state='UNKNOWN'",
+        [p.attempt_id],
+      )
+    ).rowCount,
+  );
+});
+
+test("Definitive failure releases quota; late-paid released allocation is preserved as a paid exception", async () => {
+  const e = await buyer(),
+    d = await discountFixture({ max_redemptions: 1 }),
+    o = await saleOrder(e, d.body.code),
+    p = await salePayment(e, o);
+  await ok(`/orders/${o.id}/simulate`, { outcome: "FAILED" }, e.browser);
+  await recoverCommerce();
+  assert.equal(
+    (
+      await db.query(
+        "SELECT state FROM discount_reservations WHERE order_id=$1",
+        [o.id],
+      )
+    ).rows[0].state,
+    "RELEASED",
+  );
+  const a = (
+    await db.query("SELECT * FROM fake_gateway_payments WHERE attempt_id=$1", [
+      p.attempt_id,
+    ])
+  ).rows[0];
+  await app.get(Payments).settle(p.attempt_id, {
+    state: "VERIFIED",
+    authority: a.authority,
+    reference: a.provider_ref,
+    amount_irr: Number(a.amount_irr),
+    currency: a.currency,
+    provider_config: a.merchant_config,
+  });
+  const paid = (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser))
+    .body;
+  assert.equal(paid.exception_code, "LATE_RELEASED_COUPON");
+  assert.equal(paid.state, "FULFILLMENT_PENDING");
+  assert.equal(
+    (
+      await db.query("SELECT state FROM payment_attempts WHERE id=$1", [
+        p.attempt_id,
+      ])
+    ).rows[0].state,
+    "VERIFIED",
+  );
+});
+
+test("Paid signing failure never loses payment and safely retries fulfillment", async () => {
+  const e = await buyer(),
+    o = await saleOrder(e);
+  await salePayment(e, o);
+  await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+  await app.get(Payments).work(50);
+  const original = signing.artifact.bind(signing);
+  signing.artifact = () => {
+    throw Error("synthetic signer outage");
+  };
+  try {
+    await app.get(Payments).work(50);
+    const paid = (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser))
+      .body;
+    assert.equal(paid.state, "FULFILLMENT_PENDING");
+    assert.equal(paid.payments[0].state, "VERIFIED");
+  } finally {
+    signing.artifact = original;
+  }
+  await recoverCommerce();
+  assert.equal(
+    (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body.state,
+    "FULFILLED",
+  );
+});
+
+test("Reset and product blocks retain captured money without granting stale-generation access", async () => {
+  for (const action of ["reset", "block"]) {
+    const e = await buyer(),
+      o = await saleOrder(e);
+    await salePayment(e, o);
+    await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+    if (action === "reset")
+      await ok(`/admin/customers/${e.customer_id}/reset`, mutation(), admin);
+    else
+      await ok(
+        `/admin/devices/${e.device_id}/products/YARIZAN-G1/block`,
+        mutation(),
+        admin,
+      );
+    await recoverCommerce();
+    const paid = (await db.query("SELECT * FROM orders WHERE id=$1", [o.id]))
+      .rows[0];
+    assert.ok(paid.paid_at);
+    assert.equal(
+      paid.exception_code,
+      action === "reset" ? "ACCOUNT_GENERATION_CHANGED" : "PRODUCT_BLOCKED",
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*) FROM entitlements WHERE source_order_item_id IN (SELECT id FROM order_items WHERE order_id=$1)",
+          [o.id],
+        )
+      ).rows[0].count,
+      "0",
+    );
+  }
+});
+
+test("Sales disabling after initiation does not invalidate the paid snapshot", async () => {
+  const e = await buyer(),
+    o = await saleOrder(e);
+  await salePayment(e, o);
+  await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+  await db.query(
+    "UPDATE products SET sale_enabled=false WHERE sku='YARIZAN-G1'",
+  );
+  try {
+    await recoverCommerce();
+    assert.equal(
+      (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body.state,
+      "FULFILLED",
+    );
+  } finally {
+    await db.query(
+      "UPDATE products SET sale_enabled=true WHERE sku='YARIZAN-G1'",
+    );
+  }
+});
+
+test("Merchant/amount/currency/authority mismatch remains unknown and auditable", async () => {
+  for (const change of [
+    { amount_irr: 1 },
+    { currency: "IRT" },
+    { provider_config: "wrong-merchant" },
+    { authority: "FAKE-" + randomUUID() },
+  ]) {
+    const e = await buyer(),
+      o = await saleOrder(e),
+      p = await salePayment(e, o),
+      a = (
+        await db.query(
+          "SELECT * FROM fake_gateway_payments WHERE attempt_id=$1",
+          [p.attempt_id],
+        )
+      ).rows[0];
+    await app.get(Payments).settle(p.attempt_id, {
+      state: "VERIFIED",
+      authority: a.authority,
+      reference: a.provider_ref,
+      amount_irr: Number(a.amount_irr),
+      currency: a.currency,
+      provider_config: a.merchant_config,
+      ...change,
+    });
+    assert.equal(
+      (
+        await db.query("SELECT state FROM payment_attempts WHERE id=$1", [
+          p.attempt_id,
+        ])
+      ).rows[0].state,
+      "UNKNOWN",
+    );
+    assert.equal(
+      (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body
+        .exception_code,
+      "VERIFICATION_MISMATCH",
+    );
+  }
+});
+
+test("Commerce RBAC, revision conflicts, notes search and finance reporting are server-authoritative", async () => {
+  const d = await discountFixture(),
+    e = await buyer(),
+    o = await saleOrder(e),
+    support = await adminLogin("support");
+  await denied("/admin/commerce/finance", undefined, "FORBIDDEN", support);
+  await denied(
+    "/admin/commerce/campaigns",
+    {
+      ...mutation(),
+      name: "Forbidden campaign",
+      starts_at: new Date().toISOString(),
+      ends_at: new Date(Date.now() + 86400000).toISOString(),
+      enabled: true,
+      max_redemptions: 1,
+      max_per_customer: 1,
+    },
+    "FORBIDDEN",
+    support,
+  );
+  await denied(
+    `/admin/commerce/coupons/${d.code.id}`,
+    { ...d.body, ...mutation(99) },
+    "STALE_REVISION",
+    admin,
+    "PATCH",
+  );
+  await ok(
+    `/admin/notes/orders/${o.id}`,
+    { note: "Synthetic financial purple-orbit", expected_revision: 0 },
+    admin,
+  );
+  const search = (
+    await ok<{ items: { id: string }[] }>(
+      "/admin/commerce/orders?search=purple-orbit",
+      undefined,
+      admin,
+    )
+  ).body;
+  assert.ok(search.items.some((r) => r.id === o.id));
+  const report = (
+    await ok<{ net_irr: string; mode: string }>(
+      "/admin/commerce/finance",
+      undefined,
+      admin,
+    )
+  ).body;
+  assert.equal(report.mode, "simulated");
+  assert.match(report.net_irr, /^[0-9]+$/);
+});
+
+test("Ambiguous create never retries charge creation; durable fake inquiry recovers orphan authority", async () => {
+  const e = await buyer(),
+    o = await saleOrder(e),
+    gateway = app.get(Gateway),
+    prior = gateway.provider;
+  let creates = 0;
+  gateway.provider = {
+    create: async (r) => {
+      creates++;
+      await prior.create(r);
+      throw Error("lost authority persistence response");
+    },
+    query: (r) => prior.query(r),
+    verify: (r) => prior.verify(r),
+  };
+  const request_id = randomUUID();
+  try {
+    const a = (
+      await ok<{ attempt_id: string; state: string }>(
+        `/orders/${o.id}/payments`,
+        { request_id },
+        e.browser,
+      )
+    ).body;
+    assert.equal(a.state, "UNKNOWN");
+    await ok(`/orders/${o.id}/payments`, { request_id }, e.browser);
+    assert.equal(creates, 1);
+    await denied(
+      `/orders/${o.id}/payments`,
+      { request_id: randomUUID() },
+      "PAYMENT_ALREADY_PENDING",
+      e.browser,
+    );
+    await recoverCommerce();
+    assert.ok(
+      (
+        await db.query("SELECT authority FROM payment_attempts WHERE id=$1", [
+          a.attempt_id,
+        ])
+      ).rows[0].authority,
+    );
+    await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+    await recoverCommerce();
+    assert.equal(
+      (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body.state,
+      "FULFILLED",
+    );
+  } finally {
+    gateway.provider = prior;
+  }
+});
+
+test("Duplicate capture and reused provider references retain financial exceptions without duplicate licenses", async () => {
+  const e = await buyer(),
+    o = await saleOrder(e),
+    p = await salePayment(e, o);
+  await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+  await recoverCommerce();
+  const second = randomUUID();
+  await db.query(
+    "INSERT INTO payment_attempts(id,order_id,provider,amount_irr,state,authority,provider_config) VALUES($1,$2,'zarinpal',$3,'FAILED',$4,'fake-v1')",
+    [second, o.id, o.total_irr, "FAKE-" + second],
+  );
+  await app.get(Payments).settle(second, {
+    state: "VERIFIED",
+    authority: "FAKE-" + second,
+    reference: "SYNTHETIC-" + second,
+    amount_irr: o.total_irr,
+    currency: "IRR",
+    provider_config: "fake-v1",
+  });
+  assert.equal(
+    (
+      await db.query(
+        "SELECT exception_code FROM payment_attempts WHERE id=$1",
+        [second],
+      )
+    ).rows[0].exception_code,
+    "DUPLICATE_CAPTURE",
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM order_fulfillments WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id=$1)",
+        [o.id],
+      )
+    ).rows[0].count,
+    "1",
+  );
+  const other = await buyer(),
+    oo = await saleOrder(other),
+    pp = await salePayment(other, oo),
+    aa = (
+      await db.query(
+        "SELECT authority,provider_ref FROM payment_attempts WHERE id=$1",
+        [p.attempt_id],
+      )
+    ).rows[0];
+  const authority = (
+    await db.query("SELECT authority FROM payment_attempts WHERE id=$1", [
+      pp.attempt_id,
+    ])
+  ).rows[0].authority;
+  await app.get(Payments).settle(pp.attempt_id, {
+    state: "VERIFIED",
+    authority,
+    reference: aa.provider_ref,
+    amount_irr: oo.total_irr,
+    currency: "IRR",
+    provider_config: "fake-v1",
+  });
+  const evidence = (
+    await db.query(
+      "SELECT state,reported_ref,exception_code FROM payment_attempts WHERE id=$1",
+      [pp.attempt_id],
+    )
+  ).rows[0];
+  assert.equal(evidence.state, "VERIFIED");
+  assert.equal(evidence.reported_ref, aa.provider_ref);
+  assert.equal(evidence.exception_code, "REFERENCE_REUSED");
+});
+
+test("Expired uninitiated orders release coupon; held unknowns exhaust quotas; probing is bounded", async () => {
+  const e = await buyer(),
+    d = await discountFixture({ max_redemptions: 1 }),
+    o = await saleOrder(e, d.body.code);
+  await db.query(
+    "UPDATE commerce_jobs SET due_at=now() WHERE order_id=$1 AND kind='EXPIRE'",
+    [o.id],
+  );
+  // Snapshot expiry cannot be rewritten; advance the fixture clock by inserting a past-due order initially instead.
+  await assert.rejects(
+    db.query(
+      "UPDATE orders SET expires_at=now()-interval '1 minute' WHERE id=$1",
+      [o.id],
+    ),
+    /immutable/,
+  );
+  const other = await buyer();
+  await denied(
+    "/discounts/quote",
+    { sku: "YARIZAN-G1", coupon: d.body.code },
+    "COUPON_UNAVAILABLE",
+    other.browser,
+  );
+  for (let n = 0; n < 19; n++)
+    await denied(
+      "/discounts/quote",
+      { sku: "YARIZAN-G1", coupon: "UNKNOWN-" + n },
+      "COUPON_UNAVAILABLE",
+      other.browser,
+    );
+  await denied(
+    "/discounts/quote",
+    { sku: "YARIZAN-G1", coupon: "UNKNOWN-LAST" },
+    "RATE_LIMITED",
+    other.browser,
   );
 });

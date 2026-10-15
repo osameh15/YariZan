@@ -1,0 +1,289 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Patch,
+  Query,
+  Req,
+} from "@nestjs/common";
+import { Request } from "express";
+import { z } from "zod";
+import { Orders } from "./orders";
+import { Payments } from "./payments";
+import { CommerceAdministration } from "./administration";
+import {
+  quoteInput,
+  orderInput,
+  paymentInput,
+  simulationInput,
+  campaignInput,
+  codeInput,
+  filters,
+} from "./contracts";
+import { uuid, mutationSchema } from "../common/schemas";
+import { Admin } from "../admin/admin";
+import { requireCondition } from "../common/errors";
+
+@Controller("api/v2")
+export class CommerceController {
+  constructor(
+    private orders: Orders,
+    private payments: Payments,
+    private management: CommerceAdministration,
+    private admin: Admin,
+  ) {}
+  private actor(req: Request, id?: string) {
+    return {
+      type: id ? ("CUSTOMER" as const) : ("SYSTEM" as const),
+      id,
+      correlationId: req.res!.locals.correlationId as string,
+    };
+  }
+  @Get("commerce/capabilities") capabilities() {
+    return {
+      mode: this.orders.security.config.COMMERCE_MODE,
+      checkout_enabled: this.orders.security.config.COMMERCE_MODE === "fake",
+      real_payments_enabled: false,
+      currency: "IRR",
+    };
+  }
+  @Post("discounts/quote") async quote(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    return this.orders.quote(
+      await this.orders.security.customer(req),
+      quoteInput.parse(body),
+    );
+  }
+  @Post("orders") async create(@Body() body: unknown, @Req() req: Request) {
+    const u = await this.orders.security.customer(req);
+    return this.orders.create(u, orderInput.parse(body), this.actor(req, u.id));
+  }
+  @Get("orders") async list(@Query() query: unknown, @Req() req: Request) {
+    return this.orders.list(
+      await this.orders.security.customer(req),
+      filters.parse(query).offset,
+    );
+  }
+  @Get("account/orders") async accountOrders(
+    @Query() query: unknown,
+    @Req() req: Request,
+  ) {
+    return this.list(query, req);
+  }
+  @Get("orders/:id") async read(@Param("id") id: string, @Req() req: Request) {
+    return this.orders.read(
+      await this.orders.security.customer(req),
+      uuid.parse(id),
+    );
+  }
+  @Post("orders/:id/payments") async initiate(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const u = await this.orders.security.customer(req);
+    await this.orders.security.rate("payment-start:" + u.id, 12, 300);
+    return this.payments.initiate(
+      u,
+      uuid.parse(id),
+      paymentInput.parse(body).request_id,
+      this.actor(req, u.id),
+    );
+  }
+  @Post("orders/:id/simulate") async simulate(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const u = await this.orders.security.customer(req);
+    return this.payments.simulate(
+      u,
+      uuid.parse(id),
+      simulationInput.parse(body).outcome,
+      this.actor(req, u.id),
+    );
+  }
+  @Get("payments/zarinpal/return") async returned(
+    @Query() query: unknown,
+    @Req() req: Request,
+  ) {
+    await this.orders.security.rate(
+      "payment-return:" + req.socket.remoteAddress,
+      60,
+      60,
+    );
+    const q = z
+      .object({
+        Authority: z
+          .string()
+          .regex(/^(?:FAKE-[0-9a-f-]{36}|A[A-Za-z0-9]{32})$/),
+        Status: z.string().max(20).optional(),
+      })
+      .parse(query);
+    return this.payments.returned(q.Authority);
+  }
+  @Post("orders/:id/refund-request") async refund(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const u = await this.orders.security.customer(req),
+      b = z
+        .strictObject({ reason: z.string().trim().min(10).max(1000) })
+        .parse(body);
+    return this.orders.db.transaction(async (c) => {
+      await this.orders.scope(c, u);
+      const o = (
+        await c.query(
+          "SELECT * FROM orders WHERE id=$1 AND customer_id=$2 FOR UPDATE",
+          [uuid.parse(id), u.id],
+        )
+      ).rows[0];
+      requireCondition(o?.paid_at, "NOT_FOUND", 404);
+      await c.query(
+        "INSERT INTO refund_requests(id,order_id,customer_id,reason,state) VALUES(gen_random_uuid(),$1,$2,$3,'REQUESTED') ON CONFLICT(order_id) DO NOTHING",
+        [id, u.id, b.reason],
+      );
+      await this.orders.audit.append(
+        c,
+        this.actor(req, u.id),
+        "refund.requested",
+        id,
+      );
+      return { requested: true, money_returned: false };
+    });
+  }
+  @Get("admin/commerce/:section") async adminList(
+    @Param("section") section: string,
+    @Query() query: unknown,
+    @Req() req: Request,
+  ) {
+    return this.orders.db.transaction(async (c) => {
+      await this.orders.security.admin(
+        req,
+        section === "finance" ? "finance.read" : "commerce.read",
+        c,
+      );
+      return section === "finance"
+        ? this.management.finance(c, filters.parse(query))
+        : this.management.list(c, section, filters.parse(query));
+    });
+  }
+  @Get("admin/commerce/orders/:id") async adminOrder(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ) {
+    return this.orders.db.transaction(async (c) => {
+      await this.orders.security.admin(req, "commerce.read", c);
+      const order = await this.orders.view(c, uuid.parse(id));
+      return {
+        ...order,
+        transitions: (
+          await c.query(
+            "SELECT t.* FROM payment_transitions t JOIN payment_attempts p ON p.id=t.attempt_id WHERE p.order_id=$1 ORDER BY t.created_at,t.id",
+            [id],
+          )
+        ).rows,
+      };
+    });
+  }
+  @Post("admin/commerce/campaigns") campaign(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = campaignInput.parse(body);
+    return this.admin.operation(
+      req,
+      "commerce.manage",
+      b,
+      { id: b.request_id },
+      (c) => this.management.campaign(c, b),
+    );
+  }
+  @Patch("admin/commerce/campaigns/:id") updateCampaign(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = campaignInput.parse(body);
+    return this.admin.operation(
+      req,
+      "commerce.manage",
+      b,
+      { id: uuid.parse(id) },
+      (c) => this.management.campaign(c, b, id),
+    );
+  }
+  @Post("admin/commerce/coupons") coupon(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = codeInput.parse(body);
+    return this.admin.operation(
+      req,
+      "commerce.manage",
+      b,
+      { id: b.request_id },
+      (c) => this.management.code(c, b),
+    );
+  }
+  @Patch("admin/commerce/coupons/:id") updateCoupon(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = codeInput.parse(body);
+    return this.admin.operation(
+      req,
+      "commerce.manage",
+      b,
+      { id: uuid.parse(id) },
+      (c) => this.management.code(c, b, id),
+    );
+  }
+  @Post("admin/commerce/orders/:id/reconcile") reconcile(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = mutationSchema.parse(body);
+    return this.admin.operation(
+      req,
+      "finance.reconcile",
+      b,
+      { id: uuid.parse(id) },
+      (c) => this.management.reconcile(c, id, b),
+    );
+  }
+  @Post("admin/commerce/refunds/:id/review") reviewRefund(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = mutationSchema
+      .extend({ state: z.enum(["UNDER_REVIEW", "APPROVED", "REJECTED"]) })
+      .parse(body);
+    return this.admin.operation(
+      req,
+      "refunds.review",
+      b,
+      { id: uuid.parse(id) },
+      async (c, a) => {
+        const r = await c.query(
+          "UPDATE refund_requests SET state=$2,revision=revision+1,review_reason=$3,reviewed_by=$4 WHERE id=$1 AND revision=$5 RETURNING revision",
+          [id, b.state, b.reason, a.id, b.expected_revision],
+        );
+        requireCondition(r.rowCount, "STALE_REVISION", 409);
+        return {
+          state: b.state,
+          revision: Number(r.rows[0].revision),
+          money_returned: false,
+        };
+      },
+    );
+  }
+}

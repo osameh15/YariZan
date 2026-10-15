@@ -58,7 +58,7 @@ export class HealthController {
     const r = await this.db.query<{ count: string }>(
       "SELECT count(*) FROM schema_migrations",
     );
-    requireCondition(Number(r.rows[0].count) === 8, "MIGRATIONS_REQUIRED", 503);
+    requireCondition(Number(r.rows[0].count) === 9, "MIGRATIONS_REQUIRED", 503);
     return { status: "ready", production_gate: "closed" };
   }
 }
@@ -927,3 +927,5 @@ export class AdminController {
     });
   }
 }
+
+export { CommerceController } from "../commerce/controller";

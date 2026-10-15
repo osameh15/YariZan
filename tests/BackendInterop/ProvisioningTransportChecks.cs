@@ -29,16 +29,23 @@ internal static class ProvisioningTransportChecks
         using var http=new HttpClient(transport);
         using var browser=new HttpClient(new HttpClientHandler{AllowAutoRedirect=false,UseCookies=false});
         string route(string value)=>new Uri(new Uri(Text("apiBase")),"api/v2/"+value).AbsoluteUri;
+        string customerCookie="",customerCsrf="";
         async Task<JsonDocument> Post(string value,object body,bool admin=false)
         {
             using var request=new HttpRequestMessage(HttpMethod.Post,route(value));
             request.Headers.Add("Origin",Text("origin"));
             if(admin){request.Headers.Add("Cookie",Text("adminCookie"));request.Headers.Add("X-CSRF-Token",Text("adminCsrf"));}
+            if(!admin&&value.StartsWith("orders",StringComparison.Ordinal)){request.Headers.Add("Cookie",customerCookie);request.Headers.Add("X-CSRF-Token",customerCsrf);}
             request.Content=new StringContent(JsonSerializer.Serialize(body),Encoding.UTF8,"application/json");
             using var response=await browser.SendAsync(request);
             string result=await response.Content.ReadAsStringAsync();
             if(!response.IsSuccessStatusCode)throw new Exception("Synthetic API operation failed: "+value+" "+(int)response.StatusCode);
-            return StrictJson.Parse(result);
+            var parsed=StrictJson.Parse(result);
+            if(value=="auth/claim"){
+                customerCsrf=parsed.RootElement.GetProperty("csrf_token").GetString()!;
+                customerCookie=response.Headers.GetValues("Set-Cookie").Single(v=>v.StartsWith("yz_customer=",StringComparison.Ordinal)).Split(';')[0];
+            }
+            return parsed;
         }
         async Task<JsonDocument> Approve(DesktopPairing pair)
         {
@@ -119,7 +126,23 @@ internal static class ProvisioningTransportChecks
             await access.RefreshTrialStatusAsync();await access.StartTrialAsync();
             Check(access.CanEnter&&transport.Requests==requests,"active process trial has no network check");
             transport.Offline=false;
+            if(input.TryGetProperty("commerce",out var commerce)&&commerce.GetBoolean()){
+                using var order=await Post("orders",new{request_id=Guid.NewGuid().ToString("D"),sku="YARIZAN-G1"});
+                string orderId=order.RootElement.GetProperty("id").GetString()!;
+                using var initiated=await Post("orders/"+orderId+"/payments",new{request_id=Guid.NewGuid().ToString("D")});
+                using var simulated=await Post("orders/"+orderId+"/simulate",new{outcome="SUCCESS"});
+                bool fulfilled=false;
+                for(int n=0;n<150&&!fulfilled;n++){
+                    using var statusRequest=new HttpRequestMessage(HttpMethod.Get,route("orders/"+orderId));statusRequest.Headers.Add("Cookie",customerCookie);
+                    using var statusResponse=await browser.SendAsync(statusRequest);statusResponse.EnsureSuccessStatusCode();
+                    using var status=StrictJson.Parse(await statusResponse.Content.ReadAsStringAsync());
+                    fulfilled=status.RootElement.GetProperty("state").GetString()=="FULFILLED";
+                    if(!fulfilled)await Task.Delay(100);
+                }
+                Check(fulfilled,"verified synthetic order fulfills through durable commerce worker");
+            }else{
             using var issued=await Post("admin/licenses/issue",new{request_id=Guid.NewGuid().ToString("D"),reason="Synthetic manual ownership verification",expected_revision=1,evidence_ref="synthetic-evidence-001",device_id=enrollment.DeviceId,sku="YARIZAN-G1"},true);
+            }
             await access.PickupLicenseAsync();Check(access.IsPurchased,"real paid pickup and protected storage");
             transport.Offline=true;
             using var paidRestart=new DesktopAccessController(identity,new Product(1),verifier,licenses,client,enrollmentStore);
@@ -130,11 +153,12 @@ internal static class ProvisioningTransportChecks
             string value=code.RootElement.GetProperty("activation_code").GetString()!;
             string redeemed=await client.RedeemAsync(new ActivationCodeRequest(value,enrollment.DeviceId,"YARIZAN-G1",Guid.NewGuid().ToString("D")),default);
             Check(verifier.VerifyLicense(redeemed,identity,new Product(1),enrollment).DeviceId==enrollment.DeviceId,"manual code uses authenticated desktop transport");
-            string licenseId=issued.RootElement.GetProperty("payload").GetProperty("license_id").GetString()!;
+            using var paidArtifact=StrictJson.Parse(redeemed);
+            string licenseId=paidArtifact.RootElement.GetProperty("payload").GetProperty("license_id").GetString()!;
             using var revoked=await Post("admin/licenses/"+licenseId+"/revoke",Mutation(),true);
             await access.SynchronizePurchasedAsync();Check(access.IsPurchased,"signed revocation leaves current process unchanged");
             using var nextLaunch=new DesktopAccessController(identity,new Product(1),verifier,licenses,client,enrollmentStore);Check(nextLaunch.State==DesktopAccessState.Revoked,"cached signed revocation applies on next launch");
-            string customerId=issued.RootElement.GetProperty("payload").GetProperty("customer_id").GetString()!;
+            string customerId=paidArtifact.RootElement.GetProperty("payload").GetProperty("customer_id").GetString()!;
             using var reset=await Post("admin/customers/"+customerId+"/reset",Mutation(),true);
             Check(!await restarted.ResumeAsync(default),"reset credential has tombstone scope and cannot pretend to be current enrollment");
             var freshPair=await restarted.BeginAsync(default);
