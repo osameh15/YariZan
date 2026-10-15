@@ -3493,6 +3493,20 @@ test("Forged callback cannot pay; verified synthetic capture fulfills exactly on
   for (let n = 0; n < 3; n++)
     await ok(`/payments/zarinpal/return?Authority=${authority}&Status=NOK`);
   await recoverCommerce();
+  await db.query(
+    "UPDATE commerce_jobs SET state='PENDING',due_at=now() WHERE order_id=$1 AND kind='PURCHASE_NOTICE'",
+    [o.id],
+  );
+  await recoverCommerce();
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM outbox_events WHERE aggregate_id=$1 AND type='purchase.notification_recorded'",
+        [o.id],
+      )
+    ).rows[0].count,
+    "1",
+  );
   for (const table of [
     "order_fulfillments",
     "discount_redemptions",

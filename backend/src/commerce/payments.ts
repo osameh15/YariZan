@@ -609,17 +609,18 @@ export class Payments
               "FULFILLMENT_PENDING",
               409,
             );
-            await c.query(
-              "INSERT INTO purchase_notifications(order_id,template_key,state) VALUES($1,$2,'RECORDED') ON CONFLICT DO NOTHING",
+            const recorded = await c.query(
+              "INSERT INTO purchase_notifications(order_id,template_key,state) VALUES($1,$2,'RECORDED') ON CONFLICT DO NOTHING RETURNING order_id",
               [o.id, this.orders.security.config.PURCHASE_SMS_TEMPLATE],
             );
-            await this.orders.audit.append(
-              c,
-              system(),
-              "purchase.notification_recorded",
-              o.id,
-              { delivery: "disabled", mode: "simulated" },
-            );
+            if (recorded.rowCount)
+              await this.orders.audit.append(
+                c,
+                system(),
+                "purchase.notification_recorded",
+                o.id,
+                { delivery: "disabled", mode: "simulated" },
+              );
           });
           done = true;
         }

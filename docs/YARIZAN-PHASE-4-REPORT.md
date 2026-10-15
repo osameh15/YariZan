@@ -19,7 +19,7 @@ Safety: no live payment/refund, SMS, merchant credential, production signing key
 
 ## Repository and implementation checkpoints
 
-Branch: `feat/yarizan-v2-commerce`. Base remains `e474a6a92adb4cd341289a7f4238c6f128cb3f99`. Draft PR and final validation links are recorded in the delivery evidence below; final HEAD is also the PR head, since a report cannot embed its own commit hash. No main rewrite, merge or force-push is authorized.
+Branch: `feat/yarizan-v2-commerce`. Base remains `e474a6a92adb4cd341289a7f4238c6f128cb3f99`. Draft PR: https://github.com/osameh15/YariZan/pull/4 (Draft, not merged). Final validation links are recorded in the delivery evidence below; final HEAD is also the PR head, since a report cannot embed its own commit hash. No main rewrite, merge or force-push is authorized.
 
 Focused commits before final evidence:
 
@@ -166,3 +166,10 @@ Checkout/mobile/dialog screenshots were visually inspected. All payment views cl
 The synthetic checkout-to-license foundation is implemented; commercial operation is not ready or approved. Outstanding: merchant-specific ZarinPal acceptance/credentials/transport, bank settlement policy, real refunds, approved purchase SMS templates/consumer, first-claim physical assurance/support disputes, external signing custody/public roots, physical commercial Windows acceptance, production load/backup/monitoring and separately authorized deployment. See [commercial checklist](YARIZAN-COMMERCIAL-RELEASE-CHECKLIST.md).
 
 No modifications to main, production/staging/live server, PHP/MySQL service, DNS/CDN/Traefik/VPS, real customer records, ZarinPal merchant, MeliPayamak account, production signing keys, live payment/refund or settlement infrastructure. No merge, deployment, real charge/refund/SMS, commercial key creation or force-push. Only feature-branch commits and a Draft PR are delivered for independent review.
+
+
+## Delivery evidence checkpoint
+
+Implementation checkpoint 6d354cf5dd5804e66bc1e2689e21e6a39d174076 introduced the report/contracts and reporting additions. Latest full local run: backend 158/158 (140.02s), web unit 17/17, browser 30/30 (2.1m); refreshed all 17 Phase 4 screenshots. A final notification recovery hardening test forces replay of a completed PURCHASE_NOTICE job and checks exactly one existing-outbox purchase event as well as one notification record. This prevents restart retries from emitting duplicate future notifications.
+
+Initial implementation CI (superseded by final evidence commits): backend https://github.com/osameh15/YariZan/actions/runs/38807756776 ; web https://github.com/osameh15/YariZan/actions/runs/38807756770 ; Windows https://github.com/osameh15/YariZan/actions/runs/38807756761 . Final status is not inferred from these runs; exact final-head results are added after completion.
