@@ -13,8 +13,16 @@ export const noteTypes = z.enum([
   "activation-codes",
   "trials",
   "products",
+  "orders",
+  "payments",
+  "campaigns",
+  "coupons",
 ]);
 const permissions: Record<string, string> = {
+  orders: "commerce.read",
+  payments: "commerce.read",
+  campaigns: "commerce.read",
+  coupons: "commerce.read",
   customers: "customers.read",
   devices: "devices.read",
   licenses: "licenses.read",
@@ -45,12 +53,18 @@ export class Notes {
     return this.db.transaction(async (c) => {
       const a = await this.security.admin(req, "notes.manage", c);
       await this.security.admin(req, permissions[type], c);
+      const commercial: Record<string, string> = {
+        payments: "payment_attempts",
+        campaigns: "discount_campaigns",
+        coupons: "discount_codes",
+      };
       const table =
-        type === "activation-codes"
+        commercial[type] ??
+        (type === "activation-codes"
           ? "activation_codes"
           : type === "trials"
             ? "trial_counters"
-            : type;
+            : type);
       const found = trial
         ? await c.query(
             "SELECT 1 FROM trial_counters WHERE device_id=$1 AND sku=$2 AND generation=$3 FOR SHARE",
