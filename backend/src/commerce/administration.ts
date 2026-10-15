@@ -218,7 +218,7 @@ export class CommerceAdministration {
   async finance(c: PoolClient, f: z.infer<typeof filters>) {
     const totals = (
       await c.query(
-        "SELECT count(*) FILTER(WHERE paid_at IS NOT NULL)::text paid_orders,COALESCE(sum(subtotal_irr) FILTER(WHERE paid_at IS NOT NULL),0)::text gross_irr,COALESCE(sum(discount_irr) FILTER(WHERE paid_at IS NOT NULL),0)::text discount_irr,COALESCE(sum(total_irr) FILTER(WHERE paid_at IS NOT NULL),0)::text net_irr,count(*) FILTER(WHERE paid_at IS NOT NULL AND state<>'FULFILLED')::text paid_unfulfilled,count(*) FILTER(WHERE exception_code IS NOT NULL)::text exceptions FROM orders WHERE ($1::timestamptz IS NULL OR created_at >=$1) AND ($2::timestamptz IS NULL OR created_at<$2)",
+        "SELECT count(*) FILTER(WHERE paid_at IS NOT NULL AND accepted_payment_id IS NOT NULL)::text paid_orders,COALESCE(sum(subtotal_irr) FILTER(WHERE paid_at IS NOT NULL AND accepted_payment_id IS NOT NULL),0)::text gross_irr,COALESCE(sum(discount_irr) FILTER(WHERE paid_at IS NOT NULL AND accepted_payment_id IS NOT NULL),0)::text discount_irr,COALESCE(sum(total_irr) FILTER(WHERE paid_at IS NOT NULL AND accepted_payment_id IS NOT NULL),0)::text net_irr,count(*) FILTER(WHERE paid_at IS NOT NULL AND state<>'FULFILLED')::text paid_unfulfilled,count(*) FILTER(WHERE exception_code IS NOT NULL)::text exceptions FROM orders WHERE ($1::timestamptz IS NULL OR created_at >=$1) AND ($2::timestamptz IS NULL OR created_at<$2)",
         [f.from ?? null, f.to ?? null],
       )
     ).rows[0];
@@ -236,7 +236,7 @@ export class CommerceAdministration {
     ).rows[0];
     const capture = (
       await c.query(
-        "SELECT COALESCE(sum(amount_irr),0)::text verified_captures_irr FROM payment_attempts WHERE state='VERIFIED' AND ($1::timestamptz IS NULL OR verified_at >=$1) AND ($2::timestamptz IS NULL OR verified_at<$2)",
+        "SELECT COALESCE(sum(amount_irr),0)::text verified_captures_irr FROM payment_attempts WHERE state='VERIFIED' AND provider_ref IS NOT NULL AND ($1::timestamptz IS NULL OR verified_at >=$1) AND ($2::timestamptz IS NULL OR verified_at<$2)",
         [f.from ?? null, f.to ?? null],
       )
     ).rows[0];

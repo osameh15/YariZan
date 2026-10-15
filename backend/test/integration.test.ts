@@ -3918,6 +3918,13 @@ test("Duplicate capture and reused provider references retain financial exceptio
       pp.attempt_id,
     ])
   ).rows[0].authority;
+  const totalsBefore = (
+    await ok<{ net_irr: string; verified_captures_irr: string }>(
+      "/admin/commerce/finance",
+      undefined,
+      admin,
+    )
+  ).body;
   await app.get(Payments).settle(pp.attempt_id, {
     state: "VERIFIED",
     authority,
@@ -3935,6 +3942,18 @@ test("Duplicate capture and reused provider references retain financial exceptio
   assert.equal(evidence.state, "VERIFIED");
   assert.equal(evidence.reported_ref, aa.provider_ref);
   assert.equal(evidence.exception_code, "REFERENCE_REUSED");
+  const totalsAfter = (
+    await ok<{ net_irr: string; verified_captures_irr: string }>(
+      "/admin/commerce/finance",
+      undefined,
+      admin,
+    )
+  ).body;
+  assert.equal(totalsAfter.net_irr, totalsBefore.net_irr);
+  assert.equal(
+    totalsAfter.verified_captures_irr,
+    totalsBefore.verified_captures_irr,
+  );
 });
 
 test("Expired uninitiated orders release coupon; held unknowns exhaust quotas; probing is bounded", async () => {

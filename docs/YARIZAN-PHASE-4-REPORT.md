@@ -189,3 +189,6 @@ The final evidence-only commit adds this CI record and the README link. Its own 
 
 
 Final boundary review found that the inherited catalog/customer Toman formatter divided a safe integer using floating point. Values near the maximum safe IRR could display an incorrect last decimal even though server charges remained exact. The shared formatter now reuses the exact BigInt whole/remainder implementation used for finance, with regression assertions for 9007199254740983 and 9007199254740987 IRR. This small follow-up supersedes the documentation-only final-head note above; final-head CI is verified and linked in the PR/delivery without changing financial authority or production gates.
+
+
+A final finance-boundary assertion also verifies that a provider reference reported for a second unrelated order remains an immutable exception but is not counted as new sales or captured money. Sales require an accepted order payment; capture aggregation counts assigned unique provider references. Distinct second captures for the same order remain visible as duplicate funds, while reused references cannot inflate either aggregate. Existing duplicate-capture/reference integration coverage now checks both report totals.
