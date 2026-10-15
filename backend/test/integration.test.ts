@@ -2182,6 +2182,11 @@ test("Real C# provisioning transport, lost delivery, protected storage and offli
       console.log(result.stdout.trim());
     }
   } finally {
+    assert.ok(
+      path
+        .resolve(dir)
+        .startsWith(path.join(path.resolve(tmpdir()), "yarizan-provisioning-")),
+    );
     await rm(dir, { recursive: true, force: true });
   }
 });

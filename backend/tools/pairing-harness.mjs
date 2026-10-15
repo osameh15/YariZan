@@ -16,7 +16,7 @@ const call = async (route, body) => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Origin: "http://localhost:3100",
+      Origin: process.env.HARNESS_ORIGIN ?? "http://localhost:3200",
     },
     body: JSON.stringify(body),
   });

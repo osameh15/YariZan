@@ -16,19 +16,39 @@ services:
     mem_limit: 256m
   api:
     build: .
-    profiles: ["api"]
+    profiles: ["api", "web"]
     environment:
       NODE_ENV: development
       DATABASE_URL: postgresql://yarizan:local-disposable@db:5432/yarizan
-      BROWSER_ORIGIN: http://localhost:3100
+      BROWSER_ORIGIN: ${BROWSER_ORIGIN:-http://localhost:3200}
       CODE_HMAC_KEY: ${CODE_HMAC_KEY:?Set synthetic CODE_HMAC_KEY}
       TOKEN_HMAC_KEY: ${TOKEN_HMAC_KEY:?Set synthetic TOKEN_HMAC_KEY}
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Set synthetic MFA_ENCRYPTION_KEY}
     ports: ["127.0.0.1:3100:3100"]
     depends_on:
       db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     mem_limit: 512m
     volumes: ["development-keys:/app/.local"]
+  web:
+    profiles: ["web"]
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3200
+      NUXT_API_BASE: http://api:3100/api/v2/
+      NUXT_WEB_ORIGIN: http://localhost:3200
+    ports: ["127.0.0.1:3200:3200"]
+    depends_on:
+      api: { condition: service_healthy }
+    mem_limit: 384m
 volumes:
   db:
   development-keys:

@@ -1,0 +1,68 @@
+name: V2 Web and Provisioning CI
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: yarizan
+          POSTGRES_PASSWORD: local-disposable
+          POSTGRES_DB: yarizan_phase2_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U yarizan -d yarizan_phase2_test"
+          --health-interval 2s --health-timeout 2s --health-retries 30
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      DATABASE_URL: postgresql://yarizan:local-disposable@127.0.0.1:5432/yarizan_phase2_test
+      CODE_HMAC_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      TOKEN_HMAC_KEY: '2222222222222222222222222222222222222222222222222222222222222222'
+      MFA_ENCRYPTION_KEY: '3333333333333333333333333333333333333333333333333333333333333333'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            backend/package-lock.json
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - run: npm ci --prefix ../../backend
+      - run: npm run build --prefix ../../backend
+      - run: npm ci --ignore-scripts
+      - run: npm run contracts:check
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run check:secrets
+      - run: npm test
+      - run: npm run build
+      - name: Runtime audit and explicit unpatched build-dependency report
+        run: npm run audit:dependencies
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Build isolated web image
+        run: docker build -f apps/web/Dockerfile -t yarizan-web-fixture ../..
+      - name: Save browser screenshots and dependency findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-browser-evidence
+          path: |
+            docs/Images/phase3/
+            apps/web/playwright-report/
+            apps/web/.local/dependency-audit.json
+          retention-days: 14
