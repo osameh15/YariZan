@@ -6,7 +6,6 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build && npm prune --omit=dev
 FROM node:24-alpine
-ENV NODE_ENV=development
 WORKDIR /app
 COPY --from=build --chown=node:node /app/dist ./dist
 RUN mkdir -p /app/.local && chown node:node /app/.local

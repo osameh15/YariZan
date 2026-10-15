@@ -52,12 +52,5 @@ jobs:
       - run: python ../tools/Check-PublicRepository.py
       - name: Build local-only image; production gate stays closed
         run: docker build -t yarizan-backend-fixture .
-      - name: Non-root image and isolated container smoke
-        run: |
-          docker run --rm --entrypoint node yarizan-backend-fixture -e "const f=require('fs');if(f.readdirSync('/app/.local').length)throw Error('Embedded key');require('argon2');if(process.getuid()!==1000)throw Error('Root runtime');console.log('Image has no embedded key; native Argon2 loads; uid 1000')"
-          docker run -d --name yarizan-backend-smoke --network host --env NODE_ENV=development --env DATABASE_URL --env CODE_HMAC_KEY --env TOKEN_HMAC_KEY --env MFA_ENCRYPTION_KEY yarizan-backend-fixture
-          curl --fail --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:3100/ready
-          curl --fail http://127.0.0.1:3100/api/v2/products
-      - name: Remove only this job's disposable API container
-        if: always()
-        run: docker rm -f yarizan-backend-smoke || true
+      - name: Explicit runtime modes, fail-closed startup and non-root container checks
+        run: node tools/check-runtime-env.mjs yarizan-backend-fixture

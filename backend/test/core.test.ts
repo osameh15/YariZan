@@ -53,6 +53,24 @@ test("Production gate cannot be enabled by environment flag", () =>
       }),
     /PRODUCTION_GATE_CLOSED/,
   ));
+
+test("Runtime environment must be explicit and exact", () => {
+  for (const value of [undefined, ""])
+    assert.throws(
+      () => configuration({ ...process.env, NODE_ENV: value }),
+      /NODE_ENV_REQUIRED/,
+    );
+  for (const value of ["staging", "PRODUCTION", " development", "test "])
+    assert.throws(
+      () => configuration({ ...process.env, NODE_ENV: value }),
+      /NODE_ENV_INVALID/,
+    );
+  for (const value of ["development", "test"])
+    assert.equal(
+      configuration({ ...process.env, NODE_ENV: value }).NODE_ENV,
+      value,
+    );
+});
 test("Remote database refused", () =>
   assert.throws(
     () =>

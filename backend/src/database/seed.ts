@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Database } from "./database";
+import { ConfigurationError } from "../config";
 
 export const permissions = [
   "customers.reset",
@@ -65,12 +66,19 @@ export async function seed(db: Database) {
   });
 }
 if (require.main === module) {
-  const db = new Database();
-  seed(db)
-    .then(() => console.log("Six products seeded"))
-    .finally(() => db.onModuleDestroy())
-    .catch(() => {
-      console.error("Seed failed");
+  void (async () => {
+    let db: Database | undefined;
+    try {
+      db = new Database();
+      await seed(db);
+      console.log("Six products seeded");
+    } catch (error: unknown) {
+      console.error(
+        error instanceof ConfigurationError ? error.message : "Seed failed",
+      );
       process.exitCode = 1;
-    });
+    } finally {
+      await db?.onModuleDestroy();
+    }
+  })();
 }

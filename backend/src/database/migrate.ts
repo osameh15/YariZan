@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { Database } from "./database";
+import { ConfigurationError } from "../config";
 
 export async function migrate(db: Database) {
   await db.transaction(async (c) => {
@@ -36,12 +37,21 @@ export async function migrate(db: Database) {
   });
 }
 if (require.main === module) {
-  const db = new Database();
-  migrate(db)
-    .then(() => console.log("Migrations verified"))
-    .finally(() => db.onModuleDestroy())
-    .catch(() => {
-      console.error("Migration failed");
+  void (async () => {
+    let db: Database | undefined;
+    try {
+      db = new Database();
+      await migrate(db);
+      console.log("Migrations verified");
+    } catch (error: unknown) {
+      console.error(
+        error instanceof ConfigurationError
+          ? error.message
+          : "Migration failed",
+      );
       process.exitCode = 1;
-    });
+    } finally {
+      await db?.onModuleDestroy();
+    }
+  })();
 }

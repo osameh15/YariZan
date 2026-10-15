@@ -6,7 +6,7 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { randomUUID } from "node:crypto";
 import { AppModule } from "./app";
-import { configuration } from "./config";
+import { configuration, ConfigurationError } from "./config";
 import { ApiError, ErrorFilter } from "./common/errors";
 import { strictJson } from "./common/strict-json";
 import { Security } from "./security/security";
@@ -93,9 +93,11 @@ export async function createApp() {
 if (require.main === module)
   createApp()
     .then((app) => app.listen(configuration().PORT, "0.0.0.0"))
-    .catch(() => {
+    .catch((error: unknown) => {
       console.error(
-        "BACKEND_STARTUP_REFUSED: inspect configuration and production gates",
+        error instanceof ConfigurationError
+          ? error.message
+          : "BACKEND_STARTUP_REFUSED: inspect configuration and production gates",
       );
       process.exitCode = 1;
     });
