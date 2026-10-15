@@ -170,3 +170,8 @@ The isolated [Nuxt 4 storefront and portals](apps/web/README.md) use the real Ne
 ## Phase 3.1 authentication, UX, SMS and notes
 
 The same Draft PR includes mobile OTP first claim/login/reset, optional passwords and mobile management, SMS Admin MFA, shared Persian validation, and revisioned searchable internal notes. [Auth/SMS contracts](docs/YARIZAN-AUTH-AND-SMS-CONTRACTS.md) and the [Phase 3.1 report](docs/YARIZAN-PHASE-3-1-REPORT.md) distinguish tested local behavior from missing live provider credentials/template and commercial ownership/signing gates. Desktop credential pickup remains desktop-only; paid/trial offline guarantees are unchanged.
+
+
+## V2 Phase 4 synthetic commerce review
+
+[Phase 4 report](docs/YARIZAN-PHASE-4-REPORT.md), [commerce contracts](docs/YARIZAN-COMMERCE-CONTRACTS.md) and [17 application screenshots](docs/Images/phase4/) cover authoritative orders/coupons, a labeled payment simulator, durable reconciliation, exactly-once perpetual license fulfillment and customer/Admin finance pages. Existing PostgreSQL commerce tables are extended by migration 009. Enable COMMERCE_MODE=fake only for isolated development; disabled remains the default. Real ZarinPal selection and production startup refuse to run. No live charge, refund, SMS or deployment is authorized; commercial [release gates](docs/YARIZAN-COMMERCIAL-RELEASE-CHECKLIST.md) remain closed.

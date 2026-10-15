@@ -173,3 +173,16 @@ No modifications to main, production/staging/live server, PHP/MySQL service, DNS
 Implementation checkpoint 6d354cf5dd5804e66bc1e2689e21e6a39d174076 introduced the report/contracts and reporting additions. Latest full local run: backend 158/158 (140.02s), web unit 17/17, browser 30/30 (2.1m); refreshed all 17 Phase 4 screenshots. A final notification recovery hardening test forces replay of a completed PURCHASE_NOTICE job and checks exactly one existing-outbox purchase event as well as one notification record. This prevents restart retries from emitting duplicate future notifications.
 
 Initial implementation CI (superseded by final evidence commits): backend https://github.com/osameh15/YariZan/actions/runs/38807756776 ; web https://github.com/osameh15/YariZan/actions/runs/38807756770 ; Windows https://github.com/osameh15/YariZan/actions/runs/38807756761 . Final status is not inferred from these runs; exact final-head results are added after completion.
+
+
+### Validated implementation and CI
+
+Validated implementation HEAD: 0ada8a783d2dcaca9a123dc954b6730a2a6468c3. All three workflows passed on that exact SHA:
+
+- [Backend 38808111219](https://github.com/osameh15/YariZan/actions/runs/38808111219): 158 tests, zero failures/skips, 62.08s; real .NET verifier 24, API 10 and software provisioning 25; migration comparison, OpenAPI, scans/audit and Docker startup gates passed.
+- [Web 38808111236](https://github.com/osameh15/YariZan/actions/runs/38808111236): 17 unit tests, 30 Chromium browser tests (1.4m), software provisioning 24; production build/type/lint/format/contracts, image build and explicit advisory policy passed. Linux software-adapter counts differ from Windows CNG checks; neither is physical ownership proof.
+- [Windows 38808111361](https://github.com/osameh15/YariZan/actions/runs/38808111361): existing grade/access/launcher/book/V2 regression workflow passed. Local corresponding total is 376 checks/groups.
+
+Final local backend rerun including notification replay: 158/158, zero failed/skipped, 141.65s. Local frontend final build 54.5s; unit 17/17 and Edge browser 30/30 (2.1m). Schema, strict compilation/lint/format, contracts, repository/secret scans passed after all tracked files were included. Compose rebuilt successfully; http://localhost:3200 returns 200 with RTL, catalog has six products, /ready reports production_gate=closed and capabilities explicitly report fake checkout=true, real_payments_enabled=false. Only disposable local services were restarted.
+
+The final evidence-only commit adds this CI record and the README link. Its own final SHA and final-head workflow URLs are recorded in Draft PR #4 and the delivery reply; it changes no runtime or test behavior. Final delivery requires an empty git status and local HEAD equal to origin/feat/yarizan-v2-commerce. Main remains the preflight SHA. Draft PR remains unmerged for independent review.
