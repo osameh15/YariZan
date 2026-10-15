@@ -54,13 +54,19 @@ watch(
         </nav>
         <div>
           <p>کنار شما هستیم</p>
-          <a class="phone" href="tel:09188764024" dir="ltr">0918-876-4024</a>
+          <div class="footer-phones">
+            <a class="phone" href="tel:09188764024" dir="ltr">0918-876-4024</a>
+            <a class="phone" href="tel:09369642754" dir="ltr">0936-964-2754</a>
+          </div>
           <p class="muted">فروش اینترنتی در مرحلهٔ آماده‌سازی است.</p>
         </div>
       </div>
       <div class="wrap footer-bottom">
-        <span>یاریزان، از استودیوی اُر نوا</span
-        ><span>بازی برای یاد گرفتن، یاد گرفتن برای زندگی</span>
+        <a class="studio-credit" href="https://oarnova.games" dir="ltr">
+          <img src="/brand/oar-nova-games.png" width="64" height="64" alt="" />
+          <span>OAR Nova Games Studio</span>
+        </a>
+        <span>توسعه‌دهنده: <a href="https://osameh.dev" dir="ltr">osameh.dev</a></span>
       </div>
     </footer>
   </div>

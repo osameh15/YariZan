@@ -70,8 +70,10 @@ onBeforeUnmount(() => {
           required
       /></label>
       <ApiNotice :message="message" />
-      <button class="button primary" :disabled="busy">ثبت رمز عبور تازه</button
-      ><NuxtLink to="/support" class="text-link">مجوز ندارم؛ تماس با پشتیبانی</NuxtLink>
+      <div class="actions support-reset-actions">
+        <button class="button primary" :disabled="busy">ثبت رمز عبور تازه</button>
+        <NuxtLink to="/support" class="text-link">مجوز ندارم؛ تماس با پشتیبانی</NuxtLink>
+      </div>
     </FormShell>
     <div v-else class="panel">
       <h1>رمز عبور تغییر کرد.</h1>
