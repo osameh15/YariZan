@@ -52,6 +52,11 @@ watch(
           ><NuxtLink to="/support">پرسش‌ها و پشتیبانی</NuxtLink
           ><NuxtLink to="/login">ورود به حساب</NuxtLink>
         </nav>
+        <nav aria-label="پیوندهای مرتبط">
+          <h2>پیوندهای مرتبط</h2>
+          <a href="https://oarnova.games" dir="ltr">oarnova.games</a>
+          <a href="https://osameh.dev" dir="ltr">osameh.dev</a>
+        </nav>
         <div>
           <p>کنار شما هستیم</p>
           <div class="footer-phones">
@@ -68,7 +73,6 @@ watch(
             <span>OAR Nova Games Studio</span>
           </a>
           <p class="footer-copyright">حق مالکیت سایت برای یاریزان محفوظ است.</p>
-          <span>طراحی و توسعه: <a href="https://osameh.dev" dir="ltr">osameh.dev</a></span>
         </div>
       </div>
     </footer>
