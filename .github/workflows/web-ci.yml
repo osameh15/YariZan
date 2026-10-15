@@ -78,6 +78,7 @@ jobs:
             docs/Images/phase3/
             docs/Images/phase3-1/
             docs/Images/phase4/
+            docs/Images/phase4-premium/
             apps/web/playwright-report/
             apps/web/.local/dependency-audit.json
             apps/web/.local/production-build.log

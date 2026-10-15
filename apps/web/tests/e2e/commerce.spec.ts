@@ -12,11 +12,12 @@ import {
   smsCode,
   sql,
 } from '../../tools/test-fixtures.mjs';
-const images = path.resolve('../../docs/Images/phase4');
+const images = path.resolve('../../docs/Images/phase4-premium');
 test.beforeEach(async () => {
   await sql('DELETE FROM rate_buckets');
 });
 async function shot(page: Page, name: string) {
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
   await mkdir(images, { recursive: true });
   await page.screenshot({
     path: path.join(images, name + '.png'),
@@ -43,6 +44,7 @@ async function manager(page: Page) {
   await page.getByLabel('کد تأیید پیامکی').fill(await smsCode(c.challenge_id));
   await page.getByRole('button', { name: 'تأیید کد و ورود', exact: true }).click();
   await expect(page).toHaveURL(/\/zanyari$/);
+  await shot(page, '27-admin-dashboard');
   await page.goto('/zanyari/commerce');
 }
 const mutation = () => ({
@@ -95,6 +97,7 @@ test('Real checkout, coupon quote, simulated payment and one desktop license', a
   const e = await customer(),
     code = await discount();
   await login(page, e);
+  await shot(page, '26-customer-dashboard');
   await page.goto('/products/grade-1');
   await expect(page.getByRole('link', { name: 'خرید آزمایشی این پایه' })).toBeVisible();
   await shot(page, '01-grade-one-purchase');
@@ -112,6 +115,12 @@ test('Real checkout, coupon quote, simulated payment and one desktop license', a
     page.getByText('کد تخفیف قابل استفاده است؛ سهمیه هنگام ثبت سفارش رزرو می‌شود.'),
   ).toBeVisible();
   await shot(page, '03-coupon-accepted');
+  await page.getByRole('button', { name: 'حذف کد تخفیف' }).click();
+  await expect(page.locator('.payable-total')).toContainText('۱٬۲۹۹٬۰۰۰');
+  await expect(page.getByLabel('کد تخفیف', { exact: true })).toHaveValue('');
+  await page.getByLabel('کد تخفیف', { exact: true }).fill(code);
+  await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
+  await expect(page.locator('.payable-total')).toContainText('۱٬۱۶۹٬۱۰۰');
   await page.setViewportSize({ width: 390, height: 844 });
   await shot(page, '15-mobile-checkout');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -262,6 +271,7 @@ test('Every visible commerce section loads its real API and unsupported sections
     );
   expect(new Set(links.map((l) => l.href)).size).toBe(10);
   expect(new Set(links.map((l) => l.label)).size).toBe(10);
+  await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'false');
   for (const link of links) {
     const section = new URL(link.href, 'http://localhost').searchParams.get('section');
     const loaded = page.waitForResponse(
@@ -274,6 +284,7 @@ test('Every visible commerce section loads its real API and unsupported sections
     expect(response.status(), section!).toBe(200);
     const data = await response.json();
     await expect(page.getByRole('heading', { name: link.label, exact: true })).toBeVisible();
+    await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'false');
     await expect(page.getByRole('alert')).toHaveCount(0);
     if (section !== 'finance') {
       expect(Array.isArray(data.items)).toBe(true);
@@ -393,4 +404,66 @@ test('Production browser renders exact large IRR in checkout, paid order and fin
       "UPDATE product_prices SET amount_irr=12990000 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
     );
   }
+});
+
+test('Premium checkout and Admin remain usable at five widths and enlarged presentation', async ({
+  page,
+}) => {
+  const e = await customer();
+  await login(page, e);
+  await page.goto('/checkout?sku=YARIZAN-G1');
+  await expect(page.locator('.commerce-totals')).toBeVisible();
+  for (const width of [360, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 720 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await expect(page.getByRole('button', { name: 'ثبت سفارش و بررسی پرداخت' })).toBeEnabled();
+  }
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '2';
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByLabel('کد تخفیف', { exact: true }).fill('');
+  await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'ثبت سفارش و بررسی پرداخت' })).toBeEnabled();
+  await shot(page, '28-checkout-enlarged');
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '';
+  });
+  await manager(page);
+  for (const width of [360, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 720 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await expect(page.getByRole('navigation', { name: 'مدیریت فروش' })).toBeVisible();
+  }
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze())
+      .violations,
+  ).toEqual([]);
+});
+
+test('Finance report failure never displays invented zero totals and safely reloads real data', async ({
+  page,
+}) => {
+  await manager(page);
+  await page.route('**/api/v2/admin/commerce/finance?*', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: { code: 'SERVICE_UNAVAILABLE' } }),
+    }),
+  );
+  await page.goto('/zanyari/commerce?section=finance');
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('.finance-metrics')).toHaveCount(0);
+  await expect(page.locator('.finance-counts')).toHaveCount(0);
+  await shot(page, '29-finance-unavailable');
+  await page.unroute('**/api/v2/admin/commerce/finance?*');
+  await page.getByRole('button', { name: 'جست‌وجو و تازه‌سازی' }).click();
+  await expect(page.locator('.finance-metrics')).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });

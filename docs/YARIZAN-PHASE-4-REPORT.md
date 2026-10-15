@@ -247,3 +247,91 @@ Changed files: CommerceConsole.vue (mapping/controlled unsupported state/dialog 
 Implementation-checkpoint CI links: [Backend 38818182774](https://github.com/osameh15/YariZan/actions/runs/38818182774), [Web/provisioning 38818183328](https://github.com/osameh15/YariZan/actions/runs/38818183328), [Windows 38818182951](https://github.com/osameh15/YariZan/actions/runs/38818182951). Final delivery checks their actual conclusions and the final evidence-only commit workflows separately; final HEAD/run links are also recorded in Draft PR #4 and the delivery reply. No result is inferred from the earlier reviewed head.
 
 All three requested areas are implemented for development review. The remaining limitations are unchanged commercial/merchant/physical-device gates and the two disclosed unpatched build dependencies. No backend financial behavior or release gate was relaxed. Final delivery verifies clean working tree, pushed branch equality, unchanged main base and Draft/unmerged PR state.
+
+
+## Premium UI/UX design follow-up — 2026-10-16
+
+### Scope and repository continuity
+
+Continues `feat/yarizan-v2-commerce` / Draft [PR #4](https://github.com/osameh15/YariZan/pull/4), starting from `f1de956d9755d6b9088a8ca27b1768c5a3304a81`. The PR base/remote main remains `e474a6a92adb4cd341289a7f4238c6f128cb3f99`; the untouched local main reference is `aef9bbc78d0a9a4357c3625f56b77ad037f672f7`. Earlier navigation, dialog and ES2022/BigInt review corrections are preserved. Final delivery SHA and exact-head CI are recorded in the PR and delivery evidence below. No branch reset or competing worktree was created.
+
+Design assessment: desktop checkout gave explanatory copy equal prominence to payment totals; cream surfaces, loosely spaced controls and repeated card styles weakened hierarchy. Admin navigation lacked task grouping, finance counts competed with monetary metrics, and mobile explanatory content delayed the next action. The design contract uses existing brand references and assets: warm paper, white surfaces, dark brown text, restrained teal actions and grade-specific educational accents. No third-party design assets, new dependencies, stock images or unlicensed fonts.
+
+### Implementation
+
+- Shared `premium.css`: primitive/semantic/component tokens, natural Shabnam typography without negative Persian letter spacing, compact header/active navigation, white control surfaces, restrained shadows, consistent radii, 44–48px control targets and explicit reduced-motion handling. Loaded after legacy layout rules for incremental migration rather than a risky wholesale rewrite.
+- Public discovery: book-inspired hero with a defined soft stage; distinct grade accents, stronger grade numerals, publication badges and exact backend prices; compact support/footer; both support numbers, studio/logo and related sites retained.
+- Checkout: selected-product cover and device binding, independent coupon row, contrasting sticky desktop order summary, largest monetary treatment for exact payable total, prominent simulation disclosure and clear primary action. Coupon removal requests a new server quote; edited coupons cannot create an order until rechecked. Mobile order puts totals before supplemental explanations; nothing is covered by a bottom overlay.
+- Order receipt: restrained symbols and labeled treatments for ready/confirmed, pending/unknown, failed/review; public identifier copy action and accessible completion feedback. Payment timeout never means revocation or ordinary failure. Original state machine and server decision remain authoritative.
+- Admin: permission-aware task groups for both workspace navigations, exact active query-section state, structured filters, table/status styling and internal table scrolling. Four money metrics distinguish net orders, gross, discounts and gateway captures; five smaller operational counts replace competing oversized cards. Loading no longer temporarily claims zero revenue. Empty payment-state reports say so explicitly.
+- Editors: descriptive configuration/quota groups, full-width reason field, internally scrolling fields and persistent Save/Cancel footer. Existing native focus containment, Escape and return focus retained; narrow-height keyboard tests remain intact.
+- Public loading uses stable skeleton geometry and a polite status. Custom Persian validation, error summaries, Origin/CSRF protections and sensitive-response cache policy remain unchanged.
+
+Changed implementation files: `apps/web/nuxt.config.ts`; `app/assets/css/premium.css`; `app/components/{AdminConsole,CommerceConsole,CommerceOrder,LoadState,ProductCard}.vue`; `app/pages/checkout.vue`. Tests: `tests/e2e/{commerce,premium}.spec.ts`. CI only extends screenshot artifact collection. Documentation adds `docs/YARIZAN-WEB-DESIGN-SYSTEM.md` and this section. No backend financial service, API contract, generated client, migration, desktop artifact or release gate changed.
+
+### Requirement status
+
+| Area | Status | Evidence/limit |
+| --- | --- | --- |
+| Shared tokens, Persian typography, surfaces, actions | Implemented | Shared layer; approved local 400/700 font |
+| Homepage, catalog, product detail | Implemented | Real catalog, grade accents, truthful availability |
+| Premium checkout/coupon/summary | Implemented | API-calculated integer amounts, server requote on removal |
+| Payment status, receipts, orders | Implemented | Original authority; public-ID copy only |
+| Customer login, Connect, security/support presentation | Implemented | Shared control/layout/validation styling; auth unchanged |
+| Admin navigation, tables and finance hierarchy | Implemented | Same ten supported commerce routes, RBAC preserved |
+| Long editor actions and keyboard reachability | Implemented | Native dialog with separate field scroller/footer |
+| Five widths, enlarged presentation, reduced motion | Implemented | Automated browser coverage and screenshots |
+| WCAG 2.2 AA target | Partially Implemented | Axe/keyboard/contrast checks; full expert/screen-reader audit not claimed |
+| Physical mobile / Safari / Firefox acceptance | Not Started | Windows Edge and CI Chromium only |
+| Live checkout/signing/SMS/deployment | Blocked | Existing gates intentionally remain closed |
+
+### Before/after review
+
+| Screen | Before | After |
+| --- | --- | --- |
+| Checkout | [Original](Images/phase4/02-checkout-summary.png) | [Product and summary hierarchy](Images/phase4-premium/02-checkout-summary.png) |
+| Mobile checkout | [Original](Images/phase4/15-mobile-checkout.png) | [Compact flow](Images/phase4-premium/15-mobile-checkout.png) |
+| Finance | [Original](Images/phase4/14-admin-financial-overview.png) | [Money versus operational counts](Images/phase4-premium/14-admin-financial-overview.png) |
+| Mobile editor | [Review baseline](Images/phase4/18-coupon-actions-390.png) | [Grouped fields and persistent actions](Images/phase4-premium/18-coupon-actions-390.png) |
+
+Historical Phase 3/3.1 screenshots generated by regression tests are restored rather than overwritten. All new evidence uses synthetic accounts and actual API-backed application pages, not mockups. Finance values can differ between screenshots because each runs against isolated test transactions; values are not fabricated for appearance.
+
+### Screenshot inventory
+
+`docs/Images/phase4-premium/` contains:
+
+- `20-home-1440.png`, `20-home-390.png`, `21-catalog.png`, `01-grade-one-purchase.png`.
+- `02-checkout-summary.png`, `15-mobile-checkout.png`, `03-coupon-accepted.png`, `04-coupon-rejected.png`, `28-checkout-enlarged.png`.
+- `05-simulated-gateway.png`, `06-payment-verification-pending.png` (UNKNOWN), `07-verified-purchase.png`, `16-mobile-payment-result.png`, `09-order-detail-license.png`.
+- `26-customer-dashboard.png`, `08-customer-orders.png`, `22-otp-login.png`, `23-connect-validation.png`.
+- `27-admin-dashboard.png`, `14-admin-financial-overview.png`, `10-admin-orders.png`, `11-admin-payments.png`, `12-admin-campaigns.png`, `13-admin-coupon-editor.png`.
+- `18-coupon-actions-{1440,390}.png`, `19-coupon-keyboard-{1440,390}.png`, `24-mobile-navigation.png`, `17-accessible-validation-error.png`, `25-friendly-error.png`, `29-finance-unavailable.png`.
+
+### Validation and limitations
+
+Executed on Windows NT 10.0.26300, Node 24.20, .NET SDK 10 targeting .NET 9.0.20, PostgreSQL 17.11, Nuxt 4.6.1 / Vue 3.5.44 / Vite 8.3.4, local Edge 155; CI uses Chromium. No physical-device ownership or commercial hardware acceptance is claimed.
+
+From `backend/`: `npm run build`; `npm test`; `npm run lint`; `npm run format:check`; `npm run check:contracts`; `npm run check:secrets`; `npm audit --audit-level=high`; `npx --yes @redocly/cli@2.63.0 lint ../docs/YARIZAN-OPENAPI-BACKEND-V2.json`; explicit synthetic test environment then `node tools/check-schema.mjs`; `node tools/check-runtime-env.mjs yarizan-backend-fixture` with the isolated Compose network. Backend: 158 passed, zero failures/skips. Migration comparison: five catalog groups match upgraded 001–008→009 versus fresh initialization. OpenAPI: 78 implemented routes/five desktop profiles, valid with two pre-existing lint warnings. Runtime dependency audit: zero vulnerabilities. Docker startup rejects missing/empty/invalid environment, production and live gateway modes; explicit development/test fake paths are checked.
+
+Cross-language execution within backend/browser suites: DOTNET_INTEROP 24; DOTNET_API 10; software provisioning 25; Windows provisioning 26 (real CNG SOFTWARE provider and DPAPI CurrentUser). Windows PowerShell scripts `tests/Run-{V2,Access,Launcher,Book,Grade}Checks.ps1`: 300 + 27 + 8 + 36 + 5 = 376 passed checks/groups. NuGet vulnerability-feed availability warnings occurred locally; they do not establish a clean .NET dependency audit and are not suppressed.
+
+From `apps/web/`: `npm run format`; `npm run typecheck`; `npm run lint`; `npm run format:check`; `npm test`; `npm run contracts:check`; `npm run check:secrets`; `npm run audit:dependencies`; `npm run build`; `PLAYWRIGHT_CHANNEL=msedge npm run test:e2e`. Clear invalid inherited proxy environment only for local Nuxt build/typecheck. Unit tests: 18 passed. Browser execution results and final-head CI evidence are appended after the final run below. The new checks cover 360/390/768/1024/1440px, 200% CSS enlarged presentation, a constrained-height mobile menu, existing long-editor keyboard tests, RTL, custom validation, axe A/AA and supported WCAG 2.2 rules, console/hydration errors, API-backed navigation and exact large-safe-integer IRR rendering. CSS enlargement is not claimed as physical-device or browser-chrome zoom acceptance.
+
+The first new visual test incorrectly classified its intentionally requested 404 as an unexpected console failure; the assertion now permits only that exact expected 404. A subsequent all-navigation run exposed an in-flight previous response during full-page navigation; tests now wait for explicit loading completion before moving sections. These corrections do not remove API status/body assertions. No production error is silently suppressed.
+
+From root: `docker build --progress=plain -f apps/web/Dockerfile -t yarizan-web-review .`; inspect production and Docker logs for unsupported BigInt/es2019 warnings (none). ES2022 targets remain explicit. `python tools/Check-PublicRepository.py` passes. Web runtime high/critical vulnerabilities remain zero; full build audit continues to report unpatched build-only braces GHSA-vfj7-8cjw-p6xm and node-forge GHSA-86w9-cpqp-85rv. No new package or suppression was added.
+
+Financial/security regression coverage remains in the real PostgreSQL suite: 20-way coupon contention, duplicate/reference replay, paid signing failure, worker leases/restart, late payment after quota release, exactly-one fulfillment, generation reset and SKU restrictions. Browser provisioning still never receives device credentials. Paid offline access and online-start-only trials retain their real C# verification/regression evidence.
+
+Known visual limits: legacy illustrative CSS is incrementally overridden rather than fully tokenized; wide financial tables intentionally scroll inside a bounded region; screen-reader/manual full WCAG certification and physical iOS/Android acceptance remain outstanding. Live merchant, payment/refund, SMS, physical ownership assurance and commercial signing custody remain blocked exactly as before.
+
+### Safety
+
+No merge or deployment. Main, production servers, DNS/Traefik, PHP/MySQL, real customer/financial data, live ZarinPal/MeliPayamak, commercial signing keys and release gates are unchanged. Local Compose services are disposable and restored for review after managed browser tests. PR #4 remains Draft and unmerged.
+
+
+### Premium final local execution
+
+Final production source run: **18 unit / 37 browser tests passed; zero failures or skips**. The final browser suite took 2.0 minutes and includes actual C# provisioning. All five responsive widths, enlarged presentation, custom validation, public/Admin axe checks, coupon removal/requote and finance unavailable/recovery checks passed. Production build 26.4s and final Docker image build passed with zero BigInt compatibility warnings. Typecheck, lint, format, OpenAPI/client and secret checks passed. 32 actual screenshots are committed in the premium evidence directory. No screenshot depends on a browser-claimed payment success; the successful receipt is backed by verified synthetic payment and exactly-one license fulfillment.
+
+Implementation commit: `873992896506828e078844b2803a4226c9932f78` (presentation and design-system reference). Subsequent acceptance/report commit contains the browser changes, artifact configuration and 32 screenshots. CI links are recorded in the following delivery evidence after push. All safety and remaining commercial limitations above remain in force.
