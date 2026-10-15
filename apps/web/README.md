@@ -69,3 +69,10 @@ Commerce is disabled by default. In isolated local configuration set COMMERCE_MO
 Customer routes now include /checkout?sku=YARIZAN-G1, /payment/simulate, /payment/result, /account/orders and /account/orders/:id. Admin /zanyari/commerce uses actual permission-protected commerce/finance APIs. Orders replace the previous unavailable placeholder. Checkout first creates an authoritative snapshot, then the detail view offers an explicit simulated payment action. No card data is collected. See docs/YARIZAN-COMMERCE-CONTRACTS.md and docs/YARIZAN-PHASE-4-REPORT.md from the repository root for exact API/state/evidence.
 
 Use the existing disposable PostgreSQL and fake SMS setup. Backend build/test exercises commerce, 20-way coupon concurrency and real .NET verification. Browser test:e2e includes synthetic checkout and Admin flows. Stop Compose api/web before Playwright: its managed servers require ports 3100/3200. Never replace fake mode with a live merchant for these checks.
+
+
+## JavaScript target and finance-dialog acceptance
+
+Client Vite/Nuxt and server Nitro explicitly target ES2022. Node 24 and modern browsers with native BigInt are required; money formatting retains exact integer arithmetic. Current Edge (local) and Chromium (CI) execute the production output; older browsers and physical Safari/Firefox are not claimed accepted. CI captures production/Docker logs and rejects unsupported BigInt target warnings.
+
+Commerce navigation maps only to the ten implemented OpenAPI sections. Financial counts are summary fields, not extra routes. Unknown section URLs show a Persian controlled error. Coupon fields scroll independently of persistent Save/Cancel actions; keyboard/Escape/return-focus acceptance covers 1440px and 390px viewports. See the Phase 4 report for review evidence.
