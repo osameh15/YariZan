@@ -1,5 +1,7 @@
 # ADR-0004 — Phase 1 desktop artifact profile and release gates
 
+Phase 2 follow-up: [ADR-0005](0005-backend-enrollment-and-transaction-authority.md) and the [Phase 2 report](../YARIZAN-PHASE-2-REPORT.md) record implemented development backend authority. This artifact profile is unchanged. Stock desktop enrollment integration, cross-ID local snapshot recovery, reviewed commercial roots and production ownership assurance remain blocked; implementing server endpoints does not enable the commercial release gate.
+
 - State: Implemented on feature branch; requires independent review before release
 - References: ADR-0001, ADR-0002, Phase 1 engineering report
 

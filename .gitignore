@@ -48,3 +48,10 @@ master.key
 .env
 .env.*
 !.env.example
+
+# Phase 2 disposable backend output
+backend/node_modules/
+backend/dist/
+backend/coverage/
+backend/.local/
+backend/*.pem

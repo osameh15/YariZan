@@ -1,5 +1,7 @@
 # YariZan V2 — Threat Model and Security Acceptance
 
+Phase 2 evidence and residual risk: [ADR-0005](adr/0005-backend-enrollment-and-transaction-authority.md) records paired development enrollment, current-generation authentication, real PostgreSQL quotas/codes, MFA/RBAC/CSRF and signed decisions. Production first-claim physical assurance is still unresolved and startup fails closed. Human ownership evidence requires independent operator review. [Phase 2 report](YARIZAN-PHASE-2-REPORT.md) distinguishes automated coverage from physical/production acceptance; this document remains a threat model, not a penetration-test result.
+
 > **Status:** Design-time threat model (2026-10-14), **not a penetration-test result**. See [Phase 0 baseline](YARIZAN-PHASE-0-BASELINE.md).
 > **Assets:** license signing keys, game payloads, device identity/private keys, customer password reset capability, payment and refund records, coupon quotas, Admin privileges, and audit trail.
 

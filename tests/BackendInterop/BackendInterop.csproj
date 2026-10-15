@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <!-- Compile the production verifier unchanged. No TypeScript verifier substitute. -->
+    <Compile Include="../../src/YariZan.Core/V2/SignedArtifacts.cs" Link="SignedArtifacts.cs" />
+    <Compile Include="../../src/YariZan.Core/V2/CanonicalJson.cs" Link="CanonicalJson.cs" />
+    <Compile Include="../../src/YariZan.Core/V2/CommercialReleasePolicy.cs" Link="CommercialReleasePolicy.cs" />
+    <Compile Include="../../src/YariZan.Core/V2/DesktopV2Client.cs" Link="DesktopV2Client.cs" />
+    <Compile Include="../../src/YariZan.Core/V2/DesktopAccessController.cs" Link="DesktopAccessController.cs" />
+    <Compile Include="../../src/YariZan.Core/V2/ActivationCode.cs" Link="ActivationCode.cs" />
+  </ItemGroup>
+</Project>

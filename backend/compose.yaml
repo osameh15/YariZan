@@ -1,0 +1,34 @@
+name: yarizan-v2-local
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: yarizan
+      POSTGRES_PASSWORD: local-disposable
+      POSTGRES_DB: yarizan
+    ports: ["127.0.0.1:55432:5432"]
+    volumes: ["db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yarizan -d yarizan"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    mem_limit: 256m
+  api:
+    build: .
+    profiles: ["api"]
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://yarizan:local-disposable@db:5432/yarizan
+      BROWSER_ORIGIN: http://localhost:3100
+      CODE_HMAC_KEY: ${CODE_HMAC_KEY:?Set synthetic CODE_HMAC_KEY}
+      TOKEN_HMAC_KEY: ${TOKEN_HMAC_KEY:?Set synthetic TOKEN_HMAC_KEY}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Set synthetic MFA_ENCRYPTION_KEY}
+    ports: ["127.0.0.1:3100:3100"]
+    depends_on:
+      db: { condition: service_healthy }
+    mem_limit: 512m
+    volumes: ["development-keys:/app/.local"]
+volumes:
+  db:
+  development-keys:
