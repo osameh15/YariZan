@@ -230,6 +230,20 @@ img {
   align-items: center;
   flex-wrap: wrap;
 }
+/* Space standalone actions without doubling gaps inside flex button groups. */
+form > .button,
+.panel > .button,
+.portal-main > .button {
+  margin-block: 12px 4px;
+  margin-inline-end: 12px;
+}
+form > .actions,
+.panel > .actions {
+  margin-block-start: 16px;
+}
+.record-list + .button {
+  margin-block-start: 20px;
+}
 .eyebrow {
   font-size: 13px;
   font-weight: 700;
