@@ -14,6 +14,9 @@ import path from "node:path";
 import { spawnSync, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { Outbox } from "../src/outbox/outbox";
+import { Audit } from "../src/audit/audit";
+import { Admin } from "../src/admin/admin";
+import { Trials } from "../src/trials/trials";
 import { PasswordHashing } from "../src/security/passwords";
 import { ApiError } from "../src/common/errors";
 import { readFile } from "node:fs/promises";
@@ -1945,5 +1948,232 @@ test("Claim aliases enforce one shared PostgreSQL endpoint IP budget before hash
     assert.equal(keys.length, 3);
   } finally {
     security.rate = original;
+  }
+});
+
+const trialInput = (device_id: string) => ({
+  device_id,
+  client_nonce: hash(randomBytes(32)),
+  client_process_session_id: randomUUID(),
+});
+const startRoute = "/desktop/trials/YARIZAN-G1/start";
+const resetRoute = (e: Enrolled) =>
+  `/admin/trials/${e.device_id}/YARIZAN-G1/reset`;
+
+test("Allocation reset retires old nonces, preserves history, shares profiles and isolates grades", async () => {
+  const key = candidate(),
+    e = await enroll(key),
+    profile = await enroll(candidate(key.fingerprint), await login(e));
+  const old = trialInput(e.device_id);
+  const oldResult = (await ok<Trial>(startRoute, old, e.credential)).body;
+  await ok(
+    "/desktop/trials/YARIZAN-G2/start",
+    trialInput(e.device_id),
+    e.credential,
+  );
+  const reset = mutation();
+  const result = (await ok(resetRoute(e), reset, admin)).body;
+  assert.equal(result.allocation_epoch, 2);
+  assert.deepEqual((await ok(resetRoute(e), reset, admin)).body, result);
+  await denied(startRoute, old, "TRIAL_ALLOCATION_CHANGED", profile.credential);
+  assert.equal(
+    (await ok("/desktop/trials/YARIZAN-G1/status", undefined, e.credential))
+      .body.remaining,
+    2,
+  );
+  assert.equal(
+    (await ok("/desktop/trials/YARIZAN-G2/status", undefined, e.credential))
+      .body.remaining,
+    1,
+  );
+  const next = trialInput(e.device_id);
+  const nextResult = (await ok<Trial>(startRoute, next, profile.credential))
+    .body;
+  assert.deepEqual(
+    (await ok<Trial>(startRoute, next, e.credential)).body,
+    nextResult,
+  );
+  await denied(
+    startRoute,
+    { ...next, client_process_session_id: randomUUID() },
+    "IDEMPOTENCY_MISMATCH",
+    e.credential,
+  );
+  await ok(startRoute, trialInput(e.device_id), e.credential);
+  await denied(
+    startRoute,
+    trialInput(e.device_id),
+    "TRIAL_EXHAUSTED",
+    profile.credential,
+  );
+  assert.deepEqual(
+    (await ok<Trial>(startRoute, next, e.credential)).body,
+    nextResult,
+  );
+  const records = await db.query(
+    "SELECT allocation_epoch,response FROM trial_starts WHERE device_id=$1 AND sku='YARIZAN-G1' ORDER BY allocation_epoch",
+    [e.device_id],
+  );
+  assert.deepEqual(
+    records.rows.map((r) => r.allocation_epoch),
+    ["1", "2", "2"],
+  );
+  assert.deepEqual(records.rows[0].response, oldResult);
+  await assert.rejects(
+    db.query("UPDATE trial_starts SET allocation_epoch=2 WHERE device_id=$1", [
+      e.device_id,
+    ]),
+    /Immutable history/,
+  );
+  const counters = await db.query(
+    "SELECT sku,used,allocation_epoch FROM trial_counters WHERE device_id=$1 ORDER BY sku",
+    [e.device_id],
+  );
+  assert.deepEqual(counters.rows, [
+    { sku: "YARIZAN-G1", used: 2, allocation_epoch: "2" },
+    { sku: "YARIZAN-G2", used: 1, allocation_epoch: "1" },
+  ]);
+});
+
+test("Reset before first start and customer generation reset allocate independent epochs", async () => {
+  const key = candidate(),
+    e = await enroll(key);
+  assert.equal(
+    (await ok(resetRoute(e), mutation(), admin)).body.allocation_epoch,
+    2,
+  );
+  await ok(startRoute, trialInput(e.device_id), e.credential);
+  await ok(`/admin/customers/${e.customer_id}/reset`, mutation(), admin);
+  const fresh = await enroll(key);
+  await denied(
+    startRoute,
+    trialInput(e.device_id),
+    "ACCOUNT_RESTRICTED",
+    e.credential,
+  );
+  await ok(startRoute, trialInput(e.device_id), fresh.credential);
+  await ok(startRoute, trialInput(e.device_id), fresh.credential);
+  await denied(
+    startRoute,
+    trialInput(e.device_id),
+    "TRIAL_EXHAUSTED",
+    fresh.credential,
+  );
+  assert.deepEqual(
+    (
+      await db.query(
+        "SELECT generation,used,allocation_epoch FROM trial_counters WHERE device_id=$1 ORDER BY generation",
+        [e.device_id],
+      )
+    ).rows,
+    [
+      { generation: 1, used: 1, allocation_epoch: "2" },
+      { generation: 2, used: 2, allocation_epoch: "1" },
+    ],
+  );
+});
+
+test("PostgreSQL serializes an in-flight trial before reset without restoring its nonce", async () => {
+  const e = await enroll(candidate()),
+    old = trialInput(e.device_id);
+  const audit = app.get(Audit),
+    service = app.get(Admin),
+    original = audit.append.bind(audit),
+    originalDevice = service.device.bind(service);
+  const held = barrier(),
+    release = barrier(),
+    resetEntered = barrier();
+  audit.append = async (...args: Parameters<Audit["append"]>) => {
+    await original(...args);
+    if (args[2] === "trial.started" && args[3] === e.device_id) {
+      held.resolve();
+      await release.promise;
+    }
+  };
+  service.device = (...args: Parameters<Admin["device"]>) => {
+    const work = originalDevice(...args);
+    if (args[1] === e.device_id) resetEntered.resolve();
+    return work;
+  };
+  try {
+    const start = request<Trial>(startRoute, old, e.credential);
+    await waitForSignal(held.promise);
+    const reset = request(resetRoute(e), mutation(), admin);
+    await waitForSignal(resetEntered.promise);
+    release.resolve();
+    assert.equal((await start).status, 201);
+    assert.equal((await reset).status, 201);
+  } finally {
+    release.resolve();
+    audit.append = original;
+    service.device = originalDevice;
+  }
+  await denied(startRoute, old, "TRIAL_ALLOCATION_CHANGED", e.credential);
+  const results = await Promise.all(
+    Array.from({ length: 20 }, () =>
+      request<ErrorBody>(startRoute, trialInput(e.device_id), e.credential),
+    ),
+  );
+  assert.equal(results.filter((r) => r.status === 201).length, 2);
+  assert.equal(
+    results.filter((r) => r.body.error?.code === "TRIAL_EXHAUSTED").length,
+    18,
+  );
+  assert.deepEqual(
+    (
+      await db.query(
+        "SELECT used,allocation_epoch FROM trial_counters WHERE device_id=$1",
+        [e.device_id],
+      )
+    ).rows,
+    [{ used: 2, allocation_epoch: "2" }],
+  );
+});
+
+test("Trials queued behind reset use its new epoch; old retry cannot return retired grant", async () => {
+  const e = await enroll(candidate()),
+    old = trialInput(e.device_id);
+  await ok(startRoute, old, e.credential);
+  const audit = app.get(Audit),
+    trials = app.get(Trials),
+    original = audit.append.bind(audit),
+    originalStart = trials.start.bind(trials);
+  const held = barrier(),
+    release = barrier(),
+    queued = barrier();
+  let entered = 0;
+  audit.append = async (...args: Parameters<Audit["append"]>) => {
+    await original(...args);
+    if (args[2] === "trial.reset" && args[3] === e.device_id) {
+      held.resolve();
+      await release.promise;
+    }
+  };
+  trials.start = (...args: Parameters<Trials["start"]>) => {
+    const work = originalStart(...args);
+    if (args[2].device_id === e.device_id && ++entered === 4) queued.resolve();
+    return work;
+  };
+  try {
+    const reset = request(resetRoute(e), mutation(), admin);
+    await waitForSignal(held.promise);
+    const retry = request<ErrorBody>(startRoute, old, e.credential);
+    const fresh = Array.from({ length: 3 }, () =>
+      request<ErrorBody>(startRoute, trialInput(e.device_id), e.credential),
+    );
+    await waitForSignal(queued.promise);
+    release.resolve();
+    assert.equal((await reset).status, 201);
+    assert.equal((await retry).body.error.code, "TRIAL_ALLOCATION_CHANGED");
+    const results = await Promise.all(fresh);
+    assert.equal(results.filter((r) => r.status === 201).length, 2);
+    assert.equal(
+      results.filter((r) => r.body.error?.code === "TRIAL_EXHAUSTED").length,
+      1,
+    );
+  } finally {
+    release.resolve();
+    audit.append = original;
+    trials.start = originalStart;
   }
 });

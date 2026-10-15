@@ -290,14 +290,37 @@ export class Admin {
     );
     await this.security.product(c, d, sku, "trial");
     await c.query(
-      "UPDATE trial_counters SET used=0 WHERE device_id=$1 AND sku=$2 AND generation=$3",
+      "INSERT INTO trial_counters(device_id,sku,generation) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
       [deviceId, sku, d.generation],
+    );
+    const previous = (
+      await c.query<{ used: number; allocation_epoch: string }>(
+        "SELECT used,allocation_epoch FROM trial_counters WHERE device_id=$1 AND sku=$2 AND generation=$3 FOR UPDATE",
+        [deviceId, sku, d.generation],
+      )
+    ).rows[0];
+    requireCondition(
+      Number(previous.allocation_epoch) < Number.MAX_SAFE_INTEGER,
+      "TRIAL_ALLOCATION_EXHAUSTED",
+      409,
+    );
+    const allocationEpoch = Number(previous.allocation_epoch) + 1;
+    await c.query(
+      "UPDATE trial_counters SET used=0,allocation_epoch=$4 WHERE device_id=$1 AND sku=$2 AND generation=$3",
+      [deviceId, sku, d.generation, allocationEpoch],
     );
     await this.audit.append(c, actor, "trial.reset", deviceId, {
       sku,
       generation: d.generation,
+      retired_allocation_epoch: previous.allocation_epoch,
+      retired_used: previous.used,
+      allocation_epoch: allocationEpoch,
     });
-    return { remaining: 2, generation: d.generation };
+    return {
+      remaining: 2,
+      generation: d.generation,
+      allocation_epoch: allocationEpoch,
+    };
   }
   async issue(
     c: PoolClient,

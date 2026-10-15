@@ -53,7 +53,7 @@ export class HealthController {
     const r = await this.db.query<{ count: string }>(
       "SELECT count(*) FROM schema_migrations",
     );
-    requireCondition(Number(r.rows[0].count) === 5, "MIGRATIONS_REQUIRED", 503);
+    requireCondition(Number(r.rows[0].count) === 6, "MIGRATIONS_REQUIRED", 503);
     return { status: "ready", production_gate: "closed" };
   }
 }

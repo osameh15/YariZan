@@ -48,19 +48,28 @@ export class Trials {
         [d.device_id, sku, d.generation],
       );
       const counter = (
-        await c.query<{ used: number }>(
-          "SELECT used FROM trial_counters WHERE device_id=$1 AND sku=$2 AND generation=$3 FOR UPDATE",
+        await c.query<{ used: number; allocation_epoch: string }>(
+          "SELECT used,allocation_epoch FROM trial_counters WHERE device_id=$1 AND sku=$2 AND generation=$3 FOR UPDATE",
           [d.device_id, sku, d.generation],
         )
       ).rows[0];
       const digest = hash(canonical({ ...input, sku }));
       const previous = (
-        await c.query<{ request_digest: string; response: TrialResponse }>(
-          "SELECT request_digest,response FROM trial_starts WHERE device_id=$1 AND sku=$2 AND generation=$3 AND nonce=$4",
+        await c.query<{
+          request_digest: string;
+          response: TrialResponse;
+          allocation_epoch: string;
+        }>(
+          "SELECT request_digest,response,allocation_epoch FROM trial_starts WHERE device_id=$1 AND sku=$2 AND generation=$3 AND nonce=$4",
           [d.device_id, sku, d.generation, input.client_nonce],
         )
       ).rows[0];
       if (previous) {
+        requireCondition(
+          previous.allocation_epoch === counter.allocation_epoch,
+          "TRIAL_ALLOCATION_CHANGED",
+          409,
+        );
         requireCondition(
           previous.request_digest === digest,
           "IDEMPOTENCY_MISMATCH",
@@ -82,7 +91,7 @@ export class Trials {
         server_time: new Date().toISOString(),
       };
       const stored = await c.query<{ response: TrialResponse }>(
-        "INSERT INTO trial_starts(id,device_id,sku,generation,nonce,request_digest,response) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING response",
+        "INSERT INTO trial_starts(id,device_id,sku,generation,nonce,request_digest,response,allocation_epoch) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING response",
         [
           randomUUID(),
           d.device_id,
@@ -91,6 +100,7 @@ export class Trials {
           input.client_nonce,
           digest,
           response,
+          counter.allocation_epoch,
         ],
       );
       await c.query(
@@ -102,7 +112,11 @@ export class Trials {
         { ...actor, type: "DEVICE", id: d.key_id },
         "trial.started",
         d.device_id,
-        { sku, generation: d.generation },
+        {
+          sku,
+          generation: d.generation,
+          allocation_epoch: counter.allocation_epoch,
+        },
       );
       return stored.rows[0].response;
     });
