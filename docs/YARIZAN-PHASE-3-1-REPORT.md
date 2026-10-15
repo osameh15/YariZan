@@ -23,7 +23,7 @@ Configuration/docs: .env.example, Compose explicit SMS fields, web CI screenshot
 | Requirement | Status | Evidence/limit |
 |---|---|---|
 | A custom validation and errors | Implemented | All forms use novalidate FormShell, Persian inline/summary/ARIA/focus, safe API notices, retry/disabled states and custom route errors |
-| B1 first claim by mobile OTP, optional password | Implemented | Pairing/phone proof bound to captured machine generation; receipt only; no password required |
+| B1 first claim by mobile OTP, optional password | Implemented | Pairing/phone proof bound to captured machine generation; atomic initial browser session and safe receipt; no password required |
 | B2 independent password and OTP login | Implemented | Two UI choices, generic username/mobile challenge receipts, one-time verification/session |
 | B3 password set/change | Implemented | Existing verified-mobile proof, no locks across Argon2, final session/stamp recheck and all browser sessions revoked |
 | B4 mobile self-service reset | Implemented | OTP-based primary reset; independent support fallback for lost number/legacy accounts |
@@ -60,9 +60,9 @@ Migration checksums/ordering and fresh PostgreSQL catalog drift comparison pass.
 
 Full request/response table: [Auth and SMS contracts](YARIZAN-AUTH-AND-SMS-CONTRACTS.md). Generated implemented OpenAPI contains 60 controller routes and the unchanged five desktop artifact profiles. Frontend types are generated and drift checked.
 
-First claim: desktop proves its CNG key and creates a five-minute pairing; browser previews ID/code, verifies mobile OTP and approves without a required password. The browser receives only status, username and expiry. Fresh device-key CONFIRM pickup alone delivers enrollment/bearer; AUTH renewal/recovery remains desktop-only. Existing-owner approval for additional Windows profiles uses the existing cookie/CSRF, shared machine and trial budget. No browser proxy route forwards desktop challenges, pickup, bearer auth or private key material.
+First claim: desktop proves its CNG key and creates a five-minute pairing; browser previews ID/code, verifies mobile OTP and approves without a required password. The browser receives status, username, expiry, authenticated:true and first-claim csrf_token, with the customer session in an HttpOnly cookie. Initial session creation commits with the account/OTP/pairing; existing-owner approval preserves its current session. Fresh device-key CONFIRM pickup alone delivers enrollment/bearer; AUTH renewal/recovery remains desktop-only. Existing-owner approval for additional Windows profiles uses the existing cookie/CSRF, shared machine and trial budget. No browser proxy route forwards desktop challenges, pickup, bearer auth or private key material.
 
-Customer login supports username/password or username/mobile OTP. OTP reset is primary at /reset-password. Security shows masked mobile and password status, supports password set/change and both-number verification, and closes sessions after changes. Support-grant reset is explicitly separate at /support-reset for independently verified exceptional recovery. No email, fabricated SMS confirmation or username/HWID-only support authorization.
+Customer login defaults to username/mobile OTP; username/password remains an independent alternative. OTP reset is primary at /reset-password. Security shows masked mobile and password status, supports password set/change and both-number verification, and closes sessions after changes. Support-grant reset is explicitly separate at /support-reset for independently verified exceptional recovery. No email, fabricated SMS confirmation or username/HWID-only support authorization.
 
 Admin login is now primary password, then a fresh random SMS challenge, then session creation. TOTP DTOs are rejected. SMS MFA controls the recent-authentication clock; RBAC, exact Origin, CSRF, role filtering, reason/evidence, request IDs and optimistic revisions remain in force. Notes additionally require notes.manage and the entity's existing read permission. Notes cannot become an alternate route to another record's privileges.
 
@@ -80,7 +80,7 @@ Live blockers: real provider credentials/API entitlement, approved security/serv
 
 Fake mode is explicitly development/test-only. It records deterministic observable test delivery in memory; optional fixture delivery is encrypted under the synthetic local phone key, never an API mailbox. Local operator command `node --env-file=.env dist/src/accounts/read-fake-sms.js` (or Compose exec) shows only a current unused/unexpired synthetic code and masked target. This is explicit test delivery inspection, not application logging or real-provider code exposure. The OTP-aware pairing harness uses only explicit fake configuration and prints no code/credential/private key.
 
-Delivery is bounded to four concurrent in-process sends after persisted admission, with generic receipts independent of provider timing. No automatic retry follows an ambiguous timeout. Process interruption/failed delivery requires a fresh challenge after cooldown; durable carrier reconciliation is not claimed. Provider acceptance is not handset delivery. Key custody/rotation, re-encryption/blind-index migration, maintenance/retention and production delivery reliability remain reviewed deployment dependencies.
+Delivery reserves 20 total in-process slots, uses a FIFO with four concurrent sends and rejects excess admission uniformly before persistence, with generic receipts independent of provider timing. Expired/superseded queued proofs are skipped and audited. No automatic retry follows an ambiguous timeout. Process interruption/failed delivery requires a fresh challenge after cooldown; durable carrier reconciliation is not claimed. Provider acceptance is not handset delivery. Key custody/rotation, re-encryption/blind-index migration, maintenance/retention and production delivery reliability remain reviewed deployment dependencies.
 
 ## 7. Executed local validation
 
@@ -174,3 +174,66 @@ Footer refinement: retained the studio PNG's existing alpha transparency, remove
 Footer contrast follow-up: placed studio/developer credits and copyright in a full-width dark brown band, preserving transparent logo rendering and vertically centered logo/text with the logo on the right. Removed copyright paragraph margins to prevent a light bottom strip. Added the second phone to the support page. Local Docker production build, changed-component ESLint and real Edge checks passed at 1280px/390px: dark background, logo/text center alignment within one pixel, no bottom gap, no horizontal overflow, and main-content phone link. Evidence: 27-support-footer-1280.png and 27-support-footer-390.png.
 
 Copyright row refinement: all three desktop credit groups now share one vertically centered row (studio/logo, copyright, design/development). Studio logo uses an explicit 48px block box and unit line height to eliminate inline baseline spacing; logo remains on the right. Mobile wraps safely. Local Docker production build and ESLint passed; real Edge asserted three sibling groups, desktop group centers within one pixel, logo/text centers within one pixel and no mobile overflow. Screenshots: 28-footer-row-1280.png and 28-footer-row-390.png; desktop screenshot visually reviewed.
+
+
+## 12. Independent review final fixes (reviewed HEAD 2074522)
+
+Implementation starts from current clean feature HEAD b1475e7, preserving all intervening requested footer/contact changes. Reviewed 2074522 is an ancestor; no history rewrite. Checkpoints: badd739 (atomic first-claim sessions/bounded OTP admission) and 2875463 (OTP-default customer login/authenticated Connect). This section supersedes earlier receipt-only/no-initial-session and delivery-capacity descriptions. Current complete auth contracts are in YARIZAN-AUTH-AND-SMS-CONTRACTS.md.
+
+### Finding-by-finding resolution
+
+1. **Implemented:** first mobile claim consumes OTP, creates the account and initial eight-hour customer session, appends customer.login_claim and transitions pairing in one PostgreSQL transaction. Shared customerSession/sessionCookies helpers also serve existing password/OTP login and rotation. Cookies are set after commit: HttpOnly yz_customer, exact existing /api/v2 path, SameSite=Strict, configured Secure, readable synchronizer CSRF cookie and csrf_token. The JSON receipt adds authenticated:true and optional csrf_token, never session/desktop bearer/enrollment/key material. Existing-owner approval revalidates the owner's current session and does not create or replace one. Invalid/replayed/expired/cancelled/mismatched/consumed proofs cannot mint sessions. Three simultaneous same-pair claims plus competing first-claim tests produce one owner/initial session; forced audit failure rolls account/session/OTP/pairing back together. Connect offers /account directly; the browser E2E asserts exactly one claim OTP, zero LOGIN OTPs for that account and immediate authenticated dashboard access. Desktop pickup remains fresh key-proof-only.
+
+2. **Implemented:** customer login defaults to OTP, shown first. Password remains an independent alternative; Admin still begins with password and then SMS MFA. Existing pressed-button group semantics and native keyboard activation are retained. Browser tests assert initial selection, keyboard Enter/Space switching, password completion, OTP-default login completion and Admin primary fields.
+
+3. **Implemented:** bounded FIFO reserves 20 total in-process admission/delivery slots, including all decoys; at most four concurrent vendor calls. Excess/shutdown admission rejects explicitly with generic 503 SMS_UNAVAILABLE before challenge persistence. Every accepted request is enqueued, rather than silently dropped at four active calls. Matched and unmatched public requests use the same reservation/rate/receipt/error path and do not await vendor delivery. Workers check persisted expiry/used/superseded/delivered state immediately before dispatch, audit skipped/failing delivery and never automatically retry an ambiguous timeout. Graceful shutdown closes admission, audits queued interruption, drains active calls and only then closes PostgreSQL. Database teardown moved from module destruction to application shutdown; CLI/bootstrap/test callers use the renamed close hook.
+
+No new migration, dependency, provider credential, endpoint, service or broker. Eight migrations and five signed desktop artifact profiles are unchanged. Implemented OpenAPI still has 60 routes; claim and confirm schemas now document browser session receipt fields and confirm's OTP input. Strict C# test receipt verification is updated without relaxing production desktop signed verification.
+
+### Changed files
+
+- backend/src/accounts/sessions.ts: shared transaction-local customer session creation and cookie writer.
+- backend/src/accounts/accounts.ts, auth-flows.ts; backend/src/identity/identity.ts; backend/src/api/controllers.ts: session reuse, atomic claim and safe response.
+- backend/src/accounts/otp.ts: bounded queue, uniform admission, stale checks and shutdown/failure handling.
+- backend/src/database/database.ts, migrate.ts, seed.ts; accounts/read-fake-sms.ts; tools/check-schema.mjs, provision-admin.mjs; apps/web/tools/test-api.mjs: PostgreSQL closes after delivery drain.
+- backend/test/integration.test.ts: seven new PostgreSQL/session/queue tests; existing safe-receipt expectations extended. Existing adapter/fake/MFA/security suites remain active.
+- apps/web/app/components/AuthAccess.vue, pages/connect.vue; tests/e2e/auth-31.spec.ts, portals.spec.ts: OTP default, authenticated continuation and browser regressions.
+- backend/tools/check-contracts.mjs, docs/YARIZAN-OPENAPI-BACKEND-V2.json, apps/web/shared/api.generated.ts; tests/BackendInterop/ProvisioningTransportChecks.cs: exact browser receipt contract updates.
+- Auth/SMS contracts, this report and refreshed application screenshots, including 29-first-claim-authenticated.png and 30-login-otp-default.png. Both new images were visually inspected; neither contains OTP/session/desktop secrets.
+
+### Executed local validation
+
+Windows 10.0.26300.0; Node 24.20.0/npm 12.0.2; .NET SDK 10.0.401 targeting .NET 9/runtime 9.0.20; isolated PostgreSQL 17.11; Edge 155.0.4283.45. No external SMS or production services. Exact commands run from the named directory:
+
+| Directory | Commands | Actual result |
+|---|---|---|
+| backend | npm run build; npm test | 136 passed; 0 failed/skipped/cancelled; 57.54s. Real PostgreSQL, 7 new review tests. |
+| backend | npm run lint; npm run format:check; npm run check:contracts; npm run check:secrets | passed; 60 routes/5 desktop profiles; 61 tracked text files, no secret matches |
+| backend | node tools/check-schema.mjs with explicit synthetic NODE_ENV=test/DATABASE_URL and three original synthetic keys | all eight migrations/five catalog groups match fresh disposable reference database |
+| backend | npx --yes @redocly/cli@2.63.0 lint ../docs/YARIZAN-OPENAPI-BACKEND-V2.json | valid; two expected warnings for retired 410-only routes |
+| apps/web | npm run contracts:check; npm run typecheck; npm run lint; npm run format:check; npm run build; npm test | passed; 14 unit/component tests |
+| apps/web | PLAYWRIGHT_CHANNEL=msedge npm run test:e2e (PowerShell env assignment) | 26 passed, 0 failed, 53.9s; real API/PostgreSQL and C# browser callback |
+| root | docker build -t yarizan-backend-fixture backend | passed; synthetic non-root image, no embedded signing key |
+| backend | node tools/check-runtime-env.mjs yarizan-backend-fixture with RUNTIME_DOCKER_NETWORK=yarizan-v2-local_default and disposable RUNTIME_DATABASE_URL=postgresql://yarizan:local-disposable@db:5432/yarizan_phase2_test | missing/empty/staging/production refused; development/test migrated, seeded, ready, signing mode and graceful shutdown passed |
+| root | powershell.exe -NoProfile -File tests/Run-V2Checks.ps1 | 298 passed/0 failed; two conditional physical clipboard round-trips NOT executed because OS clipboard unavailable. Injected clipboard/error checks passed. Non-elevated token, TPM-preferred selected TPM; no source change to Windows checks. |
+| root | powershell.exe -NoProfile -File tests/Run-AccessChecks.ps1; Run-LauncherChecks.ps1; Run-GradeChecks.ps1; Run-BookChecks.ps1 (each via its own PowerShell process) | 27 access, 8 launcher, 5 grade groups, 36 book passed; 374 local checks/groups total including V2; two physical clipboard checks unavailable, distinct from hosted baseline 376 |
+| root | python tools/Check-PublicRepository.py; git diff --check | passed |
+| backend/apps/web | npm audit --audit-level=high / npm run audit:dependencies | backend zero vulnerabilities; web runtime high/critical zero; existing explicit build-advisory policy passes with disclosed unpatched findings, not a clean full build-tree audit |
+
+The backend suite executed real C# verifier24/API10/provisioning24 (software adapter) plus 25 actual Windows CNG SOFTWARE/DPAPI checks. The browser suite separately executed the 25-check Windows CNG/DPAPI callback integration. These prove test-key interoperability and protected storage; no physical hardware ownership/commercial signing acceptance is claimed. Local logs remain ignored under backend/.local/review-final-* and apps/web/.local/review-final-browser.log.
+
+During validation, the strict C# test initially rejected the intentionally extended receipt, a new rollback assertion initially expected HTTP500 rather than the existing sanitized503, and a password browser regression initially assumed the old default. Those tests were corrected to assert the new approved contract/default; full reruns above passed. An initial schema command omitted its disposable DATABASE_URL; rerun with explicit test configuration passed. These are not reported as successful initial runs.
+
+Backend/web implementation CI on 2875463 passed (136 backend; 14 unit and 26 Chromium browser in 36.9s); Windows V2 checks passed and the workflow was finishing API lint at this evidence snapshot. Implementation CI is linked below; final evidence-only HEAD and its exact run links are recorded in Draft PR #3/final delivery after all workflows finish. No runtime changes are intended after this checkpoint.
+
+- [Backend review CI](https://github.com/osameh15/YariZan/actions/runs/38764181479)
+- [Web/provisioning review CI](https://github.com/osameh15/YariZan/actions/runs/38764181423)
+- [Windows review CI](https://github.com/osameh15/YariZan/actions/runs/38764181366)
+
+### Residual risks and safety
+
+The queue is process-local and bounded, not a durable SMS outbox: abrupt process/database failure can lose a queued plaintext code or final delivery audit. Persisted undelivered challenges remain unusable; restart never resends old codes, and the customer must request a fresh challenge after cooldown. Already-dispatched vendor calls cannot be recalled if expiry/supersession occurs during the call. Provider acceptance is not handset delivery. No automatic ambiguous-timeout retry or production reliability claim. Commercial startup and real SMS remain closed; live MeliPayamak credentials/template/carrier acceptance, hardware first-claim assurance/disputes, production signing custody and physical Windows endurance acceptance remain blockers. Existing build-only dependency findings remain disclosed.
+
+Main stays e7af35f1771c7d85277aea338a26c957176adb85. Production/staging/live infrastructure, PHP/MySQL, DNS/Traefik, real customer data, payment/SMS services and commercial signing keys are unchanged. No merge, deployment, force-push, live provider call or production key generation. Draft PR #3 stays Draft for independent review.
+
+Local Compose was rebuilt and restarted with explicit fake SMS. `node --env-file=.local/demo.env .local/31-compose-smoke.mjs` passed SSR RTL/catalog/closed gate, primary Admin admission without session, encrypted synthetic SMS inspection, and SMS verification with HttpOnly cookie. The initial invocation without the env file refused the fake-provider guard; no live call was made. Preview remains local at http://localhost:3200.
