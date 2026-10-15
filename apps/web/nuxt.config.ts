@@ -3,7 +3,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-10-15',
   devtools: { enabled: false },
   typescript: { strict: true, typeCheck: true },
-  css: ['~/assets/css/main.css'],
+  css: ['~/assets/css/main.css', '~/assets/css/premium.css'],
   // Native BigInt is required for exact money display; target modern browsers and Node 24.
   vite: { plugins: [tailwindcss()], build: { target: 'es2022' } },
   esbuild: { options: { target: 'es2022' } },

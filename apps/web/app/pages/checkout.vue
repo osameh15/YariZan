@@ -50,63 +50,133 @@ onMounted(load);
 useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
 </script>
 <template>
-  <section class="wrap section commerce-layout">
-    <div>
-      <p class="eyebrow">سفارش برای دستگاه شما</p>
+  <section class="wrap section checkout-page">
+    <NuxtLink class="text-link" to="/products">بازگشت به پایه‌ها ←</NuxtLink>
+    <header class="checkout-heading">
+      <p class="eyebrow">یک قدم تا دنیای بازی و یادگیری</p>
       <h1>یک پایه، یک دنیای تازه</h1>
-      <p class="hero-lead">
-        مجوز خرید فقط برای همین دستگاه و پایه ثبت می‌شود. پس از فعال‌سازی، بازی با مجوز معتبر به
-        اینترنت نیاز ندارد.
-      </p>
-      <ApiNotice
-        kind="info"
-        message="محیط آزمایشی: پرداخت کاملاً شبیه‌سازی می‌شود و هیچ پولی جابه‌جا نخواهد شد."
-      />
-      <p>
-        قیمت و تخفیف را سرور محاسبه می‌کند. پیش از ادامه، مبلغ نهایی سفارش ثبت‌شده را دوباره خواهید
-        دید.
-      </p>
-      <NuxtLink class="text-link" to="/support">راهنمای خرید و شرایط درخواست بازپرداخت</NuxtLink>
-    </div>
-    <div class="panel">
-      <h2>{{ quote?.title_fa ?? 'خلاصهٔ سفارش' }}</h2>
-      <FormShell @submit="load"
-        ><label
-          >کد تخفیف<input
-            v-model="coupon"
-            dir="ltr"
-            maxlength="64"
-            pattern="[A-Za-z0-9_-]*"
-            data-format-message="کد تخفیف را با حروف و اعداد انگلیسی وارد کنید."
-            autocomplete="off" /></label
-        ><button class="button secondary" :disabled="busy">بررسی کد تخفیف</button></FormShell
-      >
-      <ApiNotice :message="message" /><template v-if="quote"
-        ><dl class="commerce-totals">
-          <div>
-            <dt>قیمت پایه</dt>
-            <dd>{{ toman(quote.subtotal_irr) }} تومان</dd>
+      <p>سفارش را بررسی کنید؛ مجوز این پایه برای دستگاه شما ثبت می‌شود.</p>
+    </header>
+    <div class="commerce-layout checkout-grid">
+      <div class="checkout-main">
+        <article class="checkout-product">
+          <div class="checkout-cover" aria-hidden="true">
+            <img src="/brand/symbol.webp" width="56" height="56" alt="" />
+            <strong>{{ new Intl.NumberFormat('fa-IR').format(Number(sku.slice(-1))) }}</strong>
+            <span>بازی و یادگیری</span>
           </div>
           <div>
-            <dt>تخفیف</dt>
-            <dd>{{ toman(quote.discount_irr) }} تومان</dd>
+            <span class="badge available">مجوز دائمی · ویژهٔ یک دستگاه</span>
+            <h2>{{ quote?.title_fa ?? 'خلاصهٔ سفارش' }}</h2>
+            <p>پس از دریافت و فعال‌سازی مجوز معتبر، همین پایه همیشه آفلاین در دسترس است.</p>
+            <span class="muted"
+              >نسخهٔ ویندوز <bdi>{{ sku }}</bdi></span
+            >
+          </div>
+        </article>
+        <section class="coupon-panel" aria-labelledby="coupon-title">
+          <header>
+            <h2 id="coupon-title">کد تخفیف دارید؟</h2>
+            <span class="muted">اختیاری</span>
+          </header>
+          <FormShell class="coupon-form" @submit="load">
+            <label
+              >کد تخفیف<input
+                v-model="coupon"
+                dir="ltr"
+                maxlength="64"
+                pattern="[A-Za-z0-9_-]*"
+                data-format-message="کد تخفیف را با حروف و اعداد انگلیسی وارد کنید."
+                autocomplete="off"
+                placeholder="YARIZAN"
+            /></label>
+            <button class="button secondary" :disabled="busy">
+              {{ busy ? 'در حال بررسی…' : 'بررسی کد تخفیف' }}
+            </button>
+          </FormShell>
+          <ApiNotice :message="message" />
+          <template v-if="quote && quote.discount_irr > 0">
+            <ApiNotice
+              kind="success"
+              message="کد تخفیف قابل استفاده است؛ سهمیه هنگام ثبت سفارش رزرو می‌شود."
+            />
+            <button
+              class="text-link"
+              type="button"
+              :disabled="busy"
+              @click="
+                coupon = '';
+                load();
+              "
+            >
+              حذف کد تخفیف
+            </button>
+          </template>
+        </section>
+        <div class="purchase-principles">
+          <div>
+            <span aria-hidden="true">۱</span>
+            <div>
+              <h3>برای همین پایه و دستگاه</h3>
+              <p>هر پایه مجوز مستقل دارد. مجوز به دستگاه تأییدشدهٔ حساب شما متصل است.</p>
+            </div>
           </div>
           <div>
-            <dt>مبلغ قابل پرداخت</dt>
-            <dd>{{ toman(quote.total_irr) }} تومان</dd>
+            <span aria-hidden="true">۲</span>
+            <div>
+              <h3>یک‌بار فعال‌سازی، بازی آفلاین</h3>
+              <p>اینترنت برای دریافت نخستین مجوز لازم است؛ اجرای بعدی با مجوز معتبر، آفلاین است.</p>
+            </div>
           </div>
-        </dl>
-        <ApiNotice
-          v-if="quote.discount_irr > 0"
-          kind="success"
-          message="کد تخفیف قابل استفاده است؛ سهمیه هنگام ثبت سفارش رزرو می‌شود."
-        />
-        <p class="muted">درگاه: شبیه‌ساز زرین‌پال · پول واقعی دریافت نمی‌شود.</p>
-        <button class="button primary" :disabled="busy || coupon.trim() !== quoted" @click="create">
-          ثبت سفارش و بررسی پرداخت
-        </button></template
-      >
-      <button v-else class="button secondary" :disabled="busy" @click="load">تلاش دوباره</button>
+        </div>
+        <NuxtLink class="text-link" to="/support"
+          >راهنمای خرید و شرایط درخواست بازپرداخت ↗</NuxtLink
+        >
+      </div>
+      <aside class="order-summary" aria-labelledby="summary-title" :aria-busy="busy">
+        <p class="eyebrow">شفاف، پیش از ادامه</p>
+        <h2 id="summary-title">خلاصهٔ سفارش</h2>
+        <template v-if="quote">
+          <dl class="commerce-totals">
+            <div>
+              <dt>قیمت پایه</dt>
+              <dd>{{ toman(quote.subtotal_irr) }} تومان</dd>
+            </div>
+            <div :class="{ 'discount-applied': quote.discount_irr > 0 }">
+              <dt>تخفیف</dt>
+              <dd>{{ toman(quote.discount_irr) }} تومان</dd>
+            </div>
+            <div class="payable-total">
+              <dt>مبلغ قابل پرداخت</dt>
+              <dd>{{ toman(quote.total_irr) }} <small>تومان</small></dd>
+            </div>
+          </dl>
+          <div class="simulation-note">
+            <span class="badge">پرداخت آزمایشی</span>
+            <p>محیط آزمایشی: پرداخت کاملاً شبیه‌سازی می‌شود و هیچ پولی جابه‌جا نخواهد شد.</p>
+            <small>درگاه: شبیه‌ساز زرین‌پال · پول واقعی دریافت نمی‌شود.</small>
+          </div>
+          <button
+            class="button primary checkout-submit"
+            :disabled="busy || coupon.trim() !== quoted"
+            @click="create"
+          >
+            ثبت سفارش و بررسی پرداخت <span aria-hidden="true">←</span>
+          </button>
+          <p v-if="coupon.trim() !== quoted" class="muted" role="status">
+            برای ادامه، تغییر کد تخفیف را بررسی کنید.
+          </p>
+          <p class="summary-footnote">
+            قیمت و تخفیف را سرور محاسبه می‌کند. مبلغ نهایی را پیش از شروع پرداخت دوباره خواهید دید.
+          </p>
+        </template>
+        <template v-else
+          ><p class="muted">برای ادامه، مبلغ سفارش باید از سرور دریافت شود.</p>
+          <button class="button secondary" :disabled="busy" @click="load">
+            تلاش دوباره
+          </button></template
+        >
+      </aside>
     </div>
   </section>
 </template>

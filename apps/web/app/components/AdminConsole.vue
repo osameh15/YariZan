@@ -329,6 +329,12 @@ onBeforeUnmount(() => {
   secret.value = '';
   evidence.value = '';
 });
+const navigationGroups: { title: string; ids: string[] }[] = [
+  { title: 'میز کار', ids: ['dashboard', 'products'] },
+  { title: 'مشتریان و دستگاه‌ها', ids: ['customers', 'devices'] },
+  { title: 'مجوزها و آزمایش', ids: ['licenses', 'trials', 'activation-codes'] },
+  { title: 'فروش و نظارت', ids: ['commerce', 'audit'] },
+];
 </script>
 <template>
   <section class="wrap section portal admin-portal">
@@ -336,17 +342,26 @@ onBeforeUnmount(() => {
       <p class="eyebrow">مدیریت یاریزان</p>
       <h2>میز کار شما</h2>
       <nav aria-label="بخش‌های مدیریت">
-        <NuxtLink
-          v-for="[id, label] in sections.filter((s) => allowed(s[2]!))"
-          :key="id"
-          :to="id === 'dashboard' ? '/zanyari' : `/zanyari/${id}`"
-          :aria-current="section === id ? 'page' : undefined"
-          >{{ label }}</NuxtLink
-        >
+        <template v-for="group in navigationGroups" :key="group.title">
+          <span
+            v-if="sections.some((s) => group.ids.includes(s[0]!) && allowed(s[2]!))"
+            class="nav-group-label"
+            >{{ group.title }}</span
+          >
+          <NuxtLink
+            v-for="[id, label] in sections.filter(
+              (s) => group.ids.includes(s[0]!) && allowed(s[2]!),
+            )"
+            :key="id"
+            :to="id === 'dashboard' ? '/zanyari' : `/zanyari/${id}`"
+            :aria-current="section === id ? 'page' : undefined"
+            >{{ label }}</NuxtLink
+          >
+        </template>
       </nav>
       <button class="button secondary" @click="logout">خروج از مدیریت</button>
     </aside>
-    <div class="portal-main">
+    <div class="portal-main" :aria-busy="busy">
       <header class="portal-heading">
         <div>
           <p class="eyebrow">تغییرات مسئولانه و قابل پیگیری</p>
@@ -357,7 +372,7 @@ onBeforeUnmount(() => {
       <ApiNotice :message="message" :kind="noticeSuccess ? 'success' : 'error'" />
       <p v-if="busy" role="status" class="notice">در حال دریافت اطلاعات…</p>
       <template v-if="section === 'dashboard'"
-        ><div v-if="allowed('audit.read')" class="stat-grid">
+        ><div v-if="allowed('audit.read') && !busy" class="stat-grid">
           <article class="panel">
             <span>{{ new Intl.NumberFormat('fa-IR').format(Number(reports.customers ?? 0)) }}</span>
             <p>حساب فعال</p>

@@ -9,7 +9,25 @@ const props = defineProps<{ id: string }>(),
   message = ref(''),
   requestId = ref(''),
   refund = ref(''),
-  noticeSuccess = ref(false);
+  noticeSuccess = ref(false),
+  copied = ref(false);
+const statusTone = computed(() => {
+  if (!order.value) return 'pending';
+  if (order.value.exception_code) return 'review';
+  if (order.value.license_id) return 'ready';
+  if (order.value.payments.some((p) => p.state === 'UNKNOWN')) return 'unknown';
+  if (['FAILED', 'CANCELLED'].includes(order.value.state)) return 'failed';
+  return order.value.paid_at ? 'confirmed' : 'pending';
+});
+async function copyOrderId() {
+  if (!order.value) return;
+  try {
+    await navigator.clipboard.writeText(order.value.id);
+    copied.value = true;
+  } catch {
+    message.value = 'کپی خودکار ممکن نشد؛ شمارهٔ سفارش را انتخاب کنید.';
+  }
+}
 let timer: ReturnType<typeof setTimeout> | undefined,
   remaining = 30,
   alive = true;
@@ -78,21 +96,37 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <section class="wrap section">
+  <section class="wrap section order-page">
     <NuxtLink class="text-link" to="/account/orders">بازگشت به سفارش‌ها</NuxtLink>
     <h1>وضعیت سفارش شما</h1>
     <ApiNotice
       kind="info"
       message="پرداخت آزمایشی است؛ هیچ مبلغ واقعی از شما دریافت نمی‌شود."
     /><ApiNotice :message="message" :kind="noticeSuccess ? 'success' : 'error'" />
-    <div v-if="order" class="panel">
+    <div v-if="order" class="panel order-receipt" :data-tone="statusTone">
+      <div class="order-status-symbol" aria-hidden="true">
+        {{
+          statusTone === 'ready'
+            ? '✓'
+            : statusTone === 'failed'
+              ? '×'
+              : statusTone === 'review'
+                ? '!'
+                : '…'
+        }}
+      </div>
       <h2 class="order-state" aria-live="polite">{{ commerceState(order) }}</h2>
       <p>{{ order.snapshot.title_fa }}</p>
       <p class="device-username" dir="ltr">{{ order.snapshot.username }}</p>
       <dl class="commerce-totals">
         <div>
           <dt>شمارهٔ سفارش</dt>
-          <dd dir="ltr">{{ order.id }}</dd>
+          <dd class="order-id">
+            <bdi>{{ order.id }}</bdi
+            ><button type="button" class="copy-button" @click="copyOrderId">
+              {{ copied ? 'کپی شد' : 'کپی شماره' }}</button
+            ><span class="sr-only" role="status">{{ copied ? 'شمارهٔ سفارش کپی شد.' : '' }}</span>
+          </dd>
         </div>
         <div>
           <dt>قیمت پایه</dt>

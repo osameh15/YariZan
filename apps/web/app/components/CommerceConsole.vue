@@ -244,24 +244,45 @@ const stateLabel = (row: Record<string, unknown>) =>
     paid_at: row.paid_at,
     exception_code: row.exception_code,
   });
+const navigationGroups: { title: string; ids: string[] }[] = [
+  { title: 'سفارش و پرداخت', ids: ['orders', 'payments'] },
+  { title: 'تخفیف‌ها', ids: ['campaigns', 'coupons', 'reservations', 'redemptions'] },
+  { title: 'پیگیری مالی', ids: ['jobs', 'exceptions', 'finance', 'refunds'] },
+];
 </script>
 <template>
-  <section class="wrap section portal">
+  <section class="wrap section portal commerce-workspace">
     <aside class="portal-sidebar">
       <h2>فروش و امور مالی</h2>
       <NuxtLink class="text-link" to="/zanyari">بازگشت به مدیریت</NuxtLink>
       <nav aria-label="مدیریت فروش">
-        <NuxtLink
-          v-for="s in sections.filter((s) =>
-            allowed(s[0] === 'finance' ? 'finance.read' : 'commerce.read'),
-          )"
-          :key="s[0]"
-          :to="{ path: '/zanyari/commerce', query: { section: s[0] } }"
-          >{{ s[1] }}</NuxtLink
-        >
+        <template v-for="group in navigationGroups" :key="group.title">
+          <span
+            v-if="
+              sections.some(
+                (s) =>
+                  group.ids.includes(s[0]) &&
+                  allowed(s[0] === 'finance' ? 'finance.read' : 'commerce.read'),
+              )
+            "
+            class="nav-group-label"
+            >{{ group.title }}</span
+          >
+          <NuxtLink
+            v-for="s in sections.filter(
+              (s) =>
+                group.ids.includes(s[0]) &&
+                allowed(s[0] === 'finance' ? 'finance.read' : 'commerce.read'),
+            )"
+            :key="s[0]"
+            :to="{ path: '/zanyari/commerce', query: { section: s[0] } }"
+            :aria-current="section === s[0] ? 'page' : undefined"
+            >{{ s[1] }}</NuxtLink
+          >
+        </template>
       </nav>
     </aside>
-    <div class="portal-main">
+    <div class="portal-main" :aria-busy="busy">
       <p class="eyebrow">فقط داده‌های آزمایشی</p>
       <h1>{{ title }}</h1>
       <ApiNotice
@@ -306,21 +327,23 @@ const stateLabel = (row: Record<string, unknown>) =>
           سفارش‌ها بر اساس تاریخ ثبت گزارش می‌شوند؛ دریافت‌های تأییدشده بر اساس زمان تأیید درگاه و
           با احتساب دریافت تکراری هستند. این گزارش جایگزین تسویهٔ بانکی نیست.
         </p>
-        <div v-if="section === 'finance'" class="stat-grid">
+        <div
+          v-if="section === 'finance' && !busy && report.currency === 'IRR'"
+          class="stat-grid finance-metrics"
+        >
           <article
             v-for="[key, label] in [
               ['gross_irr', 'مبلغ اولیهٔ سفارش‌های پرداخت‌شده'],
               ['discount_irr', 'تخفیف ثبت‌شده'],
               ['net_irr', 'خالص سفارش‌های پرداخت‌شده'],
               ['verified_captures_irr', 'دریافت‌های تأییدشده، شامل موارد تکراری'],
-              ['paid_unfulfilled', 'پرداخت‌شده؛ مجوز آماده نیست'],
-              ['exceptions', 'موارد نیازمند بررسی'],
-              ['paid_orders', 'سفارش‌های پرداخت‌شده'],
-              ['redemptions', 'دفعات استفاده از تخفیف'],
-              ['refund_requests', 'درخواست‌های بازپرداخت'],
             ]"
             :key="key"
             class="panel"
+            :class="{
+              'metric-primary': key === 'net_irr',
+              'metric-captures': key === 'verified_captures_irr',
+            }"
           >
             <h2>
               {{ key.endsWith('_irr') ? financialToman(report[key]) : (report[key] ?? '۰') }}
@@ -329,8 +352,33 @@ const stateLabel = (row: Record<string, unknown>) =>
             <p>{{ label }}</p>
           </article>
         </div>
+        <dl
+          v-if="section === 'finance' && !busy && report.currency === 'IRR'"
+          class="finance-counts"
+        >
+          <div
+            v-for="[key, label] in [
+              ['paid_orders', 'سفارش پرداخت‌شده'],
+              ['redemptions', 'تخفیف استفاده‌شده'],
+              ['paid_unfulfilled', 'در انتظار مجوز'],
+              ['exceptions', 'نیازمند بررسی'],
+              ['refund_requests', 'درخواست بازپرداخت'],
+            ]"
+            :key="key"
+          >
+            <dt>{{ label }}</dt>
+            <dd>{{ new Intl.NumberFormat('fa-IR').format(Number(report[key] ?? 0)) }}</dd>
+          </div>
+        </dl>
+        <p v-if="busy" class="notice" role="status">در حال دریافت اطلاعات…</p>
         <div v-if="section === 'finance'" class="panel">
           <h2>وضعیت تلاش‌های پرداخت</h2>
+          <p
+            v-if="!busy && !(report.payment_states as unknown[] | undefined)?.length"
+            class="muted"
+          >
+            در این بازه تلاش پرداختی ثبت نشده است.
+          </p>
           <ul class="record-list">
             <li v-for="(r, i) in report.payment_states as Record<string, unknown>[]" :key="i">
               {{ stateLabel(r) }}: {{ r.count }} · {{ financialToman(r.amount_irr) }} تومان
@@ -389,9 +437,11 @@ const stateLabel = (row: Record<string, unknown>) =>
                   <p v-if="row.exception_code">این مورد نیاز به بررسی مالی دارد.</p>
                 </td>
                 <td>
-                  {{
-                    row.enabled === undefined ? stateLabel(row) : row.enabled ? 'فعال' : 'غیرفعال'
-                  }}
+                  <span class="status-chip" :data-state="row.state">
+                    {{
+                      row.enabled === undefined ? stateLabel(row) : row.enabled ? 'فعال' : 'غیرفعال'
+                    }}</span
+                  >
                 </td>
                 <td class="note-preview">{{ row.note ?? '—' }}</td>
                 <td>
@@ -522,6 +572,10 @@ const stateLabel = (row: Record<string, unknown>) =>
       >
       <FormShell v-else class="commerce-editor" @submit="save"
         ><div class="commerce-editor-fields">
+          <div v-if="['campaigns', 'coupons'].includes(kind)" class="editor-section-heading">
+            <h3>مشخصات {{ kind === 'campaigns' ? 'طرح' : 'کد' }} تخفیف</h3>
+            <p>مبلغ‌ها به ریال هستند؛ تغییرات، قیمت سفارش‌های قبلی را عوض نمی‌کند.</p>
+          </div>
           <template v-if="kind === 'note'"
             ><label>یادداشت داخلی<textarea v-model="note" maxlength="2000" /></label></template
           ><template v-else
@@ -581,7 +635,11 @@ const stateLabel = (row: Record<string, unknown>) =>
                 >
               </fieldset></template
             ><template v-if="['campaigns', 'coupons'].includes(kind)"
-              ><label
+              ><div class="editor-section-heading">
+                <h3>سهمیه و دسترسی</h3>
+                <p>صفر یعنی بدون سقف. سهمیه فقط پس از تأیید پرداخت مصرف می‌شود.</p>
+              </div>
+              <label
                 >سقف کل استفاده (صفر بدون سقف)<input
                   v-model.number="form.max_redemptions"
                   type="number"

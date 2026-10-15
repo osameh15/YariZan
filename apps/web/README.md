@@ -76,3 +76,8 @@ Use the existing disposable PostgreSQL and fake SMS setup. Backend build/test ex
 Client Vite/Nuxt and server Nitro explicitly target ES2022. Node 24 and modern browsers with native BigInt are required; money formatting retains exact integer arithmetic. Current Edge (local) and Chromium (CI) execute the production output; older browsers and physical Safari/Firefox are not claimed accepted. CI captures production/Docker logs and rejects unsupported BigInt target warnings.
 
 Commerce navigation maps only to the ten implemented OpenAPI sections. Financial counts are summary fields, not extra routes. Unknown section URLs show a Persian controlled error. Coupon fields scroll independently of persistent Save/Cancel actions; keyboard/Escape/return-focus acceptance covers 1440px and 390px viewports. See the Phase 4 report for review evidence.
+
+
+## Presentation system
+
+The premium shared layer is `app/assets/css/premium.css`, loaded after established layout/validation rules. See [the design-system reference](../../docs/YARIZAN-WEB-DESIGN-SYSTEM.md) for semantic tokens, component states, mobile rules and accessibility acceptance. Checkout/order/finance totals still come exclusively from the backend; presentation does not open commercial gates. Fresh API-backed browser evidence lives in `docs/Images/phase4-premium/` and is uploaded by web CI. `tests/e2e/premium.spec.ts` covers public layouts; commerce tests cover checkout/Admin widths, enlarged presentation, dialog reachability and financial report error recovery. Pixel-perfect snapshot comparison and full manual WCAG certification are not claimed.
