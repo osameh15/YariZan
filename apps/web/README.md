@@ -1,6 +1,6 @@
 # YariZan Nuxt 4 portals
 
-Persian RTL storefront, customer portal and MFA/RBAC Admin console. Isolated development/review only. No payment completion, SMS delivery or production deployment exists. The supplied server-panel screenshot is not a web design asset or permission to access infrastructure.
+Persian RTL storefront, customer portal and MFA/RBAC Admin console. Isolated development/review only. No payment completion, live SMS acceptance or production deployment exists. SMS authentication has an explicit local fake provider and a fail-closed MeliPayamak adapter. The supplied server-panel screenshot is not a web design asset or permission to access infrastructure.
 
 ## Start locally
 
@@ -14,7 +14,7 @@ npm --prefix apps/web ci --ignore-scripts
 docker compose --env-file backend/.env -f backend/compose.yaml --profile web up --build -d
 ```
 
-Open **http://localhost:3200** (use localhost consistently for exact Origin). The database is loopback-only on 55432, API on 3100. Compose explicitly selects development, migrates seven ordered migrations and seeds six products. Health/readiness require the schema. API keys stay in the disposable development volume, never the web image. Stop this named local stack with `docker compose --env-file backend/.env -f backend/compose.yaml --profile web stop`; no volume deletion is required.
+Open **http://localhost:3200** (use localhost consistently for exact Origin). The database is loopback-only on 55432, API on 3100. Compose explicitly selects development, migrates eight ordered migrations and seeds six products. Health/readiness require the schema. API keys stay in the disposable development volume, never the web image. Stop this named local stack with `docker compose --env-file backend/.env -f backend/compose.yaml --profile web stop`; no volume deletion is required.
 
 For host development, start only Compose `db`, then from backend use Node `--env-file=.env` for migration, seed and main. In another terminal `npm --prefix apps/web run dev`. Defaults point only to 127.0.0.1:3100. On hosts exporting unsupported SOCKS proxy variables, clear HTTP_PROXY/HTTPS_PROXY/ALL_PROXY in that terminal and set NODE_USE_ENV_PROXY=0 before Nuxt commands. This does not change system networking.
 
@@ -26,7 +26,7 @@ Catalog SSR never forwards cookies. Private account/Admin data loads after mount
 
 Connect accepts a short-lived ID/code by form. Browser approval returns status only. Windows alone owns CNG proof and calls backend pickup. Additional profiles require the existing owner. The development build has no approved commercial roots; production startup and commercial Windows release remain closed. See ADR-0006 and the Phase 3 report.
 
-Admin bootstrap is the existing development-only backend tool, not a privileged UI shortcut. Use independent synthetic MFA credentials as described in backend/README.md. Sensitive operations require recent MFA, scoped permission, revision, reason and ownership evidence. One-time activation/reset secrets clear when their dialog closes; late responses cannot fill a different dialog.
+Admin bootstrap is the existing development-only backend tool, not a privileged UI shortcut. Use independent synthetic SMS MFA credentials as described in backend/README.md. Sensitive operations require recent MFA, scoped permission, revision, reason and ownership evidence. One-time activation/reset secrets clear when their dialog closes; late responses cannot fill a different dialog.
 
 ## Checks
 
@@ -54,3 +54,9 @@ CI runs the same commands with an isolated PostgreSQL 17 service, .NET 9, Chromi
 Public: `/`, `/products`, `/products/grade-1` through grade-6, `/support`, `/connect`, `/login`, `/reset-password`. Customer: `/account`, `/account/devices`, `/account/licenses`, `/account/security`, `/account/orders` (explicitly unavailable). Admin: `/zanyari` and products/customers/devices/licenses/trials/activation-codes/audit sections, permission-filtered and backend-enforced.
 
 Prices and publication/sale/trial/activation flags come from the live catalog. Integer IRR is displayed as Toman. Checkout offers support assistance, never fabricated settlement. The existing release link is used only where supported; Coming Soon never suggests a downloadable/activated grade. Future payment/SMS/finance/support evidence systems need separate contracts and authorization. No runtime code reads PostgreSQL from Nuxt; direct SQL exists only in isolated test tools.
+
+## Phase 3.1 manual authentication review
+
+Connect now verifies mobile OTP for first ownership; no initial password is required. Login offers password/OTP, /reset-password is self-service OTP, /support-reset is the independent support-grant fallback, and /account/security supports password/mobile changes. Every form uses the shared novalidate FormShell with Persian inline errors/ARIA/focus; API notices and route errors avoid raw browser/framework text. Admin uses password then SMS, with no TOTP fallback. Notes/search are real permission-scoped backend operations.
+
+Enable only the explicit fake local SMS configuration described in backend/README.md and read fake codes through the operator CLI, not a browser API. Production provider configuration and approved template are absent. Tests use an encrypted fake spool and synthetic mobiles; no real messages are sent. Current acceptance and screenshots are in docs/YARIZAN-PHASE-3-1-REPORT.md; exact APIs/settings in docs/YARIZAN-AUTH-AND-SMS-CONTRACTS.md. Existing Phase 3 reports describe their historical baseline.

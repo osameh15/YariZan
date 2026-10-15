@@ -165,4 +165,8 @@ Website: [osameh.dev](https://osameh.dev) · Support: [support@osameh.dev](mailt
 
 ## V2 Phase 3 web and provisioning review
 
-The isolated [Nuxt 4 storefront and portals](apps/web/README.md) use the real NestJS/PostgreSQL contracts. Browser pairing returns only an approval receipt; a fresh Windows CNG proof picks up enrollment and the short-lived credential. See [ADR-0006](docs/adr/0006-web-and-desktop-provisioning.md), [Phase 3 engineering report](docs/YARIZAN-PHASE-3-REPORT.md), and [implemented screenshots](docs/Images/phase3/). Commercial startup remains closed. Payments, SMS and deployment are not implemented or authorized. Existing legacy services remain separate.
+The isolated [Nuxt 4 storefront and portals](apps/web/README.md) use the real NestJS/PostgreSQL contracts. Browser pairing returns only an approval receipt; a fresh Windows CNG proof picks up enrollment and the short-lived credential. See [ADR-0006](docs/adr/0006-web-and-desktop-provisioning.md), [Phase 3 engineering report](docs/YARIZAN-PHASE-3-REPORT.md), and [implemented screenshots](docs/Images/phase3/). Commercial startup remains closed. Payments and deployment are not implemented or authorized; SMS authentication is implemented for review with a fake local provider and a gated vendor adapter. Existing legacy services remain separate.
+
+## Phase 3.1 authentication, UX, SMS and notes
+
+The same Draft PR includes mobile OTP first claim/login/reset, optional passwords and mobile management, SMS Admin MFA, shared Persian validation, and revisioned searchable internal notes. [Auth/SMS contracts](docs/YARIZAN-AUTH-AND-SMS-CONTRACTS.md) and the [Phase 3.1 report](docs/YARIZAN-PHASE-3-1-REPORT.md) distinguish tested local behavior from missing live provider credentials/template and commercial ownership/signing gates. Desktop credential pickup remains desktop-only; paid/trial offline guarantees are unchanged.
