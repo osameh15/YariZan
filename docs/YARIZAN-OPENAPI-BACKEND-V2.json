@@ -4957,6 +4957,14 @@
                       "type": "string",
                       "const": "APPROVED"
                     },
+                    "authenticated": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "csrf_token": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{43}$"
+                    },
                     "username": {
                       "type": "string"
                     },
@@ -4968,6 +4976,7 @@
                   },
                   "required": [
                     "status",
+                    "authenticated",
                     "username",
                     "expires_at"
                   ],
@@ -7543,6 +7552,24 @@
                     "type": "string",
                     "minLength": 12,
                     "maxLength": 128
+                  },
+                  "otp": {
+                    "type": "object",
+                    "properties": {
+                      "challenge_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      "code": {
+                        "type": "string",
+                        "pattern": "^[0-9]{6}$"
+                      }
+                    },
+                    "required": [
+                      "challenge_id",
+                      "code"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -7565,6 +7592,14 @@
                       "type": "string",
                       "const": "APPROVED"
                     },
+                    "authenticated": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "csrf_token": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{43}$"
+                    },
                     "username": {
                       "type": "string"
                     },
@@ -7576,6 +7611,7 @@
                   },
                   "required": [
                     "status",
+                    "authenticated",
                     "username",
                     "expires_at"
                   ],

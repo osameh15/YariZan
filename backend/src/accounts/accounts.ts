@@ -6,6 +6,7 @@ import { Security } from "../security/security";
 import { Audit, Actor } from "../audit/audit";
 import { requireCondition } from "../common/errors";
 import { token } from "../security/crypto";
+import { customerSession } from "./sessions";
 
 @Injectable()
 export class Accounts {
@@ -44,23 +45,14 @@ export class Accounts {
         "INVALID_CREDENTIALS",
         401,
       );
-      const session = token(),
-        csrf = token();
-      await c.query(
-        `INSERT INTO customer_sessions(token_hash,customer_id,csrf_hash,expires_at) VALUES($1,$2,$3,now()+interval '8 hours')`,
-        [
-          this.security.tokenHash(session),
-          row.id,
-          this.security.tokenHash(csrf),
-        ],
-      );
+      const session = await customerSession(c, this.security, row.id);
       await this.audit.append(
         c,
         { ...actor, type: "CUSTOMER", id: row.id },
         "customer.login",
         row.id,
       );
-      return { session, csrf };
+      return session;
     });
   }
   async rotate(tokenHash: string, customerId: string, actor: Actor) {
@@ -75,18 +67,9 @@ export class Accounts {
         [tokenHash],
       );
       requireCondition(r.rowCount, "UNAUTHENTICATED", 401);
-      const session = token(),
-        csrf = token();
-      await c.query(
-        `INSERT INTO customer_sessions VALUES($1,$2,$3,now()+interval '8 hours',null)`,
-        [
-          this.security.tokenHash(session),
-          customerId,
-          this.security.tokenHash(csrf),
-        ],
-      );
+      const session = await customerSession(c, this.security, customerId);
       await this.audit.append(c, actor, "customer.session_rotated", customerId);
-      return { session, csrf };
+      return session;
     });
   }
   async logout(tokenHash: string, actor: Actor) {

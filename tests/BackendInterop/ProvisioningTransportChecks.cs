@@ -92,7 +92,8 @@ internal static class ProvisioningTransportChecks
             Check(DesktopProvisioningClient.ConnectPage.Query.Length==0&&DesktopProvisioningClient.ConnectPage.Fragment.Length==0,"browser URL has no proof secret");
             Check(!await provisioning.CompleteAsync(default)&&enrollmentStore.ReadVerifiedIdentity() is null,"browser approval required");
             using var receipt=await Approve(pair);
-            StrictJson.Fields(receipt.RootElement,"status","username","expires_at");count++;
+            StrictJson.Fields(receipt.RootElement,"status","username","expires_at","authenticated","csrf_token");
+            Check(receipt.RootElement.GetProperty("authenticated").GetBoolean() && receipt.RootElement.GetProperty("csrf_token").GetString()!.Length == 43,"browser-only initial session receipt has no desktop secrets");
             transport.DropNextPickup=true;
             try{await provisioning.CompleteAsync(default);throw new Exception("Lost response was not injected");}catch(HttpRequestException){count++;}
             Check(enrollmentStore.ReadVerifiedIdentity() is null,"lost delivery does not write unverified local identity");

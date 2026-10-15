@@ -8,6 +8,7 @@ import { hashPassword, verifyPassword } from "../security/passwords";
 import { hash, token, unseal } from "../security/crypto";
 import { requireCondition } from "../common/errors";
 import { Otp, OtpRow, normalizeMobile } from "./otp";
+import { customerSession } from "./sessions";
 interface Customer {
   id: string;
   generation: number;
@@ -27,16 +28,12 @@ export class AuthFlows {
     private audit: Audit,
   ) {}
   private async session(c: PoolClient, id: string, admin = false) {
+    if (!admin) return customerSession(c, this.security, id);
     const session = token(),
       csrf = token();
     if (admin)
       await c.query(
         "INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,mfa_at,expires_at,revoked_at,mfa_method) VALUES($1,$2,$3,now(),now()+interval '1 hour',null,'SMS')",
-        [this.security.tokenHash(session), id, this.security.tokenHash(csrf)],
-      );
-    else
-      await c.query(
-        "INSERT INTO customer_sessions VALUES($1,$2,$3,now()+interval '8 hours',null)",
         [this.security.tokenHash(session), id, this.security.tokenHash(csrf)],
       );
     return { session, csrf };

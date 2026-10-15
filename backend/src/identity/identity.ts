@@ -14,6 +14,7 @@ import { requireCondition } from "../common/errors";
 import { challengeSchema, Proof } from "../common/schemas";
 import { equal, token } from "../security/crypto";
 import { Otp, normalizeMobile } from "../accounts/otp";
+import { customerSession } from "../accounts/sessions";
 import { unseal } from "../security/crypto";
 import { z } from "zod";
 
@@ -293,6 +294,7 @@ export class Identity {
       ).rows[0];
       this.validateBrowser(p, secret);
       requireCondition(d.generation === p.generation, "PAIRING_INVALID", 410);
+      let session: Awaited<ReturnType<typeof customerSession>> | undefined;
       let customer = (
         await c.query<{ id: string }>(
           "SELECT id FROM customers WHERE device_id=$1 AND generation=$2 AND state='ACTIVE' FOR UPDATE",
@@ -343,6 +345,16 @@ export class Identity {
           ],
         );
       }
+      // The initial browser session commits with the account, OTP and pairing transition.
+      if (!owner && !customerId) {
+        session = await customerSession(c, this.security, customer.id);
+        await this.audit.append(
+          c,
+          { ...actor, type: "CUSTOMER", id: customer.id },
+          "customer.login_claim",
+          customer.id,
+        );
+      }
       const changed = await c.query(
         "UPDATE pairings SET status='BROWSER_CONFIRMED',authorized_customer_id=$2 WHERE id=$1 AND status='PENDING' AND expires_at>clock_timestamp() AND cancelled_at IS NULL RETURNING id",
         [id, customer.id],
@@ -352,6 +364,7 @@ export class Identity {
         generation: d.generation,
       });
       return {
+        session,
         status: "APPROVED",
         username: d.username,
         expires_at: p.expires_at.toISOString(),

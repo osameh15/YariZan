@@ -14,6 +14,7 @@ import { Database } from "../database/database";
 import { Identity } from "../identity/identity";
 import { AuthFlows } from "../accounts/auth-flows";
 import { otpProofSchema, mobile } from "../common/schemas";
+import { sessionCookies } from "../accounts/sessions";
 import { Accounts } from "../accounts/accounts";
 import { Security } from "../security/security";
 import { Trials } from "../trials/trials";
@@ -125,6 +126,7 @@ export class IdentityController {
     @Param("id") id: string,
     @Body() body: unknown,
     @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const b = z
       .strictObject({
@@ -133,7 +135,7 @@ export class IdentityController {
         otp: otpProofSchema.optional(),
       })
       .parse(body);
-    return this.authorizedClaim({ ...b, pairing_id: uuid.parse(id) }, req);
+    return this.authorizedClaim({ ...b, pairing_id: uuid.parse(id) }, req, res);
   }
   @Post("device-pairings/:id/cancel") async cancel(
     @Param("id") id: string,
@@ -166,17 +168,21 @@ export class IdentityController {
   @Post("devices/register") retiredRegister() {
     requireCondition(false, "PROTOCOL_RETIRED", 410);
   }
-  @Post("auth/claim") claim(@Body() body: unknown, @Req() req: Request) {
-    return this.authorizedClaim(body, req);
+  @Post("auth/claim") claim(
+    @Body() body: unknown,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.authorizedClaim(body, req, res);
   }
-  private async authorizedClaim(body: unknown, req: Request) {
+  private async authorizedClaim(body: unknown, req: Request, res: Response) {
     this.origin(req);
     const b = claimSchema.parse(body);
     await this.security.rate("claim-ip:" + req.socket.remoteAddress, 120, 300);
     const customer = (req.cookies as Record<string, string>)?.yz_customer
       ? await this.security.customer(req)
       : undefined;
-    return this.identity.claim(
+    const { session, ...receipt } = await this.identity.claim(
       b.pairing_id,
       b.pairing_secret,
       b.password,
@@ -184,6 +190,11 @@ export class IdentityController {
       customer ? userActor(req, customer.id) : actor(req),
       b.otp,
     );
+    return {
+      ...receipt,
+      authenticated: true,
+      ...(session ? sessionCookies(res, this.security, session) : {}),
+    };
   }
   @Post("auth/claim/otp/request") async claimOtp(
     @Body() body: unknown,
@@ -221,16 +232,6 @@ export class AccountsController {
     private db: Database,
     private audit: Audit,
   ) {}
-  private cookie(res: Response, name: string, session: string) {
-    res.cookie(name, session, {
-      httpOnly: true,
-      sameSite: "strict",
-      secure: this.security.config.NODE_ENV === "production",
-      path: "/api/v2",
-      maxAge: name === "yz_admin" ? 3600000 : 8 * 3600000,
-    });
-    res.setHeader("Cache-Control", "no-store");
-  }
   @Post("auth/login") async login(
     @Body() body: unknown,
     @Req() req: Request,
@@ -258,19 +259,7 @@ export class AccountsController {
       b.password,
       actor(req),
     );
-    this.cookie(res, "yz_customer", result.session);
-    res.cookie(
-      "yz_csrf_" + (req.path.includes("/admin/") ? "admin" : "customer"),
-      result.csrf,
-      {
-        httpOnly: false,
-        sameSite: "strict",
-        secure: this.security.config.NODE_ENV === "production",
-        path: "/",
-        maxAge: 8 * 3600000,
-      },
-    );
-    return { csrf_token: result.csrf };
+    return sessionCookies(res, this.security, result);
   }
   @Post("auth/session/rotate") async rotate(
     @Req() req: Request,
@@ -282,19 +271,7 @@ export class AccountsController {
       c.id,
       userActor(req, c.id),
     );
-    this.cookie(res, "yz_customer", result.session);
-    res.cookie(
-      "yz_csrf_" + (req.path.includes("/admin/") ? "admin" : "customer"),
-      result.csrf,
-      {
-        httpOnly: false,
-        sameSite: "strict",
-        secure: this.security.config.NODE_ENV === "production",
-        path: "/",
-        maxAge: 8 * 3600000,
-      },
-    );
-    return { csrf_token: result.csrf };
+    return sessionCookies(res, this.security, result);
   }
   @Post("auth/logout") async logout(
     @Req() req: Request,
@@ -392,15 +369,7 @@ export class AccountsController {
     admin: boolean,
     result: { session: string; csrf: string },
   ) {
-    this.cookie(res, admin ? "yz_admin" : "yz_customer", result.session);
-    res.cookie(admin ? "yz_csrf_admin" : "yz_csrf_customer", result.csrf, {
-      httpOnly: false,
-      sameSite: "strict",
-      secure: this.security.config.NODE_ENV === "production",
-      path: "/",
-      maxAge: admin ? 3600000 : 8 * 3600000,
-    });
-    return { csrf_token: result.csrf };
+    return sessionCookies(res, this.security, result, admin);
   }
   @Post("admin/auth/sms/verify") async adminSms(
     @Body() body: unknown,

@@ -39,7 +39,7 @@ export async function readFakeSms() {
       "No unused, unexpired synthetic SMS. Request a fresh code in the local UI.\n",
     );
   } finally {
-    await db.onModuleDestroy();
+    await db.onApplicationShutdown();
   }
 }
 if (require.main === module)

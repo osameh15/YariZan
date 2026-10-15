@@ -31,6 +31,7 @@ import { Signing, Envelope, canonical, profiles } from "../src/signing/signing";
 import { Security } from "../src/security/security";
 import { seal, unseal, hash } from "../src/security/crypto";
 
+import { Otp } from "../src/accounts/otp";
 import { Sms } from "../src/accounts/sms";
 process.env.NODE_ENV = "test";
 process.env.SMS_PROVIDER = "fake";
@@ -308,7 +309,7 @@ beforeEach(async () => {
 });
 after(async () => {
   await app?.close();
-  await db?.onModuleDestroy();
+  await db?.onApplicationShutdown();
 });
 
 test("Actual PostgreSQL 17 and six exact products/prices", async () => {
@@ -2042,6 +2043,8 @@ test("Retired credential-delivery endpoints cannot bypass browser-only approval"
   assert.equal(r.status, 403);
   const receipt = (await ok("/auth/claim", p)).body;
   assert.deepEqual(Object.keys(receipt).sort(), [
+    "authenticated",
+    "csrf_token",
     "expires_at",
     "status",
     "username",
@@ -2331,13 +2334,15 @@ async function browserOtp(e: Enrolled) {
     csrf: r.body.csrf_token,
   };
 }
-test("Mobile-only first claim creates no password and browser still gets receipt only", async () => {
+test("Mobile-only first claim creates an initial browser session without another OTP", async () => {
   const k = candidate(),
     p = await paired(k);
   const { password: ignored, ...body } = p;
   void ignored;
   const r = await ok("/auth/claim", body);
   assert.deepEqual(Object.keys(r.body).sort(), [
+    "authenticated",
+    "csrf_token",
     "expires_at",
     "status",
     "username",
@@ -2361,10 +2366,360 @@ test("Mobile-only first claim creates no password and browser still gets receipt
     { username: e.username, password: "Synthetic!Password12345" },
     "INVALID_CREDENTIALS",
   );
-  const browser = await browserOtp(e);
+  const browser = {
+    cookie: r.headers
+      .getSetCookie()
+      .find((v) => v.startsWith("yz_customer="))!
+      .split(";")[0],
+    csrf: r.body.csrf_token as string,
+  };
+  assert.match(
+    r.headers.getSetCookie().find((v) => v.startsWith("yz_customer="))!,
+    /HttpOnly/,
+  );
+  assert.match(
+    r.headers.getSetCookie().find((v) => v.startsWith("yz_customer="))!,
+    /SameSite=Strict/,
+  );
   const details = (await ok("/account/security", undefined, browser)).body;
   assert.equal(details.has_password, false);
   assert.ok(!JSON.stringify(details).includes(await mobileFor(e)));
+});
+
+test("Concurrent initial claims mint one session; replay and invalid claim never set cookies", async () => {
+  const p = await paired(candidate());
+  const { password: ignored, ...body } = p;
+  void ignored;
+  const results = await Promise.all(
+    Array.from({ length: 3 }, () => request("/auth/claim", body)),
+  );
+  const success = results.filter((r) => r.status === 201);
+  assert.equal(success.length, 1);
+  assert.equal(results.filter((r) => r.headers.has("set-cookie")).length, 1);
+  const id = (
+    await db.query("SELECT authorized_customer_id FROM pairings WHERE id=$1", [
+      p.pairing_id,
+    ])
+  ).rows[0].authorized_customer_id;
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM customer_sessions WHERE customer_id=$1",
+        [id],
+      )
+    ).rows[0].count,
+    "1",
+  );
+  const replay = await denied("/auth/claim", body, "PAIRING_INVALID");
+  assert.equal(replay.headers.has("set-cookie"), false);
+  for (const state of ["expired", "cancelled", "mismatch", "otp-used"]) {
+    const q = await paired(candidate());
+    if (state === "expired")
+      await db.query(
+        "UPDATE pairings SET expires_at=now()-interval '1 second' WHERE id=$1",
+        [q.pairing_id],
+      );
+    if (state === "cancelled")
+      await ok(`/device-pairings/${q.pairing_id}/cancel`, {
+        pairing_secret: q.pairing_secret,
+      });
+    if (state === "mismatch") q.pairing_secret = "A".repeat(43);
+    if (state === "otp-used")
+      await db.query("UPDATE otp_challenges SET used_at=now() WHERE id=$1", [
+        q.otp!.challenge_id,
+      ]);
+    const rejected = await request("/auth/claim", q);
+    assert.ok(rejected.status >= 400);
+    assert.equal(rejected.headers.has("set-cookie"), false);
+  }
+});
+
+test("Existing-owner profile approval preserves its session without minting another", async () => {
+  const e = await enroll(candidate()),
+    owner = await login(e);
+  const p = await paired(
+    candidate(
+      (
+        await db.query("SELECT fingerprint_digest FROM devices WHERE id=$1", [
+          e.device_id,
+        ])
+      ).rows[0].fingerprint_digest,
+    ),
+  );
+  const count = async () =>
+    (
+      await db.query(
+        "SELECT count(*) FROM customer_sessions WHERE customer_id=$1",
+        [e.customer_id],
+      )
+    ).rows[0].count;
+  const before = await count();
+  const r = await ok(
+    `/device-pairings/${p.pairing_id}/confirm`,
+    { pairing_secret: p.pairing_secret },
+    owner,
+  );
+  assert.equal(r.body.authenticated, true);
+  assert.equal(r.body.csrf_token, undefined);
+  assert.equal(r.headers.has("set-cookie"), false);
+  assert.equal(await count(), before);
+  await ok("/account", undefined, owner);
+});
+
+test("Initial-session audit failure rolls back account, OTP and pairing together", async () => {
+  const p = await paired(candidate()),
+    audit = app.get(Audit),
+    original = audit.append;
+  audit.append = async (c, actor, action, entity, metadata) => {
+    if (action === "customer.login_claim")
+      throw new Error("synthetic transaction rollback");
+    return original.call(audit, c, actor, action, entity, metadata);
+  };
+  try {
+    const r = await request("/auth/claim", p);
+    assert.equal(r.status, 503);
+    assert.equal(r.headers.has("set-cookie"), false);
+    assert.equal(
+      (
+        await db.query("SELECT status FROM pairings WHERE id=$1", [
+          p.pairing_id,
+        ])
+      ).rows[0].status,
+      "PENDING",
+    );
+    assert.equal(
+      (
+        await db.query("SELECT used_at FROM otp_challenges WHERE id=$1", [
+          p.otp!.challenge_id,
+        ])
+      ).rows[0].used_at,
+      null,
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*) FROM customers c JOIN pairings p ON p.device_id=c.device_id WHERE p.id=$1",
+          [p.pairing_id],
+        )
+      ).rows[0].count,
+      "0",
+    );
+  } finally {
+    audit.append = original;
+  }
+  const r = await ok("/auth/claim", p);
+  assert.ok(r.headers.has("set-cookie"));
+});
+
+async function eventually(check: () => Promise<boolean>) {
+  for (let i = 0; i < 300; i++) {
+    if (await check()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.fail("Asynchronous delivery did not settle");
+}
+function controlledDelivery() {
+  const sms = new Sms(security),
+    service = new Otp(db, security, sms, app.get(Audit));
+  const release = barrier(),
+    started: string[] = [];
+  sms.fake.send = async (m) => {
+    started.push(m.challengeId);
+    await release.promise;
+  };
+  const actor = { type: "SYSTEM" as const, correlationId: randomUUID() };
+  const issue = (deliver = true) =>
+    service.issue("LOGIN", nextMobile(), actor, {}, deliver);
+  return { sms, service, release, started, issue };
+}
+
+test("Bounded FIFO admits every accepted concurrent OTP, including decoys, and explicitly rejects excess", async () => {
+  const d = controlledDelivery();
+  try {
+    const first = await Promise.all(Array.from({ length: 4 }, () => d.issue()));
+    await eventually(async () => d.started.length === 4);
+    const rest = await Promise.allSettled(
+      Array.from({ length: 36 }, (_, i) => d.issue(i % 2 === 0)),
+    );
+    assert.equal(rest.filter((r) => r.status === "fulfilled").length, 16);
+    assert.equal(rest.filter((r) => r.status === "rejected").length, 20);
+    for (const r of rest)
+      if (r.status === "rejected")
+        assert.equal(r.reason.code, "SMS_UNAVAILABLE");
+    assert.equal(d.started.length, 4);
+    d.release.resolve();
+    await eventually(async () => d.started.length === 12);
+    const accepted = [
+      ...first,
+      ...rest.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
+    ];
+    await eventually(
+      async () =>
+        (
+          await db.query(
+            "SELECT count(*) FROM otp_challenges WHERE id=ANY($1::uuid[]) AND delivered",
+            [accepted.map((r) => r.challenge_id)],
+          )
+        ).rows[0].count === "12",
+    );
+    assert.equal(new Set(d.started).size, 12);
+    for (const r of accepted)
+      assert.deepEqual(Object.keys(r).sort(), [
+        "challenge_id",
+        "expires_in",
+        "retry_after",
+      ]);
+  } finally {
+    d.release.resolve();
+    await d.service.beforeApplicationShutdown();
+  }
+});
+
+test("Saturated public login admission rejects matched and unknown accounts identically without waiting for SMS", async () => {
+  const e = await enroll(candidate()),
+    sms = app.get(Sms),
+    original = sms.fake.send;
+  const release = barrier(),
+    sent: string[] = [];
+  sms.fake.send = async (m) => {
+    sent.push(m.challengeId);
+    await release.promise;
+  };
+  try {
+    const service = app.get(Otp),
+      actor = { type: "SYSTEM" as const, correlationId: randomUUID() };
+    await Promise.all(
+      Array.from({ length: 20 }, () =>
+        service.issue("LOGIN", nextMobile(), actor, {}),
+      ),
+    );
+    await eventually(async () => sent.length === 4);
+    const mobile = await mobileFor(e);
+    const results = await Promise.all(
+      [e.username, "unknown-device"].map((username) =>
+        request<ErrorBody>("/auth/otp/request", {
+          username,
+          mobile,
+          purpose: "LOGIN",
+        }),
+      ),
+    );
+    for (const r of results) {
+      assert.equal(r.status, 503);
+      assert.equal(r.body.error.code, "SMS_UNAVAILABLE");
+    }
+    release.resolve();
+    await eventually(async () => sent.length === 20);
+    await eventually(
+      async () =>
+        (
+          await db.query(
+            "SELECT count(*) FROM otp_challenges WHERE id=ANY($1::uuid[]) AND delivered",
+            [sent],
+          )
+        ).rows[0].count === "20",
+    );
+  } finally {
+    release.resolve();
+    sms.fake.send = original;
+  }
+});
+
+test("Queued OTPs recheck expiry and supersession before provider dispatch", async () => {
+  const d = controlledDelivery();
+  try {
+    await Promise.all(Array.from({ length: 4 }, () => d.issue()));
+    await eventually(async () => d.started.length === 4);
+    const expired = await d.issue(),
+      superseded = await d.issue(),
+      current = await d.issue();
+    await db.query(
+      "UPDATE otp_challenges SET created_at=now()-interval '6 minutes',expires_at=now()-interval '1 minute' WHERE id=$1",
+      [expired.challenge_id],
+    );
+    await db.query("UPDATE otp_challenges SET used_at=now() WHERE id=$1", [
+      superseded.challenge_id,
+    ]);
+    d.release.resolve();
+    await eventually(async () => d.started.includes(current.challenge_id));
+    await d.service.beforeApplicationShutdown();
+    assert.equal(d.started.includes(expired.challenge_id), false);
+    assert.equal(d.started.includes(superseded.challenge_id), false);
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*) FROM audit_logs WHERE entity_id=ANY($1::text[]) AND action='otp.delivery_unavailable'",
+          [[expired.challenge_id, superseded.challenge_id]],
+        )
+      ).rows[0].count,
+      "2",
+    );
+  } finally {
+    d.release.resolve();
+    await d.service.beforeApplicationShutdown();
+  }
+});
+
+test("Interrupted queued delivery is audited and not sent; ambiguous provider failures are never retried", async () => {
+  const d = controlledDelivery();
+  try {
+    await Promise.all(Array.from({ length: 4 }, () => d.issue()));
+    await eventually(async () => d.started.length === 4);
+    const pending = await d.issue();
+    const stopped = d.service.beforeApplicationShutdown();
+    d.release.resolve();
+    await stopped;
+    assert.equal(d.started.includes(pending.challenge_id), false);
+    assert.equal(
+      (
+        await db.query("SELECT delivered FROM otp_challenges WHERE id=$1", [
+          pending.challenge_id,
+        ])
+      ).rows[0].delivered,
+      false,
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*) FROM audit_logs WHERE entity_id=$1 AND action='otp.delivery_unavailable'",
+          [pending.challenge_id],
+        )
+      ).rows[0].count,
+      "1",
+    );
+    await assert.rejects(
+      d.issue(),
+      (e: unknown) => (e as ApiError).code === "SMS_UNAVAILABLE",
+    );
+  } finally {
+    d.release.resolve();
+    await d.service.beforeApplicationShutdown();
+  }
+  const failed = controlledDelivery();
+  let calls = 0;
+  failed.sms.fake.send = async () => {
+    calls++;
+    throw Error("ambiguous timeout secret");
+  };
+  try {
+    const r = await failed.issue();
+    await eventually(
+      async () =>
+        (
+          await db.query(
+            "SELECT 1 FROM audit_logs WHERE entity_id=$1 AND action='otp.delivery_unavailable'",
+            [r.challenge_id],
+          )
+        ).rowCount === 1,
+    );
+    assert.equal(calls, 1);
+    await assert.rejects(
+      failed.service.admit(r.challenge_id, "LOGIN", "123456"),
+      (e: unknown) => (e as ApiError).code === "OTP_INVALID",
+    );
+  } finally {
+    await failed.service.beforeApplicationShutdown();
+  }
 });
 test("Unverified first claim and cross-pairing OTP cannot approve another key", async () => {
   const a = await paired(candidate()),

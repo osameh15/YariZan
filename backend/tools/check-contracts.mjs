@@ -43,6 +43,7 @@ const requests = {
   "/api/v2/device-pairings/{id}/confirm": z.strictObject({
     pairing_secret: schemas.secret,
     password: schemas.password.optional(),
+    otp: schemas.otpProofSchema.optional(),
   }),
   "/api/v2/device-pairings/{id}/pickup": schemas.proofSchema,
   "/api/v2/device-pairings/{id}/preview": z.strictObject({
@@ -138,6 +139,8 @@ const product = z.strictObject({
 });
 const receipt = z.strictObject({
   status: z.literal("APPROVED"),
+  authenticated: z.literal(true),
+  csrf_token: schemas.secret.optional(),
   username: z.string(),
   expires_at: z.iso.datetime(),
 });

@@ -40,8 +40,8 @@ try {
     "Migration schema comparison: five catalog groups match fresh PostgreSQL database",
   );
 } finally {
-  await fresh.onModuleDestroy();
-  await original.onModuleDestroy();
+  await fresh.onApplicationShutdown();
+  await original.onApplicationShutdown();
   await operator.query("DROP DATABASE yarizan_phase2_schema_reference");
   await operator.end();
 }

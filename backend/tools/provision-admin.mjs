@@ -45,5 +45,5 @@ try {
     "Development Admin created with SMS MFA. No TOTP fallback or secret output.\n",
   );
 } finally {
-  await db.onModuleDestroy();
+  await db.onApplicationShutdown();
 }
