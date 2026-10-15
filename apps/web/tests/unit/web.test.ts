@@ -23,6 +23,8 @@ describe('Catalog and commercial boundaries', () => {
   it('converts integer IRR to Toman without hardcoding catalog prices', () => {
     expect(toman(12990000)).toBe('۱٬۲۹۹٬۰۰۰');
     expect(toman(15000000)).toBe('۱٬۵۰۰٬۰۰۰');
+    expect(toman(9007199254740983)).toBe('۹۰۰٬۷۱۹٬۹۲۵٬۴۷۴٬۰۹۸٫۳');
+    expect(toman(9007199254740987)).toBe('۹۰۰٬۷۱۹٬۹۲۵٬۴۷۴٬۰۹۸٫۷');
     expect(() => toman(Number.MAX_SAFE_INTEGER + 1)).toThrow();
     expect(() => toman(-1)).toThrow();
   });

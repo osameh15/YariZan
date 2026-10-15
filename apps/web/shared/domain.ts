@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { financialToman } from './commerce';
 export const productSchema = z.object({
   sku: z.string().regex(/^YARIZAN-G[1-6]$/),
   grade: z.number().int().min(1).max(6),
@@ -14,7 +15,7 @@ export type Product = z.infer<typeof productSchema>;
 export const gradeNames = ['اول', 'دوم', 'سوم', 'چهارم', 'پنجم', 'ششم'];
 export function toman(irr: number) {
   if (!Number.isSafeInteger(irr) || irr < 0) throw new Error('Invalid IRR');
-  return new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 1 }).format(irr / 10);
+  return financialToman(irr);
 }
 export function safeReturn(value: unknown, fallback = '/account') {
   return typeof value === 'string' &&
