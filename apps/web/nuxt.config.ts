@@ -4,7 +4,10 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   typescript: { strict: true, typeCheck: true },
   css: ['~/assets/css/main.css'],
-  vite: { plugins: [tailwindcss()] },
+  // Native BigInt is required for exact money display; target modern browsers and Node 24.
+  vite: { plugins: [tailwindcss()], build: { target: 'es2022' } },
+  esbuild: { options: { target: 'es2022' } },
+  nitro: { esbuild: { options: { target: 'es2022' } } },
   runtimeConfig: { apiBase: 'http://127.0.0.1:3100/api/v2/', webOrigin: 'http://localhost:3200' },
   app: {
     head: {

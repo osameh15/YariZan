@@ -166,6 +166,17 @@ describe('Commerce financial and navigation boundaries', () => {
     );
     expect(financialToman('-1')).toBe('—');
   });
+  it('preserves every IRR remainder near the safe-integer boundary', async () => {
+    const { financialToman } = await import('../../shared/commerce');
+    for (let remainder = 0n; remainder < 10n; remainder++) {
+      const amount = 9007199254740980n + remainder;
+      const expected =
+        '۹۰۰٬۷۱۹٬۹۲۵٬۴۷۴٬۰۹۸' +
+        (remainder ? '٫' + new Intl.NumberFormat('fa-IR').format(remainder) : '');
+      expect(toman(Number(amount))).toBe(expected);
+      expect(financialToman(amount.toString())).toBe(expected);
+    }
+  });
   it('keeps unknown results distinct from paid and fulfilled states', async () => {
     const { commerceState } = await import('../../shared/commerce');
     expect(commerceState({ state: 'PENDING', payments: [{ state: 'UNKNOWN' }] })).toContain(

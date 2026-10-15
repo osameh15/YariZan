@@ -49,14 +49,26 @@ jobs:
       - run: npm run format:check
       - run: npm run check:secrets
       - run: npm test
-      - run: npm run build
+      - name: Production build with BigInt compatibility gate
+        run: |
+          mkdir -p .local
+          set -o pipefail
+          npm run build 2>&1 | tee .local/production-build.log
+          if grep -Ei 'Big integer literals.*not available|BigInt.*es2019' .local/production-build.log; then
+            echo 'Unsupported BigInt build target'; exit 1
+          fi
       - name: Runtime audit and explicit unpatched build-dependency report
         run: npm run audit:dependencies
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - name: Build isolated web image
         working-directory: .
-        run: docker build -f apps/web/Dockerfile -t yarizan-web-fixture .
+        run: |
+          set -o pipefail
+          docker build --progress=plain -f apps/web/Dockerfile -t yarizan-web-fixture . 2>&1 | tee apps/web/.local/docker-build.log
+          if grep -Ei 'Big integer literals.*not available|BigInt.*es2019' apps/web/.local/docker-build.log; then
+            echo 'Unsupported BigInt Docker build target'; exit 1
+          fi
       - name: Save browser screenshots and dependency findings
         if: always()
         uses: actions/upload-artifact@v4
@@ -68,5 +80,7 @@ jobs:
             docs/Images/phase4/
             apps/web/playwright-report/
             apps/web/.local/dependency-audit.json
+            apps/web/.local/production-build.log
+            apps/web/.local/docker-build.log
           include-hidden-files: true
           retention-days: 14
