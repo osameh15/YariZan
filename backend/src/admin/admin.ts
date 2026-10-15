@@ -149,7 +149,7 @@ export class Admin {
       [customerId],
     );
     await c.query(
-      "UPDATE customers SET state='RESET',password_hash=NULL,reset_at=now() WHERE id=$1",
+      "UPDATE customers SET state='RESET',password_hash=NULL,mobile_ciphertext=NULL,mobile_lookup=NULL,mobile_last4=NULL,mobile_verified_at=NULL,reset_at=now() WHERE id=$1",
       [customerId],
     );
     await c.query("UPDATE devices SET generation=generation+1 WHERE id=$1", [

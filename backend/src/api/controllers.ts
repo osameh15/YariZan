@@ -12,11 +12,15 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { Database } from "../database/database";
 import { Identity } from "../identity/identity";
+import { AuthFlows } from "../accounts/auth-flows";
+import { otpProofSchema, mobile } from "../common/schemas";
 import { Accounts } from "../accounts/accounts";
 import { Security } from "../security/security";
 import { Trials } from "../trials/trials";
 import { Licenses } from "../licenses/licenses";
 import { Activation } from "../activation/activation";
+import { Notes, noteTypes } from "../admin/notes";
+import { Otp } from "../accounts/otp";
 import { Admin } from "../admin/admin";
 import { Audit, Actor } from "../audit/audit";
 import {
@@ -53,7 +57,7 @@ export class HealthController {
     const r = await this.db.query<{ count: string }>(
       "SELECT count(*) FROM schema_migrations",
     );
-    requireCondition(Number(r.rows[0].count) === 7, "MIGRATIONS_REQUIRED", 503);
+    requireCondition(Number(r.rows[0].count) === 8, "MIGRATIONS_REQUIRED", 503);
     return { status: "ready", production_gate: "closed" };
   }
 }
@@ -123,7 +127,11 @@ export class IdentityController {
     @Req() req: Request,
   ) {
     const b = z
-      .strictObject({ pairing_secret: secret, password: password.optional() })
+      .strictObject({
+        pairing_secret: secret,
+        password: password.optional(),
+        otp: otpProofSchema.optional(),
+      })
       .parse(body);
     return this.authorizedClaim({ ...b, pairing_id: uuid.parse(id) }, req);
   }
@@ -174,6 +182,27 @@ export class IdentityController {
       b.password,
       customer,
       customer ? userActor(req, customer.id) : actor(req),
+      b.otp,
+    );
+  }
+  @Post("auth/claim/otp/request") async claimOtp(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    this.origin(req);
+    await this.security.rate(
+      "sms-request-ip:" + req.socket.remoteAddress,
+      20,
+      300,
+    );
+    const b = z
+      .strictObject({ pairing_id: uuid, pairing_secret: secret, mobile })
+      .parse(body);
+    return this.identity.requestClaimOtp(
+      b.pairing_id,
+      b.pairing_secret,
+      b.mobile,
+      actor(req),
     );
   }
   @Post("devices/authenticate") authenticate(
@@ -187,6 +216,7 @@ export class IdentityController {
 export class AccountsController {
   constructor(
     private accounts: Accounts,
+    private flows: AuthFlows,
     private security: Security,
     private db: Database,
     private audit: Audit,
@@ -197,7 +227,7 @@ export class AccountsController {
       sameSite: "strict",
       secure: this.security.config.NODE_ENV === "production",
       path: "/api/v2",
-      maxAge: 8 * 3600000,
+      maxAge: name === "yz_admin" ? 3600000 : 8 * 3600000,
     });
     res.setHeader("Cache-Control", "no-store");
   }
@@ -217,6 +247,11 @@ export class AccountsController {
         password: z.string().max(128),
       })
       .parse(body);
+    await this.security.rate(
+      "customer-login-ip:" + req.socket.remoteAddress,
+      30,
+      300,
+    );
     await this.security.rate("customer-login:" + b.username, 8, 300);
     const result = await this.accounts.login(
       b.username,
@@ -325,7 +360,6 @@ export class AccountsController {
   @Post("admin/auth/login") async adminLogin(
     @Body() body: unknown,
     @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
   ) {
     requireCondition(
       req.headers.origin === this.security.config.BROWSER_ORIGIN,
@@ -334,31 +368,183 @@ export class AccountsController {
     );
     const b = z
       .strictObject({
-        username: z.string().max(64),
-        password: z.string().max(128),
-        mfa_code: z.string().regex(/^[0-9]{6}$/),
+        username: z.string().min(1).max(64),
+        password: z.string().min(1).max(128),
       })
       .parse(body);
-    await this.security.rate("admin-login:" + b.username, 5, 300);
-    const result = await this.accounts.adminLogin(
-      b.username,
-      b.password,
-      b.mfa_code,
+    await this.security.rate(
+      "admin-primary-ip:" + req.socket.remoteAddress,
+      10,
+      300,
+    );
+    await this.security.rate("admin-primary:" + b.username, 5, 300);
+    return this.flows.adminPrimary(b.username, b.password, actor(req));
+  }
+  private origin(req: Request) {
+    requireCondition(
+      req.headers.origin === this.security.config.BROWSER_ORIGIN,
+      "CSRF_REJECTED",
+      403,
+    );
+  }
+  private sessionCookies(
+    res: Response,
+    admin: boolean,
+    result: { session: string; csrf: string },
+  ) {
+    this.cookie(res, admin ? "yz_admin" : "yz_customer", result.session);
+    res.cookie(admin ? "yz_csrf_admin" : "yz_csrf_customer", result.csrf, {
+      httpOnly: false,
+      sameSite: "strict",
+      secure: this.security.config.NODE_ENV === "production",
+      path: "/",
+      maxAge: admin ? 3600000 : 8 * 3600000,
+    });
+    return { csrf_token: result.csrf };
+  }
+  @Post("admin/auth/sms/verify") async adminSms(
+    @Body() body: unknown,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    this.origin(req);
+    await this.security.rate(
+      "otp-verify-ip:" + req.socket.remoteAddress,
+      60,
+      300,
+    );
+    const b = otpProofSchema.parse(body);
+    return this.sessionCookies(
+      res,
+      true,
+      await this.flows.adminVerify(b.challenge_id, b.code, actor(req)),
+    );
+  }
+  @Post("auth/otp/request") async otpRequest(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    this.origin(req);
+    await this.security.rate(
+      "sms-request-ip:" + req.socket.remoteAddress,
+      20,
+      300,
+    );
+    const b = z
+      .strictObject({
+        username: z.string().min(1).max(64),
+        mobile,
+        purpose: z.enum(["LOGIN", "RESET"]),
+      })
+      .parse(body);
+    return this.flows.requestLogin(b.username, b.mobile, b.purpose, actor(req));
+  }
+  @Post("auth/otp/verify") async otpLogin(
+    @Body() body: unknown,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    this.origin(req);
+    await this.security.rate(
+      "otp-verify-ip:" + req.socket.remoteAddress,
+      60,
+      300,
+    );
+    const b = otpProofSchema.parse(body);
+    const r = await this.flows.verifyLogin(
+      b.challenge_id,
+      b.code,
+      "LOGIN",
       actor(req),
     );
-    this.cookie(res, "yz_admin", result.session);
-    res.cookie(
-      "yz_csrf_" + (req.path.includes("/admin/") ? "admin" : "customer"),
-      result.csrf,
-      {
-        httpOnly: false,
-        sameSite: "strict",
-        secure: this.security.config.NODE_ENV === "production",
-        path: "/",
-        maxAge: 8 * 3600000,
-      },
+    requireCondition("session" in r && r.session, "OTP_INVALID", 401);
+    return this.sessionCookies(
+      res,
+      false,
+      r as { session: string; csrf: string },
     );
-    return { csrf_token: result.csrf };
+  }
+  @Post("auth/password-reset/otp") async otpReset(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    this.origin(req);
+    await this.security.rate(
+      "otp-verify-ip:" + req.socket.remoteAddress,
+      30,
+      300,
+    );
+    const b = otpProofSchema.extend({ password }).parse(body);
+    return this.flows.verifyLogin(
+      b.challenge_id,
+      b.code,
+      "RESET",
+      actor(req),
+      b.password,
+    );
+  }
+  @Get("account/security") async securityInfo(@Req() req: Request) {
+    return this.flows.details(await this.security.customer(req));
+  }
+  @Post("account/security/otp") async securityOtp(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    await this.security.customer(req);
+    await this.security.rate(
+      "sms-request-ip:" + req.socket.remoteAddress,
+      20,
+      300,
+    );
+    const b = z
+      .strictObject({
+        purpose: z.enum(["PASSWORD", "MOBILE_OLD", "MOBILE_NEW"]),
+        mobile: mobile.optional(),
+        current: otpProofSchema.optional(),
+        current_password: password.optional(),
+      })
+      .parse(body);
+    return this.flows.requestSecurity(
+      req,
+      b.purpose,
+      actor(req),
+      b.mobile,
+      b.current?.challenge_id,
+      b.current?.code,
+      b.current_password,
+    );
+  }
+  @Post("account/security/password") async securityPassword(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = otpProofSchema.extend({ password }).parse(body);
+    return this.flows.changeSecurity(
+      req,
+      b.challenge_id,
+      b.code,
+      "PASSWORD",
+      actor(req),
+      b.password,
+    );
+  }
+  @Post("account/security/mobile") async securityMobile(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = otpProofSchema
+      .extend({ current: otpProofSchema.optional() })
+      .parse(body);
+    return this.flows.changeSecurity(
+      req,
+      b.challenge_id,
+      b.code,
+      "MOBILE_NEW",
+      actor(req),
+      undefined,
+      b.current?.challenge_id,
+      b.current?.code,
+    );
   }
   @Post("admin/auth/logout") async adminLogout(
     @Req() req: Request,
@@ -446,6 +632,8 @@ export class DesktopController {
 export class AdminController {
   constructor(
     private admin: Admin,
+    private notes: Notes,
+    private otp: Otp,
     private db: Database,
     private security: Security,
   ) {}
@@ -466,17 +654,34 @@ export class AdminController {
       .strictObject({
         limit: z.coerce.number().int().min(1).max(50).default(20),
         offset: z.coerce.number().int().min(0).max(100000).default(0),
-        search: z.string().max(64).default(""),
+        search: z.string().max(128).default(""),
       })
       .parse(req.query);
+    let phoneLookup: string | null = null;
+    if (this.security.config.OTP_HMAC_KEY) {
+      try {
+        phoneLookup = this.otp.lookup(q.search);
+      } catch {
+        /* Non-phone queries remain literal text searches. */
+      }
+    }
     return this.db.transaction(async (c) => {
       await this.security.admin(req, permission, c);
       const rows = (
-        await c.query(sql, [
-          q.limit + 1,
-          q.offset,
-          "%" + q.search.replace(/[\\%_]/g, "\\$&") + "%",
-        ])
+        await c.query(
+          sql.includes("$4")
+            ? sql
+            : sql.replace(
+                " WHERE ",
+                " WHERE ($4::text IS NULL OR $4::text IS NOT NULL) AND ",
+              ),
+          [
+            q.limit + 1,
+            q.offset,
+            "%" + q.search.replace(/[\\%_]/g, "\\$&") + "%",
+            phoneLookup,
+          ],
+        )
       ).rows;
       return {
         items: rows.slice(0, q.limit),
@@ -484,50 +689,70 @@ export class AdminController {
       };
     });
   }
+  @Post("notes/:type/:id") async saveNote(
+    @Param("type") type: string,
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = z
+      .strictObject({
+        note: z.string().max(2000),
+        expected_revision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+      })
+      .parse(body);
+    return this.notes.save(
+      req,
+      noteTypes.parse(type),
+      id,
+      b.note,
+      b.expected_revision,
+    );
+  }
   @Get("customers") customers(@Req() req: Request) {
     return this.list(
       req,
       "customers.read",
-      `SELECT id,device_id,username,generation,state,claimed_at FROM customers WHERE username ILIKE $3 ORDER BY claimed_at DESC,id LIMIT $1 OFFSET $2`,
+      `SELECT c.id,c.device_id,c.username,c.generation,c.state,c.claimed_at,CASE WHEN c.mobile_last4 IS NOT NULL THEN '09•••••'||c.mobile_last4 END mobile_masked,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM customers c LEFT JOIN entity_notes n ON n.entity_type='customers' AND n.entity_id=c.id::text WHERE c.username ILIKE $3 OR c.id::text ILIKE $3 OR c.device_id::text ILIKE $3 OR n.note ILIKE $3 OR c.mobile_lookup=$4 ORDER BY c.claimed_at DESC,c.id LIMIT $1 OFFSET $2`,
     );
   }
   @Get("devices") devices(@Req() req: Request) {
     return this.list(
       req,
       "devices.read",
-      `SELECT d.id,d.username,d.generation,c.id customer_id,c.state customer_state,
-    (SELECT count(*) FROM device_keys k WHERE k.device_id=d.id AND k.generation=d.generation AND k.status='ACTIVE') profiles,
-    COALESCE((SELECT jsonb_agg(jsonb_build_object('id',k.id,'status',k.status,'created_at',k.created_at)) FROM device_keys k WHERE k.device_id=d.id AND k.generation=d.generation),'[]') profile_details,
-    COALESCE((SELECT jsonb_agg(jsonb_build_object('sku',r.sku,'blocked',r.blocked,'revision',r.revision)) FROM device_product_restrictions r WHERE r.device_id=d.id),'[]') restrictions
-    FROM devices d LEFT JOIN customers c ON c.device_id=d.id AND c.generation=d.generation AND c.state='ACTIVE' WHERE d.username ILIKE $3 ORDER BY d.created_at DESC,d.id LIMIT $1 OFFSET $2`,
+      `SELECT d.id,d.username,d.generation,c.id customer_id,c.state customer_state,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision,
+  (SELECT count(*) FROM device_keys k WHERE k.device_id=d.id AND k.generation=d.generation AND k.status='ACTIVE') profiles,
+  COALESCE((SELECT jsonb_agg(jsonb_build_object('id',k.id,'status',k.status,'created_at',k.created_at)) FROM device_keys k WHERE k.device_id=d.id AND k.generation=d.generation),'[]') profile_details,
+  COALESCE((SELECT jsonb_agg(jsonb_build_object('sku',r.sku,'blocked',r.blocked,'revision',r.revision)) FROM device_product_restrictions r WHERE r.device_id=d.id),'[]') restrictions
+  FROM devices d LEFT JOIN customers c ON c.device_id=d.id AND c.generation=d.generation AND c.state='ACTIVE' LEFT JOIN entity_notes n ON n.entity_type='devices' AND n.entity_id=d.id::text WHERE d.username ILIKE $3 OR d.id::text ILIKE $3 OR c.id::text ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 OR EXISTS(SELECT 1 FROM device_keys k WHERE k.device_id=d.id AND k.id::text ILIKE $3) ORDER BY d.created_at DESC,d.id LIMIT $1 OFFSET $2`,
     );
   }
   @Get("licenses") licenses(@Req() req: Request) {
     return this.list(
       req,
       "licenses.read",
-      `SELECT l.id,l.device_id,e.customer_id,e.generation,l.sku,l.state,l.license_revision,l.decision_version,e.state entitlement_state,d.username FROM licenses l JOIN entitlements e ON e.id=l.entitlement_id JOIN devices d ON d.id=l.device_id WHERE d.username ILIKE $3 ORDER BY l.issued_at DESC,l.id LIMIT $1 OFFSET $2`,
+      `SELECT l.id,l.device_id,e.customer_id,e.generation,l.sku,l.state,l.license_revision,l.decision_version,e.state entitlement_state,d.username,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM licenses l JOIN entitlements e ON e.id=l.entitlement_id JOIN devices d ON d.id=l.device_id JOIN customers c ON c.id=e.customer_id LEFT JOIN entity_notes n ON n.entity_type='licenses' AND n.entity_id=l.id::text WHERE d.username ILIKE $3 OR l.id::text ILIKE $3 OR l.device_id::text ILIKE $3 OR l.sku ILIKE $3 OR e.customer_id::text ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 ORDER BY l.issued_at DESC,l.id LIMIT $1 OFFSET $2`,
     );
   }
   @Get("trials") trials(@Req() req: Request) {
     return this.list(
       req,
       "trials.read",
-      `SELECT t.device_id,t.sku,t.generation,t.used,t.allocation_epoch,d.username FROM trial_counters t JOIN devices d ON d.id=t.device_id WHERE d.username ILIKE $3 ORDER BY t.device_id,t.sku,t.generation LIMIT $1 OFFSET $2`,
+      `SELECT t.device_id,t.sku,t.generation,t.used,t.allocation_epoch,d.username,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM trial_counters t JOIN devices d ON d.id=t.device_id LEFT JOIN customers c ON c.device_id=t.device_id AND c.generation=t.generation LEFT JOIN entity_notes n ON n.entity_type='trials' AND n.entity_id=t.device_id::text||'~'||t.sku||'~'||t.generation::text WHERE d.username ILIKE $3 OR t.device_id::text ILIKE $3 OR t.sku ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 ORDER BY t.device_id,t.sku,t.generation LIMIT $1 OFFSET $2`,
     );
   }
   @Get("activation-codes") codes(@Req() req: Request) {
     return this.list(
       req,
       "activation_codes.read",
-      `SELECT a.id,a.device_id,a.customer_id,a.generation,a.sku,a.status,a.expires_at,d.username FROM activation_codes a JOIN devices d ON d.id=a.device_id WHERE d.username ILIKE $3 ORDER BY a.created_at DESC,a.id LIMIT $1 OFFSET $2`,
+      `SELECT a.id,a.device_id,a.customer_id,a.generation,a.sku,a.status,a.expires_at,d.username,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM activation_codes a JOIN devices d ON d.id=a.device_id JOIN customers c ON c.id=a.customer_id LEFT JOIN entity_notes n ON n.entity_type='activation-codes' AND n.entity_id=a.id::text WHERE d.username ILIKE $3 OR a.id::text ILIKE $3 OR a.device_id::text ILIKE $3 OR a.sku ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 ORDER BY a.created_at DESC,a.id LIMIT $1 OFFSET $2`,
     );
   }
   @Get("products") products(@Req() req: Request) {
     return this.list(
       req,
       "products.manage",
-      `SELECT p.*,price.amount_irr::float8 price_irr FROM products p JOIN product_prices price ON price.sku=p.sku AND price.ended_at IS NULL WHERE p.sku ILIKE $3 ORDER BY p.grade LIMIT $1 OFFSET $2`,
+      `SELECT p.*,price.amount_irr::float8 price_irr,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM products p JOIN product_prices price ON price.sku=p.sku AND price.ended_at IS NULL LEFT JOIN entity_notes n ON n.entity_type='products' AND n.entity_id=p.sku WHERE ($4::text IS NULL OR $4::text IS NOT NULL) AND (p.sku ILIKE $3 OR p.title_fa ILIKE $3 OR n.note ILIKE $3) ORDER BY p.grade LIMIT $1 OFFSET $2`,
     );
   }
   @Post("customers/:id/reset") reset(

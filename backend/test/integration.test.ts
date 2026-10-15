@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { before, after, test } from "node:test";
+import { before, beforeEach, after, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   randomUUID,
@@ -29,9 +29,14 @@ import { migrate } from "../src/database/migrate";
 import { seed } from "../src/database/seed";
 import { Signing, Envelope, canonical, profiles } from "../src/signing/signing";
 import { Security } from "../src/security/security";
-import { seal, totp, hash } from "../src/security/crypto";
+import { seal, unseal, hash } from "../src/security/crypto";
 
+import { Sms } from "../src/accounts/sms";
 process.env.NODE_ENV = "test";
+process.env.SMS_PROVIDER = "fake";
+process.env.MOBILE_ENCRYPTION_KEY = "4".repeat(64);
+process.env.OTP_HMAC_KEY = "5".repeat(64);
+process.env.SMS_FAKE_OUTBOX = ".local/sms-test-outbox.jsonl";
 process.env.DATABASE_URL ??=
   "postgresql://yarizan:local-disposable@127.0.0.1:55432/yarizan_phase2_test";
 for (const [key, value] of [
@@ -154,6 +159,21 @@ async function proof(
     ).toString("base64url"),
   };
 }
+let mobileCounter = 10000000;
+const nextMobile = () => "091" + (++mobileCounter).toString().padStart(8, "0");
+async function otpCode(id: string) {
+  for (let n = 0; n < 100; n++) {
+    const code = app.get(Sms).fake.codeFor(id);
+    if (
+      code &&
+      (await db.query("SELECT delivered FROM otp_challenges WHERE id=$1", [id]))
+        .rows[0]?.delivered
+    )
+      return code;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  throw Error("Fake delivery not completed");
+}
 async function paired(key: Candidate) {
   const p = (
     await ok<{ pairing_id: string; pairing_secret: string }>(
@@ -161,7 +181,26 @@ async function paired(key: Candidate) {
       await proof(key, "PAIR"),
     )
   ).body;
+  const owner = (
+    await db.query(
+      "SELECT 1 FROM pairings p JOIN customers c ON c.device_id=p.device_id AND c.generation=p.generation AND c.state='ACTIVE' WHERE p.id=$1",
+      [p.pairing_id],
+    )
+  ).rowCount;
+  let otp: { challenge_id: string; code: string } | undefined;
+  if (!owner) {
+    const sent = await ok<{ challenge_id: string }>("/auth/claim/otp/request", {
+      pairing_id: p.pairing_id,
+      pairing_secret: p.pairing_secret,
+      mobile: nextMobile(),
+    });
+    otp = {
+      challenge_id: sent.body.challenge_id,
+      code: await otpCode(sent.body.challenge_id),
+    };
+  }
   return {
+    ...(otp ? { otp } : {}),
     pairing_id: p.pairing_id,
     pairing_secret: p.pairing_secret,
     password: "Synthetic!Password12345",
@@ -209,10 +248,18 @@ async function adminLogin(role = "owner"): Promise<Browser> {
     ],
   );
   await db.query("INSERT INTO admin_user_roles VALUES($1,$2)", [id, role]);
-  const r = await ok<{ csrf_token: string }>("/admin/auth/login", {
+  const phone = nextMobile();
+  await db.query(
+    "UPDATE admins SET mobile_ciphertext=$2,mobile_last4=$3 WHERE id=$1",
+    [id, seal(phone, process.env.MOBILE_ENCRYPTION_KEY!), phone.slice(-4)],
+  );
+  const sent = await ok<{ challenge_id: string }>("/admin/auth/login", {
     username,
     password: "Synthetic!Admin123456",
-    mfa_code: totp(secret, Math.floor(Date.now() / 30000)),
+  });
+  const r = await ok<{ csrf_token: string }>("/admin/auth/sms/verify", {
+    challenge_id: sent.body.challenge_id,
+    code: await otpCode(sent.body.challenge_id),
   });
   return {
     cookie: r.headers.get("set-cookie")!.split(";")[0],
@@ -255,6 +302,9 @@ before(async () => {
   primary = await enroll(primaryKey);
   owner = await login(primary);
   admin = await adminLogin();
+});
+beforeEach(async () => {
+  await db.query("DELETE FROM rate_buckets");
 });
 after(async () => {
   await app?.close();
@@ -1165,15 +1215,36 @@ test("Admin wrong MFA, reused MFA and expired recent authentication denied", asy
       seal(secret, process.env.MFA_ENCRYPTION_KEY!),
     ],
   );
-  const b = {
-    username,
-    password: "Synthetic!Admin123456",
-    mfa_code: "not-six-digits",
-  };
-  await denied("/admin/auth/login", b, "INVALID_REQUEST");
-  const code = totp(secret, Math.floor(Date.now() / 30000));
-  await ok("/admin/auth/login", { ...b, mfa_code: code });
-  await denied("/admin/auth/login", { ...b, mfa_code: code }, "MFA_REQUIRED");
+  const phone = nextMobile();
+  await db.query(
+    "UPDATE admins SET mobile_ciphertext=$2,mobile_last4=$3 WHERE id=$1",
+    [id, seal(phone, process.env.MOBILE_ENCRYPTION_KEY!), phone.slice(-4)],
+  );
+  const b = { username, password: "Synthetic!Admin123456" };
+  await denied(
+    "/admin/auth/login",
+    { ...b, mfa_code: "123456" },
+    "INVALID_REQUEST",
+  );
+  const challenge = await ok<{ challenge_id: string }>("/admin/auth/login", b),
+    code = await otpCode(challenge.body.challenge_id);
+  await denied(
+    "/admin/auth/sms/verify",
+    {
+      challenge_id: challenge.body.challenge_id,
+      code: code === "000000" ? "111111" : "000000",
+    },
+    "OTP_INVALID",
+  );
+  await ok("/admin/auth/sms/verify", {
+    challenge_id: challenge.body.challenge_id,
+    code,
+  });
+  await denied(
+    "/admin/auth/sms/verify",
+    { challenge_id: challenge.body.challenge_id, code },
+    "OTP_INVALID",
+  );
   const old = await adminLogin();
   await db.query(
     "UPDATE admin_sessions SET mfa_at=now()-interval '6 minutes' WHERE token_hash=$1",
@@ -2030,6 +2101,7 @@ test("Concurrent browser claims approve once and only the correct key can pick u
     request(`/device-pairings/${p.pairing_id}/confirm`, {
       pairing_secret: p.pairing_secret,
       password: p.password,
+      otp: p.otp,
     }),
   ]);
   assert.equal(r.filter((x) => x.status === 201).length, 1);
@@ -2157,6 +2229,8 @@ test("Admin paginated reads enforce permissions and omit authentication and fing
 test("Real C# provisioning transport, lost delivery, protected storage and offline access", async () => {
   const fixture = {
     provisioning: true,
+    sms_fixture_path: path.resolve(".local/sms-test-outbox.jsonl"),
+    mobile_key: process.env.MOBILE_ENCRYPTION_KEY,
     apiBase: base.replace("/api/v2", "/"),
     origin,
     kid: signing.keys.kid,
@@ -2221,4 +2295,541 @@ test("Owner session is revalidated atomically after browser claim admission", as
     "PENDING",
   );
   await ok("/auth/claim", p, await login(e));
+});
+
+async function mobileFor(e: Enrolled) {
+  return unseal(
+    (
+      await db.query("SELECT mobile_ciphertext FROM customers WHERE id=$1", [
+        e.customer_id,
+      ])
+    ).rows[0].mobile_ciphertext,
+    process.env.MOBILE_ENCRYPTION_KEY!,
+  );
+}
+async function requestOtp(e: Enrolled, purpose = "LOGIN") {
+  const r = await ok<{ challenge_id: string }>("/auth/otp/request", {
+    username: e.username,
+    mobile: await mobileFor(e),
+    purpose,
+  });
+  return {
+    challenge_id: r.body.challenge_id,
+    code: await otpCode(r.body.challenge_id),
+  };
+}
+async function browserOtp(e: Enrolled) {
+  const r = await ok<{ csrf_token: string }>(
+    "/auth/otp/verify",
+    await requestOtp(e),
+  );
+  return {
+    cookie: r.headers
+      .getSetCookie()
+      .find((v) => v.startsWith("yz_customer="))!
+      .split(";")[0],
+    csrf: r.body.csrf_token,
+  };
+}
+test("Mobile-only first claim creates no password and browser still gets receipt only", async () => {
+  const k = candidate(),
+    p = await paired(k);
+  const { password: ignored, ...body } = p;
+  void ignored;
+  const r = await ok("/auth/claim", body);
+  assert.deepEqual(Object.keys(r.body).sort(), [
+    "expires_at",
+    "status",
+    "username",
+  ]);
+  const e = (
+    await ok<Enrolled>(
+      `/device-pairings/${p.pairing_id}/pickup`,
+      await proof(k, "CONFIRM", p.pairing_id),
+    )
+  ).body;
+  assert.equal(
+    (
+      await db.query("SELECT password_hash FROM customers WHERE id=$1", [
+        e.customer_id,
+      ])
+    ).rows[0].password_hash,
+    null,
+  );
+  await denied(
+    "/auth/login",
+    { username: e.username, password: "Synthetic!Password12345" },
+    "INVALID_CREDENTIALS",
+  );
+  const browser = await browserOtp(e);
+  const details = (await ok("/account/security", undefined, browser)).body;
+  assert.equal(details.has_password, false);
+  assert.ok(!JSON.stringify(details).includes(await mobileFor(e)));
+});
+test("Unverified first claim and cross-pairing OTP cannot approve another key", async () => {
+  const a = await paired(candidate()),
+    b = await paired(candidate());
+  await denied(
+    "/auth/claim",
+    { pairing_id: a.pairing_id, pairing_secret: a.pairing_secret },
+    "OTP_REQUIRED",
+  );
+  await denied("/auth/claim", { ...a, otp: b.otp }, "OTP_INVALID");
+  await ok("/auth/claim", b);
+});
+test("Unknown username/mobile requests have identical public receipts and never deliver", async () => {
+  const e = await enroll(candidate()),
+    known = await requestOtp(e);
+  const r = await ok<{ challenge_id: string }>("/auth/otp/request", {
+    username: "unknown-device",
+    mobile: nextMobile(),
+    purpose: "LOGIN",
+  });
+  assert.deepEqual(Object.keys(r.body).sort(), [
+    "challenge_id",
+    "expires_in",
+    "retry_after",
+  ]);
+  assert.equal(app.get(Sms).fake.codeFor(r.body.challenge_id), undefined);
+  await denied(
+    "/auth/otp/verify",
+    { challenge_id: r.body.challenge_id, code: known.code },
+    "OTP_INVALID",
+  );
+  assert.ok(!JSON.stringify(r.body).includes(known.code));
+});
+test("OTP five wrong attempts persist, expire and replay fail closed", async () => {
+  const e = await enroll(candidate()),
+    p = await requestOtp(e);
+  const wrong = p.code === "000000" ? "111111" : "000000";
+  for (let n = 0; n < 5; n++)
+    await denied("/auth/otp/verify", { ...p, code: wrong }, "OTP_INVALID");
+  await denied("/auth/otp/verify", p, "OTP_INVALID");
+  assert.equal(
+    (
+      await db.query("SELECT attempts FROM otp_challenges WHERE id=$1", [
+        p.challenge_id,
+      ])
+    ).rows[0].attempts,
+    5,
+  );
+  const e2 = await enroll(candidate()),
+    q = await requestOtp(e2);
+  await db.query(
+    "UPDATE otp_challenges SET created_at=now()-interval '6 minutes',expires_at=now()-interval '1 minute' WHERE id=$1",
+    [q.challenge_id],
+  );
+  await denied("/auth/otp/verify", q, "OTP_INVALID");
+});
+test("Parallel OTP login consumes once and retries cannot mint another session", async () => {
+  const e = await enroll(candidate()),
+    p = await requestOtp(e);
+  const r = await Promise.all([
+    request("/auth/otp/verify", p),
+    request("/auth/otp/verify", p),
+  ]);
+  assert.equal(r.filter((x) => x.status === 201).length, 1);
+  await denied("/auth/otp/verify", p, "OTP_INVALID");
+});
+test("Set optional password with existing-mobile OTP, revoke sessions and retain password login", async () => {
+  const k = candidate(),
+    p = await paired(k);
+  await ok("/auth/claim", {
+    pairing_id: p.pairing_id,
+    pairing_secret: p.pairing_secret,
+    otp: p.otp,
+  });
+  const e = (
+      await ok<Enrolled>(
+        `/device-pairings/${p.pairing_id}/pickup`,
+        await proof(k, "CONFIRM", p.pairing_id),
+      )
+    ).body,
+    browser = await browserOtp(e);
+  const sent = await ok<{ challenge_id: string }>(
+      "/account/security/otp",
+      { purpose: "PASSWORD" },
+      browser,
+    ),
+    passwordProof = {
+      challenge_id: sent.body.challenge_id,
+      code: await otpCode(sent.body.challenge_id),
+    };
+  await ok(
+    "/account/security/password",
+    { ...passwordProof, password: "NewOptional!Password123" },
+    browser,
+  );
+  await denied("/account", undefined, "UNAUTHENTICATED", browser);
+  await login(e, "NewOptional!Password123");
+});
+test("Password change requires mobile proof, revokes sessions and old password", async () => {
+  const e = await enroll(candidate()),
+    browser = await login(e),
+    sent = await ok<{ challenge_id: string }>(
+      "/account/security/otp",
+      { purpose: "PASSWORD" },
+      browser,
+    );
+  await ok(
+    "/account/security/password",
+    {
+      challenge_id: sent.body.challenge_id,
+      code: await otpCode(sent.body.challenge_id),
+      password: "Changed!Password12345",
+    },
+    browser,
+  );
+  await denied(
+    "/auth/login",
+    { username: e.username, password: "Synthetic!Password12345" },
+    "INVALID_CREDENTIALS",
+  );
+  await denied("/account", undefined, "UNAUTHENTICATED", browser);
+  await login(e, "Changed!Password12345");
+});
+test("Self-service mobile password reset invalidates sessions and stale login proofs", async () => {
+  const e = await enroll(candidate()),
+    browser = await login(e),
+    stale = await requestOtp(e),
+    p = await requestOtp(e, "RESET");
+  await ok("/auth/password-reset/otp", {
+    ...p,
+    password: "ResetMobile!Password123",
+  });
+  await denied("/auth/otp/verify", stale, "OTP_INVALID");
+  await denied("/account", undefined, "UNAUTHENTICATED", browser);
+  await denied(
+    "/auth/password-reset/otp",
+    { ...p, password: "Repeat!Password12345" },
+    "OTP_INVALID",
+  );
+  await login(e, "ResetMobile!Password123");
+});
+test("Mobile change needs both current and new number proofs, never a bare session", async () => {
+  const e = await enroll(candidate()),
+    browser = await login(e),
+    mobile = nextMobile();
+  await denied(
+    "/account/security/otp",
+    { purpose: "MOBILE_NEW", mobile },
+    "OTP_REQUIRED",
+    browser,
+  );
+  const old = await ok<{ challenge_id: string }>(
+      "/account/security/otp",
+      { purpose: "MOBILE_OLD" },
+      browser,
+    ),
+    current = {
+      challenge_id: old.body.challenge_id,
+      code: await otpCode(old.body.challenge_id),
+    };
+  const fresh = await ok<{ challenge_id: string }>(
+      "/account/security/otp",
+      { purpose: "MOBILE_NEW", mobile, current },
+      browser,
+    ),
+    proof = {
+      challenge_id: fresh.body.challenge_id,
+      code: await otpCode(fresh.body.challenge_id),
+    };
+  await denied("/account/security/mobile", proof, "OTP_REQUIRED", browser);
+  await ok("/account/security/mobile", { ...proof, current }, browser);
+  assert.equal(await mobileFor(e), mobile);
+  await denied("/account", undefined, "UNAUTHENTICATED", browser);
+});
+test("Account reset retires mobile OTP generation without changing desktop access policy", async () => {
+  const e = await enroll(candidate()),
+    p = await requestOtp(e);
+  await ok(`/admin/customers/${e.customer_id}/reset`, mutation(), admin);
+  await denied("/auth/otp/verify", p, "OTP_INVALID");
+});
+test("OTP requests enforce cooldown, IP and mobile budgets", async () => {
+  const e = await enroll(candidate());
+  await requestOtp(e);
+  await denied(
+    "/auth/otp/request",
+    { username: e.username, mobile: await mobileFor(e), purpose: "LOGIN" },
+    "RATE_LIMITED",
+  );
+});
+test("SMS provider outage returns generic receipt and no usable OTP", async () => {
+  const e = await enroll(candidate()),
+    sms = app.get(Sms),
+    send = sms.fake.send;
+  sms.fake.send = async () => {
+    throw Error("vendor-secret-do-not-expose");
+  };
+  try {
+    const r = await ok<{ challenge_id: string }>("/auth/otp/request", {
+      username: e.username,
+      mobile: await mobileFor(e),
+      purpose: "RESET",
+    });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(
+      (
+        await db.query("SELECT delivered FROM otp_challenges WHERE id=$1", [
+          r.body.challenge_id,
+        ])
+      ).rows[0].delivered,
+      false,
+    );
+    await denied(
+      "/auth/password-reset/otp",
+      {
+        challenge_id: r.body.challenge_id,
+        code: "123456",
+        password: "Unused!Password12345",
+      },
+      "OTP_INVALID",
+    );
+    assert.ok(!JSON.stringify(r.body).includes("vendor-secret"));
+  } finally {
+    sms.fake.send = send;
+  }
+});
+test("Notes support optimistic edits, entity references, scoped RBAC and note/phone/id search", async () => {
+  const e = await enroll(candidate()),
+    note = "Independent synthetic note searchable purple-orbit",
+    route = `/admin/notes/devices/${e.device_id}`;
+  const r = await ok<{ revision: number }>(
+    route,
+    { note, expected_revision: 0 },
+    admin,
+  );
+  assert.equal(r.body.revision, 1);
+  await denied(
+    route,
+    { note: "stale", expected_revision: 0 },
+    "STALE_REVISION",
+    admin,
+  );
+  await ok(route, { note: note + " updated", expected_revision: 1 }, admin);
+  for (const search of ["purple-orbit", e.device_id, await mobileFor(e)]) {
+    const result = (
+      await ok<{ items: { id: string; note: string }[] }>(
+        "/admin/devices?search=" + encodeURIComponent(search),
+        undefined,
+        admin,
+      )
+    ).body;
+    assert.ok(
+      result.items.some((r) => r.id === e.device_id && r.note.includes(note)),
+    );
+  }
+  const auditor = await adminLogin("auditor");
+  await denied(
+    route,
+    { note: "forbidden", expected_revision: 2 },
+    "FORBIDDEN",
+    auditor,
+  );
+  await denied(
+    `/admin/notes/devices/${randomUUID()}`,
+    { note: "missing", expected_revision: 0 },
+    "NOT_FOUND",
+    admin,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM audit_logs WHERE entity_id=$1 AND action IN ('note.created','note.updated')",
+        [e.device_id],
+      )
+    ).rows[0].count,
+    "2",
+  );
+});
+test("Trial notes are scoped to machine, SKU and account generation", async () => {
+  const e = await enroll(candidate());
+  await ok(
+    "/desktop/trials/YARIZAN-G1/start",
+    {
+      device_id: e.device_id,
+      client_nonce: hash(randomBytes(32)),
+      client_process_session_id: randomUUID(),
+    },
+    e.credential,
+  );
+  const id = e.device_id + "~YARIZAN-G1~1";
+  await ok(
+    "/admin/notes/trials/" + id,
+    { note: "Trial support note grade one", expected_revision: 0 },
+    admin,
+  );
+  const r = (
+    await ok<{ items: Record<string, unknown>[] }>(
+      "/admin/trials?search=Trial%20support%20note",
+      undefined,
+      admin,
+    )
+  ).body;
+  assert.ok(r.items.some((r) => r.device_id === e.device_id));
+});
+
+test("Notes CRUD and search cover customers, licenses, codes and product records", async () => {
+  const e = await enroll(candidate());
+  const license = (
+    await ok<Envelope>(
+      "/admin/licenses/issue",
+      { ...mutation(), device_id: e.device_id, sku: "YARIZAN-G1" },
+      admin,
+    )
+  ).body;
+  const activation = (
+    await ok<{ code_id: string }>(
+      "/admin/activation-codes",
+      {
+        ...mutation(),
+        device_id: e.device_id,
+        sku: "YARIZAN-G1",
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      },
+      admin,
+    )
+  ).body;
+  for (const [type, id] of [
+    ["customers", e.customer_id],
+    ["licenses", String(license.payload.license_id)],
+    ["activation-codes", activation.code_id],
+    ["products", "YARIZAN-G1"],
+  ]) {
+    const note = "Record context " + type + " " + randomUUID();
+    await ok(
+      `/admin/notes/${type}/${id}`,
+      { note, expected_revision: 0 },
+      admin,
+    );
+    const found = (
+      await ok<{ items: Record<string, unknown>[] }>(
+        `/admin/${type}?search=` + encodeURIComponent(note),
+        undefined,
+        admin,
+      )
+    ).body.items;
+    assert.ok(found.some((r) => r.note === note));
+    await ok(
+      `/admin/notes/${type}/${id}`,
+      { note: note + " edited", expected_revision: 1 },
+      admin,
+    );
+  }
+});
+test("Credential changes reject a valid OTP from another customer/session before password work", async () => {
+  const a = await enroll(candidate()),
+    b = await enroll(candidate()),
+    ownerA = await login(a),
+    ownerB = await login(b);
+  const sent = await ok<{ challenge_id: string }>(
+    "/account/security/otp",
+    { purpose: "PASSWORD" },
+    ownerA,
+  );
+  await denied(
+    "/account/security/password",
+    {
+      challenge_id: sent.body.challenge_id,
+      code: await otpCode(sent.body.challenge_id),
+      password: "Foreign!Password12345",
+    },
+    "OTP_INVALID",
+    ownerB,
+  );
+});
+
+test("First-claim resend retires prior phone proof and limits one pairing to three requests", async () => {
+  const p = await paired(candidate());
+  const newer = await ok<{ challenge_id: string }>("/auth/claim/otp/request", {
+    pairing_id: p.pairing_id,
+    pairing_secret: p.pairing_secret,
+    mobile: nextMobile(),
+  });
+  await otpCode(newer.body.challenge_id);
+  await denied("/auth/claim", p, "OTP_INVALID");
+  await ok("/auth/claim/otp/request", {
+    pairing_id: p.pairing_id,
+    pairing_secret: p.pairing_secret,
+    mobile: nextMobile(),
+  });
+  await denied(
+    "/auth/claim/otp/request",
+    {
+      pairing_id: p.pairing_id,
+      pairing_secret: p.pairing_secret,
+      mobile: nextMobile(),
+    },
+    "RATE_LIMITED",
+  );
+});
+
+test("Public OTP cooldown cannot distinguish a matching username through bucket differences", async () => {
+  const e = await enroll(candidate()),
+    mobile = await mobileFor(e);
+  await ok("/auth/otp/request", {
+    username: "unknown-public-name",
+    mobile,
+    purpose: "LOGIN",
+  });
+  await denied(
+    "/auth/otp/request",
+    { username: e.username, mobile, purpose: "LOGIN" },
+    "RATE_LIMITED",
+  );
+  await db.query("DELETE FROM rate_buckets");
+  await requestOtp(e);
+  await denied(
+    "/auth/otp/request",
+    { username: "unknown-public-name", mobile, purpose: "LOGIN" },
+    "RATE_LIMITED",
+  );
+});
+test("Disabled SMS fails closed while customer password login remains independent", async () => {
+  const e = await enroll(candidate()),
+    browser = await login(e),
+    sms = app.get(Sms),
+    available = sms.available;
+  sms.available = () => {
+    throw new ApiError("SMS_UNAVAILABLE", 503);
+  };
+  try {
+    await login(e);
+    await denied(
+      "/auth/otp/request",
+      { username: e.username, mobile: await mobileFor(e), purpose: "LOGIN" },
+      "SMS_UNAVAILABLE",
+    );
+    await denied(
+      "/account/security/otp",
+      { purpose: "PASSWORD" },
+      "SMS_UNAVAILABLE",
+      browser,
+    );
+  } finally {
+    sms.available = available;
+  }
+});
+test("Schema rejects password-only new accounts and non-SMS active Admin sessions", async () => {
+  const p = await paired(candidate()),
+    device = (
+      await db.query("SELECT device_id,generation FROM pairings WHERE id=$1", [
+        p.pairing_id,
+      ])
+    ).rows[0];
+  await assert.rejects(
+    db.query(
+      "INSERT INTO customers(id,device_id,generation,username,password_hash,state) VALUES($1,$2,$3,$4,'unused','ACTIVE')",
+      [randomUUID(), device.device_id, device.generation, "unverified-claim"],
+    ),
+    (e) => (e as { code: string }).code === "23514",
+  );
+  const adminId = (await db.query("SELECT id FROM admins LIMIT 1")).rows[0].id;
+  await assert.rejects(
+    db.query(
+      "INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,mfa_at,expires_at,mfa_method) VALUES($1,$2,$3,now(),now()+interval '1 hour','LEGACY_TOTP')",
+      [security.tokenHash("legacy"), adminId, security.tokenHash("csrf")],
+    ),
+    (e) => (e as { code: string }).code === "23514",
+  );
 });

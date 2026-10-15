@@ -42,7 +42,27 @@ internal static class ProvisioningTransportChecks
         }
         async Task<JsonDocument> Approve(DesktopPairing pair)
         {
-            if(!input.TryGetProperty("browser_callback",out var callback))return await Post("auth/claim",new{pairing_id=pair.Id,pairing_secret=pair.BrowserCode,password="Synthetic!Provisioning12345"});
+            if(!input.TryGetProperty("browser_callback",out var callback)){
+                string mobile="09"+RandomNumberGenerator.GetInt32(100000000,999999999).ToString();
+                using var sent=await Post("auth/claim/otp/request",new{pairing_id=pair.Id,pairing_secret=pair.BrowserCode,mobile});
+                string challenge=sent.RootElement.GetProperty("challenge_id").GetString()!,code="";
+                // Test-only encrypted fake delivery spool; production transport has no OTP retrieval API.
+                for(int n=0;n<100 && code.Length==0;n++){
+                    if(File.Exists(Text("sms_fixture_path"))){
+                    using var stream=new FileStream(Text("sms_fixture_path"),FileMode.Open,FileAccess.Read,FileShare.ReadWrite);using var reader=new StreamReader(stream);
+                    foreach(var line in (await reader.ReadToEndAsync()).Split('\n')){
+
+                        if(string.IsNullOrWhiteSpace(line))continue;try{string safeLine=line.Trim();byte[] encrypted=Convert.FromBase64String(safeLine.Replace('-','+').Replace('_','/')+new string('=',(4-safeLine.Length%4)%4));
+                        byte[] plain=new byte[encrypted.Length-28];using var aes=new AesGcm(Convert.FromHexString(Text("mobile_key")),16);aes.Decrypt(encrypted.AsSpan(0,12),encrypted.AsSpan(28),encrypted.AsSpan(12,16),plain);
+                        using var message=JsonDocument.Parse(plain);if(message.RootElement.GetProperty("challengeId").GetString()==challenge)code=message.RootElement.GetProperty("code").GetString()!;
+                        }catch(Exception e) when(e is FormatException or JsonException or CryptographicException){/* A concurrent synthetic fixture append can leave a partial final line. */}
+                    }
+                    }
+                    if(code.Length==0)await Task.Delay(20);
+                }
+                if(code.Length!=6)throw new Exception("Synthetic SMS delivery unavailable");await Task.Delay(30);
+                return await Post("auth/claim",new{pairing_id=pair.Id,pairing_secret=pair.BrowserCode,password="Synthetic!Provisioning12345",otp=new{challenge_id=challenge,code}});
+            }
             var destination=new Uri(callback.GetString()!);
             if(destination.Scheme!="http"||!destination.IsLoopback||destination.AbsolutePath!="/approve"||destination.Query.Length!=0||destination.UserInfo.Length!=0)throw new Exception("Unsafe test callback");
             using var request=new HttpRequestMessage(HttpMethod.Post,destination);

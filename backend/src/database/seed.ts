@@ -3,6 +3,7 @@ import { Database } from "./database";
 import { ConfigurationError } from "../config";
 
 export const permissions = [
+  "notes.manage",
   "customers.read",
   "devices.read",
   "licenses.read",

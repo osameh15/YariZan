@@ -13,6 +13,8 @@ import { Audit, Actor } from "../audit/audit";
 import { requireCondition } from "../common/errors";
 import { challengeSchema, Proof } from "../common/schemas";
 import { equal, token } from "../security/crypto";
+import { Otp, normalizeMobile } from "../accounts/otp";
+import { unseal } from "../security/crypto";
 import { z } from "zod";
 
 interface Pairing {
@@ -39,6 +41,7 @@ export class Identity {
     private security: Security,
     private audit: Audit,
     private passwords: PasswordHashing,
+    private otp: Otp,
   ) {}
   async challenge(input: z.infer<typeof challengeSchema>) {
     const key = devicePublicKey(input.device_public_key);
@@ -193,12 +196,46 @@ export class Identity {
       expires_at: p.expires_at.toISOString(),
     };
   }
+  async requestClaimOtp(
+    id: string,
+    secret: string,
+    mobile: string,
+    actor: Actor,
+  ) {
+    const p = (
+      await this.db.query<Pairing>("SELECT * FROM pairings WHERE id=$1", [id])
+    ).rows[0];
+    this.validateBrowser(p, secret);
+    const d = (
+      await this.db.query<{ generation: number }>(
+        "SELECT generation FROM devices WHERE id=$1",
+        [p.device_id],
+      )
+    ).rows[0];
+    requireCondition(d?.generation === p.generation, "PAIRING_INVALID", 410);
+    requireCondition(
+      !(
+        await this.db.query(
+          "SELECT 1 FROM customers WHERE device_id=$1 AND generation=$2 AND state='ACTIVE'",
+          [p.device_id, p.generation],
+        )
+      ).rowCount,
+      "PROFILE_NOT_AUTHORIZED",
+      403,
+    );
+    await this.security.rate("sms-pair:" + id, 3, 3600);
+    return this.otp.issue("CLAIM", normalizeMobile(mobile), actor, {
+      pairing_id: id,
+      generation: p.generation,
+    });
+  }
   async claim(
     id: string,
     secret: string,
     password: string | undefined,
     authorizer: CustomerContext | undefined,
     actor: Actor,
+    otpProof?: { challenge_id: string; code: string },
   ) {
     const customerId = authorizer?.id;
     const snapshot = (
@@ -213,7 +250,20 @@ export class Identity {
     ).rows[0];
     if (owner)
       requireCondition(customerId === owner.id, "PROFILE_NOT_AUTHORIZED", 403);
-    else requireCondition(!customerId && password, "PASSWORD_REQUIRED");
+    else {
+      requireCondition(!customerId && otpProof, "OTP_REQUIRED");
+      const admitted = await this.otp.admit(
+        otpProof.challenge_id,
+        "CLAIM",
+        otpProof.code,
+      );
+      requireCondition(
+        admitted.pairing_id === id &&
+          admitted.generation === snapshot.generation,
+        "OTP_INVALID",
+        401,
+      );
+    }
     const generation = (
       await this.db.query<{ generation: number }>(
         "SELECT generation FROM devices WHERE id=$1",
@@ -261,11 +311,36 @@ export class Identity {
         );
         requireCondition(session.rowCount, "UNAUTHENTICATED", 401);
       } else {
-        requireCondition(!customerId && encoded, "PASSWORD_REQUIRED");
+        requireCondition(!customerId && otpProof, "OTP_REQUIRED");
+        const verified = await this.otp.consume(
+          c,
+          otpProof.challenge_id,
+          "CLAIM",
+          otpProof.code,
+          actor,
+        );
+        requireCondition(
+          verified.pairing_id === id && verified.generation === d.generation,
+          "OTP_INVALID",
+          401,
+        );
+        const mobile = unseal(
+          verified.mobile_ciphertext,
+          this.security.config.MOBILE_ENCRYPTION_KEY!,
+        );
         customer = { id: randomUUID() };
         await c.query(
-          "INSERT INTO customers(id,device_id,generation,username,password_hash,state) VALUES($1,$2,$3,$4,$5,'ACTIVE')",
-          [customer.id, d.id, d.generation, d.username, encoded],
+          "INSERT INTO customers(id,device_id,generation,username,password_hash,state,mobile_ciphertext,mobile_lookup,mobile_last4,mobile_verified_at) VALUES($1,$2,$3,$4,$5,'ACTIVE',$6,$7,$8,now())",
+          [
+            customer.id,
+            d.id,
+            d.generation,
+            d.username,
+            encoded,
+            verified.mobile_ciphertext,
+            verified.mobile_lookup,
+            mobile.slice(-4),
+          ],
         );
       }
       const changed = await c.query(

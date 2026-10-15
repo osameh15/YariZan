@@ -59,8 +59,37 @@ const requests = {
     reset_grant: schemas.secret,
     password: schemas.password,
   }),
-  "/api/v2/admin/auth/login": login.extend({
-    mfa_code: z.string().regex(/^[0-9]{6}$/),
+  "/api/v2/admin/auth/login": login,
+  "/api/v2/admin/auth/sms/verify": schemas.otpProofSchema,
+  "/api/v2/auth/claim/otp/request": z.strictObject({
+    pairing_id: schemas.uuid,
+    pairing_secret: schemas.secret,
+    mobile: schemas.mobile,
+  }),
+  "/api/v2/auth/otp/request": z.strictObject({
+    username: z.string().min(1).max(64),
+    mobile: schemas.mobile,
+    purpose: z.enum(["LOGIN", "RESET"]),
+  }),
+  "/api/v2/auth/otp/verify": schemas.otpProofSchema,
+  "/api/v2/auth/password-reset/otp": schemas.otpProofSchema.extend({
+    password: schemas.password,
+  }),
+  "/api/v2/account/security/otp": z.strictObject({
+    purpose: z.enum(["PASSWORD", "MOBILE_OLD", "MOBILE_NEW"]),
+    mobile: schemas.mobile.optional(),
+    current: schemas.otpProofSchema.optional(),
+    current_password: schemas.password.optional(),
+  }),
+  "/api/v2/account/security/password": schemas.otpProofSchema.extend({
+    password: schemas.password,
+  }),
+  "/api/v2/account/security/mobile": schemas.otpProofSchema.extend({
+    current: schemas.otpProofSchema.optional(),
+  }),
+  "/api/v2/admin/notes/{type}/{id}": z.strictObject({
+    note: z.string().max(2000),
+    expected_revision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   }),
   "/api/v2/desktop/trials/{sku}/start": schemas.startSchema,
   "/api/v2/desktop/licenses/pickup": z.strictObject({ sku: schemas.sku }),
@@ -117,7 +146,40 @@ const page = z.strictObject({
   items: z.array(metadata),
   next_offset: z.number().int().nullable(),
 });
+const otpReceipt = z.strictObject({
+  challenge_id: schemas.uuid,
+  expires_in: z.literal(300),
+  retry_after: z.literal(60),
+});
 const responses = {
+  "/api/v2/admin/auth/login": otpReceipt,
+  "/api/v2/auth/claim/otp/request": otpReceipt,
+  "/api/v2/auth/otp/request": otpReceipt,
+  "/api/v2/account/security/otp": otpReceipt,
+  "/api/v2/admin/auth/sms/verify": z.strictObject({
+    csrf_token: schemas.secret,
+  }),
+  "/api/v2/auth/otp/verify": z.strictObject({ csrf_token: schemas.secret }),
+  "/api/v2/auth/password-reset/otp": z.strictObject({
+    password_changed: z.literal(true),
+  }),
+  "/api/v2/account/security": z.strictObject({
+    has_password: z.boolean(),
+    mobile_masked: z.string().nullable(),
+    mobile_verified: z.boolean(),
+  }),
+  "/api/v2/account/security/password": z.strictObject({
+    changed: z.literal(true),
+    reauthentication_required: z.literal(true),
+  }),
+  "/api/v2/account/security/mobile": z.strictObject({
+    changed: z.literal(true),
+    reauthentication_required: z.literal(true),
+  }),
+  "/api/v2/admin/notes/{type}/{id}": z.strictObject({
+    note: z.string(),
+    revision: z.number().int().positive(),
+  }),
   "/api/v2/admin/activation-codes": z.union([
     z.strictObject({
       code_id: schemas.uuid,
@@ -222,7 +284,9 @@ for (const r of routes.sort(
   (a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method),
 )) {
   const desktop = r.path.includes("/desktop/"),
-    admin = r.path.includes("/admin/") && !r.path.endsWith("/auth/login"),
+    admin =
+      r.path.includes("/admin/") &&
+      !/\/auth\/(?:login|sms\/verify)$/.test(r.path),
     customer =
       r.path.startsWith("/api/v2/account") ||
       ["/api/v2/auth/logout", "/api/v2/auth/session/rotate"].includes(r.path);
@@ -249,7 +313,22 @@ for (const r of routes.sort(
     name,
     in: "path",
     required: true,
-    schema: json(name === "sku" ? schemas.sku : schemas.uuid),
+    schema: json(
+      name === "type"
+        ? z.enum([
+            "customers",
+            "devices",
+            "licenses",
+            "activation-codes",
+            "trials",
+            "products",
+          ])
+        : name === "id" && r.path.includes("/notes/")
+          ? z.string().min(1).max(128)
+          : name === "sku"
+            ? schemas.sku
+            : schemas.uuid,
+    ),
   }));
   if (admin || (customer && r.method !== "get"))
     parameters.push({
