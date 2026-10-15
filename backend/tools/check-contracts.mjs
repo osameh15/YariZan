@@ -469,10 +469,10 @@ for (const r of routes.sort(
 const spec = {
   openapi: "3.1.0",
   info: {
-    title: "YariZan implemented Phase 2 backend API",
+    title: "YariZan implemented V2 backend API",
     version: "2.0.0",
     description:
-      "Development backend only. Production gate closed. No payments or deployment.",
+      "Synthetic commerce and licensing development API. Production, live payments and deployment gates closed.",
     license: {
       name: "Proprietary",
       url: "https://github.com/osameh15/YariZan/blob/main/LICENSE.txt",

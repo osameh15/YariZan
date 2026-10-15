@@ -141,10 +141,12 @@ export class CommerceAdministration {
     else if (type === "payments")
       sql =
         "SELECT p.id,p.order_id,p.state,p.provider_ref,p.authority,p.amount_irr,p.currency,p.created_at,p.verified_at,p.exception_code,o.sku,o.device_id,c.username FROM payment_attempts p JOIN orders o ON o.id=p.order_id JOIN customers c ON c.id=o.customer_id";
-    else if (type === "campaigns") sql = "SELECT d.* FROM discount_campaigns d";
+    else if (type === "campaigns")
+      sql =
+        "SELECT d.*, (SELECT count(*) FROM discount_reservations r JOIN discount_codes x ON x.id=r.code_id WHERE x.campaign_id=d.id AND r.state IN ('RESERVED','UNKNOWN')) held, (SELECT count(*) FROM discount_redemptions r JOIN discount_codes x ON x.id=r.code_id WHERE x.campaign_id=d.id) redeemed FROM discount_campaigns d";
     else if (type === "coupons")
       sql =
-        "SELECT d.*,c.name campaign_name,ARRAY(SELECT sku FROM discount_products WHERE code_id=d.id ORDER BY sku) skus FROM discount_codes d JOIN discount_campaigns c ON c.id=d.campaign_id";
+        "SELECT d.*,c.name campaign_name,(SELECT count(*) FROM discount_reservations r WHERE r.code_id=d.id AND r.state IN ('RESERVED','UNKNOWN')) held,(SELECT count(*) FROM discount_redemptions r WHERE r.code_id=d.id) redeemed,ARRAY(SELECT sku FROM discount_products WHERE code_id=d.id ORDER BY sku) skus FROM discount_codes d JOIN discount_campaigns c ON c.id=d.campaign_id";
     else if (type === "jobs")
       sql =
         "SELECT j.id,j.kind,j.target_id,j.order_id,j.state,j.attempts,j.due_at,j.last_error,j.created_at FROM commerce_jobs j";
@@ -238,7 +240,14 @@ export class CommerceAdministration {
         [f.from ?? null, f.to ?? null],
       )
     ).rows[0];
+    const refundCounts = (
+      await c.query(
+        "SELECT count(*)::text refund_requests FROM refund_requests WHERE ($1::timestamptz IS NULL OR created_at >=$1) AND ($2::timestamptz IS NULL OR created_at<$2)",
+        [f.from ?? null, f.to ?? null],
+      )
+    ).rows[0];
     return {
+      ...refundCounts,
       ...capture,
       currency: "IRR",
       mode: "simulated",

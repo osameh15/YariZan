@@ -24,6 +24,9 @@ const sections = [
   ['redemptions', 'تخفیف‌های استفاده‌شده'],
   ['jobs', 'بررسی و آماده‌سازی'],
   ['exceptions', 'موارد نیازمند بررسی'],
+  ['paid_orders', 'سفارش‌های پرداخت‌شده'],
+  ['redemptions', 'دفعات استفاده از تخفیف'],
+  ['refund_requests', 'درخواست‌های بازپرداخت'],
   ['finance', 'گزارش مالی'],
   ['refunds', 'درخواست‌های بازپرداخت'],
 ];
@@ -209,6 +212,7 @@ const stateLabel = (row: Record<string, unknown>) =>
   (
     ({
       VERIFIED: 'تأییدشده',
+      CREATED: 'درخواست ثبت‌شده',
       UNKNOWN: 'نتیجه نامشخص',
       PENDING: 'در انتظار',
       FAILED: 'ناموفق',
@@ -285,6 +289,10 @@ const stateLabel = (row: Record<string, unknown>) =>
       >
         {{ section === 'campaigns' ? 'ساخت طرح تخفیف' : 'ساخت کد تخفیف' }}
       </button>
+      <p v-if="section === 'finance'">
+        سفارش‌ها بر اساس تاریخ ثبت گزارش می‌شوند؛ دریافت‌های تأییدشده بر اساس زمان تأیید درگاه و با
+        احتساب دریافت تکراری هستند. این گزارش جایگزین تسویهٔ بانکی نیست.
+      </p>
       <div v-if="section === 'finance'" class="stat-grid">
         <article
           v-for="[key, label] in [
@@ -294,6 +302,9 @@ const stateLabel = (row: Record<string, unknown>) =>
             ['verified_captures_irr', 'دریافت‌های تأییدشده، شامل موارد تکراری'],
             ['paid_unfulfilled', 'پرداخت‌شده؛ مجوز آماده نیست'],
             ['exceptions', 'موارد نیازمند بررسی'],
+            ['paid_orders', 'سفارش‌های پرداخت‌شده'],
+            ['redemptions', 'دفعات استفاده از تخفیف'],
+            ['refund_requests', 'درخواست‌های بازپرداخت'],
           ]"
           :key="key"
           class="panel"
@@ -304,6 +315,14 @@ const stateLabel = (row: Record<string, unknown>) =>
           </h2>
           <p>{{ label }}</p>
         </article>
+      </div>
+      <div v-if="section === 'finance'" class="panel">
+        <h2>وضعیت تلاش‌های پرداخت</h2>
+        <ul class="record-list">
+          <li v-for="(r, i) in report.payment_states as Record<string, unknown>[]" :key="i">
+            {{ stateLabel(r) }}: {{ r.count }} · {{ financialToman(r.amount_irr) }} تومان
+          </li>
+        </ul>
       </div>
       <div v-else class="table-scroll">
         <table>
@@ -337,6 +356,17 @@ const stateLabel = (row: Record<string, unknown>) =>
                 <p v-if="row.max_redemptions">
                   سقف کل: {{ row.max_redemptions }} · سقف مشتری:
                   {{ row.max_per_customer ?? 'بدون سقف' }}
+                </p>
+                <p v-if="row.held !== undefined">
+                  رزروشده: {{ row.held }} · استفاده‌شده: {{ row.redeemed }} · باقی‌مانده:
+                  {{
+                    row.max_redemptions
+                      ? Math.max(
+                          0,
+                          Number(row.max_redemptions) - Number(row.held) - Number(row.redeemed),
+                        )
+                      : 'بدون سقف کل'
+                  }}
                 </p>
                 <small v-if="row.provider_ref" dir="ltr">{{ row.provider_ref }}</small
                 ><small v-if="row.starts_at"
