@@ -55,3 +55,12 @@ backend/dist/
 backend/coverage/
 backend/.local/
 backend/*.pem
+
+# Phase 3 Nuxt and isolated browser evidence
+apps/web/node_modules/
+apps/web/.nuxt/
+apps/web/.output/
+apps/web/coverage/
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/.local/
