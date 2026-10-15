@@ -1,5 +1,7 @@
 # YariZan V2 — HTTP API and Signed Artifact Contracts
 
+Phase 2 implementation: see the [implemented backend OpenAPI](YARIZAN-OPENAPI-BACKEND-V2.json), [runtime guide](../backend/README.md) and [engineering report](YARIZAN-PHASE-2-REPORT.md). The five desktop routes retain ADR-0004 exactly. Older illustrative enrollment/commerce routes below are not evidence of working endpoints; production and cross-ID replacement remain gated.
+
 > **Status:** Proposed, versioned interface contract (not live endpoints). [Technical specification](YARIZAN-TECHNICAL-SPEC-V2.md) · [Data model](YARIZAN-DATA-MODEL-V2.md).
 > **Base URL target:** `https://yarizan.oarnova.games/api/v2`. NestJS owns API; Nuxt SSR/customer UI must call it through appropriately secured boundaries.
 

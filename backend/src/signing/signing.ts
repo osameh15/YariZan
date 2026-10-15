@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import {
   createPublicKey,
+  createPrivateKey,
   generateKeyPairSync,
   KeyObject,
   sign,
@@ -9,6 +10,45 @@ import {
 import { requireCondition } from "../common/errors";
 import { configuration } from "../config";
 import { hash } from "../security/crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { z } from "zod";
+import { uuid, digest, sku } from "../common/schemas";
+const binding = {
+  device_id: uuid,
+  device_fingerprint_version: z.literal(2),
+  device_fingerprint_digest: digest,
+};
+export const artifactClaims = {
+  enrollment: z.strictObject({
+    ...binding,
+    device_key_digest: digest,
+    profile_enrollment_id: uuid,
+  }),
+  trial: z.strictObject({
+    device_id: uuid,
+    sku,
+    grade: z.number().int().min(1).max(6),
+    client_nonce: digest,
+    process_session_id: uuid,
+  }),
+  license: z.strictObject({
+    ...binding,
+    license_id: uuid,
+    customer_id: uuid,
+    sku,
+    grade: z.number().int().min(1).max(6),
+    expires_at: z.null(),
+    license_revision: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+  }),
+  decision: z.strictObject({
+    ...binding,
+    license_id: uuid,
+    sku,
+    decision_version: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+    status: z.enum(["ACTIVE", "REVOKED"]),
+  }),
+};
 
 export function canonical(value: unknown, depth = 0): string {
   requireCondition(depth <= 8, "ARTIFACT_DEPTH");
@@ -57,16 +97,50 @@ export interface SigningKeyManager {
 }
 export const SIGNING_KEY_MANAGER = Symbol("SigningKeyManager");
 export class DevelopmentKeyManager implements SigningKeyManager {
-  readonly kid = "disposable-development-v2";
+  readonly kid: string;
   readonly publicKey: string;
   private readonly privateKey: KeyObject;
   constructor() {
-    configuration();
-    const pair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
-    this.privateKey = pair.privateKey;
-    this.publicKey = pair.publicKey
+    const config = configuration();
+    if (config.NODE_ENV === "test")
+      this.privateKey = generateKeyPairSync("ec", {
+        namedCurve: "prime256v1",
+      }).privateKey;
+    else {
+      const dir = path.resolve(".local"),
+        file = path.join(dir, "development-signing.pem");
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+      try {
+        readFileSync(file);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        const key = generateKeyPairSync("ec", {
+          namedCurve: "prime256v1",
+        }).privateKey.export({ type: "pkcs8", format: "pem" });
+        try {
+          writeFileSync(file, key, { flag: "wx", mode: 0o600 });
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+        }
+      }
+      this.privateKey = createPrivateKey(readFileSync(file));
+      requireCondition(
+        this.privateKey.asymmetricKeyType === "ec" &&
+          this.privateKey.asymmetricKeyDetails?.namedCurve === "prime256v1",
+        "DEVELOPMENT_KEY_INVALID",
+      );
+    }
+    this.publicKey = createPublicKey(this.privateKey)
       .export({ type: "spki", format: "pem" })
       .toString();
+    this.kid =
+      "disposable-development-" +
+      hash(
+        createPublicKey(this.privateKey).export({
+          type: "spki",
+          format: "der",
+        }),
+      ).slice(0, 16);
   }
   sign(message: Buffer) {
     return sign("sha256", message, {
@@ -99,6 +173,12 @@ export class Signing {
     claims: Record<string, unknown>,
   ): Envelope {
     const profile = profiles[type];
+    artifactClaims[type].parse(claims);
+    if ("grade" in claims)
+      requireCondition(
+        claims.sku === `YARIZAN-G${claims.grade}`,
+        "ARTIFACT_PRODUCT",
+      );
     const payload = {
       ...claims,
       format: profile.format,

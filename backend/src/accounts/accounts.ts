@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { hash, verify } from "argon2";
+import { hashPassword, verifyPassword } from "../security/passwords";
 import { randomUUID } from "node:crypto";
 import { Database } from "../database/database";
 import { Security } from "../security/security";
@@ -9,12 +9,9 @@ import { token, totp, unseal } from "../security/crypto";
 
 @Injectable()
 export class Accounts {
-  private readonly dummy = hash("synthetic-enumeration-defense-password", {
-    type: 2,
-    memoryCost: 65536,
-    timeCost: 3,
-    parallelism: 1,
-  });
+  private readonly dummy = hashPassword(
+    "synthetic-enumeration-defense-password",
+  );
   constructor(
     private db: Database,
     private security: Security,
@@ -22,22 +19,30 @@ export class Accounts {
   ) {}
   async login(username: string, password: string, actor: Actor) {
     const row = (
-      await this.db.query<{ id: string; password_hash: string }>(
+      await this.db.query<{ id: string; password_hash: string | null }>(
         "SELECT id,password_hash FROM customers WHERE username=$1 AND state='ACTIVE'",
         [username],
       )
     ).rows[0];
-    const valid = await verify(
+    const valid = await verifyPassword(
       row?.password_hash ?? (await this.dummy),
       password,
     );
-    requireCondition(row && valid, "INVALID_CREDENTIALS", 401);
+    requireCondition(
+      row && row.password_hash && valid,
+      "INVALID_CREDENTIALS",
+      401,
+    );
     return this.db.transaction(async (c) => {
-      const current = await c.query(
-        "SELECT id FROM customers WHERE id=$1 AND state='ACTIVE' FOR UPDATE",
+      const current = await c.query<{ password_hash: string | null }>(
+        "SELECT password_hash FROM customers WHERE id=$1 AND state='ACTIVE' FOR UPDATE",
         [row.id],
       );
-      requireCondition(current.rowCount, "INVALID_CREDENTIALS", 401);
+      requireCondition(
+        current.rows[0]?.password_hash === row.password_hash,
+        "INVALID_CREDENTIALS",
+        401,
+      );
       const session = token(),
         csrf = token();
       await c.query(
@@ -99,12 +104,7 @@ export class Accounts {
     return { revoked: true };
   }
   async completeReset(grant: string, password: string, actor: Actor) {
-    const encoded = await hash(password, {
-      type: 2,
-      memoryCost: 65536,
-      timeCost: 3,
-      parallelism: 1,
-    });
+    const encoded = await hashPassword(password);
     return this.db.transaction(async (c) => {
       const r = await c.query<{ id: string; customer_id: string }>(
         `SELECT r.id,r.customer_id FROM password_resets r JOIN customers c ON c.id=r.customer_id WHERE token_hash=$1
@@ -146,7 +146,7 @@ export class Accounts {
         mfa_ciphertext: string;
       }>("SELECT * FROM admins WHERE username=$1 AND NOT disabled", [username])
     ).rows[0];
-    const valid = await verify(
+    const valid = await verifyPassword(
       row?.password_hash ?? (await this.dummy),
       password,
     );
@@ -207,6 +207,9 @@ export class Accounts {
       "NOT_FOUND",
       404,
     );
+    await c.query("UPDATE customers SET password_hash=NULL WHERE id=$1", [
+      customerId,
+    ]);
     await c.query(
       "UPDATE password_resets SET used_at=now() WHERE customer_id=$1 AND used_at IS NULL",
       [customerId],

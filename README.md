@@ -61,6 +61,8 @@ Desktop access now uses a shared versioned device username, grade-bound signed p
 
 ## Approved V2 platform target (backend not implemented)
 
+Phase 2 backend core is now available for isolated development and review under [`backend/`](backend/README.md). See the [Phase 2 report](docs/YARIZAN-PHASE-2-REPORT.md), [implemented API snapshot](docs/YARIZAN-OPENAPI-BACKEND-V2.json) and [ADR-0005](docs/adr/0005-backend-enrollment-and-transaction-authority.md). Production startup and the stock desktop commercial enrollment gate remain closed; no checkout, SMS or deployment is implemented. The older design status text below is historical context.
+
 Commercial YariZan V2 will use a Nuxt 4 storefront/customer/Admin portal, NestJS/PostgreSQL backend, per-device common customer username, six independent grade entitlements, ZarinPal checkout, discount campaigns, and **per-product perpetual offline paid licenses**. Two trial entries **per device and grade** require internet **only to start each trial process session**; once entered, an open trial process continues without internet or a heartbeat. Password-based onboarding uses confirmed device pairing; MeliPayamak is planned for a later reset-link stage. **Phase 1 desktop foundations are under review; no V2 backend, database or deployment has been shipped.** Refer to the [V2 specification](docs/YARIZAN-TECHNICAL-SPEC-V2.md), [data model](docs/YARIZAN-DATA-MODEL-V2.md), [API contracts](docs/YARIZAN-API-CONTRACTS-V2.md), and [roadmap](docs/YARIZAN-IMPLEMENTATION-ROADMAP-V2.md).
 
 ### Phase 0 security and implementation handoff (design baseline; untested)

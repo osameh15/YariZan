@@ -7,21 +7,34 @@ import cookieParser from "cookie-parser";
 import { randomUUID } from "node:crypto";
 import { AppModule } from "./app";
 import { configuration } from "./config";
-import { ErrorFilter } from "./common/errors";
+import { ApiError, ErrorFilter } from "./common/errors";
 import { strictJson } from "./common/strict-json";
 import { Security } from "./security/security";
 
 export async function createApp() {
-  configuration();
+  const config = configuration();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: false,
     bodyParser: false,
   });
   app.use((req: Request, res: Response, next: NextFunction) => {
+    const started = performance.now();
     const id = randomUUID();
     res.locals.correlationId = id;
     res.setHeader("X-Request-ID", id);
     res.setHeader("Cache-Control", "no-store");
+    res.on("finish", () => {
+      if (config.NODE_ENV !== "test")
+        console.log(
+          JSON.stringify({
+            event: "request_completed",
+            request_id: id,
+            method: req.method,
+            status: res.statusCode,
+            elapsed_ms: Math.round(performance.now() - started),
+          }),
+        );
+    });
     next();
   });
   app.use(helmet());
@@ -39,18 +52,19 @@ export async function createApp() {
   app.use(async (req: Request, res: Response, next: NextFunction) => {
     try {
       await security.rate("ip:" + req.socket.remoteAddress, 600);
+      await security.rate("global", 6000);
       if (req.headers.authorization)
-        await security.rate(
-          "device:" + security.tokenHash(req.headers.authorization),
-          120,
-        );
+        await security.authenticatedRate(req.headers.authorization);
       next();
-    } catch {
-      res
-        .status(429)
-        .json({
-          error: { code: "RATE_LIMITED", request_id: res.locals.correlationId },
-        });
+    } catch (error) {
+      const limited =
+        error instanceof ApiError && error.code === "RATE_LIMITED";
+      res.status(limited ? 429 : 503).json({
+        error: {
+          code: limited ? "RATE_LIMITED" : "SERVICE_UNAVAILABLE",
+          request_id: res.locals.correlationId,
+        },
+      });
     }
   });
   app.useGlobalFilters(new ErrorFilter());
@@ -61,14 +75,12 @@ export async function createApp() {
         next();
         return;
       }
-      res
-        .status(400)
-        .json({
-          error: {
-            code: "INVALID_REQUEST",
-            request_id: res.locals.correlationId,
-          },
-        });
+      res.status(400).json({
+        error: {
+          code: "INVALID_REQUEST",
+          request_id: res.locals.correlationId,
+        },
+      });
     },
   );
   app.enableShutdownHooks();

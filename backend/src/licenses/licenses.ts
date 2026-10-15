@@ -152,6 +152,14 @@ export class Licenses {
         )
       ).rows[0];
       // Historical credentials can retrieve revocations only, never a new account or ACTIVE recovery.
+      if (d.historical)
+        requireCondition(
+          l.state === "REVOKED" &&
+            generation.customer_id === d.customer_id &&
+            generation.generation === d.generation,
+          "ACCOUNT_RESTRICTED",
+          403,
+        );
       const k = (
         await c.query<{ status: string }>(
           "SELECT status FROM device_keys WHERE id=$1",
@@ -160,7 +168,8 @@ export class Licenses {
       ).rows[0];
       requireCondition(
         l.state === "REVOKED" ||
-          (k.status === "ACTIVE" &&
+          (!d.historical &&
+            k.status === "ACTIVE" &&
             generation.customer_id === d.customer_id &&
             generation.generation === d.generation),
         "ACCOUNT_RESTRICTED",

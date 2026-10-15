@@ -18,7 +18,7 @@ import { Trials } from "../trials/trials";
 import { Licenses } from "../licenses/licenses";
 import { Activation } from "../activation/activation";
 import { Admin } from "../admin/admin";
-import { Actor } from "../audit/audit";
+import { Audit, Actor } from "../audit/audit";
 import {
   challengeSchema,
   proofSchema,
@@ -52,7 +52,7 @@ export class HealthController {
     const r = await this.db.query<{ count: string }>(
       "SELECT count(*) FROM schema_migrations",
     );
-    requireCondition(Number(r.rows[0].count) === 3, "MIGRATIONS_REQUIRED", 503);
+    requireCondition(Number(r.rows[0].count) === 5, "MIGRATIONS_REQUIRED", 503);
     return { status: "ready", production_gate: "closed" };
   }
 }
@@ -180,6 +180,7 @@ export class AccountsController {
     private accounts: Accounts,
     private security: Security,
     private db: Database,
+    private audit: Audit,
   ) {}
   private cookie(res: Response, name: string, session: string) {
     res.cookie(name, session, {
@@ -312,10 +313,16 @@ export class AccountsController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.db.transaction(async (c) => {
-      const a = await this.security.admin(req, "audit.read", c);
+      const a = await this.security.admin(req, undefined, c);
       await c.query(
         "UPDATE admin_sessions SET revoked_at=now() WHERE token_hash=$1",
         [a.token_hash],
+      );
+      await this.audit.append(
+        c,
+        { ...actor(req), type: "ADMIN", id: a.id },
+        "admin.logout",
+        a.id,
       );
     });
     res.clearCookie("yz_admin", { path: "/api/v2" });

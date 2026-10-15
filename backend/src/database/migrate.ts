@@ -18,7 +18,9 @@ export async function migrate(db: Database) {
     if (applied.rows.some((r, i) => r.name !== files[i]))
       throw new Error("MIGRATION_ORDER_DRIFT");
     for (const name of files) {
-      const sql = await readFile(path.join("migrations", name), "utf8");
+      const sql = (
+        await readFile(path.join("migrations", name), "utf8")
+      ).replace(/\r\n/g, "\n");
       const hash = createHash("sha256").update(sql).digest("hex");
       const previous = applied.rows.find((r) => r.name === name);
       if (previous && previous.hash !== hash)

@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { PoolClient } from "pg";
-import { hash as passwordHash } from "argon2";
+import { hashPassword } from "../security/passwords";
 import { Database } from "../database/database";
 import {
   Signing,
@@ -202,14 +202,7 @@ export class Identity {
     password: string | undefined,
     actor: Actor,
   ) {
-    const encoded = password
-      ? await passwordHash(password, {
-          type: 2,
-          memoryCost: 65536,
-          timeCost: 3,
-          parallelism: 1,
-        })
-      : null;
+    const encoded = password ? await hashPassword(password) : null;
     return this.db.transaction(async (c) => {
       const r = await c.query<Pairing>(
         "SELECT * FROM pairings WHERE id=$1 FOR UPDATE",
@@ -298,6 +291,10 @@ export class Identity {
           enrollment,
         ],
       );
+      await c.query(
+        "INSERT INTO device_enrollment_history(id,key_id,customer_id,generation,signed_enrollment) VALUES($1,$2,$3,$4,$5)",
+        [randomUUID(), keyId, customer.id, d.generation, enrollment],
+      );
       await c.query("UPDATE pairings SET status='CONSUMED' WHERE id=$1", [id]);
       const credential = await this.credential(c, keyId);
       await this.audit.append(c, actor, "enrollment.approved", d.id, {
@@ -345,7 +342,7 @@ export class Identity {
   private async credential(c: PoolClient, keyId: string) {
     const value = token();
     await c.query(
-      `INSERT INTO device_credentials(token_hash,key_id,expires_at) VALUES($1,$2,now()+interval '15 minutes')`,
+      `INSERT INTO device_credentials(token_hash,key_id,expires_at,customer_id,device_id,generation) SELECT $1,id,now()+interval '15 minutes',customer_id,device_id,generation FROM device_keys WHERE id=$2`,
       [this.security.tokenHash(value), keyId],
     );
     return value;

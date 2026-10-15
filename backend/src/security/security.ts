@@ -12,6 +12,7 @@ export interface DeviceContext {
   customer_id: string;
   generation: number;
   fingerprint_digest: string;
+  historical?: boolean;
 }
 export interface CustomerContext {
   id: string;
@@ -30,8 +31,19 @@ export class Security {
   tokenHash(value: string) {
     return keyed(this.config.TOKEN_HMAC_KEY, "YariZan-Session-V2", value);
   }
-  async rate(key: string, limit: number, seconds = 60) {
-    const bucket = Math.floor(Date.now() / 1000 / seconds);
+  async authenticatedRate(authorization: string, instant = Date.now()) {
+    if (!/^Bearer [A-Za-z0-9_-]{43}$/.test(authorization)) return;
+    const r = await this.db.query<{ device_id: string; customer_id: string }>(
+      `SELECT c.device_id,c.customer_id FROM device_credentials c WHERE c.token_hash=$1`,
+      [this.tokenHash(authorization.slice(7))],
+    );
+    if (r.rows[0]) {
+      await this.rate("machine:" + r.rows[0].device_id, 120, 60, instant);
+      await this.rate("customer:" + r.rows[0].customer_id, 120, 60, instant);
+    }
+  }
+  async rate(key: string, limit: number, seconds = 60, instant = Date.now()) {
+    const bucket = Math.floor(instant / 1000 / seconds);
     const safe = keyed(this.config.TOKEN_HMAC_KEY, "YariZan-Rate-V2", key);
     const r = await this.db.query<{ count: number }>(
       `INSERT INTO rate_buckets VALUES($1,$2,1)
@@ -61,12 +73,13 @@ export class Security {
         current_generation: number;
         revoked_at: Date | null;
         expires_at: Date;
+        key_generation: number;
       }
     >(
-      `SELECT k.device_id,k.id key_id,k.customer_id,k.generation,d.fingerprint_digest,
-      k.status,c.state,d.generation current_generation,t.revoked_at,t.expires_at
-      FROM device_credentials t JOIN device_keys k ON k.id=t.key_id JOIN devices d ON d.id=k.device_id
-      JOIN customers c ON c.id=k.customer_id WHERE t.token_hash=$1 FOR UPDATE OF d`,
+      `SELECT t.device_id,k.id key_id,t.customer_id,t.generation,d.fingerprint_digest,
+      k.status,k.generation key_generation,c.state,d.generation current_generation,t.revoked_at,t.expires_at
+      FROM device_credentials t JOIN device_keys k ON k.id=t.key_id JOIN devices d ON d.id=t.device_id
+      JOIN customers c ON c.id=t.customer_id WHERE t.token_hash=$1 FOR UPDATE OF d`,
       [this.tokenHash(bearer)],
     );
     const row = r.rows[0];
@@ -76,15 +89,14 @@ export class Security {
       401,
     );
     // Old reset keys can read only their own signed tombstones until their credential expires.
+    row.historical =
+      !!row.revoked_at ||
+      row.status !== "ACTIVE" ||
+      row.state !== "ACTIVE" ||
+      row.generation !== row.current_generation ||
+      row.generation !== row.key_generation;
     if (!allowHistorical)
-      requireCondition(
-        !row.revoked_at &&
-          row.status === "ACTIVE" &&
-          row.state === "ACTIVE" &&
-          row.generation === row.current_generation,
-        "ACCOUNT_RESTRICTED",
-        403,
-      );
+      requireCondition(!row.historical, "ACCOUNT_RESTRICTED", 403);
     else
       requireCondition(row.status !== "REPLACED", "ENROLLMENT_REQUIRED", 401);
     return row;
@@ -124,7 +136,7 @@ export class Security {
   }
   async admin(
     req: Request,
-    permission: string,
+    permission: string | undefined,
     c: PoolClient,
   ): Promise<AdminContext> {
     const raw = (req.cookies as Record<string, string> | undefined)?.yz_admin;
@@ -140,6 +152,7 @@ export class Security {
     );
     requireCondition(r.rows[0], "UNAUTHENTICATED", 401);
     this.csrf(req, r.rows[0].csrf_hash);
+    if (!permission) return r.rows[0];
     requireCondition(
       Date.now() - r.rows[0].mfa_at.getTime() < 5 * 60 * 1000,
       "MFA_REQUIRED",

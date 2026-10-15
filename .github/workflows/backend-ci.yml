@@ -1,0 +1,63 @@
+name: V2 Backend CI
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: yarizan
+          POSTGRES_PASSWORD: local-disposable
+          POSTGRES_DB: yarizan_phase2_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U yarizan -d yarizan_phase2_test"
+          --health-interval 2s --health-timeout 2s --health-retries 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://yarizan:local-disposable@127.0.0.1:5432/yarizan_phase2_test
+      CODE_HMAC_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      TOKEN_HMAC_KEY: '2222222222222222222222222222222222222222222222222222222222222222'
+      MFA_ENCRYPTION_KEY: '3333333333333333333333333333333333333333333333333333333333333333'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: node tools/check-schema.mjs
+      - run: npm run check:contracts
+      - run: npx --yes @redocly/cli@2.63.0 lint ../docs/YARIZAN-OPENAPI-BACKEND-V2.json
+      - run: npm run check:secrets
+      - run: npm audit --audit-level=high
+      - run: python ../tools/Check-PublicRepository.py
+      - name: Build local-only image; production gate stays closed
+        run: docker build -t yarizan-backend-fixture .
+      - name: Non-root image and isolated container smoke
+        run: |
+          docker run --rm --entrypoint node yarizan-backend-fixture -e "const f=require('fs');if(f.readdirSync('/app/.local').length)throw Error('Embedded key');require('argon2');if(process.getuid()!==1000)throw Error('Root runtime');console.log('Image has no embedded key; native Argon2 loads; uid 1000')"
+          docker run -d --name yarizan-backend-smoke --network host --env NODE_ENV=development --env DATABASE_URL --env CODE_HMAC_KEY --env TOKEN_HMAC_KEY --env MFA_ENCRYPTION_KEY yarizan-backend-fixture
+          curl --fail --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:3100/ready
+          curl --fail http://127.0.0.1:3100/api/v2/products
+      - name: Remove only this job's disposable API container
+        if: always()
+        run: docker rm -f yarizan-backend-smoke || true

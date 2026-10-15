@@ -1,5 +1,7 @@
 # YariZan V2 — Data Model and Concurrency Design
 
+Phase 2 implementation: [versioned PostgreSQL migrations](../backend/migrations) are now the exact schema, including generation-scoped budgets, durable restrictions, enrollment/history, one-time verifiers and future-commerce tables. See [ADR-0005](adr/0005-backend-enrollment-and-transaction-authority.md) for justified explicit SQL data access and [test evidence](YARIZAN-PHASE-2-REPORT.md). This older proposed table list is not the migration source of truth.
+
 > **Status:** Proposed implementation contract; not migrated or deployed. Read [Technical specification](YARIZAN-TECHNICAL-SPEC-V2.md) first.
 > **Database:** PostgreSQL 17; Prisma proposed. Integer money storage in **IRR**, UTC timestamptz; use local Tehran time only for display/campaign authoring.
 

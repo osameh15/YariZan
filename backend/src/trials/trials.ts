@@ -81,7 +81,7 @@ export class Trials {
         remaining: 1 - counter.used,
         server_time: new Date().toISOString(),
       };
-      const stored = await c.query<{response:TrialResponse}>(
+      const stored = await c.query<{ response: TrialResponse }>(
         "INSERT INTO trial_starts(id,device_id,sku,generation,nonce,request_digest,response) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING response",
         [
           randomUUID(),

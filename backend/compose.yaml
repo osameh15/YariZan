@@ -28,5 +28,7 @@ services:
     depends_on:
       db: { condition: service_healthy }
     mem_limit: 512m
+    volumes: ["development-keys:/app/.local"]
 volumes:
   db:
+  development-keys:

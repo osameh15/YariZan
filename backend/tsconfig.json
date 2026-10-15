@@ -11,7 +11,8 @@
     "sourceMap": true,
     "skipLibCheck": true,
     "noImplicitReturns": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "rootDir": "."
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }
