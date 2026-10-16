@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/e2e',
+  outputDir: './test-results/full',
   fullyParallel: false,
   workers: 1,
   timeout: 45000,
@@ -30,6 +31,7 @@ export default defineConfig({
         HOST: '127.0.0.1',
         NUXT_WEB_ORIGIN: 'http://localhost:3200',
         NUXT_API_BASE: 'http://127.0.0.1:3100/api/v2/',
+        YARIZAN_SITE_MODE: 'full',
       },
       reuseExistingServer: false,
       timeout: 45000,

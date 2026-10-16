@@ -10,9 +10,15 @@ useSeoMeta({
   title: () => (product.value ? `${product.value.title_fa} | یاریزان` : 'محصولات یاریزان'),
 });
 const assistance = ref(false);
-const { data: commerce } = await useFetch<ApiResult<'/api/v2/commerce/capabilities', 'get'>>(
-  '/api/v2/commerce/capabilities',
-);
+const { brochure } = useSiteMode();
+// Brochure mode has no API: commerce capabilities are never requested.
+const commerce = brochure.value
+  ? ref<ApiResult<'/api/v2/commerce/capabilities', 'get'> | null>(null)
+  : (
+      await useFetch<ApiResult<'/api/v2/commerce/capabilities', 'get'>>(
+        '/api/v2/commerce/capabilities',
+      )
+    ).data;
 </script>
 <template>
   <section class="wrap section">
@@ -44,10 +50,20 @@ const { data: commerce } = await useFetch<ApiResult<'/api/v2/commerce/capabiliti
             همراهی فارسی برای تجربه‌های آموزشی کودک، در برنامهٔ ویندوز یاریزان. جزئیات محتوای هر
             نسخه هنگام عرضه اعلام می‌شود.
           </p>
-          <div class="detail-price">{{ toman(product.price_irr) }} <small>تومان</small></div>
+          <div v-if="product.price_irr === null" class="detail-price">
+            <small>قیمت هنگام آغاز فروش اعلام می‌شود</small>
+          </div>
+          <div v-else class="detail-price">{{ toman(product.price_irr) }} <small>تومان</small></div>
           <p v-if="product.publication_status === 'coming_soon'" class="notice">
             این پایه هنوز عرضه نشده است. فروش و فعال‌سازی آن در دسترس نیست.
           </p>
+          <template v-else-if="brochure">
+            <p class="notice">
+              یاریزان در مرحلهٔ معرفی است. خرید اینترنتی، فعال‌سازی و شروع آزمایش این پایه هنوز در
+              دسترس نیست و هیچ پرداختی در این سایت انجام نمی‌شود.
+            </p>
+            <a class="button primary phone" href="tel:09188764024" dir="ltr">۰۹۱۸-۸۷۶-۴۰۲۴</a>
+          </template>
           <template v-else>
             <NuxtLink
               v-if="product.sale_enabled && commerce?.checkout_enabled"

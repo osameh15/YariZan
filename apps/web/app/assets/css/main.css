@@ -418,7 +418,7 @@ form > .actions,
   right: 30px;
   transform: rotate(15deg);
   font-size: 42px;
-  color: #7d9680;
+  color: #5e7a62;
 }
 .orbit-two {
   left: -4px;
@@ -1879,4 +1879,23 @@ textarea[aria-invalid='true'] {
 .dialog-action-footer .api-notice {
   max-height: 20dvh;
   overflow-y: auto;
+}
+/* Brochure mode: persistent explanation that accounts and commerce are not available yet. */
+.brochure-notice {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #f5efdf;
+  margin-block: 8px 4px;
+}
+.brochure-notice p {
+  font-size: 14px;
+  margin: 0;
+}
+.brochure-notice > span {
+  color: var(--gold);
+  font-size: 22px;
 }
