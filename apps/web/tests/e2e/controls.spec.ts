@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { admin, smsCode, sql } from '../../tools/test-fixtures.mjs';
-const images = path.resolve('../../docs/Images/phase4-premium');
+const images = path.resolve('.local/screenshots/phase4-premium');
 async function shot(page: Page, name: string) {
   await mkdir(images, { recursive: true });
   await page.screenshot({
