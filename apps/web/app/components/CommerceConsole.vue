@@ -37,48 +37,77 @@ const title = computed(
   () => sections.find((s) => s[0] === section.value)?.[1] ?? 'بخش مدیریت پیدا نشد',
 );
 const allowed = (p: string) => permissions.value.includes(p);
+let loadGeneration = 0;
+function invalidateLoad() {
+  loadGeneration++;
+  busy.value = false;
+  rows.value = [];
+  report.value = {};
+  next.value = null;
+  message.value = '';
+}
+watch([search, state, from, to, offset], invalidateLoad, { flush: 'sync' });
+onBeforeUnmount(invalidateLoad);
 async function load() {
+  const generation = ++loadGeneration;
+  const snapshot = {
+    section: section.value,
+    search: search.value,
+    state: state.value,
+    from: from.value,
+    to: to.value,
+    offset: offset.value,
+  };
+  const current = () => generation === loadGeneration && section.value === snapshot.section;
   busy.value = true;
   message.value = '';
+  success.value = false;
   rows.value = [];
   report.value = {};
   next.value = null;
   try {
     const session = await api.get('/api/v2/admin/auth/session');
+    if (!current()) return;
     permissions.value = session.permissions;
-    if (!supportedSection.value) {
+    if (!sections.some((s) => s[0] === snapshot.section)) {
       message.value = 'این بخش مدیریت وجود ندارد. یکی از بخش‌های فهرست فروش را انتخاب کنید.';
       return;
     }
     const r = await api.get(
       '/api/v2/admin/commerce/{section}',
-      { section: section.value },
+      { section: snapshot.section },
       {
-        search: search.value,
-        offset: offset.value,
-        ...(state.value ? { state: state.value } : {}),
-        ...(from.value ? { from: new Date(from.value + 'T00:00:00').toISOString() } : {}),
-        ...(to.value ? { to: new Date(to.value + 'T00:00:00').toISOString() } : {}),
+        search: snapshot.search,
+        offset: snapshot.offset,
+        ...(snapshot.state ? { state: snapshot.state } : {}),
+        ...(snapshot.from ? { from: new Date(snapshot.from + 'T00:00:00').toISOString() } : {}),
+        ...(snapshot.to ? { to: new Date(snapshot.to + 'T00:00:00').toISOString() } : {}),
       },
     );
-    if (section.value === 'finance') report.value = r;
+    if (!current()) return;
+    if (snapshot.section === 'finance') report.value = r;
     else {
       rows.value = r.items as Record<string, unknown>[];
       next.value = r.next_offset as number | null;
     }
   } catch (e) {
+    if (!current()) return;
     message.value = errorMessage(e);
     if ((e as { status?: number }).status === 401) await navigateTo('/zanyari/login');
   } finally {
-    busy.value = false;
+    if (current()) busy.value = false;
   }
 }
-watch(section, () => {
-  offset.value = 0;
-  search.value = '';
-  state.value = '';
-  load();
-});
+watch(
+  section,
+  () => {
+    offset.value = 0;
+    search.value = '';
+    state.value = '';
+    load();
+  },
+  { flush: 'sync' },
+);
 onMounted(load);
 const dialog = ref(false),
   kind = ref(''),

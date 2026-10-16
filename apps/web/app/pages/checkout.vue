@@ -7,46 +7,76 @@ const api = useApi(),
   coupon = ref(''),
   quoted = ref(''),
   productTitle = ref('خلاصهٔ سفارش'),
-  busy = ref(false),
+  loading = ref(false),
+  creating = ref(false),
+  busy = computed(() => loading.value || creating.value),
   message = ref('');
 const quote = ref<ApiResult<'/api/v2/discounts/quote', 'post'>>();
 const sku = String(route.query.sku ?? 'YARIZAN-G1');
 if (!/^YARIZAN-G[1-6]$/.test(sku)) throw createError({ statusCode: 404 });
 const requestId = ref('');
+let quoteGeneration = 0;
+const canCreate = computed(
+  () => !busy.value && !!quote.value && coupon.value.trim() === quoted.value,
+);
+// Editing invalidates even an A -> B -> A request; only a fresh quote can authorize checkout.
+watch(
+  coupon,
+  () => {
+    quoteGeneration++;
+    quote.value = undefined;
+    message.value = '';
+    loading.value = false;
+  },
+  { flush: 'sync' },
+);
+onBeforeUnmount(() => {
+  quoteGeneration++;
+});
 async function load() {
-  busy.value = true;
+  if (creating.value) return;
+  const generation = ++quoteGeneration;
+  const submittedCoupon = coupon.value.trim();
+  const current = () => generation === quoteGeneration && coupon.value.trim() === submittedCoupon;
+  loading.value = true;
+  quote.value = undefined;
   message.value = '';
   try {
-    quote.value = await api.post('/api/v2/discounts/quote', {
+    const result = await api.post('/api/v2/discounts/quote', {
       sku,
-      coupon: coupon.value.trim() || undefined,
+      coupon: submittedCoupon || undefined,
     });
-    productTitle.value = quote.value.title_fa;
-    quoted.value = coupon.value.trim();
+    if (!current()) return;
+    quote.value = result;
+    productTitle.value = result.title_fa;
+    quoted.value = submittedCoupon;
   } catch (e) {
+    if (!current()) return;
     quote.value = undefined;
     message.value = errorMessage(e);
     if ((e as { status?: number }).status === 401)
       await navigateTo('/login?return=' + encodeURIComponent('/checkout?sku=' + sku));
   } finally {
-    busy.value = false;
+    if (current()) loading.value = false;
   }
 }
 async function create() {
-  busy.value = true;
+  if (!canCreate.value) return;
+  const acceptedCoupon = quoted.value;
+  creating.value = true;
   message.value = '';
   try {
     requestId.value ||= crypto.randomUUID();
     const o = await api.post('/api/v2/orders', {
       request_id: requestId.value,
       sku,
-      coupon: quoted.value || undefined,
+      coupon: acceptedCoupon || undefined,
     });
     await navigateTo('/account/orders/' + o.id);
   } catch (e) {
     message.value = errorMessage(e);
   } finally {
-    busy.value = false;
+    creating.value = false;
   }
 }
 onMounted(load);
@@ -86,6 +116,7 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
             <label
               >کد تخفیف<input
                 v-model="coupon"
+                :disabled="creating"
                 dir="ltr"
                 maxlength="64"
                 pattern="[A-Za-z0-9_-]*"
@@ -160,11 +191,7 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
             <p>محیط آزمایشی: پرداخت کاملاً شبیه‌سازی می‌شود و هیچ پولی جابه‌جا نخواهد شد.</p>
             <small>درگاه: شبیه‌ساز زرین‌پال · پول واقعی دریافت نمی‌شود.</small>
           </div>
-          <button
-            class="button primary checkout-submit"
-            :disabled="busy || coupon.trim() !== quoted"
-            @click="create"
-          >
+          <button class="button primary checkout-submit" :disabled="!canCreate" @click="create">
             ثبت سفارش و بررسی پرداخت <span aria-hidden="true">←</span>
           </button>
           <p v-if="coupon.trim() !== quoted" class="muted" role="status">

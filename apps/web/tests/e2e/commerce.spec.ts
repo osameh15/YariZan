@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type Route } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
@@ -27,6 +27,10 @@ async function shot(page: Page, name: string) {
 }
 async function login(page: Page, e: Awaited<ReturnType<typeof customer>>) {
   await page.goto('/login');
+  await page.waitForFunction(
+    () =>
+      !!document.querySelector('#__nuxt') && '__vue_app__' in document.querySelector('#__nuxt')!,
+  );
   await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
   await page.getByLabel('نام کاربری دستگاه', { exact: true }).fill(e.username);
   await page.getByLabel('رمز عبور', { exact: true }).fill(password);
@@ -36,6 +40,10 @@ async function login(page: Page, e: Awaited<ReturnType<typeof customer>>) {
 async function manager(page: Page) {
   const a = await admin();
   await page.goto('/zanyari/login');
+  await page.waitForFunction(
+    () =>
+      !!document.querySelector('#__nuxt') && '__vue_app__' in document.querySelector('#__nuxt')!,
+  );
   await page.getByLabel('نام کاربری مدیریت').fill(a.username);
   await page.getByLabel('رمز عبور', { exact: true }).fill(a.password);
   const response = page.waitForResponse((r) => r.url().endsWith('/admin/auth/login'));
@@ -481,5 +489,248 @@ test('Finance report failure never displays invented zero totals and safely relo
   await page.unroute('**/api/v2/admin/commerce/finance?*');
   await page.getByRole('button', { name: 'جست‌وجو و تازه‌سازی' }).click();
   await expect(page.locator('.finance-metrics')).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+// APIRequestContext replay does not retain browser Fetch Metadata consistently.
+// Preserve original session/CSRF headers and the exact local page Origin on test replays.
+async function realResponse(route: Route) {
+  const request = route.request();
+  const headers = await request.allHeaders();
+  return route.fetch({ headers: { ...headers, origin: new URL(request.url()).origin } });
+}
+// Hold actual backend responses; tests control completion order without timing sleeps.
+function deferred() {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { promise, release };
+}
+async function settleView(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+}
+test('Coupon input edits and reverse-order quotes never authorize a mismatched order', async ({
+  page,
+}) => {
+  const e = await customer(),
+    a = await discount(),
+    b = await discount();
+  await sql('UPDATE discount_codes SET value=20 WHERE code=$1', [b]);
+  await login(page, e);
+  await page.goto('/checkout');
+  await expect(page.locator('.checkout-submit')).toBeEnabled();
+  const enteredA = deferred(),
+    releaseA = deferred(),
+    doneA = deferred();
+  const enteredB = deferred(),
+    releaseB = deferred();
+  await page.route('**/api/v2/discounts/quote', async (route) => {
+    const code = route.request().postDataJSON().coupon;
+    const response = await realResponse(route);
+    if (code === a) {
+      enteredA.release();
+      await releaseA.promise;
+    }
+    if (code === b) {
+      enteredB.release();
+      await releaseB.promise;
+    }
+    await route.fulfill({ response });
+    if (code === a) doneA.release();
+  });
+  await page.getByLabel('کد تخفیف', { exact: true }).fill(a);
+  await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
+  await enteredA.promise;
+  await page.getByLabel('کد تخفیف', { exact: true }).fill(b);
+  await expect(page.locator('.checkout-submit')).toHaveCount(0);
+  await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
+  await enteredB.promise;
+  releaseB.release();
+  await expect(page.locator('.payable-total')).toContainText('۱٬۰۳۹٬۲۰۰');
+  await expect(page.locator('.checkout-submit')).toBeEnabled();
+  releaseA.release();
+  await doneA.promise;
+  await settleView(page);
+  await expect(page.locator('.payable-total')).toContainText('۱٬۰۳۹٬۲۰۰');
+  await expect(page.getByLabel('کد تخفیف', { exact: true })).toHaveValue(b);
+  const created = page.waitForRequest(
+    (r) => r.method() === 'POST' && r.url().endsWith('/api/v2/orders'),
+  );
+  await page.locator('.checkout-submit').click();
+  expect((await created).postDataJSON().coupon).toBe(b);
+  await expect(page).toHaveURL(/\/account\/orders\/[0-9a-f-]{36}$/);
+});
+for (const lateError of [false, true]) {
+  test(`Stale coupon ${lateError ? 'failure' : 'success'} cannot replace a newer ${lateError ? 'quote' : 'error'}`, async ({
+    page,
+  }) => {
+    await login(page, await customer());
+    const valid = await discount(),
+      first = lateError ? 'INVALID-STALE' : valid,
+      latest = lateError ? valid : 'INVALID-LATEST';
+    await page.goto('/checkout');
+    await expect(page.locator('.checkout-submit')).toBeEnabled();
+    const entered = deferred(),
+      release = deferred(),
+      done = deferred();
+    await page.route('**/api/v2/discounts/quote', async (route) => {
+      const response = await realResponse(route);
+      const held = route.request().postDataJSON().coupon === first;
+      if (held) {
+        entered.release();
+        await release.promise;
+      }
+      await route.fulfill({ response });
+      if (held) done.release();
+    });
+    await page.getByLabel('کد تخفیف', { exact: true }).fill(first);
+    await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
+    await entered.promise;
+    await page.getByLabel('کد تخفیف', { exact: true }).fill(latest);
+    await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
+    if (lateError) await expect(page.locator('.checkout-submit')).toBeEnabled();
+    else await expect(page.getByRole('alert')).toContainText('قابل استفاده نیست');
+    release.release();
+    await done.promise;
+    await settleView(page);
+    if (lateError) {
+      await expect(page.locator('.checkout-submit')).toBeEnabled();
+      await expect(page.getByRole('alert')).toHaveCount(0);
+    } else {
+      await expect(page.locator('.checkout-submit')).toHaveCount(0);
+      await expect(page.getByRole('alert')).toContainText('قابل استفاده نیست');
+    }
+  });
+}
+test('Admin old payments completion cannot finish a newer orders load', async ({ page }) => {
+  await manager(page);
+  await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'false');
+  const pEntered = deferred(),
+    pRelease = deferred(),
+    pDone = deferred();
+  const oEntered = deferred(),
+    oRelease = deferred();
+  await page.route('**/api/v2/admin/commerce/payments?*', async (route) => {
+    const response = await realResponse(route);
+    pEntered.release();
+    await pRelease.promise;
+    await route.fulfill({ response });
+    pDone.release();
+  });
+  await page.route('**/api/v2/admin/commerce/orders?*', async (route) => {
+    const response = await realResponse(route);
+    expect(response.status()).toBe(200);
+    oEntered.release();
+    await oRelease.promise;
+    await route.fulfill({ response });
+  });
+  await page.getByRole('link', { name: 'پرداخت‌ها', exact: true }).click();
+  await pEntered.promise;
+  await page.getByRole('link', { name: 'سفارش‌ها', exact: true }).click();
+  await oEntered.promise;
+  pRelease.release();
+  await pDone.promise;
+  await settleView(page);
+  await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('tbody tr')).toHaveCount(0);
+  oRelease.release();
+  await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('.portal-main h1')).toHaveText('سفارش‌ها');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+for (const [latestError, lateError] of [
+  [false, false],
+  [true, false],
+  [false, true],
+]) {
+  test(`Late payments ${lateError ? 'failure' : 'success'} cannot replace newer finance ${latestError ? 'error' : 'totals'}`, async ({
+    page,
+  }) => {
+    await manager(page);
+    await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'false');
+    const entered = deferred(),
+      release = deferred(),
+      done = deferred();
+    await page.route('**/api/v2/admin/commerce/payments?*', async (route) => {
+      const response = await realResponse(route);
+      entered.release();
+      await release.promise;
+      await route.fulfill(
+        lateError
+          ? {
+              status: 503,
+              contentType: 'application/json',
+              body: JSON.stringify({ error: { code: 'SERVICE_UNAVAILABLE' } }),
+            }
+          : { response },
+      );
+      done.release();
+    });
+    if (latestError)
+      await page.route('**/api/v2/admin/commerce/finance?*', (route) =>
+        route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: { code: 'SERVICE_UNAVAILABLE' } }),
+        }),
+      );
+    await page.getByRole('link', { name: 'پرداخت‌ها', exact: true }).click();
+    await entered.promise;
+    await page.getByRole('link', { name: 'گزارش مالی', exact: true }).click();
+    await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'false');
+    if (latestError) await expect(page.getByRole('alert')).toBeVisible();
+    else await expect(page.locator('.finance-metrics')).toBeVisible();
+    const before = await page.locator('.portal-main').textContent();
+    release.release();
+    await done.promise;
+    await settleView(page);
+    await expect(page.locator('.portal-main')).toHaveText(before!);
+    await expect(page.locator('tbody tr')).toHaveCount(0);
+  });
+}
+
+test('Editing Admin filters invalidates a held response and snapshots the next submitted query', async ({
+  page,
+}) => {
+  await manager(page);
+  await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'false');
+  const entered = deferred(),
+    release = deferred(),
+    done = deferred();
+  await page.route('**/api/v2/admin/commerce/orders?*', async (route) => {
+    const response = await realResponse(route);
+    if (new URL(route.request().url()).searchParams.get('search') === 'STALE-FILTER') {
+      entered.release();
+      await release.promise;
+      await route.fulfill({ response });
+      done.release();
+    } else await route.fulfill({ response });
+  });
+  await page.getByLabel('جست‌وجو', { exact: true }).fill('STALE-FILTER');
+  await page.getByRole('button', { name: 'جست‌وجو و تازه‌سازی', exact: true }).click();
+  await entered.promise;
+  await page.getByLabel('جست‌وجو', { exact: true }).fill('LATEST-FILTER');
+  await expect(
+    page.getByRole('button', { name: 'جست‌وجو و تازه‌سازی', exact: true }),
+  ).toBeEnabled();
+  const response = page.waitForResponse(
+    (r) =>
+      r.url().includes('/admin/commerce/orders?') &&
+      new URL(r.url()).searchParams.get('search') === 'LATEST-FILTER',
+  );
+  await page.getByRole('button', { name: 'جست‌وجو و تازه‌سازی', exact: true }).click();
+  expect((await response).status()).toBe(200);
+  await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'false');
+  release.release();
+  await done.promise;
+  await settleView(page);
+  await expect(page.getByLabel('جست‌وجو', { exact: true })).toHaveValue('LATEST-FILTER');
+  await expect(page.locator('tbody tr')).toHaveCount(0);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
