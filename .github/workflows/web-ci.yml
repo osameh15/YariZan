@@ -47,6 +47,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run format:check
+      - run: npm run check:copy
       - run: npm run check:secrets
       - run: npm test
       - name: Production build with BigInt compatibility gate

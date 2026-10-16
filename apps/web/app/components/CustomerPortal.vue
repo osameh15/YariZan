@@ -74,10 +74,10 @@ onMounted(load);
       </nav>
       <button class="button secondary" @click="logout">خروج از حساب</button>
     </aside>
-    <div class="portal-main">
+    <div class="portal-main" :aria-busy="busy">
       <div v-if="busy" role="status" class="notice">در حال دریافت حساب…</div>
       <div v-if="message" class="notice" role="status">{{ message }}</div>
-      <template v-if="account"
+      <template v-if="account && !busy"
         ><header class="portal-heading">
           <div>
             <p class="eyebrow">خوش آمدید</p>

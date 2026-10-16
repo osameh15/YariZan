@@ -5,6 +5,7 @@ const api = useApi(),
   route = useRoute(),
   coupon = ref(''),
   quoted = ref(''),
+  productTitle = ref('خلاصهٔ سفارش'),
   busy = ref(false),
   message = ref('');
 const quote = ref<ApiResult<'/api/v2/discounts/quote', 'post'>>();
@@ -19,6 +20,7 @@ async function load() {
       sku,
       coupon: coupon.value.trim() || undefined,
     });
+    productTitle.value = quote.value.title_fa;
     quoted.value = coupon.value.trim();
   } catch (e) {
     quote.value = undefined;
@@ -67,7 +69,7 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
           </div>
           <div>
             <span class="badge available">مجوز دائمی · ویژهٔ یک دستگاه</span>
-            <h2>{{ quote?.title_fa ?? 'خلاصهٔ سفارش' }}</h2>
+            <h2>{{ productTitle }}</h2>
             <p>پس از دریافت و فعال‌سازی مجوز معتبر، همین پایه همیشه آفلاین در دسترس است.</p>
             <span class="muted"
               >نسخهٔ ویندوز <bdi>{{ sku }}</bdi></span
@@ -100,18 +102,19 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
               kind="success"
               message="کد تخفیف قابل استفاده است؛ سهمیه هنگام ثبت سفارش رزرو می‌شود."
             />
-            <button
-              class="text-link"
-              type="button"
-              :disabled="busy"
-              @click="
-                coupon = '';
-                load();
-              "
-            >
-              حذف کد تخفیف
-            </button>
           </template>
+          <button
+            v-if="coupon.trim()"
+            class="text-link"
+            type="button"
+            :disabled="busy"
+            @click="
+              coupon = '';
+              load();
+            "
+          >
+            حذف کد تخفیف
+          </button>
         </section>
         <div class="purchase-principles">
           <div>

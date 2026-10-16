@@ -19,6 +19,7 @@
     "contracts": "node tools/check-contracts.mjs --write",
     "contracts:check": "node tools/check-contracts.mjs",
     "audit:dependencies": "node tools/check-dependencies.mjs",
+    "check:copy": "node tools/check-ui-copy.mjs",
     "check:secrets": "node tools/check-secrets.mjs"
   },
   "dependencies": {

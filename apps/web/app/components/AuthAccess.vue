@@ -168,6 +168,7 @@ function restart() {
             v-model="username"
             dir="ltr"
             autocomplete="username"
+            :placeholder="mode === 'admin' ? undefined : 'YZ-...'"
             maxlength="64"
             required
             data-label="نام کاربری"

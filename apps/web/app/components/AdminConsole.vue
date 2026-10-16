@@ -683,20 +683,21 @@ const navigationGroups: { title: string; ids: string[] }[] = [
           پشتیبانی نمی‌شود.
         </p>
         <template v-if="kind === 'product'"
-          ><label
-            >قیمت به تومان<input
-              v-model.number="product.price"
-              type="number"
-              min="0"
-              step="0.1"
-              required /></label
-          ><label
-            >وضعیت عرضه<select v-model="product.publication_status">
-              <option value="published">عرضه‌شده</option>
-              <option value="coming_soon">به‌زودی</option>
-              <option value="hidden">پنهان</option>
-            </select></label
-          ><label class="check-label"
+          ><NumberStepper
+            v-model="product.price"
+            min="0"
+            step="0.1"
+            required
+            label="قیمت به تومان"
+          /><AppSelect
+            v-model="product.publication_status"
+            label="وضعیت عرضه"
+            :options="[
+              { value: 'published', label: 'عرضه‌شده' },
+              { value: 'coming_soon', label: 'به‌زودی' },
+              { value: 'hidden', label: 'پنهان' },
+            ]"
+          /><label class="check-label"
             ><input
               v-model="product.sale_enabled"
               type="checkbox"
@@ -715,13 +716,14 @@ const navigationGroups: { title: string; ids: string[] }[] = [
               :disabled="product.publication_status !== 'published'"
             />فعال‌سازی فعال</label
           ></template
-        ><label v-if="['block', 'unblock', 'issue', 'code'].includes(kind)"
-          >پایهٔ موردنظر<select v-model="targetSku">
-            <option v-for="(name, i) in gradeNames" :key="i" :value="`YARIZAN-G${i + 1}`">
-              پایهٔ {{ name }}
-            </option>
-          </select></label
-        ><label
+        ><AppSelect
+          v-if="['block', 'unblock', 'issue', 'code'].includes(kind)"
+          v-model="targetSku"
+          label="پایهٔ موردنظر"
+          :options="
+            gradeNames.map((name, i) => ({ value: 'YARIZAN-G' + (i + 1), label: 'پایهٔ ' + name }))
+          "
+        /><label
           >دلیل عملیات<textarea v-model="reason" minlength="8" maxlength="512" required /></label
         ><label v-if="needsEvidence"
           >مرجع تأیید مستقل مالکیت<input

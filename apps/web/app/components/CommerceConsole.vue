@@ -301,20 +301,26 @@ const navigationGroups: { title: string; ids: string[] }[] = [
               v-model="search"
               maxlength="120"
               placeholder="شناسه، نام کاربری، پایه یا یادداشت" /></label
-          ><label>از تاریخ<input v-model="from" type="date" /></label
-          ><label>تا تاریخ (بدون این روز)<input v-model="to" type="date" /></label
-          ><label v-if="['orders', 'payments', 'jobs'].includes(section)"
-            >وضعیت<select v-model="state">
-              <option value="">همه</option>
-              <option value="PENDING">در انتظار</option>
-              <option value="UNKNOWN">نامشخص</option>
-              <option value="VERIFIED">تأییدشده</option>
-              <option value="FULFILLED">مجوز آماده</option>
-              <option value="FULFILLMENT_PENDING">در انتظار مجوز</option>
-              <option value="REVIEW">نیازمند بررسی</option>
-              <option value="FAILED">ناموفق</option>
-            </select></label
-          ><button class="button secondary" :disabled="busy">جست‌وجو و تازه‌سازی</button></FormShell
+          ><PersianDatePicker v-model="from" label="از تاریخ" /><PersianDatePicker
+            v-model="to"
+            label="تا تاریخ (بدون این روز)"
+          /><AppSelect
+            v-if="['orders', 'payments', 'jobs'].includes(section)"
+            v-model="state"
+            label="وضعیت"
+            :options="[
+              { value: '', label: 'همه' },
+              { value: 'PENDING', label: 'در انتظار' },
+              { value: 'UNKNOWN', label: 'نامشخص' },
+              { value: 'VERIFIED', label: 'تأییدشده' },
+              { value: 'FULFILLED', label: 'مجوز آماده' },
+              { value: 'FULFILLMENT_PENDING', label: 'در انتظار مجوز' },
+              { value: 'REVIEW', label: 'نیازمند بررسی' },
+              { value: 'FAILED', label: 'ناموفق' },
+            ]"
+          /><button class="button secondary" :disabled="busy">
+            جست‌وجو و تازه‌سازی
+          </button></FormShell
         >
         <button
           v-if="['campaigns', 'coupons'].includes(section) && allowed('commerce.manage')"
@@ -371,20 +377,22 @@ const navigationGroups: { title: string; ids: string[] }[] = [
           </div>
         </dl>
         <p v-if="busy" class="notice" role="status">در حال دریافت اطلاعات…</p>
-        <div v-if="section === 'finance'" class="panel">
-          <h2>وضعیت تلاش‌های پرداخت</h2>
-          <p
-            v-if="!busy && !(report.payment_states as unknown[] | undefined)?.length"
-            class="muted"
-          >
-            در این بازه تلاش پرداختی ثبت نشده است.
-          </p>
-          <ul class="record-list">
-            <li v-for="(r, i) in report.payment_states as Record<string, unknown>[]" :key="i">
-              {{ stateLabel(r) }}: {{ r.count }} · {{ financialToman(r.amount_irr) }} تومان
-            </li>
-          </ul>
-        </div>
+        <template v-if="section === 'finance'"
+          ><div v-if="report.currency === 'IRR'" class="panel">
+            <h2>وضعیت تلاش‌های پرداخت</h2>
+            <p
+              v-if="!busy && !(report.payment_states as unknown[] | undefined)?.length"
+              class="muted"
+            >
+              در این بازه تلاش پرداختی ثبت نشده است.
+            </p>
+            <ul class="record-list">
+              <li v-for="(r, i) in report.payment_states as Record<string, unknown>[]" :key="i">
+                {{ stateLabel(r) }}: {{ r.count }} · {{ financialToman(r.amount_irr) }} تومان
+              </li>
+            </ul>
+          </div></template
+        >
         <div v-else class="table-scroll">
           <table>
             <caption>
@@ -580,53 +588,49 @@ const navigationGroups: { title: string; ids: string[] }[] = [
             ><label>یادداشت داخلی<textarea v-model="note" maxlength="2000" /></label></template
           ><template v-else
             ><template v-if="kind === 'campaigns'"
-              ><label
+              ><label class="editor-wide"
                 >نام طرح<input v-model="form.name" required minlength="2" maxlength="120" /></label
-              ><label
-                >شروع (زمان محلی)<input
-                  v-model="form.starts_at"
-                  type="datetime-local"
-                  required /></label
-              ><label
-                >پایان (زمان محلی)<input
-                  v-model="form.ends_at"
-                  type="datetime-local"
-                  required /></label></template
+              ><PersianDatePicker
+                v-model="form.starts_at"
+                label="شروع (زمان محلی)"
+                time
+                required /><PersianDatePicker
+                v-model="form.ends_at"
+                label="پایان (زمان محلی)"
+                time
+                required /></template
             ><template v-if="kind === 'coupons'"
-              ><label
-                >طرح تخفیف<select v-model="form.campaign_id" required :disabled="!!selected.id">
-                  <option v-for="c in campaigns" :key="String(c.id)" :value="c.id">
-                    {{ c.name }}
-                  </option>
-                </select></label
-              ><label
+              ><AppSelect
+                v-model="form.campaign_id"
+                label="طرح تخفیف"
+                :options="campaigns.map((c) => ({ value: String(c.id), label: String(c.name) }))"
+                required
+                :disabled="!!selected.id"
+              /><label
                 >کد تخفیف<input
                   v-model="form.code"
                   required
                   dir="ltr"
                   pattern="[A-Za-z0-9_-]+"
                   maxlength="64" /></label
-              ><label
-                >نوع تخفیف<select v-model="form.type">
-                  <option value="percent">درصدی</option>
-                  <option value="fixed">مبلغ ثابت به ریال</option>
-                </select></label
-              ><label
-                >{{ form.type === 'percent' ? 'درصد تخفیف' : 'مبلغ تخفیف به ریال'
-                }}<input
-                  v-model.number="form.value"
-                  type="number"
-                  min="1"
-                  :max="form.type === 'percent' ? 100 : 9007199254740991"
-                  required /></label
-              ><label
-                >حداکثر تخفیف درصدی (ریال؛ صفر بدون سقف)<input
-                  v-model.number="form.max_discount_irr"
-                  type="number"
-                  min="0" /></label
-              ><label
-                >حداقل خرید (ریال)<input v-model.number="form.min_order_irr" type="number" min="0"
-              /></label>
+              ><AppSelect
+                v-model="form.type"
+                label="نوع تخفیف"
+                :options="[
+                  { value: 'percent', label: 'درصدی' },
+                  { value: 'fixed', label: 'مبلغ ثابت به ریال' },
+                ]"
+              /><NumberStepper
+                v-model="form.value"
+                min="1"
+                :max="form.type === 'percent' ? 100 : 9007199254740991"
+                required
+                :label="form.type === 'percent' ? 'درصد تخفیف' : 'مبلغ تخفیف به ریال'"
+              /><NumberStepper
+                v-model="form.max_discount_irr"
+                min="0"
+                label="حداکثر تخفیف درصدی (ریال؛ صفر بدون سقف)"
+              /><NumberStepper v-model="form.min_order_irr" min="0" label="حداقل خرید (ریال)" />
               <fieldset>
                 <legend>پایه‌های مجاز</legend>
                 <label v-for="grade in 6" :key="grade" class="checkbox"
@@ -639,17 +643,15 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                 <h3>سهمیه و دسترسی</h3>
                 <p>صفر یعنی بدون سقف. سهمیه فقط پس از تأیید پرداخت مصرف می‌شود.</p>
               </div>
-              <label
-                >سقف کل استفاده (صفر بدون سقف)<input
-                  v-model.number="form.max_redemptions"
-                  type="number"
-                  min="0" /></label
-              ><label
-                >سقف هر مشتری (صفر بدون سقف)<input
-                  v-model.number="form.max_per_customer"
-                  type="number"
-                  min="0" /></label
-              ><label class="checkbox"
+              <NumberStepper
+                v-model="form.max_redemptions"
+                min="0"
+                label="سقف کل استفاده (صفر بدون سقف)"
+              /><NumberStepper
+                v-model="form.max_per_customer"
+                min="0"
+                label="سقف هر مشتری (صفر بدون سقف)"
+              /><label class="checkbox"
                 ><input v-model="form.enabled" type="checkbox" />فعال باشد</label
               ></template
             >
@@ -657,13 +659,15 @@ const navigationGroups: { title: string; ids: string[] }[] = [
               فقط بررسی و آماده‌سازی دوباره زمان‌بندی می‌شود؛ پرداخت تازه‌ای ساخته نمی‌شود و محدودیت
               دستگاه یا نسل حساب دور زده نخواهد شد.
             </p>
-            <label v-if="kind === 'refund'"
-              >نتیجهٔ بررسی<select v-model="refundState">
-                <option value="UNDER_REVIEW">در حال بررسی</option>
-                <option value="APPROVED">درخواست پذیرفته شد؛ وجه هنوز بازنگشته است</option>
-                <option value="REJECTED">درخواست رد شد</option>
-              </select></label
-            >
+            <AppSelect
+              v-if="kind === 'refund'"
+              v-model="refundState"
+              label="نتیجهٔ بررسی"
+              :options="[
+                { value: 'UNDER_REVIEW', label: 'در حال بررسی' },
+                { value: 'APPROVED', label: 'درخواست پذیرفته شد؛ وجه هنوز بازنگشته است' },
+                { value: 'REJECTED', label: 'درخواست رد شد' },
+              ]" />
             <p v-if="kind === 'refund'">
               این عملیات فقط نتیجهٔ بررسی پرونده را ثبت می‌کند. هیچ وجهی بازگردانده نمی‌شود و مجوز
               خرید تغییر نمی‌کند.
