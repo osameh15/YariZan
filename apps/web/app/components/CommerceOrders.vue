@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { persianDigits } from '#shared/digits';
 import { errorMessage, toman } from '#shared/domain';
 import { commerceState } from '#shared/commerce';
 const api = useApi(),
@@ -28,7 +29,7 @@ onMounted(load);
     <ApiNotice :message="message" />
     <p v-if="!busy && !rows.length">هنوز سفارشی ثبت نکرده‌اید.</p>
     <article v-for="row in rows" :key="String(row.id)" class="panel">
-      <h3>{{ row.sku }}</h3>
+      <h3>{{ persianDigits(row.sku) }}</h3>
       <p>
         {{
           commerceState({

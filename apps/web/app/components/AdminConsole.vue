@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { persianDigits } from '#shared/digits';
 import { errorMessage, toman, gradeNames } from '#shared/domain';
 import type { ApiPath } from '#shared/api';
 type Row = Record<string, unknown>;
@@ -454,7 +455,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                 <td>
                   <template v-if="section === 'products'"
                     ><b>{{ row.title_fa }}</b
-                    ><small dir="ltr">{{ row.sku }}</small></template
+                    ><small dir="ltr">{{ persianDigits(row.sku) }}</small></template
                   ><template v-else
                     ><b dir="ltr">{{ row.username ?? row.entity_id ?? row.device_id }}</b
                     ><small dir="ltr">{{ row.id }}</small></template
@@ -497,7 +498,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                     ><small
                       v-for="restriction in row.restrictions as { sku: string; blocked: boolean }[]"
                       :key="restriction.sku"
-                      ><span dir="ltr">{{ restriction.sku }}</span
+                      ><span dir="ltr">{{ persianDigits(restriction.sku) }}</span
                       >: {{ restriction.blocked ? 'مسدود' : 'آزاد' }}</small
                     >
                     <details v-if="(row.profile_details as Row[])?.length">
@@ -510,12 +511,12 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                       >
                     </details></template
                   ><template v-else
-                    ><span v-if="row.sku" dir="ltr">{{ row.sku }}</span
+                    ><span v-if="row.sku" dir="ltr">{{ persianDigits(row.sku) }}</span
                     ><small v-if="row.generation"
                       >نسل حساب:
                       {{ new Intl.NumberFormat('fa-IR').format(Number(row.generation)) }}</small
                     ><small v-if="row.decision_version"
-                      >نسخهٔ تصمیم: {{ row.decision_version }}</small
+                      >نسخهٔ تصمیم: {{ persianDigits(row.decision_version) }}</small
                     ><small v-if="row.created_at">{{
                       new Date(String(row.created_at)).toLocaleDateString('fa-IR')
                     }}</small></template
@@ -529,7 +530,9 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                     {{
                       allowed('notes.manage') ? 'مشاهده و ویرایش یادداشت' : 'مشاهدهٔ یادداشت'
                     }}</button
-                  ><small v-if="row.mobile_masked" dir="ltr">{{ row.mobile_masked }}</small>
+                  ><small v-if="row.mobile_masked" dir="ltr">{{
+                    persianDigits(row.mobile_masked)
+                  }}</small>
                 </td>
                 <td v-if="section !== 'audit'">
                   <div class="table-actions">

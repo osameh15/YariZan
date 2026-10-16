@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { persianDigits } from '#shared/digits';
 import { errorMessage } from '#shared/domain';
 const api = useApi(),
   info = ref<{ has_password: boolean; mobile_masked: string | null; mobile_verified: boolean }>(),
@@ -115,7 +116,8 @@ onBeforeUnmount(() => {
     <div class="panel">
       <h2>امنیت حساب</h2>
       <p>
-        شمارهٔ همراه تأییدشده: <b dir="ltr">{{ info?.mobile_masked ?? 'ثبت نشده' }}</b>
+        شمارهٔ همراه تأییدشده:
+        <b dir="ltr">{{ persianDigits(info?.mobile_masked ?? 'ثبت نشده') }}</b>
       </p>
       <p>
         {{
@@ -151,7 +153,7 @@ onBeforeUnmount(() => {
         ><p v-if="info?.mobile_verified">کد تأیید به شمارهٔ همراه فعلی حساب فرستاده می‌شود.</p>
         <template v-else-if="action === 'mobile'"
           ><label
-            >شمارهٔ همراه جدید<input
+            >شمارهٔ همراه جدید<PersianNumberInput
               v-model="mobile"
               type="tel"
               dir="ltr"
@@ -184,7 +186,7 @@ onBeforeUnmount(() => {
           }}
         </p>
         <label
-          >کد تأیید پیامکی<input
+          >کد تأیید پیامکی<PersianNumberInput
             v-model="code"
             dir="ltr"
             inputmode="numeric"
@@ -194,7 +196,7 @@ onBeforeUnmount(() => {
             maxlength="6"
             required /></label
         ><label v-if="stage === 'old'"
-          >شمارهٔ همراه جدید<input
+          >شمارهٔ همراه جدید<PersianNumberInput
             v-model="mobile"
             type="tel"
             dir="ltr"

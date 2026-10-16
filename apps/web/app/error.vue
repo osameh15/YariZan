@@ -12,7 +12,7 @@ useHead({ htmlAttrs: { lang: 'fa', dir: 'rtl' }, title: 'صفحه در دستر�
         نشانی را بررسی کنید یا به صفحهٔ اصلی برگردید. اگر مشکل ادامه داشت، با پشتیبانی تماس بگیرید.
       </p>
       <button class="button primary" @click="clearError({ redirect: '/' })">بازگشت به خانه</button
-      ><a href="tel:09188764024" class="text-link" dir="ltr">0918-876-4024</a>
+      ><a href="tel:09188764024" class="text-link" dir="ltr">۰۹۱۸-۸۷۶-۴۰۲۴</a>
     </div>
   </div>
 </template>

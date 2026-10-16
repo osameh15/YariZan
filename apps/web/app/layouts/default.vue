@@ -60,8 +60,8 @@ watch(
         <div>
           <p>کنار شما هستیم</p>
           <div class="footer-phones">
-            <a class="phone" href="tel:09188764024" dir="ltr">0918-876-4024</a>
-            <a class="phone" href="tel:09369642754" dir="ltr">0936-964-2754</a>
+            <a class="phone" href="tel:09188764024" dir="ltr">۰۹۱۸-۸۷۶-۴۰۲۴</a>
+            <a class="phone" href="tel:09369642754" dir="ltr">۰۹۳۶-۹۶۴-۲۷۵۴</a>
           </div>
           <p class="muted">فروش اینترنتی در مرحلهٔ آماده‌سازی است.</p>
         </div>

@@ -1,3 +1,4 @@
+import { persianDigits } from '../../shared/digits';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import path from 'node:path';
@@ -160,7 +161,9 @@ test('OTP-only first claim, OTP login, optional password setup and masked mobile
   ).toBe('0');
   await page.goto('/account/security');
   await expect(page.getByText('هنوز رمز عبور ندارید', { exact: false })).toBeVisible();
-  await expect(page.getByText('09•••••' + mobile.slice(-4), { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(persianDigits('09•••••' + mobile.slice(-4)), { exact: true }),
+  ).toBeVisible();
   await shot(page, '15-account-security');
   const code = await send(page, '/api/v2/account/security/otp');
   await page.getByLabel('کد تأیید پیامکی').fill(await smsCode(code));

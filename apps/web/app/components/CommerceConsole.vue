@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { persianDigits } from '#shared/digits';
 import { errorMessage } from '#shared/domain';
 import { financialToman, commerceState } from '#shared/commerce';
 import type { paths } from '#shared/api.generated';
@@ -388,7 +389,8 @@ const navigationGroups: { title: string; ids: string[] }[] = [
             </p>
             <ul class="record-list">
               <li v-for="(r, i) in report.payment_states as Record<string, unknown>[]" :key="i">
-                {{ stateLabel(r) }}: {{ r.count }} · {{ financialToman(r.amount_irr) }} تومان
+                {{ stateLabel(r) }}: {{ persianDigits(r.count) }} ·
+                {{ financialToman(r.amount_irr) }} تومان
               </li>
             </ul>
           </div></template
@@ -413,31 +415,37 @@ const navigationGroups: { title: string; ids: string[] }[] = [
               <tr v-for="row in rows" :key="String(row.id)">
                 <td>
                   <b>{{ row.name ?? row.code ?? row.username ?? row.sku ?? 'رکورد' }}</b
-                  ><small class="record-id" dir="ltr">{{ row.id }}</small>
+                  ><small class="record-id" dir="ltr">{{ persianDigits(row.id) }}</small>
                 </td>
                 <td>
                   <p v-if="row.total_irr ?? row.amount_irr">
                     {{ financialToman(row.total_irr ?? row.amount_irr) }} تومان
                   </p>
                   <p v-if="row.type">
-                    {{ row.type === 'percent' ? 'درصدی' : 'مبلغ ثابت' }}: {{ row.value }}
+                    {{ row.type === 'percent' ? 'درصدی' : 'مبلغ ثابت' }}:
+                    {{ persianDigits(row.value) }}
                   </p>
                   <p v-if="row.max_redemptions">
-                    سقف کل: {{ row.max_redemptions }} · سقف مشتری:
-                    {{ row.max_per_customer ?? 'بدون سقف' }}
+                    سقف کل: {{ persianDigits(row.max_redemptions) }} · سقف مشتری:
+                    {{ persianDigits(row.max_per_customer ?? 'بدون سقف') }}
                   </p>
                   <p v-if="row.held !== undefined">
-                    رزروشده: {{ row.held }} · استفاده‌شده: {{ row.redeemed }} · باقی‌مانده:
+                    رزروشده: {{ persianDigits(row.held) }} · استفاده‌شده:
+                    {{ persianDigits(row.redeemed) }} · باقی‌مانده:
                     {{
                       row.max_redemptions
-                        ? Math.max(
-                            0,
-                            Number(row.max_redemptions) - Number(row.held) - Number(row.redeemed),
+                        ? persianDigits(
+                            Math.max(
+                              0,
+                              Number(row.max_redemptions) - Number(row.held) - Number(row.redeemed),
+                            ),
                           )
                         : 'بدون سقف کل'
                     }}
                   </p>
-                  <small v-if="row.provider_ref" dir="ltr">{{ row.provider_ref }}</small
+                  <small v-if="row.provider_ref" dir="ltr">{{
+                    persianDigits(row.provider_ref)
+                  }}</small
                   ><small v-if="row.starts_at"
                     >{{ new Date(String(row.starts_at)).toLocaleDateString('fa-IR') }} تا
                     {{ new Date(String(row.ends_at)).toLocaleDateString('fa-IR') }}</small
@@ -553,7 +561,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
             })
           }}
         </p>
-        <p dir="ltr">{{ detail.id }}</p>
+        <p dir="ltr">{{ persianDigits(detail.id) }}</p>
         <p>مبلغ: {{ financialToman(detail.total_irr) }} تومان</p>
         <p>تخفیف: {{ financialToman(detail.discount_irr) }} تومان</p>
         <ul class="record-list">
@@ -635,7 +643,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                 <legend>پایه‌های مجاز</legend>
                 <label v-for="grade in 6" :key="grade" class="checkbox"
                   ><input v-model="form.skus" type="checkbox" :value="'YARIZAN-G' + grade" />پایهٔ
-                  {{ grade }}</label
+                  {{ persianDigits(grade) }}</label
                 >
               </fieldset></template
             ><template v-if="['campaigns', 'coupons'].includes(kind)"

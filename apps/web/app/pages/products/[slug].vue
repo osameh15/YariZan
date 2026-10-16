@@ -99,7 +99,7 @@ const { data: commerce } = await useFetch<ApiResult<'/api/v2/commerce/capabiliti
         پرداخت اینترنتی هنوز آماده نیست. برای دریافت برنامه و راهنمای تهیهٔ پایهٔ موردنظر با
         پشتیبانی تماس بگیرید.
       </p>
-      <a class="button primary phone" href="tel:09188764024" dir="ltr">0918-876-4024</a>
+      <a class="button primary phone" href="tel:09188764024" dir="ltr">۰۹۱۸-۸۷۶-۴۰۲۴</a>
       <p class="muted">این صفحه هیچ خرید یا پرداختی ثبت نمی‌کند.</p></BaseDialog
     >
   </section>

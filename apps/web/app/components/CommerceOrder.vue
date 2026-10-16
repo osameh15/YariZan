@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { persianDigits } from '#shared/digits';
 import { errorMessage, toman } from '#shared/domain';
 import { commerceState } from '#shared/commerce';
 import type { ApiResult } from '#shared/api';
@@ -123,7 +124,7 @@ onBeforeUnmount(() => {
         <div>
           <dt>شمارهٔ سفارش</dt>
           <dd class="order-id">
-            <bdi>{{ order.id }}</bdi
+            <bdi>{{ persianDigits(order.id) }}</bdi
             ><button type="button" class="copy-button" @click="copyOrderId">
               {{ copied ? 'کپی شد' : 'کپی شماره' }}</button
             ><span class="sr-only" role="status">{{ copied ? 'شمارهٔ سفارش کپی شد.' : '' }}</span>

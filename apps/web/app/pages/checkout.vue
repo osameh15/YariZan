@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { persianDigits } from '#shared/digits';
 import { errorMessage, toman } from '#shared/domain';
 import type { ApiResult } from '#shared/api';
 const api = useApi(),
@@ -72,7 +73,7 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
             <h2>{{ productTitle }}</h2>
             <p>پس از دریافت و فعال‌سازی مجوز معتبر، همین پایه همیشه آفلاین در دسترس است.</p>
             <span class="muted"
-              >نسخهٔ ویندوز <bdi>{{ sku }}</bdi></span
+              >نسخهٔ ویندوز <bdi>{{ persianDigits(sku) }}</bdi></span
             >
           </div>
         </article>

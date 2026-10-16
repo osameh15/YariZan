@@ -96,12 +96,6 @@ function paint(f: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, in
 function validate(event: SubmitEvent) {
   submitted.value = true;
   const fs = fields();
-  for (const f of fs) {
-    if (f.getAttribute('inputmode') === 'numeric' && f.getAttribute('pattern') === '[0-9]{6}') {
-      f.value = digits(f.value);
-      f.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  }
   summary.value = fs.map(paint).filter(Boolean);
   if (summary.value.length) {
     const invalid = fs.find((f) => message(f));

@@ -33,7 +33,7 @@ test('Support copy, action spacing and YZ username examples remain readable', as
   await page.goto('/support');
   await expect(page.getByRole('heading', { name: 'شرایط بررسی درخواست بازپرداخت' })).toBeVisible();
   expect(await page.locator('main').textContent()).not.toMatch(/\?{3,}/);
-  await expect(page.locator('main a[href="tel:09369642754"]')).toBeVisible();
+  await expect(page.locator('main a[href="tel:09369642754"]')).toHaveText('۰۹۳۶-۹۶۴-۲۷۵۴');
   const gap = await page
     .locator('.support-grid .button')
     .evaluate(
@@ -52,6 +52,11 @@ test('Support copy, action spacing and YZ username examples remain readable', as
       'YZ-...',
     );
   }
+  await page.goto('/login');
+  await page.getByLabel('شمارهٔ همراه', { exact: true }).fill('09369642754');
+  await expect(page.getByLabel('شمارهٔ همراه', { exact: true })).toHaveValue('۰۹۳۶۹۶۴۲۷۵۴');
+  await page.getByLabel('نام کاربری دستگاه', { exact: true }).fill('YZ-123456');
+  await expect(page.getByLabel('نام کاربری دستگاه', { exact: true })).toHaveValue('YZ-123456');
   await page.goto('/zanyari/login');
   await expect(page.getByLabel('نام کاربری مدیریت')).not.toHaveAttribute('placeholder', 'YZ-...');
 });
