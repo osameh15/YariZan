@@ -38,30 +38,31 @@ jobs:
           node-version: '24'
       - name: Build web image (${{ matrix.profile }})
         run: |
-          mkdir -p .evidence
+          mkdir -p image-evidence
           set -o pipefail
           docker build --progress=plain -f apps/web/Dockerfile \
             --build-arg YARIZAN_BUILD_PROFILE=${{ matrix.profile }} \
             --build-arg SOURCE_COMMIT="$(git rev-parse HEAD)" \
-            -t yarizan-web:${{ matrix.profile }} . 2>&1 | tee .evidence/web-${{ matrix.profile }}-build.log
-          if grep -Ei 'Big integer literals.*not available|BigInt.*es2019' .evidence/web-${{ matrix.profile }}-build.log; then
+            -t yarizan-web:${{ matrix.profile }} . 2>&1 | tee image-evidence/web-${{ matrix.profile }}-build.log
+          if grep -Ei 'Big integer literals.*not available|BigInt.*es2019' image-evidence/web-${{ matrix.profile }}-build.log; then
             echo 'Unsupported BigInt Docker build target'; exit 1
           fi
-          docker image inspect yarizan-web:${{ matrix.profile }} --format '{{.Id}} {{.Size}}' | tee .evidence/web-${{ matrix.profile }}-image.txt
+          docker image inspect yarizan-web:${{ matrix.profile }} --format '{{.Id}} {{.Size}}' | tee image-evidence/web-${{ matrix.profile }}-image.txt
       - name: Container contents, read-only non-root runtime, fail-closed mode and resources
-        run: node tools/release/check-web-image.mjs yarizan-web:${{ matrix.profile }} ${{ matrix.profile }} | tee .evidence/web-${{ matrix.profile }}-runtime.txt
+        run: node tools/release/check-web-image.mjs yarizan-web:${{ matrix.profile }} ${{ matrix.profile }} | tee image-evidence/web-${{ matrix.profile }}-runtime.txt
       - name: Vulnerability scan (findings recorded; fixable HIGH/CRITICAL fail)
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache "$TRIVY_IMAGE" image --quiet \
-            --scanners vuln --format json yarizan-web:${{ matrix.profile }} > .evidence/web-${{ matrix.profile }}-trivy.json
+            --scanners vuln --format json yarizan-web:${{ matrix.profile }} > image-evidence/web-${{ matrix.profile }}-trivy.json
+          echo "All findings by severity: $(jq -r '[.Results[]?.Vulnerabilities[]?.Severity]|group_by(.)|map("\(.[0])=\(length)")|join(" ")' image-evidence/web-${{ matrix.profile }}-trivy.json)" | tee image-evidence/web-${{ matrix.profile }}-trivy-summary.txt
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache "$TRIVY_IMAGE" image --quiet \
             --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 yarizan-web:${{ matrix.profile }} \
-            | tee .evidence/web-${{ matrix.profile }}-trivy.txt
+            | tee image-evidence/web-${{ matrix.profile }}-trivy.txt
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: image-evidence-web-${{ matrix.profile }}
-          path: .evidence/
+          path: image-evidence/
           retention-days: 30
 
   api-image:
@@ -93,24 +94,25 @@ jobs:
           node-version: '24'
       - name: Build API image (production target)
         run: |
-          mkdir -p .evidence
+          mkdir -p image-evidence
           docker build --progress=plain --build-arg SOURCE_COMMIT="$(git rev-parse HEAD)" -t yarizan-api backend 2>&1 | tail -20
-          docker image inspect yarizan-api --format '{{.Id}} {{.Size}}' | tee .evidence/api-image.txt
+          docker image inspect yarizan-api --format '{{.Id}} {{.Size}}' | tee image-evidence/api-image.txt
       - name: Contents, read-only non-root runtime, one-off migrations, gates and shutdown
         working-directory: backend
-        run: node tools/check-runtime-env.mjs yarizan-api | tee ../.evidence/api-runtime.txt
+        run: node tools/check-runtime-env.mjs yarizan-api | tee ../image-evidence/api-runtime.txt
       - name: Vulnerability scan (findings recorded; fixable HIGH/CRITICAL fail)
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache "$TRIVY_IMAGE" image --quiet \
-            --scanners vuln --format json yarizan-api > .evidence/api-trivy.json
+            --scanners vuln --format json yarizan-api > image-evidence/api-trivy.json
+          echo "All findings by severity: $(jq -r '[.Results[]?.Vulnerabilities[]?.Severity]|group_by(.)|map("\(.[0])=\(length)")|join(" ")' image-evidence/api-trivy.json)" | tee image-evidence/api-trivy-summary.txt
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache "$TRIVY_IMAGE" image --quiet \
             --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 yarizan-api \
-            | tee .evidence/api-trivy.txt
+            | tee image-evidence/api-trivy.txt
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: image-evidence-api
-          path: .evidence/
+          path: image-evidence/
           retention-days: 30
 
   rollback-rehearsal:
@@ -132,12 +134,12 @@ jobs:
         run: node --test tools/release/manifest.test.mjs
       - name: Disposable digest-based deploy, upgrade and rollback (web, API, PostgreSQL volume)
         run: |
-          mkdir -p .evidence
-          node tools/release/rollback-rehearsal.mjs yarizan-web:brochure yarizan-api .evidence/rehearsal-manifest.json | tee .evidence/rollback-rehearsal.txt
-          node tools/release/validate-manifest.mjs .evidence/rehearsal-manifest.json --local
+          mkdir -p image-evidence
+          node tools/release/rollback-rehearsal.mjs yarizan-web:brochure yarizan-api image-evidence/rehearsal-manifest.json | tee image-evidence/rollback-rehearsal.txt
+          node tools/release/validate-manifest.mjs image-evidence/rehearsal-manifest.json --local
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: rollback-rehearsal
-          path: .evidence/
+          path: image-evidence/
           retention-days: 30

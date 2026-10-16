@@ -1,7 +1,7 @@
 # YariZan V2 — Initial Production Readiness Audit and Delivery Plan
 
 Date: 2026-10-16
-Status: INITIAL READ-ONLY CODE/CONTRACT AUDIT; NOT A DEPLOYMENT APPROVAL
+Status: AUDIT FINALIZED (milestone A) AND IMPLEMENTED FOR STAGE A REVIEW (milestones B–F); NOT A DEPLOYMENT APPROVAL
 Scope: `osameh15/YariZan` application repository; infrastructure contract inspected read-only.
 Application baseline: `main@30ffa0580f6f743ee4d5241585b584d1dad6ef1a`
 Infrastructure baseline: `OAR-NOVA-Games/oarnova-infrastructure@3e9d6b0ceb9e2fae4c24623e4f9eb601aa27a031`
@@ -15,6 +15,10 @@ This is an initial source-level assessment using GitHub repository files and Git
 - `W1` has been implemented on the feature branch: `apps/web/server/routes/healthz.get.ts` returns the exact plain-text `ok` response with `Cache-Control: no-store`, without any dependency on Backend or PostgreSQL.
 - `apps/web/tests/e2e/healthz.spec.ts` asserts the HTTP status, response body, content type, and cache policy against a built Nuxt server.
 - These changes have **not yet been independently validated by completed final-HEAD CI** at the time of this update. All other readiness gaps and owner gates remain.
+
+## Status after milestones B–F
+
+The readiness matrix below is the **initial** state. The current state, evidence and remaining owner gates are in [the production readiness report](YARIZAN-PRODUCTION-READINESS-REPORT.md) §3. Summary: Nuxt SSR, images, migration separation and release CI are done on the application side; Stage A brochure mode is implemented and tested; the API production gate stays closed; nothing was published or deployed. Handoff: [YARIZAN-INFRASTRUCTURE-HANDOFF-V2.md](YARIZAN-INFRASTRUCTURE-HANDOFF-V2.md).
 
 ## Milestone A — finalized source audit (2026-10-16)
 
