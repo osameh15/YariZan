@@ -10,6 +10,12 @@ Infrastructure baseline: `OAR-NOVA-Games/oarnova-infrastructure@3e9d6b0ceb9e2fae
 
 This is an initial source-level assessment using GitHub repository files and GitHub Actions metadata. It is **not** an on-host verification, an image build, a restore drill, physical desktop test, CDN end-to-end acceptance, or authorization to switch the live route. Application main CI run 38905111545 completed successfully; infrastructure main CI run 38865693709 completed successfully. The infrastructure handoff report states that the temporary site is live and application containers have not been deployed; the live site was not independently inspected from this audit environment.
 
+## Implementation progress since initial source audit
+
+- `W1` has been implemented on the feature branch: `apps/web/server/routes/healthz.get.ts` returns the exact plain-text `ok` response with `Cache-Control: no-store`, without any dependency on Backend or PostgreSQL.
+- `apps/web/tests/e2e/healthz.spec.ts` asserts the HTTP status, response body, content type, and cache policy against a built Nuxt server.
+- These changes have **not yet been independently validated by completed final-HEAD CI** at the time of this update. All other readiness gaps and owner gates remain.
+
 ## Infrastructure contract
 
 Authoritative inputs:
