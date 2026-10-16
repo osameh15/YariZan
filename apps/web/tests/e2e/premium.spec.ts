@@ -54,9 +54,17 @@ test('Premium public layouts: RTL, five widths, keyboard navigation and accessib
   await page.setViewportSize({ width: 360, height: 560 });
   await page.getByRole('button', { name: 'باز کردن منو' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await page.screenshot({ path: path.join(images, '24-mobile-navigation.png'), fullPage: true });
+  await page.screenshot({ path: path.join(images, '24-mobile-navigation.png'), fullPage: false });
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'باز کردن منو' })).toBeFocused();
+  await page.setViewportSize({ width: 1440, height: 1400 });
+  await page.goto('/login');
+  expect(
+    await page
+      .locator('.site-footer')
+      .evaluate((el) => el.getBoundingClientRect().bottom >= innerHeight),
+  ).toBe(true);
+  await page.setViewportSize({ width: 360, height: 560 });
   await page.goto('/not-a-yarizan-page');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await page.screenshot({ path: path.join(images, '25-friendly-error.png'), fullPage: true });

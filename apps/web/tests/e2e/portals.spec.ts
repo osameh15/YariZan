@@ -225,7 +225,7 @@ test('MFA Admin dashboard, product edit and stale revision protection', async ({
   await expect(page.locator('tbody tr')).toHaveCount(6);
   await capture(page, '07-admin-products');
   await page.getByRole('button', { name: 'ویرایش محصول' }).first().click();
-  await page.getByLabel('قیمت به تومان').fill('1300000');
+  await page.getByRole('spinbutton', { name: 'قیمت به تومان', exact: true }).fill('1300000');
   await page.getByLabel('دلیل عملیات').fill('اصلاح قیمت با تأیید مستقل');
   await page.getByRole('button', { name: 'تأیید و ثبت عملیات' }).click();
   await expect(page.getByRole('dialog').getByRole('status')).toContainText('عملیات ثبت شد');

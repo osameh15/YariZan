@@ -21,7 +21,7 @@ async function shot(page: Page, name: string) {
   await mkdir(images, { recursive: true });
   await page.screenshot({
     path: path.join(images, name + '.png'),
-    fullPage: true,
+    fullPage: (await page.getByRole('dialog').count()) === 0,
     animations: 'disabled',
   });
 }
@@ -104,9 +104,12 @@ test('Real checkout, coupon quote, simulated payment and one desktop license', a
   await page.getByRole('link', { name: 'خرید آزمایشی این پایه' }).click();
   await expect(page.locator('.commerce-totals')).toContainText('۱٬۲۹۹٬۰۰۰');
   await shot(page, '02-checkout-summary');
+  const selectedTitle = await page.locator('.checkout-product h2').textContent();
   await page.getByLabel('کد تخفیف', { exact: true }).fill('INVALID-CODE');
   await page.getByRole('button', { name: 'بررسی کد تخفیف' }).click();
   await expect(page.getByRole('alert')).toContainText('قابل استفاده نیست');
+  await expect(page.locator('.checkout-product h2')).toHaveText(selectedTitle!);
+  await expect(page.getByRole('button', { name: 'حذف کد تخفیف', exact: true })).toBeVisible();
   await shot(page, '04-coupon-rejected');
   await page.getByLabel('کد تخفیف', { exact: true }).fill(code);
   await page.getByRole('button', { name: 'بررسی کد تخفیف' }).click();
@@ -224,11 +227,15 @@ test('Admin campaign/code creation, notes, finance and permission-bound reconcil
   await shot(page, '12-admin-campaigns');
   await page.getByRole('link', { name: 'کدهای تخفیف', exact: true }).click();
   await page.getByRole('button', { name: 'ساخت کد تخفیف', exact: true }).click();
-  await page.getByLabel('طرح تخفیف', { exact: true }).selectOption({ label: name });
+  await page.getByRole('combobox', { name: 'طرح تخفیف', exact: true }).click();
+  await page.getByRole('option', { name, exact: true }).click();
   const code = 'CLASS-' + randomBytes(3).toString('hex').toUpperCase();
   await page.getByLabel('کد تخفیف', { exact: true }).fill(code);
   await page.getByLabel('دلیل تغییر', { exact: true }).fill('ثبت کد محدود برای آزمون پرداخت');
   await page.getByRole('dialog').evaluate((el) => {
+    el.scrollTop = 0;
+  });
+  await page.locator('.commerce-editor-fields').evaluate((el) => {
     el.scrollTop = 0;
   });
   await shot(page, '13-admin-coupon-editor');
@@ -431,6 +438,10 @@ test('Premium checkout and Admin remain usable at five widths and enlarged prese
   await page.getByLabel('کد تخفیف', { exact: true }).fill('');
   await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
   await expect(page.getByRole('button', { name: 'ثبت سفارش و بررسی پرداخت' })).toBeEnabled();
+  await page.evaluate(() => {
+    (document.activeElement as HTMLElement)?.blur();
+    window.scrollTo(0, 0);
+  });
   await shot(page, '28-checkout-enlarged');
   await page.evaluate(() => {
     document.documentElement.style.zoom = '';
@@ -465,6 +476,7 @@ test('Finance report failure never displays invented zero totals and safely relo
   await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'false');
   await expect(page.locator('.finance-metrics')).toHaveCount(0);
   await expect(page.locator('.finance-counts')).toHaveCount(0);
+  await expect(page.getByText('در این بازه تلاش پرداختی ثبت نشده است.')).toHaveCount(0);
   await shot(page, '29-finance-unavailable');
   await page.unroute('**/api/v2/admin/commerce/finance?*');
   await page.getByRole('button', { name: 'جست‌وجو و تازه‌سازی' }).click();
