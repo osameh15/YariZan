@@ -177,6 +177,10 @@ The isolated [Nuxt 4 storefront and portals](apps/web/README.md) use the real Ne
 The same Draft PR includes mobile OTP first claim/login/reset, optional passwords and mobile management, SMS Admin MFA, shared Persian validation, and revisioned searchable internal notes. [Auth/SMS contracts](docs/YARIZAN-AUTH-AND-SMS-CONTRACTS.md) and the [Phase 3.1 report](docs/YARIZAN-PHASE-3-1-REPORT.md) distinguish tested local behavior from missing live provider credentials/template and commercial ownership/signing gates. Desktop credential pickup remains desktop-only; paid/trial offline guarantees are unchanged.
 
 
+## V2 production readiness (Draft PR #5)
+
+The owner approved a staged launch. **Stage A** is a brochure-only public website: a separately built web image (`YARIZAN_BUILD_PROFILE=brochure`, `YARIZAN_SITE_MODE=brochure`) that needs no API, database or secret and refuses every account, commerce, Admin and API route. **Stage B**, the full application, stays blocked by the closed production gates. See the [readiness report](docs/YARIZAN-PRODUCTION-READINESS-REPORT.md), [infrastructure handoff](docs/YARIZAN-INFRASTRUCTURE-HANDOFF-V2.md) and [release and rollback](docs/YARIZAN-RELEASE-AND-ROLLBACK.md). Nothing has been published or deployed.
+
 ## V2 Phase 4 synthetic commerce review
 
 [Phase 4 report](docs/YARIZAN-PHASE-4-REPORT.md), [commerce contracts](docs/YARIZAN-COMMERCE-CONTRACTS.md) and [web screenshots](docs/Images/web/) cover authoritative orders/coupons, a labeled payment simulator, durable reconciliation, exactly-once perpetual license fulfillment and customer/Admin finance pages. Existing PostgreSQL commerce tables are extended by migration 009. Enable COMMERCE_MODE=fake only for isolated development; disabled remains the default. Real ZarinPal selection and production startup refuse to run. No live charge, refund, SMS or deployment is authorized; commercial [release gates](docs/YARIZAN-COMMERCIAL-RELEASE-CHECKLIST.md) remain closed.

@@ -19,7 +19,7 @@ node --env-file=.env dist/src/database/seed.js
 node --env-file=.env dist/src/main.js
 ```
 
-Alternatively `docker compose --profile api up --build -d` builds and runs the whole local stack. Check `/health`, `/ready`, `/api/v2/products`. Readiness reports `production_gate: closed`; a successful readiness response is not commercial approval. The API port is loopback-only in Compose. No production host configuration is included.
+Alternatively `docker compose --profile api up --build -d` builds the `development` target and runs the whole local stack (local Compose runs migration and development seed before the API; the production image never does). Check `/health`, `/ready`, `/api/v2/products`. Readiness reports `production_gate: closed`; a successful readiness response is not commercial approval. The API port is loopback-only in Compose. No production host configuration is included.
 
 Development signing keys are generated at runtime under ignored `.local/development-signing.pem` (or the local-only Compose key volume). They are never image layers or tracked fixtures. Tests use in-memory disposable keys. Public key IDs contain `disposable-development-`; commercial desktop root approval rejects these keys. Retain local keys with local data if restarting a development environment. Destroy only explicitly named disposable volumes after review; this guide does not perform deletion automatically.
 
@@ -62,11 +62,11 @@ Block affects one SKU, all profiles and future customer generations; it signs re
 
 ## Database and operational boundaries
 
-Migrations `001`–`007` run in lexical order inside a transaction protected by a PostgreSQL advisory lock. Hashes normalize CRLF to LF. Applied-file changes or ordering drift fail. Explicit SQL supports CHECKs, partial UNIQUE indexes, restrictive FKs, price-range exclusion, immutable-history triggers, and row locks without an ORM shadow schema.
+Migrations `001`–`009` (exactly nine; `src/database/schema-version.ts`) run in lexical order inside a transaction protected by a PostgreSQL advisory lock. Hashes normalize CRLF to LF. Applied-file changes or ordering drift fail. Explicit SQL supports CHECKs, partial UNIQUE indexes, restrictive FKs, price-range exclusion, immutable-history triggers, and row locks without an ORM shadow schema.
 
 Transactions lock machine before product restriction/counter/code/license. Reset/block/issue/trial/code operations serialize on that machine. Signing or SQL failure rolls back consumption and entitlement creation. Unique business keys remain final protection. Outbox rows commit with business changes; `Outbox.dispatch` uses `FOR UPDATE SKIP LOCKED`. Consumers must deduplicate event IDs because delivery is at least once. No external outbox consumer or broker is enabled. SMS has a separate bounded provider dispatch after admission, described below.
 
-Use a separate migration owner and runtime login in a future reviewed deployment. `tools/runtime-role.sql` defines a NOLOGIN group with no schema/migration/history mutation rights; provision a login outside source. Local Compose deliberately uses a disposable owner for migration/testing. Triggers do not protect against a malicious DB superuser. Retention/pseudonymization rules need legal/operator approval; no automatic financial/audit deletion exists. Expired challenges/sessions/rate buckets can later be removed through a reviewed maintenance job.
+Use a separate migration owner and runtime login. `migrations/roles/create-runtime-role.sql` (run once by the operator) creates the NOLOGIN `yarizan_runtime` group; `migrate.js` re-applies its grants after every run (`src/database/runtime-grants.ts`: no DDL/TRUNCATE, DELETE only on `discount_products`, read-only migration metadata and history). Provision the login outside source. Local Compose deliberately uses a disposable owner for migration/testing. Triggers do not protect against a malicious DB superuser. Retention/pseudonymization rules need legal/operator approval; no automatic financial/audit deletion exists. Expired challenges/sessions/rate buckets can later be removed through a reviewed maintenance job.
 
 Before schema changes: snapshot a disposable test database, apply migrations and compare a fresh schema. After real issuance or money, prefer safe roll-forward; do not restore an old database without reconciling later entitlements, revocations, codes and payments. No destructive down migration or live MySQL import is provided. PostgreSQL native backups, restore drills and production capacity planning remain deployment work. No legacy PHP/MySQL, DNS, Traefik or payment infrastructure is touched.
 
@@ -116,3 +116,20 @@ Commerce is disabled by default. In isolated local configuration set COMMERCE_MO
 Customer routes now include /checkout?sku=YARIZAN-G1, /payment/simulate, /payment/result, /account/orders and /account/orders/:id. Admin /zanyari/commerce uses actual permission-protected commerce/finance APIs. Orders replace the previous unavailable placeholder. Checkout first creates an authoritative snapshot, then the detail view offers an explicit simulated payment action. No card data is collected. See docs/YARIZAN-COMMERCE-CONTRACTS.md and docs/YARIZAN-PHASE-4-REPORT.md from the repository root for exact API/state/evidence.
 
 Use the existing disposable PostgreSQL and fake SMS setup. Backend build/test exercises commerce, 20-way coupon concurrency and real .NET verification. Browser test:e2e includes synthetic checkout and Admin flows. Stop Compose api/web before Playwright: its managed servers require ports 3100/3200. Never replace fake mode with a live merchant for these checks.
+
+
+## Production image, migrations and gates (production readiness)
+
+The default Docker target `production` starts only `node dist/src/main.js` as uid/gid 1000 on a read-only root filesystem (only `/tmp` writable). It contains no npm, sources, tests, tools or keys, and selects no `NODE_ENV`. The `development` target adds a writable `/app/.local` for local Compose only.
+
+One-off jobs (never at startup):
+
+```sh
+NODE_ENV=production MIGRATION_DATABASE_URL=<migration login> node dist/src/database/migrate.js
+NODE_ENV=production MIGRATION_DATABASE_URL=<migration login> node dist/src/database/migrate.js --verify
+NODE_ENV=production MIGRATION_DATABASE_URL=<migration login> node dist/src/database/production-bootstrap.js
+```
+
+Production migration requires `MIGRATION_DATABASE_URL` different from the runtime `DATABASE_URL`; it needs no HMAC or encryption key. `--verify` checks order and hashes without changes and works with the runtime login. `production-bootstrap.js` is idempotent: RBAC catalog and six hidden, disabled products, without prices, Admins or customer data. `seed.js` is development/test data and refuses `NODE_ENV=production`.
+
+`NODE_ENV=production` still fails with `PRODUCTION_GATE_CLOSED: <gate ids>`. The gates are listed in `src/config.ts` (`productionGates`); each is closed in source and no environment variable opens one. See [infrastructure handoff](../docs/YARIZAN-INFRASTRUCTURE-HANDOFF-V2.md) and [release and rollback](../docs/YARIZAN-RELEASE-AND-ROLLBACK.md). Container acceptance: `node tools/check-runtime-env.mjs <image>` (also run by the `Image build and security validation` workflow).
