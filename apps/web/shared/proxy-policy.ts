@@ -1,4 +1,19 @@
 export const browserRoutes = [
+  ['GET', /^commerce\/capabilities$/],
+  ['POST', /^discounts\/quote$/],
+  ['GET', /^orders(?:\/[0-9a-f-]{36})?$/],
+  ['POST', /^orders(?:\/[0-9a-f-]{36}\/(?:payments|simulate|refund-request))?$/],
+  ['GET', /^account\/orders$/],
+  ['GET', /^payments\/zarinpal\/return$/],
+  [
+    'GET',
+    /^admin\/commerce\/(?:orders|payments|campaigns|coupons|jobs|exceptions|reservations|redemptions|finance|refunds)(?:\/[0-9a-f-]{36})?$/,
+  ],
+  [
+    'POST',
+    /^admin\/commerce\/(?:campaigns|coupons|orders\/[0-9a-f-]{36}\/reconcile|refunds\/[0-9a-f-]{36}\/review)$/,
+  ],
+  ['PATCH', /^admin\/commerce\/(?:campaigns|coupons)\/[0-9a-f-]{36}$/],
   ['GET', /^products(?:\/YARIZAN-G[1-6])?$/],
   [
     'POST',
@@ -10,7 +25,7 @@ export const browserRoutes = [
   ['POST', /^account\/security\/(?:otp|password|mobile)$/],
   [
     'POST',
-    /^admin\/notes\/(?:customers|devices|licenses|activation-codes|trials|products)\/[A-Za-z0-9:~-]{1,128}$/,
+    /^admin\/notes\/(?:customers|devices|licenses|activation-codes|trials|products|orders|payments|campaigns|coupons)\/[A-Za-z0-9:~-]{1,128}$/,
   ],
   ['GET', /^admin\/auth\/session$/],
   ['GET', /^admin\/(?:customers|devices|licenses|trials|activation-codes|products|audit|reports)$/],

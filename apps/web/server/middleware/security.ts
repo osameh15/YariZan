@@ -1,7 +1,7 @@
 import { defineEventHandler, setHeader, getRequestURL } from 'h3';
 export default defineEventHandler((event) => {
   if (
-    /^\/(?:account|zanyari|login|connect|reset-password|support-reset)(?:\/|$)/.test(
+    /^\/(?:account|zanyari|login|connect|reset-password|support-reset|checkout|payment)(?:\/|$)/.test(
       getRequestURL(event).pathname,
     )
   )

@@ -209,7 +209,7 @@ useSeoMeta({ title: 'اتصال برنامه به حساب | یاریزان' });
           <NuxtLink class="text-link" to="/login">ورود صاحب حساب</NuxtLink></template
         ><template v-else-if="!challenge"
           ><label
-            >شمارهٔ همراه<input
+            >شمارهٔ همراه<PersianNumberInput
               v-model="mobile"
               type="tel"
               dir="ltr"
@@ -228,7 +228,7 @@ useSeoMeta({ title: 'اتصال برنامه به حساب | یاریزان' });
             کد شش‌رقمی را فقط در همین صفحه وارد کنید. کد یک‌بارمصرف است و پنج دقیقه اعتبار دارد.
           </p>
           <label
-            >کد تأیید پیامکی<input
+            >کد تأیید پیامکی<PersianNumberInput
               v-model="code"
               dir="ltr"
               inputmode="numeric"

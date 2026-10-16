@@ -3,6 +3,11 @@ import { Database } from "./database";
 import { ConfigurationError } from "../config";
 
 export const permissions = [
+  "commerce.read",
+  "commerce.manage",
+  "finance.read",
+  "finance.reconcile",
+  "refunds.review",
   "notes.manage",
   "customers.read",
   "devices.read",

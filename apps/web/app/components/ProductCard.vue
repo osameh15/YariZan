@@ -6,6 +6,7 @@ defineProps<{ product: Product }>();
 <template>
   <article
     class="product-card"
+    :data-grade="product.grade"
     :class="{ 'coming-soon': product.publication_status === 'coming_soon' }"
   >
     <div class="product-art" :data-grade="product.grade">

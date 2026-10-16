@@ -74,10 +74,10 @@ onMounted(load);
       </nav>
       <button class="button secondary" @click="logout">خروج از حساب</button>
     </aside>
-    <div class="portal-main">
+    <div class="portal-main" :aria-busy="busy">
       <div v-if="busy" role="status" class="notice">در حال دریافت حساب…</div>
       <div v-if="message" class="notice" role="status">{{ message }}</div>
-      <template v-if="account"
+      <template v-if="account && !busy"
         ><header class="portal-heading">
           <div>
             <p class="eyebrow">خوش آمدید</p>
@@ -156,15 +156,8 @@ onMounted(load);
             تازه‌سازی ورود در این مرورگر
           </button></template
         >
-        <div v-else class="panel">
-          <h2>ثبت سفارش هنوز فعال نیست.</h2>
-          <p>
-            پرداخت اینترنتی و تاریخچهٔ سفارش در مرحلهٔ آینده اضافه می‌شود. هیچ سفارش یا پرداختی در
-            این صفحه ساخته نمی‌شود.
-          </p>
-          <NuxtLink class="text-link" to="/support">راهنمای خرید ←</NuxtLink>
-        </div></template
-      >
+        <CommerceOrders v-else
+      /></template>
       <div v-else-if="!busy" class="panel">
         <NuxtLink to="/login" class="button primary">ورود به حساب</NuxtLink
         ><button class="button secondary" @click="load">تلاش دوباره</button>

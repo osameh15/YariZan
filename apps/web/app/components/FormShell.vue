@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, useId } from 'vue';
+import { decimalValue } from '#shared/decimal-input';
 const emit = defineEmits<{ submit: [event: SubmitEvent] }>();
 const form = ref<HTMLFormElement>();
 const summary = ref<string[]>([]),
@@ -8,7 +9,8 @@ const summary = ref<string[]>([]),
 const digits = (s: string) =>
   s
     .replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 1776))
-    .replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 1632));
+    .replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 1632))
+    .replace(/٫/g, '.');
 function fields() {
   return form.value
     ? Array.from(
@@ -33,6 +35,13 @@ function message(f: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) 
     (!v.trim() || (f instanceof HTMLInputElement && f.type === 'checkbox' && !f.checked))
   )
     return `${label} را وارد کنید.`;
+  if (f.getAttribute('data-kind') === 'number' && (!v || !Number.isFinite(Number(digits(v)))))
+    return 'یک عدد معتبر وارد کنید.';
+  if (
+    f.getAttribute('data-kind') === 'number' &&
+    decimalValue(digits(v), (f as HTMLInputElement).step || '1') === undefined
+  )
+    return 'عدد معتبر و متناسب با گام مجاز وارد کنید.';
   if (!v) return '';
   const min = Number(f.getAttribute('minlength') ?? 0),
     max = Number(f.getAttribute('maxlength') ?? 100000);
@@ -53,8 +62,8 @@ function message(f: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) 
     const other = fields().find((x) => x.name === match);
     if (other && v !== other.value) return 'رمز عبور و تکرار آن یکسان نیستند.';
   }
-  if (f instanceof HTMLInputElement && f.type === 'number') {
-    const n = Number(v);
+  if (f instanceof HTMLInputElement && (f.type === 'number' || f.dataset.kind === 'number')) {
+    const n = Number(digits(v));
     if (!Number.isFinite(n) || Math.abs(n) > Number.MAX_SAFE_INTEGER)
       return 'یک عدد معتبر وارد کنید.';
     const step = Number(f.step || 1);
@@ -73,27 +82,28 @@ function paint(f: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, in
     p = document.createElement('span');
     p.id = id;
     p.className = 'field-error';
-    (f.closest('label') ?? f).insertAdjacentElement('afterend', p);
+    (f.closest('label') ?? f.closest('.number-stepper') ?? f).insertAdjacentElement('afterend', p);
   }
   const error = submitted.value ? message(f) : '';
   p.textContent = error;
-  f.setAttribute('aria-invalid', error ? 'true' : 'false');
-  const described = (f.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean);
-  if (!described.includes(id)) f.setAttribute('aria-describedby', [...described, id].join(' '));
+  const control = f.dataset.focusTarget ? (document.getElementById(f.dataset.focusTarget) ?? f) : f;
+  control.setAttribute('aria-invalid', error ? 'true' : 'false');
+  const described = (control.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean);
+  if (!described.includes(id))
+    control.setAttribute('aria-describedby', [...described, id].join(' '));
   return error;
 }
 function validate(event: SubmitEvent) {
   submitted.value = true;
   const fs = fields();
-  for (const f of fs) {
-    if (f.getAttribute('inputmode') === 'numeric' && f.getAttribute('pattern') === '[0-9]{6}') {
-      f.value = digits(f.value);
-      f.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  }
   summary.value = fs.map(paint).filter(Boolean);
   if (summary.value.length) {
-    fs.find((f) => message(f))?.focus();
+    const invalid = fs.find((f) => message(f));
+    if (invalid)
+      (invalid.dataset.focusTarget
+        ? document.getElementById(invalid.dataset.focusTarget)
+        : invalid
+      )?.focus();
     return;
   }
   emit('submit', event);

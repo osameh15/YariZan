@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { persianDigits } from '#shared/digits';
 import { errorMessage } from '#shared/domain';
 const api = useApi(),
   info = ref<{ has_password: boolean; mobile_masked: string | null; mobile_verified: boolean }>(),
@@ -13,15 +14,22 @@ const api = useApi(),
   mobile = ref(''),
   currentPassword = ref(''),
   message = ref(''),
-  busy = ref(false);
-onMounted(async () => {
+  busy = ref(false),
+  loading = ref(true);
+async function load() {
+  loading.value = true;
+  message.value = '';
   try {
     info.value = await api.get('/api/v2/account/security');
   } catch (e) {
     message.value = errorMessage(e);
+  } finally {
+    loading.value = false;
   }
-});
+}
+onMounted(load);
 async function send() {
+  if (!info.value) return;
   busy.value = true;
   message.value = '';
   try {
@@ -104,11 +112,12 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div class="security-cards">
+  <div v-if="info" class="security-cards">
     <div class="panel">
       <h2>امنیت حساب</h2>
       <p>
-        شمارهٔ همراه تأییدشده: <b dir="ltr">{{ info?.mobile_masked ?? 'ثبت نشده' }}</b>
+        شمارهٔ همراه تأییدشده:
+        <b dir="ltr">{{ persianDigits(info?.mobile_masked ?? 'ثبت نشده') }}</b>
       </p>
       <p>
         {{
@@ -144,7 +153,7 @@ onBeforeUnmount(() => {
         ><p v-if="info?.mobile_verified">کد تأیید به شمارهٔ همراه فعلی حساب فرستاده می‌شود.</p>
         <template v-else-if="action === 'mobile'"
           ><label
-            >شمارهٔ همراه جدید<input
+            >شمارهٔ همراه جدید<PersianNumberInput
               v-model="mobile"
               type="tel"
               dir="ltr"
@@ -177,7 +186,7 @@ onBeforeUnmount(() => {
           }}
         </p>
         <label
-          >کد تأیید پیامکی<input
+          >کد تأیید پیامکی<PersianNumberInput
             v-model="code"
             dir="ltr"
             inputmode="numeric"
@@ -187,7 +196,7 @@ onBeforeUnmount(() => {
             maxlength="6"
             required /></label
         ><label v-if="stage === 'old'"
-          >شمارهٔ همراه جدید<input
+          >شمارهٔ همراه جدید<PersianNumberInput
             v-model="mobile"
             type="tel"
             dir="ltr"
@@ -232,5 +241,9 @@ onBeforeUnmount(() => {
         بازگشت و درخواست کد تازه</button
       ><ApiNotice :message="message" /></FormShell
     ><NuxtLink to="/reset-password" class="text-link">بازیابی رمز عبور با پیامک</NuxtLink>
+  </div>
+  <div v-else class="panel" :aria-busy="loading">
+    <p v-if="loading" role="status">در حال دریافت اطلاعات امنیت حساب…</p>
+    <ApiNotice v-else :message="message" retry @retry="load" />
   </div>
 </template>

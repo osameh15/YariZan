@@ -38,3 +38,8 @@ Six independently priced products initially cost **1,299,000 Toman each**. Serve
 - Coupon quote manipulated by frontend cannot change order total.
 - Admin can reject refund without touching license; only provider-confirmed refunded transaction sets `REFUNDED`. Support/admin audit retained.
 - No credential, PAN, raw gateway secret, SMS secret or HWID is logged.
+
+
+## Phase 4 implementation amendment (2026-10-16)
+
+Synthetic commerce is implemented; real-provider and refund execution stay blocked. See [implemented commerce contracts](../YARIZAN-COMMERCE-CONTRACTS.md). The first API permits one actionable payment attempt per single-grade order; historical multiple captures remain explicit exceptions. Paid verification and signing use separate transactions joined by durable PostgreSQL jobs and unique fulfillment/source-item constraints. Lock order begins at the physical device before order/attempt/campaign/code/reservation/entitlement. TTL never releases a reservation once a payment attempt exists. Zero/under-minimum checkout is rejected. The real adapter omits refunds and has no default network transport; merchant-specific acceptance is outstanding. These narrow the proposed interface without enabling unauthorized money operations.

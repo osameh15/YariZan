@@ -36,11 +36,12 @@ for (const key of ["CODE_HMAC_KEY", "TOKEN_HMAC_KEY", "MFA_ENCRYPTION_KEY"]) {
 }
 const containers = new Set();
 try {
-  for (const [mode, expected] of [
+  for (const [mode, expected, commerce] of [
     [undefined, "NODE_ENV_REQUIRED"],
     ["", "NODE_ENV_REQUIRED"],
     ["staging", "NODE_ENV_INVALID"],
     ["production", "PRODUCTION_GATE_CLOSED"],
+    ["test", "ZARINPAL_LIVE_GATE_CLOSED", "zarinpal"],
   ]) {
     const name = "yarizan-runtime-" + randomUUID();
     containers.add(name);
@@ -52,6 +53,7 @@ try {
       "--network",
       network,
       ...environment,
+      ...(commerce ? ["--env", `COMMERCE_MODE=${commerce}`] : []),
       ...(mode === undefined ? [] : ["--env", `NODE_ENV=${mode}`]),
       image,
     );

@@ -230,6 +230,20 @@ img {
   align-items: center;
   flex-wrap: wrap;
 }
+/* Space standalone actions without doubling gaps inside flex button groups. */
+form > .button,
+.panel > .button,
+.portal-main > .button {
+  margin-block: 12px 4px;
+  margin-inline-end: 12px;
+}
+form > .actions,
+.panel > .actions {
+  margin-block-start: 16px;
+}
+.record-list + .button {
+  margin-block-start: 20px;
+}
 .eyebrow {
   font-size: 13px;
   font-weight: 700;
@@ -1752,4 +1766,117 @@ textarea[aria-invalid='true'] {
     gap: 16px 24px;
     text-align: center;
   }
+}
+
+.commerce-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: start;
+}
+.commerce-totals {
+  margin-block: 24px;
+}
+.commerce-totals > div {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-block: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.commerce-totals dd {
+  overflow-wrap: anywhere;
+}
+.commerce-totals > div:last-child {
+  font-weight: 700;
+}
+.record-id {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+  margin-top: 8px;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+@media (max-width: 760px) {
+  .commerce-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+.commerce-dialog {
+  width: min(800px, calc(100% - 32px));
+}
+.commerce-editor-fields {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 4px 6px 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 20px;
+}
+.commerce-editor label {
+  margin: 4px 0;
+  align-content: start;
+}
+.commerce-editor .checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.commerce-editor fieldset {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+.commerce-editor fieldset .field-error {
+  display: none;
+}
+.commerce-editor-fields > p,
+.commerce-editor-fields > .api-notice {
+  grid-column: 1 / -1;
+}
+@media (max-width: 600px) {
+  .commerce-editor-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.commerce-dialog-editor[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.commerce-dialog-editor .dialog-top {
+  flex-shrink: 0;
+}
+.commerce-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.commerce-editor > .form-summary {
+  flex-shrink: 0;
+}
+.dialog-action-footer {
+  flex-shrink: 0;
+  padding-block-start: 16px;
+  border-top: 1px solid var(--line);
+  background: #fffaf0;
+}
+.dialog-action-footer .actions {
+  gap: 12px;
+}
+.dialog-action-footer .api-notice {
+  max-height: 20dvh;
+  overflow-y: auto;
 }

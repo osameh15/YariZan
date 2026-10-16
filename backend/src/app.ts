@@ -4,6 +4,11 @@ import { Database } from "./database/database";
 import { Security } from "./security/security";
 import { PasswordHashing } from "./security/passwords";
 import { Audit } from "./audit/audit";
+import { Orders } from "./commerce/orders";
+import { Gateway } from "./commerce/gateway";
+import { Payments } from "./commerce/payments";
+import { CommerceAdministration } from "./commerce/administration";
+import { CommerceController } from "./commerce/controller";
 import { Outbox } from "./outbox/outbox";
 import {
   Signing,
@@ -84,9 +89,16 @@ class DesktopModule {}
 @Module({
   imports: [LicensesModule, ActivationModule, AccountsModule],
   providers: [Admin, Notes],
+  exports: [Admin],
   controllers: [AdminController],
 })
 class AdminModule {}
+@Module({
+  imports: [LicensesModule, AdminModule],
+  providers: [Gateway, Orders, Payments, CommerceAdministration],
+  controllers: [CommerceController],
+})
+class CommerceModule {}
 @Module({
   imports: [
     FoundationModule,
@@ -94,6 +106,7 @@ class AdminModule {}
     AccountsModule,
     DesktopModule,
     AdminModule,
+    CommerceModule,
   ],
   controllers: [HealthController, PublicController],
 })

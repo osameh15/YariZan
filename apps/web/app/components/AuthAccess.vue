@@ -168,6 +168,7 @@ function restart() {
             v-model="username"
             dir="ltr"
             autocomplete="username"
+            :placeholder="mode === 'admin' ? undefined : 'YZ-...'"
             maxlength="64"
             required
             data-label="نام کاربری"
@@ -182,7 +183,7 @@ function restart() {
             data-label="رمز عبور"
         /></label>
         <label v-else
-          >شمارهٔ همراه<input
+          >شمارهٔ همراه<PersianNumberInput
             v-model="mobile"
             type="tel"
             dir="ltr"
@@ -191,7 +192,7 @@ function restart() {
             required
             data-kind="mobile"
             data-label="شمارهٔ همراه"
-            placeholder="09123456789" /></label
+            placeholder="۰۹۱۲۳۴۵۶۷۸۹" /></label
       ></template>
       <template v-else
         ><p class="otp-help">
@@ -199,7 +200,7 @@ function restart() {
           بار قابل استفاده است. کد را به دیگران ندهید.
         </p>
         <label
-          >کد تأیید پیامکی<input
+          >کد تأیید پیامکی<PersianNumberInput
             v-model="code"
             dir="ltr"
             inputmode="numeric"

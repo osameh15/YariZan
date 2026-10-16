@@ -28,7 +28,7 @@ for (const Type of Object.values(controllers)) {
 }
 assert.ok(!routes.some((r) => /heartbeat|authorize-game/.test(r.path)));
 const json = (s) => {
-  const result = z.toJSONSchema(s);
+  const result = z.toJSONSchema(s, { io: "input" });
   delete result.$schema;
   return result;
 };
@@ -37,7 +37,22 @@ const login = z.strictObject({
   username: z.string().max(64),
   password: z.string().max(128),
 });
+const commerce = await import("../dist/src/commerce/contracts.js");
 const requests = {
+  "/api/v2/discounts/quote": commerce.quoteInput,
+  "/api/v2/orders": commerce.orderInput,
+  "/api/v2/orders/{id}/payments": commerce.paymentInput,
+  "/api/v2/orders/{id}/simulate": commerce.simulationInput,
+  "/api/v2/orders/{id}/refund-request": z.strictObject({
+    reason: z.string().min(10).max(1000),
+  }),
+  "/api/v2/admin/commerce/campaigns": commerce.campaignInput,
+  "/api/v2/admin/commerce/campaigns/{id}": commerce.campaignInput,
+  "/api/v2/admin/commerce/coupons": commerce.codeInput,
+  "/api/v2/admin/commerce/coupons/{id}": commerce.codeInput,
+  "/api/v2/admin/commerce/refunds/{id}/review": schemas.mutationSchema.extend({
+    state: z.enum(["UNDER_REVIEW", "APPROVED", "REJECTED"]),
+  }),
   "/api/v2/devices/challenges": schemas.challengeSchema,
   "/api/v2/device-pairings": schemas.proofSchema,
   "/api/v2/device-pairings/{id}/confirm": z.strictObject({
@@ -155,6 +170,36 @@ const otpReceipt = z.strictObject({
   retry_after: z.literal(60),
 });
 const responses = {
+  "/api/v2/commerce/capabilities": z.object({
+    mode: z.enum(["disabled", "fake", "zarinpal"]),
+    checkout_enabled: z.boolean(),
+    real_payments_enabled: z.literal(false),
+    currency: z.literal("IRR"),
+  }),
+  "/api/v2/discounts/quote": commerce.quoteView,
+  "/api/v2/orders": commerce.orderView,
+  "/api/v2/orders/{id}": commerce.orderView,
+  "/api/v2/account/orders": commerce.commercePage,
+  "/api/v2/orders/{id}/payments": z.object({
+    attempt_id: schemas.uuid,
+    state: z.string(),
+    redirect_url: z.string().nullable(),
+    mode: z.literal("simulated"),
+  }),
+  "/api/v2/orders/{id}/simulate": z.object({
+    order_id: schemas.uuid,
+    status: z.literal("VERIFICATION_PENDING"),
+  }),
+  "/api/v2/payments/zarinpal/return": z.object({
+    order_id: schemas.uuid,
+    status: z.literal("VERIFICATION_PENDING"),
+  }),
+  "/api/v2/admin/commerce/{section}": z.record(z.string(), z.unknown()),
+  "/api/v2/admin/commerce/orders/{id}": commerce.orderView.extend({
+    transitions: z.array(z.record(z.string(), z.unknown())),
+    reconciliation: z.array(z.record(z.string(), z.unknown())),
+  }),
+
   "/api/v2/admin/auth/login": otpReceipt,
   "/api/v2/auth/claim/otp/request": otpReceipt,
   "/api/v2/auth/otp/request": otpReceipt,
@@ -291,6 +336,8 @@ for (const r of routes.sort(
       r.path.includes("/admin/") &&
       !/\/auth\/(?:login|sms\/verify)$/.test(r.path),
     customer =
+      r.path.startsWith("/api/v2/orders") ||
+      r.path === "/api/v2/discounts/quote" ||
       r.path.startsWith("/api/v2/account") ||
       ["/api/v2/auth/logout", "/api/v2/auth/session/rotate"].includes(r.path);
   const security = desktop
@@ -306,31 +353,51 @@ for (const r of routes.sort(
     !r.path.endsWith("/logout");
   const body =
     requests[r.path] ?? (mutation ? schemas.mutationSchema : undefined);
-  const successful = responses[r.path]
-    ? json(responses[r.path])
-    : {
-        description: "See the Phase 2 API guide for this operation",
-        type: "object",
-      };
+  const successful =
+    r.path === "/api/v2/orders" && r.method === "get"
+      ? json(commerce.commercePage)
+      : responses[r.path]
+        ? json(responses[r.path])
+        : {
+            description: "See the Phase 2 API guide for this operation",
+            type: "object",
+          };
   const parameters = [...r.path.matchAll(/\{([^}]+)\}/g)].map(([, name]) => ({
     name,
     in: "path",
     required: true,
     schema: json(
-      name === "type"
+      name === "section"
         ? z.enum([
-            "customers",
-            "devices",
-            "licenses",
-            "activation-codes",
-            "trials",
-            "products",
+            "orders",
+            "payments",
+            "campaigns",
+            "coupons",
+            "jobs",
+            "exceptions",
+            "reservations",
+            "redemptions",
+            "finance",
+            "refunds",
           ])
-        : name === "id" && r.path.includes("/notes/")
-          ? z.string().min(1).max(128)
-          : name === "sku"
-            ? schemas.sku
-            : schemas.uuid,
+        : name === "type"
+          ? z.enum([
+              "customers",
+              "devices",
+              "licenses",
+              "activation-codes",
+              "trials",
+              "products",
+              "orders",
+              "payments",
+              "campaigns",
+              "coupons",
+            ])
+          : name === "id" && r.path.includes("/notes/")
+            ? z.string().min(1).max(128)
+            : name === "sku"
+              ? schemas.sku
+              : schemas.uuid,
     ),
   }));
   if (admin || (customer && r.method !== "get"))
@@ -402,10 +469,10 @@ for (const r of routes.sort(
 const spec = {
   openapi: "3.1.0",
   info: {
-    title: "YariZan implemented Phase 2 backend API",
+    title: "YariZan implemented V2 backend API",
     version: "2.0.0",
     description:
-      "Development backend only. Production gate closed. No payments or deployment.",
+      "Synthetic commerce and licensing development API. Production, live payments and deployment gates closed.",
     license: {
       name: "Proprietary",
       url: "https://github.com/osameh15/YariZan/blob/main/LICENSE.txt",

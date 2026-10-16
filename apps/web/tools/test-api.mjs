@@ -7,6 +7,7 @@ const require = createRequire(new URL('../../../backend/package.json', import.me
 const { Pool } = require('pg');
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 process.env.NODE_ENV = 'test';
+process.env.COMMERCE_MODE = 'fake';
 process.env.SMS_PROVIDER = 'fake';
 process.env.MOBILE_ENCRYPTION_KEY = '4'.repeat(64);
 process.env.OTP_HMAC_KEY = '5'.repeat(64);

@@ -23,6 +23,8 @@ describe('Catalog and commercial boundaries', () => {
   it('converts integer IRR to Toman without hardcoding catalog prices', () => {
     expect(toman(12990000)).toBe('۱٬۲۹۹٬۰۰۰');
     expect(toman(15000000)).toBe('۱٬۵۰۰٬۰۰۰');
+    expect(toman(9007199254740983)).toBe('۹۰۰٬۷۱۹٬۹۲۵٬۴۷۴٬۰۹۸٫۳');
+    expect(toman(9007199254740987)).toBe('۹۰۰٬۷۱۹٬۹۲۵٬۴۷۴٬۰۹۸٫۷');
     expect(() => toman(Number.MAX_SAFE_INTEGER + 1)).toThrow();
     expect(() => toman(-1)).toThrow();
   });
@@ -153,5 +155,38 @@ describe('Custom accessible form feedback', () => {
     expect(w.get('[role=alert]').text()).toContain('پیامک');
     await w.get('button').trigger('click');
     expect(w.emitted('retry')).toHaveLength(1);
+  });
+});
+
+describe('Commerce financial and navigation boundaries', () => {
+  it('formats large aggregate IRR without floating point loss', async () => {
+    const { financialToman } = await import('../../shared/commerce');
+    expect(financialToman('90071992547409915')).toBe(
+      new Intl.NumberFormat('fa-IR').format(9007199254740991n) + '٫۵',
+    );
+    expect(financialToman('-1')).toBe('—');
+  });
+  it('preserves every IRR remainder near the safe-integer boundary', async () => {
+    const { financialToman } = await import('../../shared/commerce');
+    for (let remainder = 0n; remainder < 10n; remainder++) {
+      const amount = 9007199254740980n + remainder;
+      const expected =
+        '۹۰۰٬۷۱۹٬۹۲۵٬۴۷۴٬۰۹۸' +
+        (remainder ? '٫' + new Intl.NumberFormat('fa-IR').format(remainder) : '');
+      expect(toman(Number(amount))).toBe(expected);
+      expect(financialToman(amount.toString())).toBe(expected);
+    }
+  });
+  it('keeps unknown results distinct from paid and fulfilled states', async () => {
+    const { commerceState } = await import('../../shared/commerce');
+    expect(commerceState({ state: 'PENDING', payments: [{ state: 'UNKNOWN' }] })).toContain(
+      'مشخص نیست',
+    );
+    expect(commerceState({ state: 'FULFILLMENT_PENDING', paid_at: 'now' })).toContain('آماده‌سازی');
+    expect(commerceState({ state: 'FULFILLED' })).toContain('آماده است');
+  });
+  it('only retains the exact eligible checkout return path', () => {
+    expect(safeReturn('/checkout?sku=YARIZAN-G1')).toBe('/checkout?sku=YARIZAN-G1');
+    expect(safeReturn('/checkout?sku=YARIZAN-G1&next=https://example.com')).toBe('/account');
   });
 });

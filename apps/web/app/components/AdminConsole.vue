@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { persianDigits } from '#shared/digits';
 import { errorMessage, toman, gradeNames } from '#shared/domain';
 import type { ApiPath } from '#shared/api';
 type Row = Record<string, unknown>;
@@ -67,6 +68,7 @@ const sections = [
   ['trials', 'فرصت‌های آزمایشی', 'trials.read'],
   ['activation-codes', 'کدهای فعال‌سازی', 'activation_codes.read'],
   ['audit', 'گزارش فعالیت', 'audit.read'],
+  ['commerce', 'فروش و امور مالی', 'commerce.read'],
 ];
 const allowed = (permission: string) => permissions.value.includes(permission);
 const title = computed(() => sections.find((s) => s[0] === section.value)?.[1] ?? 'مدیریت');
@@ -328,6 +330,12 @@ onBeforeUnmount(() => {
   secret.value = '';
   evidence.value = '';
 });
+const navigationGroups: { title: string; ids: string[] }[] = [
+  { title: 'میز کار', ids: ['dashboard', 'products'] },
+  { title: 'مشتریان و دستگاه‌ها', ids: ['customers', 'devices'] },
+  { title: 'مجوزها و آزمایش', ids: ['licenses', 'trials', 'activation-codes'] },
+  { title: 'فروش و نظارت', ids: ['commerce', 'audit'] },
+];
 </script>
 <template>
   <section class="wrap section portal admin-portal">
@@ -335,17 +343,26 @@ onBeforeUnmount(() => {
       <p class="eyebrow">مدیریت یاریزان</p>
       <h2>میز کار شما</h2>
       <nav aria-label="بخش‌های مدیریت">
-        <NuxtLink
-          v-for="[id, label] in sections.filter((s) => allowed(s[2]!))"
-          :key="id"
-          :to="id === 'dashboard' ? '/zanyari' : `/zanyari/${id}`"
-          :aria-current="section === id ? 'page' : undefined"
-          >{{ label }}</NuxtLink
-        >
+        <template v-for="group in navigationGroups" :key="group.title">
+          <span
+            v-if="sections.some((s) => group.ids.includes(s[0]!) && allowed(s[2]!))"
+            class="nav-group-label"
+            >{{ group.title }}</span
+          >
+          <NuxtLink
+            v-for="[id, label] in sections.filter(
+              (s) => group.ids.includes(s[0]!) && allowed(s[2]!),
+            )"
+            :key="id"
+            :to="id === 'dashboard' ? '/zanyari' : `/zanyari/${id}`"
+            :aria-current="section === id ? 'page' : undefined"
+            >{{ label }}</NuxtLink
+          >
+        </template>
       </nav>
       <button class="button secondary" @click="logout">خروج از مدیریت</button>
     </aside>
-    <div class="portal-main">
+    <div class="portal-main" :aria-busy="busy">
       <header class="portal-heading">
         <div>
           <p class="eyebrow">تغییرات مسئولانه و قابل پیگیری</p>
@@ -356,7 +373,7 @@ onBeforeUnmount(() => {
       <ApiNotice :message="message" :kind="noticeSuccess ? 'success' : 'error'" />
       <p v-if="busy" role="status" class="notice">در حال دریافت اطلاعات…</p>
       <template v-if="section === 'dashboard'"
-        ><div v-if="allowed('audit.read')" class="stat-grid">
+        ><div v-if="allowed('audit.read') && !busy" class="stat-grid">
           <article class="panel">
             <span>{{ new Intl.NumberFormat('fa-IR').format(Number(reports.customers ?? 0)) }}</span>
             <p>حساب فعال</p>
@@ -438,7 +455,7 @@ onBeforeUnmount(() => {
                 <td>
                   <template v-if="section === 'products'"
                     ><b>{{ row.title_fa }}</b
-                    ><small dir="ltr">{{ row.sku }}</small></template
+                    ><small dir="ltr">{{ persianDigits(row.sku) }}</small></template
                   ><template v-else
                     ><b dir="ltr">{{ row.username ?? row.entity_id ?? row.device_id }}</b
                     ><small dir="ltr">{{ row.id }}</small></template
@@ -481,7 +498,7 @@ onBeforeUnmount(() => {
                     ><small
                       v-for="restriction in row.restrictions as { sku: string; blocked: boolean }[]"
                       :key="restriction.sku"
-                      ><span dir="ltr">{{ restriction.sku }}</span
+                      ><span dir="ltr">{{ persianDigits(restriction.sku) }}</span
                       >: {{ restriction.blocked ? 'مسدود' : 'آزاد' }}</small
                     >
                     <details v-if="(row.profile_details as Row[])?.length">
@@ -494,12 +511,12 @@ onBeforeUnmount(() => {
                       >
                     </details></template
                   ><template v-else
-                    ><span v-if="row.sku" dir="ltr">{{ row.sku }}</span
+                    ><span v-if="row.sku" dir="ltr">{{ persianDigits(row.sku) }}</span
                     ><small v-if="row.generation"
                       >نسل حساب:
                       {{ new Intl.NumberFormat('fa-IR').format(Number(row.generation)) }}</small
                     ><small v-if="row.decision_version"
-                      >نسخهٔ تصمیم: {{ row.decision_version }}</small
+                      >نسخهٔ تصمیم: {{ persianDigits(row.decision_version) }}</small
                     ><small v-if="row.created_at">{{
                       new Date(String(row.created_at)).toLocaleDateString('fa-IR')
                     }}</small></template
@@ -513,7 +530,9 @@ onBeforeUnmount(() => {
                     {{
                       allowed('notes.manage') ? 'مشاهده و ویرایش یادداشت' : 'مشاهدهٔ یادداشت'
                     }}</button
-                  ><small v-if="row.mobile_masked" dir="ltr">{{ row.mobile_masked }}</small>
+                  ><small v-if="row.mobile_masked" dir="ltr">{{
+                    persianDigits(row.mobile_masked)
+                  }}</small>
                 </td>
                 <td v-if="section !== 'audit'">
                   <div class="table-actions">
@@ -667,20 +686,21 @@ onBeforeUnmount(() => {
           پشتیبانی نمی‌شود.
         </p>
         <template v-if="kind === 'product'"
-          ><label
-            >قیمت به تومان<input
-              v-model.number="product.price"
-              type="number"
-              min="0"
-              step="0.1"
-              required /></label
-          ><label
-            >وضعیت عرضه<select v-model="product.publication_status">
-              <option value="published">عرضه‌شده</option>
-              <option value="coming_soon">به‌زودی</option>
-              <option value="hidden">پنهان</option>
-            </select></label
-          ><label class="check-label"
+          ><NumberStepper
+            v-model="product.price"
+            min="0"
+            step="0.1"
+            required
+            label="قیمت به تومان"
+          /><AppSelect
+            v-model="product.publication_status"
+            label="وضعیت عرضه"
+            :options="[
+              { value: 'published', label: 'عرضه‌شده' },
+              { value: 'coming_soon', label: 'به‌زودی' },
+              { value: 'hidden', label: 'پنهان' },
+            ]"
+          /><label class="check-label"
             ><input
               v-model="product.sale_enabled"
               type="checkbox"
@@ -699,13 +719,14 @@ onBeforeUnmount(() => {
               :disabled="product.publication_status !== 'published'"
             />فعال‌سازی فعال</label
           ></template
-        ><label v-if="['block', 'unblock', 'issue', 'code'].includes(kind)"
-          >پایهٔ موردنظر<select v-model="targetSku">
-            <option v-for="(name, i) in gradeNames" :key="i" :value="`YARIZAN-G${i + 1}`">
-              پایهٔ {{ name }}
-            </option>
-          </select></label
-        ><label
+        ><AppSelect
+          v-if="['block', 'unblock', 'issue', 'code'].includes(kind)"
+          v-model="targetSku"
+          label="پایهٔ موردنظر"
+          :options="
+            gradeNames.map((name, i) => ({ value: 'YARIZAN-G' + (i + 1), label: 'پایهٔ ' + name }))
+          "
+        /><label
           >دلیل عملیات<textarea v-model="reason" minlength="8" maxlength="512" required /></label
         ><label v-if="needsEvidence"
           >مرجع تأیید مستقل مالکیت<input

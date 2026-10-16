@@ -23,6 +23,13 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
     if (runtimeEnv[name] === "") delete runtimeEnv[name];
   const parsed = z
     .object({
+      COMMERCE_MODE: z
+        .enum(["disabled", "fake", "zarinpal"])
+        .default("disabled"),
+      PURCHASE_SMS_TEMPLATE: z
+        .string()
+        .regex(/^[A-Za-z0-9_-]{1,64}$/)
+        .default("purchase-confirmation-unconfigured"),
       NODE_ENV: z.enum(["development", "test", "production"]),
       DATABASE_URL: z.url(),
       PORT: z.coerce.number().int().min(1024).max(65535).default(3100),
@@ -60,6 +67,8 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
       "PRODUCTION_GATE_CLOSED: reviewed first-claim assurance, external signing custody and desktop credential integration required",
     );
   }
+  if (parsed.data.COMMERCE_MODE === "zarinpal")
+    throw new ConfigurationError("ZARINPAL_LIVE_GATE_CLOSED");
   if (parsed.data.SMS_PROVIDER !== "disabled") {
     if (!parsed.data.MOBILE_ENCRYPTION_KEY || !parsed.data.OTP_HMAC_KEY)
       throw new ConfigurationError("SMS_SECRETS_REQUIRED");
