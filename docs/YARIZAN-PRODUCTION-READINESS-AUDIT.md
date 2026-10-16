@@ -16,6 +16,55 @@ This is an initial source-level assessment using GitHub repository files and Git
 - `apps/web/tests/e2e/healthz.spec.ts` asserts the HTTP status, response body, content type, and cache policy against a built Nuxt server.
 - These changes have **not yet been independently validated by completed final-HEAD CI** at the time of this update. All other readiness gaps and owner gates remain.
 
+## Milestone A — finalized source audit (2026-10-16)
+
+The owner approved a staged launch: **Stage A** is a strictly non-commercial brochure-only Nuxt website; **Stage B** (API, PostgreSQL, accounts, Admin MFA, SMS, ZarinPal, desktop enrollment, signed licenses) stays blocked by G1–G9 and B13. Stage A approval does not open any Stage B gate. Findings below come from source at branch HEAD `a642053`, not from documentation.
+
+### Documentation drift corrected
+
+| Item | Documented | Source truth |
+| --- | --- | --- |
+| Migration count | Infrastructure S1 baseline: 8; `backend/README.md`: "`001`–`007`" | **9** files, `001_core.sql` … `009_commerce_authority.sql`; `/ready` requires exactly 9 `schema_migrations` rows |
+| Infrastructure contract baseline | `feat/yarizan-v2-nuxt-portals@7c34e93` | Application main `30ffa05` (PR #4 merged) |
+| API container command | Contract A2 expects `node dist/src/main.js` | `backend/Dockerfile` runs `migrate → seed → main` (fixed in milestone C) |
+| Web image | Contract R2/R3 | Unpinned `node:24-alpine`, numeric UID not enforced, npm/yarn shipped in runtime (fixed in milestone C) |
+
+### Desktop route contract (infrastructure D1, open questions 1–2)
+
+The Windows client (`src/YariZan.Core/V2/DesktopV2Client.cs`, `DeviceProvisioning.cs`) calls exactly nine routes under `https://yarizan.oarnova.games/api/v2/`. The backend implements one further desktop route.
+
+| Method and path | Caller | Authentication | Notes |
+| --- | --- | --- | --- |
+| `POST devices/challenges` | Desktop | None (pre-authentication challenge) | Returns a nonce bound to a purpose |
+| `POST devices/authenticate` | Desktop | Device key proof over a fresh `AUTH` challenge | Renews bearer credential |
+| `POST device-pairings` | Desktop only | Device key proof over a `PAIR` challenge | Answer to open question 1: **desktop-only**; it is not in the browser proxy allowlist |
+| `POST device-pairings/{uuid}/pickup` | Desktop | Device key proof over a `CONFIRM` challenge | Returns enrollment and credential only to the proof holder |
+| `GET desktop/trials/{sku}/status` | Desktop | Bearer | Consumes nothing |
+| `POST desktop/trials/{sku}/start` | Desktop | Bearer | Nonce-bound, idempotent |
+| `POST desktop/licenses/pickup` | Desktop | Bearer | |
+| `POST desktop/licenses/sync` | Desktop | Bearer | |
+| `POST desktop/activation-codes/redeem` | Desktop | Bearer | |
+| `GET desktop/entitlements` | **No current client caller** | Bearer | Implemented in `DesktopController`; keep routed only if infrastructure accepts an unused bearer-only route, otherwise retire in a later release |
+
+Answer to open question 2: the only desktop calls without a bearer are the four proof-based calls above (`devices/challenges`, `devices/authenticate`, `device-pairings`, `device-pairings/{uuid}/pickup`). None of them uses cookies, `Origin` or CSRF headers. Retired routes: `POST devices/register` and `POST device-pairings/{uuid}/desktop-confirm` return `410`. Browser-only pairing routes are `POST device-pairings/{uuid}/(preview|confirm|cancel)`; they require the exact browser `Origin`. No other method is implemented on desktop paths; Express returns `404` for unlisted methods.
+
+### Production gate inventory (`backend/src/config.ts`)
+
+`NODE_ENV=production` is refused unconditionally with `PRODUCTION_GATE_CLOSED`. The single message protects these unresolved conditions:
+
+1. First-claim/physical ownership assurance (G1, commercial checklist item 1).
+2. External commercial signing custody: development keys are generated under `/app/.local`; no production signer exists (G1, G8).
+3. Desktop credential integration with production public roots (G1, G4).
+4. Admin MFA depends on SMS; `SMS_PROVIDER=disabled` leaves no Admin login path, and live SMS needs egress (G6).
+5. Real ZarinPal is separately refused by `ZARINPAL_LIVE_GATE_CLOSED` (commerce gate).
+6. Cookies are `Secure` only under production, which cannot start; development cookies are non-Secure by design.
+
+Milestone C makes these conditions explicit, individually named and tested, while keeping the refusal unconditional.
+
+### Rate-limiting review (G5)
+
+Behind Traefik and the CDN, `req.socket.remoteAddress` is a container address. Every key built from it — the global `ip:` middleware bucket (600/min), `pairing-preview`, `pairing-pickup`, `claim-ip`, `sms-request-ip`, `customer-login-ip`, `admin-primary-ip`, `otp-verify-ip`, `payment-return` — collapses into one shared bucket per upstream proxy. This is not a bypass, but one abuser can exhaust these buckets for every user (availability risk). Identity-scoped limits exist and do not depend on IP: `customer-login:<username>` (8/5 min), `admin-primary:<username>` (5/5 min), `otp-phone:<lookup>` (6/h), OTP cooldowns, `sms-account:<customer>` (6/h), `sms-pair:<pairing>` (3/h), `sms-global` (200/h), `machine:`/`customer:` per bearer (120/min), `coupon-probe`, `order-create`, `payment-start` per customer, and `global` (6000/min). Remaining Stage B needs: a verified client-IP header from the CDN chain (infrastructure Pars Pack request #3) or replacement of the IP buckets with per-pairing/per-device keys, and a per-device limit on unauthenticated `devices/challenges`. Stage A runs no API, so none of these endpoints is reachable.
+
 ## Infrastructure contract
 
 Authoritative inputs:
