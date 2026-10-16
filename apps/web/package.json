@@ -16,6 +16,8 @@
     "format:check": "prettier --check app server shared tests tools *.ts *.json",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "build:brochure": "node tools/build-profile.mjs brochure",
+    "test:brochure": "playwright test -c playwright.brochure.config.ts",
     "contracts": "node tools/check-contracts.mjs --write",
     "contracts:check": "node tools/check-contracts.mjs",
     "audit:dependencies": "node tools/check-dependencies.mjs",

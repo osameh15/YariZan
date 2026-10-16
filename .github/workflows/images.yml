@@ -1,0 +1,143 @@
+name: Image build and security validation
+# Builds the web (brochure, full) and API images exactly as a release would, without any
+# registry credential, then validates contents, hardened runtime, startup gates, resource
+# use, vulnerabilities and a disposable digest-based rollback. Nothing is pushed.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      commit:
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  TRIVY_IMAGE: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
+jobs:
+  web-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [brochure, full]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Build web image (${{ matrix.profile }})
+        run: |
+          mkdir -p .evidence
+          set -o pipefail
+          docker build --progress=plain -f apps/web/Dockerfile \
+            --build-arg YARIZAN_BUILD_PROFILE=${{ matrix.profile }} \
+            --build-arg SOURCE_COMMIT="$(git rev-parse HEAD)" \
+            -t yarizan-web:${{ matrix.profile }} . 2>&1 | tee .evidence/web-${{ matrix.profile }}-build.log
+          if grep -Ei 'Big integer literals.*not available|BigInt.*es2019' .evidence/web-${{ matrix.profile }}-build.log; then
+            echo 'Unsupported BigInt Docker build target'; exit 1
+          fi
+          docker image inspect yarizan-web:${{ matrix.profile }} --format '{{.Id}} {{.Size}}' | tee .evidence/web-${{ matrix.profile }}-image.txt
+      - name: Container contents, read-only non-root runtime, fail-closed mode and resources
+        run: node tools/release/check-web-image.mjs yarizan-web:${{ matrix.profile }} ${{ matrix.profile }} | tee .evidence/web-${{ matrix.profile }}-runtime.txt
+      - name: Vulnerability scan (findings recorded; fixable HIGH/CRITICAL fail)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache "$TRIVY_IMAGE" image --quiet \
+            --scanners vuln --format json yarizan-web:${{ matrix.profile }} > .evidence/web-${{ matrix.profile }}-trivy.json
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache "$TRIVY_IMAGE" image --quiet \
+            --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 yarizan-web:${{ matrix.profile }} \
+            | tee .evidence/web-${{ matrix.profile }}-trivy.txt
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: image-evidence-web-${{ matrix.profile }}
+          path: .evidence/
+          retention-days: 30
+
+  api-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_USER: yarizan
+          POSTGRES_PASSWORD: local-disposable
+          POSTGRES_DB: yarizan_phase2_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U yarizan -d yarizan_phase2_test"
+          --health-interval 2s --health-timeout 2s --health-retries 30
+    env:
+      DATABASE_URL: postgresql://yarizan:local-disposable@127.0.0.1:5432/yarizan_phase2_test
+      CODE_HMAC_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      TOKEN_HMAC_KEY: '2222222222222222222222222222222222222222222222222222222222222222'
+      MFA_ENCRYPTION_KEY: '3333333333333333333333333333333333333333333333333333333333333333'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Build API image (production target)
+        run: |
+          mkdir -p .evidence
+          docker build --progress=plain --build-arg SOURCE_COMMIT="$(git rev-parse HEAD)" -t yarizan-api backend 2>&1 | tail -20
+          docker image inspect yarizan-api --format '{{.Id}} {{.Size}}' | tee .evidence/api-image.txt
+      - name: Contents, read-only non-root runtime, one-off migrations, gates and shutdown
+        working-directory: backend
+        run: node tools/check-runtime-env.mjs yarizan-api | tee ../.evidence/api-runtime.txt
+      - name: Vulnerability scan (findings recorded; fixable HIGH/CRITICAL fail)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache "$TRIVY_IMAGE" image --quiet \
+            --scanners vuln --format json yarizan-api > .evidence/api-trivy.json
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache "$TRIVY_IMAGE" image --quiet \
+            --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 yarizan-api \
+            | tee .evidence/api-trivy.txt
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: image-evidence-api
+          path: .evidence/
+          retention-days: 30
+
+  rollback-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Build images
+        run: |
+          docker build -q -f apps/web/Dockerfile --build-arg YARIZAN_BUILD_PROFILE=brochure -t yarizan-web:brochure .
+          docker build -q -t yarizan-api backend
+      - name: Release manifest validator tests
+        run: node --test tools/release/manifest.test.mjs
+      - name: Disposable digest-based deploy, upgrade and rollback (web, API, PostgreSQL volume)
+        run: |
+          mkdir -p .evidence
+          node tools/release/rollback-rehearsal.mjs yarizan-web:brochure yarizan-api .evidence/rehearsal-manifest.json | tee .evidence/rollback-rehearsal.txt
+          node tools/release/validate-manifest.mjs .evidence/rehearsal-manifest.json --local
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rollback-rehearsal
+          path: .evidence/
+          retention-days: 30

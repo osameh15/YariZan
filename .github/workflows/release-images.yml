@@ -1,0 +1,192 @@
+name: Release images (manual approval, no deployment)
+# Publishes digest-pinned web and API images to GHCR for ONE already-tested commit and
+# produces the release manifest for the infrastructure session. It never deploys, never
+# uses SSH/VPS credentials and never receives payment, SMS or signing secrets.
+#
+# Owner prerequisites (docs/YARIZAN-RELEASE-AND-ROLLBACK.md):
+#   1. Environment "yarizan-release" with at least one required reviewer.
+#   2. Agreement that GHCR packages ghcr.io/osameh15/yarizan-web and yarizan-api may be created.
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full 40-hex commit SHA to release (must already have green CI)
+        required: true
+        type: string
+permissions: {}
+concurrency:
+  group: release-images
+  cancel-in-progress: false
+env:
+  REGISTRY: ghcr.io/osameh15
+  TRIVY_IMAGE: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
+jobs:
+  verify:
+    name: Verify commit, CI evidence and release controls
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      commit: ${{ steps.check.outputs.commit }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ inputs.commit }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo 'Commit must be a full lowercase 40-hex SHA'; exit 1; }
+          # Only commits on main or on a same-repository pull request branch (never a fork).
+          status=$(gh api "repos/$REPO/compare/main...$COMMIT" --jq .status)
+          if [[ "$status" != identical && "$status" != behind ]]; then
+            heads=$(gh api "repos/$REPO/commits/$COMMIT/pulls" \
+              --jq "[.[]|select(.head.repo.full_name==\"$REPO\")]|length")
+            [[ "$heads" -gt 0 ]] || { echo 'Commit is not on main or a same-repository PR'; exit 1; }
+          fi
+          # Every required workflow must have succeeded for this exact commit.
+          for workflow in 'CI' 'V2 Backend CI' 'V2 Web and Provisioning CI' 'Image build and security validation'; do
+            ok=$(gh api "repos/$REPO/actions/runs?head_sha=$COMMIT&per_page=100" \
+              --jq "[.workflow_runs[]|select(.name==\"$workflow\" and .conclusion==\"success\")]|length")
+            [[ "$ok" -gt 0 ]] || { echo "Missing successful '$workflow' run for $COMMIT"; exit 1; }
+          done
+          # Refuse to continue without an approval-protected environment (owner gate).
+          reviewers=$(gh api "repos/$REPO/environments/yarizan-release" \
+            --jq '[.protection_rules[]?|select(.type=="required_reviewers")]|length' 2>/dev/null || echo 0)
+          [[ "$reviewers" -gt 0 ]] || { echo 'Environment yarizan-release with required reviewers is missing'; exit 1; }
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish ${{ matrix.image }} ${{ matrix.profile }}
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: yarizan-release
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: yarizan-web
+            profile: brochure
+            context: .
+            file: apps/web/Dockerfile
+            eligibility: stage-a-brochure-candidate
+          - image: yarizan-web
+            profile: full
+            context: .
+            file: apps/web/Dockerfile
+            eligibility: blocked-stage-b
+          - image: yarizan-api
+            profile: ''
+            context: backend
+            file: backend/Dockerfile
+            eligibility: blocked-stage-b
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: tag
+        env:
+          COMMIT: ${{ needs.verify.outputs.commit }}
+          PROFILE: ${{ matrix.profile }}
+        run: echo "tag=${PROFILE:+$PROFILE-}${COMMIT:0:12}" >> "$GITHUB_OUTPUT"
+      - id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            YARIZAN_BUILD_PROFILE=${{ matrix.profile }}
+            SOURCE_COMMIT=${{ needs.verify.outputs.commit }}
+          tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.tag }}
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Scan the published digest and record the manifest entry
+        env:
+          REFERENCE: ${{ env.REGISTRY }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          NAME: ${{ matrix.image }}
+          PROFILE: ${{ matrix.profile }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          ELIGIBILITY: ${{ matrix.eligibility }}
+        run: |
+          set -euo pipefail
+          mkdir -p entry
+          docker pull -q "$REFERENCE"
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image --quiet \
+            --scanners vuln --format json "$REFERENCE" > trivy.json
+          critical=$(jq '[.Results[]?.Vulnerabilities[]?|select(.Severity=="CRITICAL")]|length' trivy.json)
+          high=$(jq '[.Results[]?.Vulnerabilities[]?|select(.Severity=="HIGH")]|length' trivy.json)
+          jq -n --arg name "$NAME" --arg profile "$PROFILE" --arg tag "$TAG" --arg digest "$DIGEST" \
+            --arg reference "$REFERENCE" --arg eligibility "$ELIGIBILITY" \
+            --argjson critical "$critical" --argjson high "$high" \
+            '{name:$name,tag:$tag,digest:$digest,reference:$reference,eligibility:$eligibility,
+              scan:{tool:"trivy 0.76.0",critical:$critical,high:$high}}
+             + (if $profile=="" then {} else {profile:$profile} end)' > "entry/${NAME}${PROFILE:+-$PROFILE}.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: manifest-entry-${{ matrix.image }}-${{ matrix.profile || 'api' }}
+          path: entry/
+
+  manifest:
+    name: Release manifest for the infrastructure handoff
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: manifest-entry-*
+          path: entries
+          merge-multiple: true
+      - env:
+          COMMIT: ${{ needs.verify.outputs.commit }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          migrations=$(sed -n 's/.*SCHEMA_MIGRATION_COUNT = \([0-9]*\).*/\1/p' backend/src/database/schema-version.ts)
+          jq -s --arg commit "$COMMIT" --arg run "$RUN_URL" --argjson migrations "$migrations" \
+            --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{schema:"yarizan-release-manifest/v1",source_commit:$commit,ci_run_url:$run,built_at:$built,
+              migrations:$migrations,
+              environment_changes:["web: YARIZAN_SITE_MODE (required; must equal the image build profile)",
+                "api: MIGRATION_DATABASE_URL (one-off migration and bootstrap only; separate login)"],
+              route_changes:["Stage A: every /api/* path answered by web with 503 JSON; desktop routes must not reach an API container"],
+              images:.}' entries/*.json > release-manifest.json
+          node tools/release/validate-manifest.mjs release-manifest.json
+          {
+            echo '## YariZan release manifest'
+            echo '```json'
+            cat release-manifest.json
+            echo '```'
+            echo 'Not deployed. Infrastructure deploys by digest only after separate owner approval.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-manifest
+          path: release-manifest.json
+          retention-days: 90
