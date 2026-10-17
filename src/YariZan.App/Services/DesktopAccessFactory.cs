@@ -9,6 +9,9 @@ public static class DesktopAccessFactory
 {
     private static readonly HttpClient Http = new(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
     { Timeout = Timeout.InfiniteTimeSpan };
+    /// <summary>Per-profile wait marker beside the license store; a UX hint that never grants access.</summary>
+    public static IActivationIntentStore CreateActivationIntentStore() => new FileActivationIntentStore();
+
     public static DesktopAccessController Create(int grade)
     {
         var identity = new DeviceIdentityV2(new WindowsFingerprintProvider());

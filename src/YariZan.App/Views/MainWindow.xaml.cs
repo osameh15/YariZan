@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     private readonly GameLibrary _library = GameLibrary.LoadOrEmpty();
     private readonly GameLauncher _launcher = new();
     private readonly DesktopAccessController _access;
+    private readonly PaidActivationCoordinator _activation;
     private readonly Func<byte[]> _loadGameKey;
     private bool _launching;
     private bool _closed;
@@ -20,24 +21,62 @@ public partial class MainWindow : Window
 
     public MainWindow() : this(null) { }
 
-    public MainWindow(DesktopAccessController? access, Func<byte[]>? loadGameKey = null)
+    /// <summary>Pause between the visible success message and entering the game library.</summary>
+    public TimeSpan ActivationEntryDelay { get; set; } = TimeSpan.FromMilliseconds(1600);
+
+    public MainWindow(DesktopAccessController? access, Func<byte[]>? loadGameKey = null, PaidActivationCoordinator? activation = null)
     {
         _access = access ?? DesktopAccessFactory.Create(_library.Manifest.SelectedGrade);
+        _activation = activation ?? new PaidActivationCoordinator(_access, DesktopAccessFactory.CreateActivationIntentStore());
+        _activation.Activated += OnPaidActivated;
         _loadGameKey = loadGameKey ?? AppKeys.LoadEmbeddedMasterKey;
         InitializeComponent();
         Title = $"YariZan G{Math.Clamp(_library.Manifest.SelectedGrade, 1, 6)}";
-        Loaded += (_, _) =>
-        {
-            ShowCover(animate: false);
-            _ = _access.SynchronizePurchasedAsync();
-        };
+        Loaded += (_, _) => ShowStartPage();
         Closed += (_, _) =>
         {
             _closed = true;
             _launchCancellation?.Cancel();
+            _activation.Dispose();
             _access.Dispose();
             _launcher.Dispose();
         };
+    }
+
+    /// <summary>
+    /// Launch routing. A locally verified paid license enters the library at once with no network wait.
+    /// An enrolled device without one gets a short bounded online pickup check, or resumes a wait the
+    /// customer started earlier. Everything else starts at the cover as before.
+    /// </summary>
+    private void ShowStartPage()
+    {
+        if (_access.IsPurchased)
+        {
+            ShowGames(animate: false);
+            _ = _access.SynchronizePurchasedAsync();
+            return;
+        }
+        if (_activation.CanCheckOnline && _activation.HasPendingIntent) { ShowLock(animate: false); return; }
+        ShowCover(animate: false);
+        if (_activation.CanCheckOnline) _ = _activation.StartStartupRecoveryAsync();
+    }
+
+    private async void OnPaidActivated(object? sender, EventArgs e)
+    {
+        if (_closed || !_access.IsPurchased) return;
+        _ = _access.SynchronizePurchasedAsync();
+        if (PageHost.Content is LockPage lockPage)
+        {
+            lockPage.ShowActivationSucceeded();
+            await Task.Delay(ActivationEntryDelay);
+            if (_closed || PageHost.Content != lockPage) return;
+            lockPage.ShowEnteringGames();
+            await Task.Delay(ActivationEntryDelay / 4);
+            if (_closed || PageHost.Content != lockPage) return;
+        }
+        // Never pull the customer out of a page they chose (information, library or a running game).
+        else if (PageHost.Content is not CoverPage) return;
+        if (!_closed && _access.IsPurchased) ShowGames();
     }
 
     public void ShowCover(bool animate = true)
@@ -50,13 +89,13 @@ public partial class MainWindow : Window
         SwapPage(page, animate);
     }
 
-    public void ShowLock()
+    public void ShowLock(bool animate = true)
     {
-        var page = new LockPage(_access);
+        var page = new LockPage(_access, activation: _activation);
         page.Activated    += (_, _) => ShowInfo();
         page.TrialStarted += (_, _) => ShowInfo();
         page.Cancelled    += (_, _) => ShowCover();
-        SwapPage(page, animate: true);
+        SwapPage(page, animate);
     }
 
     public void ShowInfo()
@@ -68,13 +107,13 @@ public partial class MainWindow : Window
         SwapPage(page, animate: true);
     }
 
-    public void ShowGames()
+    public void ShowGames(bool animate = true)
     {
         if (!_access.CanEnter) { ShowLock(); return; }
         var page = new GamesBookPage(_library);
         page.GameLaunchRequested += OnGameLaunch;
         page.BackRequested += (_, _) => ShowInfo();
-        SwapPage(page, animate: true);
+        SwapPage(page, animate);
     }
 
     private async void OnGameLaunch(object? sender, GameEntry e)
