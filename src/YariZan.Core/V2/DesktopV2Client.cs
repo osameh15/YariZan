@@ -19,11 +19,15 @@ public sealed class UnprovisionedDeviceCredentials : IDeviceCredentialProvider
     public string? DeviceId => null;
     public Task<string> GetEnrolledCredentialAsync(CancellationToken cancellation) => throw new EnrollmentRequiredException();
 }
-public sealed class V2ApiException(string code, HttpStatusCode? status = null) : Exception(code)
+public sealed class V2ApiException(string code, HttpStatusCode? status = null, TimeSpan? retryAfter = null) : Exception(code)
 {
     public string Code { get; } = code;
     public HttpStatusCode? Status { get; } = status;
+    /// <summary>Server-requested delay (Retry-After), bounded by the client; never extends access.</summary>
+    public TimeSpan? RetryAfter { get; } = retryAfter;
 }
+/// <summary>Authenticated entitlement summary for this device and generation. Not proof of access.</summary>
+public sealed record DesktopEntitlement(string Sku, string State);
 public sealed record DeviceChallenge(string ChallengeId, string Nonce, string ExpiresAt);
 public sealed record DeviceRegistrationRequest(int FingerprintVersion, string FingerprintDigest,
     string DevicePublicKey, string ChallengeId, string ChallengeSignature);
@@ -82,9 +86,34 @@ public sealed class DesktopV2Client : IDesktopV2Client, IDeviceRegistrationClien
             var error = parsed.RootElement.GetProperty("error");
             string? code = error.GetProperty("code").GetString();
             if (code == "TRIAL_EXHAUSTED" && response.StatusCode == HttpStatusCode.Forbidden) throw new TrialExhaustedException();
-            throw new V2ApiException(code is { Length: > 0 and <= 128 } ? code : "HTTP_ERROR", response.StatusCode);
+            throw new V2ApiException(code is { Length: > 0 and <= 128 } ? code : "HTTP_ERROR", response.StatusCode, RetryAfter(response));
         }
         return text;
+    }
+
+    private static TimeSpan? RetryAfter(HttpResponseMessage response)
+    {
+        var header = response.Headers.RetryAfter;
+        var delay = header?.Delta ?? (header?.Date is { } date ? date - DateTimeOffset.UtcNow : null);
+        // Clamp so a hostile or broken header can neither spin the client nor stall it for hours.
+        return delay is { } value ? TimeSpan.FromSeconds(Math.Clamp(value.TotalSeconds, 1, 900)) : null;
+    }
+
+    public async Task<IReadOnlyList<DesktopEntitlement>> GetEntitlementsAsync(CancellationToken cancellation)
+    {
+        using var json = StrictJson.Parse(await RequestAsync(HttpMethod.Get, "desktop/entitlements", null, cancellation));
+        if (json.RootElement.ValueKind != JsonValueKind.Array || json.RootElement.GetArrayLength() > 64)
+            throw new InvalidDataException("Invalid entitlement list.");
+        var result = new List<DesktopEntitlement>();
+        foreach (var item in json.RootElement.EnumerateArray())
+        {
+            StrictJson.Fields(item, "sku", "state");
+            string? sku = item.GetProperty("sku").GetString(), state = item.GetProperty("state").GetString();
+            if (!Enumerable.Range(1, 6).Any(g => new Product(g).Sku == sku) || state is not ("ACTIVE" or "REVOKED" or "RESET"))
+                throw new InvalidDataException("Invalid entitlement.");
+            result.Add(new(sku!, state));
+        }
+        return result;
     }
 
     public async Task<int> GetTrialStatusAsync(Product product, CancellationToken cancellation)

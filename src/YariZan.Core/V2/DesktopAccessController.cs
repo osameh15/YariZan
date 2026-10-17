@@ -17,6 +17,7 @@ public interface ILicenseSyncService
 {
     Task<string> SynchronizeAsync(PaidLicense license, CancellationToken cancellation);
     Task<string> PickupAsync(Product product, CancellationToken cancellation);
+    Task<IReadOnlyList<DesktopEntitlement>> GetEntitlementsAsync(CancellationToken cancellation);
 }
 public interface IDesktopV2Client : ITrialStartClient, ILicenseSyncService, IActivationCodeClient
 {
@@ -29,6 +30,8 @@ public interface IAccessPolicy
     bool IsPurchased { get; }
 }
 public sealed class EnrollmentRequiredException : Exception;
+/// <summary>Result of one authenticated purchased-license check. Only Activated changes access.</summary>
+public enum PaidCheckOutcome { Activated, AwaitingPurchase, LicenseRevoked, InvalidLicense }
 public sealed class TrialExhaustedException : Exception;
 
 /// <summary>One instance owned by the application process; network never participates in CanEnter.</summary>
@@ -98,6 +101,72 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
         await _operation.WaitAsync(cancellation);
         try { if(CanEnter || _closed)return; _enrollment=null; ReadLocalAccess(); }
         finally { _operation.Release(); }
+    }
+
+    /// <summary>True when a signed local enrollment verifies for this profile. Local only, no network.</summary>
+    public bool HasLocalEnrollment
+    {
+        get
+        {
+            if (_closed) return false;
+            try { return Enrollment() is not null; }
+            catch (Exception ex) when (ex is EnrollmentRequiredException || IsSafeFailure(ex)) { return false; }
+        }
+    }
+
+    /// <summary>
+    /// One authenticated check for a fulfilled purchase of this grade, then signed pickup. The entitlement
+    /// list only decides whether pickup is worth requesting; access changes only after the returned license
+    /// verifies (signature, trusted key ID, device, fingerprint, grade/SKU) and is durably stored.
+    /// Transport failures are thrown to the caller and never alter local access.
+    /// </summary>
+    public async Task<PaidCheckOutcome> CheckPurchasedLicenseAsync(CancellationToken cancellation = default, Action? pickupStarting = null)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, _lifetime.Token);
+        await _operation.WaitAsync(linked.Token);
+        try
+        {
+            linked.Token.ThrowIfCancellationRequested();
+            if (IsPurchased) return PaidCheckOutcome.Activated;
+            // Recovery of a locally revoked license stays an explicit, separately authenticated operation.
+            if (LocalLicenseState == DesktopAccessState.Revoked) return PaidCheckOutcome.LicenseRevoked;
+            if (AdoptStoredLicense()) return PaidCheckOutcome.Activated;
+            var enrollment = OnlineEnrollment();
+            var entitlements = await _client.GetEntitlementsAsync(linked.Token);
+            linked.Token.ThrowIfCancellationRequested();
+            var own = entitlements.Where(e => e.Sku == _product.Sku).ToArray();
+            if (!own.Any(e => e.State == "ACTIVE"))
+                return own.Any(e => e.State == "REVOKED") ? PaidCheckOutcome.LicenseRevoked : PaidCheckOutcome.AwaitingPurchase;
+            pickupStarting?.Invoke();
+            string envelope;
+            try { envelope = await _client.PickupAsync(_product, linked.Token); }
+            catch (V2ApiException ex) when (ex.Code == "ENTITLEMENT_REQUIRED") { return PaidCheckOutcome.AwaitingPurchase; }
+            catch (V2ApiException ex) when (ex.Code == "LICENSE_REVOKED") { return PaidCheckOutcome.LicenseRevoked; }
+            linked.Token.ThrowIfCancellationRequested();
+            try { AcceptPickedUpLicense(envelope, enrollment); }
+            catch (Exception ex) when (IsSafeFailure(ex) && ex is not (IOException or UnauthorizedAccessException or OperationCanceledException))
+            { LastError = "INVALID_PICKED_UP_LICENSE"; return PaidCheckOutcome.InvalidLicense; }
+            return PaidCheckOutcome.Activated;
+        }
+        finally { _operation.Release(); }
+    }
+
+    /// <summary>Adopts a license another process of this profile already verified and stored.</summary>
+    private bool AdoptStoredLicense()
+    {
+        try
+        {
+            var saved = _store.ReadLicense(_product);
+            if (saved.Status != StoreReadStatus.Present) return false;
+            var license = _verifier.VerifyLicense(saved.Envelope!, _device, _product, Enrollment());
+            var decision = _store.ReadDecision(_product);
+            if (decision.Status == StoreReadStatus.Corrupt) return false;
+            if (decision.Status == StoreReadStatus.Present && (DecisionLicenseId(decision.Envelope!) != license.LicenseId
+                || _verifier.VerifyDecision(decision.Envelope!, license).Status != "ACTIVE")) return false;
+            _license = license; State = LocalLicenseState = DesktopAccessState.Purchased; LastError = null;
+            return true;
+        }
+        catch (Exception ex) when (ex is EnrollmentRequiredException || IsSafeFailure(ex)) { return false; }
     }
 
     private DeviceEnrollment Enrollment() => _enrollment ??= _enrollmentProvider.ReadVerifiedIdentity() ?? throw new EnrollmentRequiredException();
