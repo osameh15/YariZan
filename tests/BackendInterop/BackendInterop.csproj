@@ -9,5 +9,6 @@
     <Compile Include="../../src/YariZan.Core/V2/DesktopAccessController.cs" Link="DesktopAccessController.cs" />
     <Compile Include="../../src/YariZan.Core/V2/DeviceProvisioning.cs" Link="DeviceProvisioning.cs" />
     <Compile Include="../../src/YariZan.Core/V2/ActivationCode.cs" Link="ActivationCode.cs" />
+    <Compile Include="../../src/YariZan.Core/V2/PaidActivation.cs" Link="PaidActivation.cs" />
   </ItemGroup>
 </Project>

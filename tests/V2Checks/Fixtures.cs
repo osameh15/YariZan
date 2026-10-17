@@ -90,6 +90,13 @@ internal sealed class FakeServer(SigningFixture signing, IDeviceIdentity identit
     public TaskCompletionSource<string>? PendingPickup;
     public TaskCompletionSource<int>? PendingStatus;
     public TrialStartRequest? LastRequest;
+    // Automatic activation: entitlement list rows for EntitlementSku (null = no row yet), queued failures and delays.
+    public string? EntitlementState;
+    public string EntitlementSku = "YARIZAN-G1";
+    public int EntitlementRequests;
+    public readonly Queue<Exception> EntitlementFailures = new();
+    public readonly Queue<Exception> PickupFailures = new();
+    public TaskCompletionSource<string?>? PendingEntitlements;
     public int Used(string sku = "YARIZAN-G1") { lock (_transaction) return _used.GetValueOrDefault((DeviceId!, sku)); }
     private void Network(CancellationToken cancellation) { cancellation.ThrowIfCancellationRequested(); if (Offline) throw new HttpRequestException("Test network disconnected"); }
     public Task<int> GetTrialStatusAsync(Product product, CancellationToken cancellation)
@@ -121,8 +128,15 @@ internal sealed class FakeServer(SigningFixture signing, IDeviceIdentity identit
     }
     public Task<string> SynchronizeAsync(PaidLicense license, CancellationToken cancellation)
     { Interlocked.Increment(ref SyncRequests); Network(cancellation); return PendingSync?.Task.WaitAsync(cancellation) ?? Task.FromResult(SyncResponse ?? signing.Decision(identity, 1, "ACTIVE")); }
+    public async Task<IReadOnlyList<DesktopEntitlement>> GetEntitlementsAsync(CancellationToken cancellation)
+    {
+        Interlocked.Increment(ref EntitlementRequests); Network(cancellation);
+        if (EntitlementFailures.TryDequeue(out var failure)) throw failure;
+        string? state = PendingEntitlements is { } pending ? await pending.Task.WaitAsync(cancellation) : EntitlementState;
+        return state is null ? [] : [new DesktopEntitlement(EntitlementSku, state)];
+    }
     public Task<string> PickupAsync(Product product, CancellationToken cancellation)
-    { Interlocked.Increment(ref PickupRequests); Network(cancellation); return PendingPickup?.Task.WaitAsync(cancellation) ?? Task.FromResult(PickupResponse ?? signing.License(identity, product.Grade)); }
+    { Interlocked.Increment(ref PickupRequests); Network(cancellation); if (PickupFailures.TryDequeue(out var failure)) throw failure; return PendingPickup?.Task.WaitAsync(cancellation) ?? Task.FromResult(PickupResponse ?? signing.License(identity, product.Grade)); }
 
     public Task<string> RedeemAsync(ActivationCodeRequest request, CancellationToken cancellation)
     {

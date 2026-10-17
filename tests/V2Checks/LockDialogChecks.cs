@@ -181,11 +181,13 @@ internal static partial class Program
         delayedPage.UpdateLayout();
         Check(Math.Abs(delayedBackground.ExtentHeight - delayedExtent) < 0.1, "delayed status result does not relayout background underneath modal");
         ((Button)delayedPage.FindName("CloseModalButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        delayedServer.PendingPickup = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        delayedServer.PendingPickup = new(TaskCreationOptions.RunContinuationsAsynchronously); delayedServer.EntitlementState = "ACTIVE";
         ((Button)delayedPage.FindName("ActivateButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Pump(() => delayedServer.PickupRequests == 1);
         ((Button)delayedPage.FindName("SupportButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         ((Button)delayedPage.FindName("CloseModalButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Check(delayedAccess.State == DesktopAccessState.ActivationPending && !((Button)delayedPage.FindName("ActivateButton")).IsEnabled,
+        Check(!delayedAccess.CanEnter && ((FrameworkElement)delayedPage.FindName("ActivationProgressPanel")).IsVisible
+            && !((Button)delayedPage.FindName("ActivateButton")).IsVisible && delayedServer.PickupRequests == 1,
             "closing support does not cancel an unrelated pending automatic pickup");
         delayedServer.PendingPickup.SetResult(signing.License(identity)); Pump(() => delayedAccess.IsPurchased);
         Check(delayedAccess.CanEnter, "automatic pickup completes after support dialog was dismissed");

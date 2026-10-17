@@ -127,6 +127,12 @@ internal static class ProvisioningTransportChecks
             Check(access.CanEnter&&transport.Requests==requests,"active process trial has no network check");
             transport.Offline=false;
             if(input.TryGetProperty("commerce",out var commerce)&&commerce.GetBoolean()){
+                // Automatic activation against the real API: entitlement lookup, verified payment, signed pickup.
+                Check(await access.CheckPurchasedLicenseAsync()==PaidCheckOutcome.AwaitingPurchase&&!access.IsPurchased,"real entitlement lookup before purchase waits without access");
+                var fast=PaidActivationTiming.Default with{FirstInterval=TimeSpan.FromMilliseconds(200),SteadyInterval=TimeSpan.FromMilliseconds(200),Jitter=TimeSpan.Zero,
+                    NetworkBackoffStart=TimeSpan.FromMilliseconds(200),NetworkBackoffMax=TimeSpan.FromMilliseconds(400)};
+                using var activation=new PaidActivationCoordinator(access,new MemoryActivationIntentStore(),fast);
+                var waiting=activation.StartWaitingAsync();
                 using var order=await Post("orders",new{request_id=Guid.NewGuid().ToString("D"),sku="YARIZAN-G1"});
                 string orderId=order.RootElement.GetProperty("id").GetString()!;
                 using var initiated=await Post("orders/"+orderId+"/payments",new{request_id=Guid.NewGuid().ToString("D")});
@@ -140,6 +146,19 @@ internal static class ProvisioningTransportChecks
                     if(!fulfilled)await Task.Delay(100);
                 }
                 Check(fulfilled,"verified synthetic order fulfills through durable commerce worker");
+                await waiting.WaitAsync(TimeSpan.FromSeconds(60));
+                Check(access.IsPurchased&&activation.Phase==PaidActivationPhase.Activated&&access.State==DesktopAccessState.Purchased,
+                    "waiting desktop picks up the verified synthetic purchase automatically");
+#if WINDOWS
+                ILicenseStore notYetPicked=new FileLicenseStore(Path.Combine(root,"restart-before-pickup"));
+#else
+                ILicenseStore notYetPicked=new MemoryLicenses();
+#endif
+                using var relaunch=new DesktopAccessController(identity,new Product(1),verifier,notYetPicked,client,enrollmentStore);
+                using var recovery=new PaidActivationCoordinator(relaunch);
+                Check(!relaunch.CanEnter&&recovery.CanCheckOnline,"relaunch without a stored license starts locked");
+                await recovery.StartStartupRecoveryAsync();
+                Check(relaunch.IsPurchased&&recovery.Phase==PaidActivationPhase.Activated,"launch after payment but before pickup recovers the signed license automatically");
             }else{
             using var issued=await Post("admin/licenses/issue",new{request_id=Guid.NewGuid().ToString("D"),reason="Synthetic manual ownership verification",expected_revision=1,evidence_ref="synthetic-evidence-001",device_id=enrollment.DeviceId,sku="YARIZAN-G1"},true);
             }
