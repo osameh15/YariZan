@@ -54,6 +54,8 @@ internal static partial class Program
             NetworkChecks();
             HttpContractChecks(signing, identity);
             ActivationChecks(signing, identity);
+            AutoActivationChecks(signing, identity);
+            AutoActivationTransportChecks(signing, identity);
             WindowsKeyChecks(identity);
             CrossLanguage(signing, identity);
             UiChecks(signing, identity, args.FirstOrDefault() ?? Path.Combine(_root, "screenshots"), args.ElementAtOrDefault(1));
@@ -572,7 +574,7 @@ internal static partial class Program
         var store = Store("ui"); var server = new FakeServer(signing, identity);
         using var access = Access(identity, signing, store, server);
         byte[] gameKey = RandomNumberGenerator.GetBytes(32);
-        var window = new MainWindow(access, () => gameKey.ToArray()) { ShowInTaskbar = false, Left = -32000, Top = -32000 };
+        var window = new MainWindow(access, () => gameKey.ToArray(), new PaidActivationCoordinator(access)) { ShowInTaskbar = false, Left = -32000, Top = -32000 };
         window.Show(); window.ShowLock();
         var host = (ContentControl)window.FindName("PageHost");
         Pump(() => access.State == DesktopAccessState.TrialAvailable);
@@ -616,9 +618,11 @@ internal static partial class Program
         Check(!restart.CanEnter, "WPF restart has no retained trial");
         var paidStore = Store("ui-paid"); paidStore.WriteLicense(G1, signing.License(identity));
         using var paid = Access(identity, signing, paidStore, server);
-        var paidWindow = new MainWindow(paid) { ShowInTaskbar = false, Left = -32000, Top = -32000 }; paidWindow.Show(); paidWindow.ShowInfo();
+        var paidWindow = new MainWindow(paid, null, new PaidActivationCoordinator(paid)) { ShowInTaskbar = false, Left = -32000, Top = -32000 }; paidWindow.Show(); paidWindow.ShowInfo();
         Check(((ContentControl)paidWindow.FindName("PageHost")).Content is InfoPage && paid.CanEnter, "WPF purchased entry succeeds offline");
-        paidWindow.Close(); app.Shutdown();
+        paidWindow.Close();
+        AutoActivationUiChecks(signing, identity, screenshots);
+        app.Shutdown();
     }
     private static void Save(UserControl page, string root, string name, int width = 1200, int height = 740)
     {
@@ -651,6 +655,12 @@ internal static partial class Program
             object? body = null;
             string? signedBody = null;
             if (route.EndsWith("/status")) body = new { remaining = await server.GetTrialStatusAsync(G1, cancellation) };
+            else if (route.EndsWith("/desktop/entitlements"))
+            {
+                if (request.Method != HttpMethod.Get || request.Content is not null) throw new Exception("Entitlement lookup must be a body-less GET");
+                try { body = (await server.GetEntitlementsAsync(cancellation)).Select(e => new { sku = e.Sku, state = e.State }).ToArray(); }
+                catch (V2ApiException ex) { return Error(ex); }
+            }
             else
             {
                 using var dto = StrictJson.Parse(await request.Content!.ReadAsStringAsync(cancellation));
@@ -666,7 +676,8 @@ internal static partial class Program
                 else if (route.EndsWith("/pickup"))
                 {
                     StrictJson.Fields(p, "sku");
-                    signedBody = await server.PickupAsync(G1, cancellation);
+                    try { signedBody = await server.PickupAsync(G1, cancellation); }
+                    catch (V2ApiException ex) { return Error(ex); }
                 }
                 else if (route.EndsWith("/activation-codes/redeem"))
                 {
@@ -689,6 +700,12 @@ internal static partial class Program
                 else throw new Exception("Unexpected route");
             }
             return new(HttpStatusCode.OK) { Content = new StringContent(signedBody ?? JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") };
+        }
+        private static HttpResponseMessage Error(V2ApiException ex)
+        {
+            var response = new HttpResponseMessage(ex.Status ?? HttpStatusCode.BadRequest) { Content = new StringContent(JsonSerializer.Serialize(new { error = new { code = ex.Code } })) };
+            if (ex.RetryAfter is { } delay) response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delay);
+            return response;
         }
     }
 }
