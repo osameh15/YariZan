@@ -1,5 +1,6 @@
 // YariZan release manifest: the application → infrastructure handoff record for one release.
 // Deployment uses only the digest references recorded here, never mutable tags.
+import { policy as scanPolicy } from './scan-policy.mjs';
 export const schema = 'yarizan-release-manifest/v1';
 export const registries = ['ghcr.io/osameh15/', 'localhost:5000/'];
 export const eligibility = {
@@ -64,6 +65,17 @@ export function validateManifest(m, { expectedMigrations, allowLocalRegistry = f
     if (image.eligibility !== eligibility[key])
       fail(`${at}.eligibility must be ${eligibility[key]}`);
     const scan = image.scan ?? {};
+    // A published Stage A image must carry passing policy evidence for its exact digest.
+    if (
+      scoped &&
+      (scan.policy !== scanPolicy ||
+        scan.critical !== 0 ||
+        scan.high !== 0 ||
+        scan.artifact_digest !== image.digest)
+    )
+      fail(
+        `${at}.scan must show policy ${scanPolicy} passed for this digest (zero HIGH and CRITICAL)`,
+      );
     if (
       typeof scan.tool !== 'string' ||
       !Number.isInteger(scan.critical) ||

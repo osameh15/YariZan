@@ -143,3 +143,28 @@ jobs:
           name: rollback-rehearsal
           path: image-evidence/
           retention-days: 30
+
+  stage-a-publication-rehearsal:
+    # Same order as release-images.yml, against two disposable local registries: build, scan the
+    # candidate digest, enforce zero HIGH/CRITICAL, reject synthetic HIGH/CRITICAL scans before
+    # publication, copy with preserved digests, prove digest equality, validate the manifest.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Scan policy and manifest negative tests
+        run: node --test tools/release/scan-policy.test.mjs tools/release/manifest.test.mjs
+      - name: Stage A publication rehearsal (scan before publish, preserved digest)
+        run: tools/release/stage-a-publication-rehearsal.sh stage-a-evidence
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stage-a-publication-rehearsal
+          path: stage-a-evidence/
+          retention-days: 30

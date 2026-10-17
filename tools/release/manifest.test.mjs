@@ -21,7 +21,13 @@ const valid = () => ({
       digest: d('1'),
       reference: 'ghcr.io/osameh15/yarizan-web@' + d('1'),
       eligibility: 'stage-a-brochure-candidate',
-      scan: { tool: 'trivy', critical: 0, high: 0 },
+      scan: {
+        tool: 'trivy',
+        policy: 'stage-a-zero-high-critical',
+        artifact_digest: d('1'),
+        critical: 0,
+        high: 0,
+      },
     },
   ],
 });
@@ -125,4 +131,17 @@ test('local rehearsal scope and registry are accepted only when explicitly allow
   const m = rehearsal();
   assert.ok(validateManifest(m, opts).length > 0);
   assert.deepEqual(validateManifest(m, { ...opts, allowLocalRegistry: true }), []);
+});
+test('a Stage A image with HIGH or CRITICAL findings or missing policy evidence is not eligible', () => {
+  for (const change of [
+    (s) => (s.high = 1),
+    (s) => (s.critical = 1),
+    (s) => delete s.policy,
+    (s) => (s.policy = 'ignore-unfixed'),
+    (s) => (s.artifact_digest = d('9')),
+  ]) {
+    const m = valid();
+    change(m.images[0].scan);
+    assert.ok(validateManifest(m, opts).some((e) => e.includes('zero HIGH and CRITICAL')));
+  }
 });

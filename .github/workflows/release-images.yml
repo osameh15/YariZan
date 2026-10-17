@@ -1,6 +1,8 @@
 name: Release images (manual approval, no deployment)
 # Stage A only: publishes the digest-pinned BROCHURE web image to GHCR for ONE already-tested
-# commit and produces the release manifest for the infrastructure session. It never builds or
+# commit and produces the release manifest for the infrastructure session. Order: verify ->
+# build and scan the candidate without registry credentials (zero HIGH/CRITICAL or stop) ->
+# reviewer approval -> push the same archive with preserved digests -> attest -> manifest. It never builds or
 # publishes the full web image or the API image: approving this workflow cannot authorize
 # Stage B. A Stage B publication needs a separate reviewed workflow, its own protected
 # environment (for example yarizan-release-stage-b) and a new manifest scope in
@@ -64,9 +66,95 @@ jobs:
           [[ "$reviewers" -gt 0 ]] || { echo "Environment $RELEASE_ENVIRONMENT with required reviewers is missing"; exit 1; }
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
 
-  publish:
-    name: Publish ${{ matrix.image }} ${{ matrix.profile }} (Stage A)
+  # Build and scan BEFORE any registry credential exists. The candidate is pushed only to a
+  # job-local registry, scanned by digest and exported as an OCI archive. A policy failure ends
+  # the run here: nothing reaches GHCR and no manifest is produced.
+  candidate:
+    name: Build and scan the brochure candidate (no registry credentials)
     needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      IMAGE: yarizan-web
+      PROFILE: brochure
+      LOCAL: localhost:5000/yarizan-web
+    services:
+      registry:
+        image: registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
+        ports: ['5000:5000']
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      tag: ${{ steps.tag.outputs.tag }}
+      archive_sha256: ${{ steps.export.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Refuse anything outside the Stage A scope
+        run: |
+          set -euo pipefail
+          # Stage A scope: the brochure web image only. Do not add the full web or API image;
+          # the manifest validator rejects a stage-a-brochure manifest that contains them.
+          [[ "$RELEASE_SCOPE" == stage-a-brochure && "$IMAGE" == yarizan-web && "$PROFILE" == brochure ]] || {
+            echo "Only the brochure web image may be released in scope $RELEASE_SCOPE"; exit 1; }
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          driver-opts: network=host
+      - id: tag
+        env:
+          COMMIT: ${{ needs.verify.outputs.commit }}
+        run: echo "tag=${PROFILE}-${COMMIT:0:12}" >> "$GITHUB_OUTPUT"
+      - id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            YARIZAN_BUILD_PROFILE=brochure
+            SOURCE_COMMIT=${{ needs.verify.outputs.commit }}
+          tags: ${{ env.LOCAL }}:${{ steps.tag.outputs.tag }}
+      - name: Scan the exact candidate digest and enforce the Stage A policy
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p candidate
+          reference="$LOCAL@$DIGEST"
+          docker run --rm --network host -e TRIVY_INSECURE=true "$TRIVY_IMAGE" image --quiet \
+            --scanners vuln --format json --platform linux/amd64 "$reference" > candidate/trivy.json
+          # Every finding stays in the uploaded evidence; only the gate decision is binary.
+          node tools/release/check-scan.mjs candidate/trivy.json "$reference" candidate/scan-summary.json
+      - id: export
+        name: Export the scanned artifact unchanged
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          skopeo --version
+          skopeo copy --all --preserve-digests --src-tls-verify=false \
+            "docker://$LOCAL@$DIGEST" "oci-archive:candidate/candidate.oci.tar"
+          echo "sha256=$(sha256sum candidate/candidate.oci.tar | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stage-a-candidate
+          path: candidate/
+          retention-days: 7
+
+  # Reached only when the candidate passed the policy. After reviewer approval it pushes the
+  # SAME archive with its digests preserved, then proves GHCR serves exactly that digest.
+  publish:
+    name: Publish the scanned brochure candidate (Stage A)
+    needs: [verify, candidate]
     runs-on: ubuntu-latest
     environment: yarizan-release-stage-a
     permissions:
@@ -74,88 +162,67 @@ jobs:
       packages: write
       id-token: write
       attestations: write
-    strategy:
-      fail-fast: true
-      matrix:
-        # Stage A scope: the brochure web image only. Do not add the full web or API image here;
-        # the manifest validator rejects a stage-a-brochure manifest that contains them.
-        include:
-          - image: yarizan-web
-            profile: brochure
-            context: .
-            file: apps/web/Dockerfile
-            eligibility: stage-a-brochure-candidate
+    env:
+      IMAGE: yarizan-web
+      PROFILE: brochure
+      DIGEST: ${{ needs.candidate.outputs.digest }}
+      TAG: ${{ needs.candidate.outputs.tag }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.verify.outputs.commit }}
           persist-credentials: false
-      - name: Refuse anything outside the Stage A scope before registry login
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: stage-a-candidate
+          path: candidate
+      - name: Re-check the archive and the scan evidence before using credentials
         env:
-          IMAGE: ${{ matrix.image }}
-          PROFILE: ${{ matrix.profile }}
+          ARCHIVE_SHA256: ${{ needs.candidate.outputs.archive_sha256 }}
         run: |
           set -euo pipefail
-          [[ "$IMAGE" == yarizan-web && "$PROFILE" == brochure ]] || {
-            echo "Only the brochure web image may be published in scope $RELEASE_SCOPE"; exit 1; }
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-      - id: tag
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo 'Invalid candidate digest'; exit 1; }
+          echo "$ARCHIVE_SHA256  candidate/candidate.oci.tar" | sha256sum -c -
+          node tools/release/check-scan.mjs candidate/trivy.json "localhost:5000/$IMAGE@$DIGEST" recheck.json
+      - name: Push the scanned artifact by digest
         env:
-          COMMIT: ${{ needs.verify.outputs.commit }}
-          PROFILE: ${{ matrix.profile }}
-        run: echo "tag=${PROFILE:+$PROFILE-}${COMMIT:0:12}" >> "$GITHUB_OUTPUT"
-      - id: build
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.file }}
-          push: true
-          provenance: mode=max
-          sbom: true
-          build-args: |
-            YARIZAN_BUILD_PROFILE=${{ matrix.profile }}
-            SOURCE_COMMIT=${{ needs.verify.outputs.commit }}
-          tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.tag }}
+          GHCR_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | skopeo login ghcr.io -u "$ACTOR" --password-stdin
+          skopeo copy --all --preserve-digests "oci-archive:candidate/candidate.oci.tar" \
+            "docker://$REGISTRY/$IMAGE:$TAG"
+          published="sha256:$(skopeo inspect --raw "docker://$REGISTRY/$IMAGE:$TAG" | sha256sum | cut -d' ' -f1)"
+          [[ "$published" == "$DIGEST" ]] || { echo "Published $published differs from scanned $DIGEST"; exit 1; }
+          skopeo logout ghcr.io
       - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ matrix.image }}
-          subject-digest: ${{ steps.build.outputs.digest }}
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          subject-digest: ${{ env.DIGEST }}
           push-to-registry: true
-      - name: Scan the published digest and record the manifest entry
-        env:
-          REFERENCE: ${{ env.REGISTRY }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
-          DIGEST: ${{ steps.build.outputs.digest }}
-          NAME: ${{ matrix.image }}
-          PROFILE: ${{ matrix.profile }}
-          TAG: ${{ steps.tag.outputs.tag }}
-          ELIGIBILITY: ${{ matrix.eligibility }}
+      - name: Record the manifest entry from the passing scan
         run: |
           set -euo pipefail
           mkdir -p entry
-          docker pull -q "$REFERENCE"
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image --quiet \
-            --scanners vuln --format json "$REFERENCE" > trivy.json
-          critical=$(jq '[.Results[]?.Vulnerabilities[]?|select(.Severity=="CRITICAL")]|length' trivy.json)
-          high=$(jq '[.Results[]?.Vulnerabilities[]?|select(.Severity=="HIGH")]|length' trivy.json)
-          jq -n --arg name "$NAME" --arg profile "$PROFILE" --arg tag "$TAG" --arg digest "$DIGEST" \
-            --arg reference "$REFERENCE" --arg eligibility "$ELIGIBILITY" \
-            --argjson critical "$critical" --argjson high "$high" \
-            '{name:$name,tag:$tag,digest:$digest,reference:$reference,eligibility:$eligibility,
-              scan:{tool:"trivy 0.76.0",critical:$critical,high:$high}}
-             + (if $profile=="" then {} else {profile:$profile} end)' > "entry/${NAME}${PROFILE:+-$PROFILE}.json"
+          jq -n --arg name "$IMAGE" --arg profile "$PROFILE" --arg tag "$TAG" --arg digest "$DIGEST" \
+            --arg reference "$REGISTRY/$IMAGE@$DIGEST" --slurpfile s candidate/scan-summary.json \
+            '{name:$name,profile:$profile,tag:$tag,digest:$digest,reference:$reference,
+              eligibility:"stage-a-brochure-candidate",
+              scan:{tool:"trivy 0.76.0",policy:$s[0].policy,artifact_digest:$digest,
+                critical:$s[0].critical,high:$s[0].high,medium:$s[0].medium,low:$s[0].low}}' \
+            > "entry/$IMAGE-$PROFILE.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: manifest-entry-${{ matrix.image }}-${{ matrix.profile || 'api' }}
+          name: manifest-entry-yarizan-web-brochure
           path: entry/
 
   manifest:
     name: Release manifest for the infrastructure handoff
-    needs: [verify, publish]
+    needs: [verify, candidate, publish]
     runs-on: ubuntu-latest
     permissions:
       contents: read
