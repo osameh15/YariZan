@@ -208,7 +208,7 @@ The owner approved only the Stage A brochure launch. At `f2a5c17`, one approval 
 - `release-images.yml` now publishes only `yarizan-web` with profile `brochure`. The full web and API matrix entries were removed, and a guard step refuses any other image before registry login.
 - The protected environment is renamed to `yarizan-release-stage-a`. It did not exist yet, so no approval is lost. A future Stage B publication must use a separate environment and a separate reviewed workflow change.
 - The release manifest carries `release_scope`. The validator accepts `stage-a-brochure` only when the manifest contains exactly the brochure web image, and it has no published scope for Stage B images. The local rollback rehearsal uses `local-rehearsal`, which is valid only with `--local`.
-- Retained: commit and CI-evidence verification, required-reviewer check, digest-only references, SBOM, `mode=max` provenance, GitHub attestation, Trivy scan of the published digest, manifest validation, and no deployment job.
+- Retained: commit and CI-evidence verification, required-reviewer check, digest-only references, SBOM, `mode=max` provenance, GitHub attestation, manifest validation, and no deployment job. The scan moved before publication (§21.3).
 - Tests: `node --test tools/release/manifest.test.mjs` (7 tests, including Stage A scope and Stage B rejection).
 
 ### 21.2 Brand Kit files added in `f2a5c17`
@@ -227,4 +227,28 @@ The final commit of the first pass also included seven untracked Brand Kit files
 
 Total: about 1.79 MB. None is shipped in a web or API image, and none affects a build.
 
-Recommendation: keep the `02_PNG_Transparent` folder, because it is the documented provenance of an embedded application resource and the set is complete. The `.ico` is unused; keep it only if the owner wants a symbol-only Windows icon variant in the kit. If the owner prefers this PR to stay free of Brand Kit changes, a follow-up commit can remove any of these files from the tree (history still keeps them). No file was changed or removed without that approval.
+Recommendation: keep the `02_PNG_Transparent` folder, because it is the documented provenance of an embedded application resource and the set is complete. The `.ico` is unused; keep it only if the owner wants a symbol-only Windows icon variant in the kit. If the owner prefers this PR to stay free of Brand Kit changes, a follow-up commit can remove any of these files from the tree (history still keeps them). No file was changed or removed without that approval. Owner decision (independent review): the seven files are approved to remain unchanged for now.
+
+### 21.3 Fail-closed release scanning (independent review correction)
+
+**Finding.** At `2ab8375`, `release-images.yml` pushed to GHCR and attested first, then scanned the published digest. The scan only counted HIGH/CRITICAL findings and did not stop anything, so an image that failed the vulnerability policy could still become a published Stage A release.
+
+**New publication sequence** (commit `a65660d`):
+
+| # | Job | Credentials | What happens | Failure effect |
+| --- | --- | --- | --- | --- |
+| 1 | `verify` | read-only token | Full SHA, commit on `main` or same-repo PR, four green workflows, `yarizan-release-stage-a` has reviewers | Run stops |
+| 2 | `candidate` | `contents: read` only | Builds the brochure image with SBOM and `mode=max` provenance, pushes it **only** to a registry service inside the job, scans that digest with Trivy 0.76.0, applies `check-scan.mjs` (zero HIGH and CRITICAL, fixed or unfixed; report must name the candidate digest), exports the scanned artifact with `skopeo copy --all --preserve-digests` to an OCI archive, uploads archive, Trivy JSON and summary | Run stops before approval; nothing reaches GHCR; no manifest |
+| 3 | `publish` | `packages: write`, `id-token: write`, `attestations: write`, environment `yarizan-release-stage-a` | After reviewer approval: re-checks the archive SHA-256 and the scan summary, pushes the **same** archive to `ghcr.io/osameh15/yarizan-web` with preserved digests, reads the manifest back and fails unless the digest equals the scanned digest, then attests and writes the manifest entry with policy, scanned digest and counts | Run stops; no attestation, no manifest |
+| 4 | `manifest` | `contents: read` | Builds and validates `release-manifest.json` (`release_scope: stage-a-brochure`) | Validator rejects a Stage A image without passing policy evidence for its exact digest |
+
+- Policy: `stage-a-zero-high-critical` (`tools/release/scan-policy.mjs`). No exception list; an exception needs a separately reviewed policy change. An empty, malformed or other-artifact report fails closed.
+- Visibility: the full Trivy JSON is always uploaded, so MEDIUM/LOW findings stay visible (current brochure candidate: 0 critical, 0 high, 1 medium). The build-only `npm audit` advisories remain reported in web CI and are not silenced.
+- Scope: unchanged. Only `yarizan-web` profile `brochure` can be built, scanned or published; full web and API images have no path through this workflow, and the validator has no published Stage B scope.
+
+**Negative and end-to-end evidence:**
+
+- `node --test tools/release/scan-policy.test.mjs tools/release/manifest.test.mjs`: 13/13. Includes synthetic HIGH and CRITICAL findings, unfixed HIGH, a scan of another digest, empty and malformed reports, CLI exit codes, and manifests with HIGH/CRITICAL, missing policy or mismatched scanned digest.
+- New CI job `stage-a-publication-rehearsal` (`tools/release/stage-a-publication-rehearsal.sh`) runs the same sequence with two disposable registries on every PR. Run [39069924767](https://github.com/osameh15/YariZan/actions/runs/39069924767): candidate `sha256:808d52b8…f9839` scanned (critical=0 high=0 medium=1), synthetic HIGH and CRITICAL scans rejected while the publication registry stayed empty, published digest equal to the scanned digest, local Stage A manifest valid.
+- `actionlint 1.7.7` (with shellcheck): no findings for `release-images.yml` and `images.yml`.
+- The real `release-images.yml` was not run: it needs the owner-created environment and would publish. A local run of the rehearsal on this Windows workstation was stopped by Claude Code for low system memory after the image build; the Linux CI run above is the evidence.
