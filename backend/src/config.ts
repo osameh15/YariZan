@@ -2,6 +2,48 @@ import { z } from "zod";
 
 export class ConfigurationError extends Error {}
 
+// Every condition that must be independently reviewed before the API may start with
+// NODE_ENV=production. Each gate is closed in source. There is deliberately no environment
+// variable that opens a gate: opening one requires a reviewed code change with its own tests.
+export const productionGates = [
+  {
+    id: "G1_FIRST_CLAIM_ASSURANCE",
+    reason: "Physical ownership/first-claim assurance and dispute policy",
+    open: false,
+  },
+  {
+    id: "G1_SIGNING_CUSTODY",
+    reason:
+      "External commercial signing custody; development keys live in /app/.local",
+    open: false,
+  },
+  {
+    id: "G4_DESKTOP_CREDENTIALS",
+    reason:
+      "Production desktop roots and credential integration on physical Windows",
+    open: false,
+  },
+  {
+    id: "G6_ADMIN_SMS_MFA",
+    reason:
+      "Admin MFA needs live SMS with reviewed egress; no fallback login exists",
+    open: false,
+  },
+  {
+    id: "G5_TRUSTED_RATE_LIMITS",
+    reason: "IP-keyed limits collapse behind the CDN/Traefik proxy chain",
+    open: false,
+  },
+  {
+    id: "G8_SECRET_CUSTODY",
+    reason: "Durable key custody and recovery for HMAC/encryption keys",
+    open: false,
+  },
+] as const;
+export function closedProductionGates() {
+  return productionGates.filter((gate) => !gate.open);
+}
+
 export function configuration(env: NodeJS.ProcessEnv = process.env) {
   if (env.NODE_ENV === undefined || env.NODE_ENV === "")
     throw new ConfigurationError(
@@ -62,11 +104,13 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
     throw new ConfigurationError(
       "CONFIGURATION_INVALID: required environment keys missing or malformed",
     );
-  if (parsed.data.NODE_ENV === "production") {
+  if (parsed.data.NODE_ENV === "production")
     throw new ConfigurationError(
-      "PRODUCTION_GATE_CLOSED: reviewed first-claim assurance, external signing custody and desktop credential integration required",
+      "PRODUCTION_GATE_CLOSED: " +
+        closedProductionGates()
+          .map((gate) => gate.id)
+          .join(","),
     );
-  }
   if (parsed.data.COMMERCE_MODE === "zarinpal")
     throw new ConfigurationError("ZARINPAL_LIVE_GATE_CLOSED");
   if (parsed.data.SMS_PROVIDER !== "disabled") {
@@ -112,3 +156,40 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
   return parsed.data;
 }
 export type Configuration = ReturnType<typeof configuration>;
+
+// One-off migration and production bootstrap use their own, smaller configuration: no HMAC or
+// encryption keys, and in production a dedicated migration login (never the runtime login).
+export function migrationConfiguration(env: NodeJS.ProcessEnv = process.env) {
+  if (!["development", "test", "production"].includes(env.NODE_ENV ?? ""))
+    throw new ConfigurationError(
+      env.NODE_ENV ? "NODE_ENV_INVALID" : "NODE_ENV_REQUIRED",
+    );
+  const production = env.NODE_ENV === "production";
+  const value = production
+    ? env.MIGRATION_DATABASE_URL
+    : (env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL);
+  if (!value)
+    throw new ConfigurationError(
+      production
+        ? "MIGRATION_DATABASE_URL_REQUIRED: production migrations use the migration login"
+        : "DATABASE_URL_REQUIRED",
+    );
+  if (production && env.DATABASE_URL && env.DATABASE_URL === value)
+    throw new ConfigurationError(
+      "INDEPENDENT_DATABASE_CREDENTIALS_REQUIRED: migration and runtime logins must differ",
+    );
+  let db: URL;
+  try {
+    db = new URL(value);
+  } catch {
+    throw new ConfigurationError("CONFIGURATION_INVALID");
+  }
+  if (db.protocol !== "postgresql:" && db.protocol !== "postgres:")
+    throw new ConfigurationError("POSTGRESQL_REQUIRED");
+  if (!["localhost", "127.0.0.1", "db"].includes(db.hostname))
+    throw new ConfigurationError("DISPOSABLE_LOCAL_DATABASE_REQUIRED");
+  return {
+    NODE_ENV: env.NODE_ENV as "development" | "test" | "production",
+    url: value,
+  };
+}

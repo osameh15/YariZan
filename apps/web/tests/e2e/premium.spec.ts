@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
-const images = path.resolve('../../docs/Images/phase4-premium');
+const images = path.resolve('.local/screenshots/phase4-premium');
 
 test('Premium public layouts: RTL, five widths, keyboard navigation and accessible states', async ({
   page,

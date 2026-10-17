@@ -23,12 +23,16 @@ export function safeReturn(value: unknown, fallback = '/account') {
     ? value
     : fallback;
 }
-export function availability(p: Product) {
+export function availability(
+  p: Pick<Product, 'publication_status' | 'sale_enabled'> & { price_irr: number | null },
+) {
   return p.publication_status === 'coming_soon'
     ? 'به‌زودی'
     : p.sale_enabled
       ? 'عرضه‌شده'
-      : 'فروش غیرفعال';
+      : p.price_irr === null
+        ? 'معرفی محصول'
+        : 'فروش غیرفعال';
 }
 export function errorMessage(error: unknown) {
   const code = (error as { data?: { error?: { code?: string } } })?.data?.error?.code;

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { PoolClient } from "pg";
 import { Database } from "./database";
 import { ConfigurationError } from "../config";
 
@@ -28,6 +29,37 @@ export const permissions = [
   "support.password_reset",
   "enrollments.recover",
 ];
+export const adminRoles = ["owner", "support", "auditor", "catalog"];
+export const rolePermissions: [string, string][] = [
+  ["support", "support.password_reset"],
+  ["support", "customers.read"],
+  ["support", "devices.read"],
+  ["support", "licenses.read"],
+  ["support", "trials.read"],
+  ["auditor", "audit.read"],
+  ["catalog", "products.manage"],
+];
+export async function seedAdminRoles(c: PoolClient) {
+  for (const role of adminRoles)
+    await c.query("INSERT INTO admin_roles VALUES($1) ON CONFLICT DO NOTHING", [
+      role,
+    ]);
+  for (const p of permissions) {
+    await c.query(
+      "INSERT INTO admin_permissions VALUES($1) ON CONFLICT DO NOTHING",
+      [p],
+    );
+    await c.query(
+      "INSERT INTO admin_role_permissions VALUES('owner',$1) ON CONFLICT DO NOTHING",
+      [p],
+    );
+  }
+  for (const [role, p] of rolePermissions)
+    await c.query(
+      "INSERT INTO admin_role_permissions VALUES($1,$2) ON CONFLICT DO NOTHING",
+      [role, p],
+    );
+}
 export async function seed(db: Database) {
   await db.transaction(async (c) => {
     const names = ["اول", "دوم", "سوم", "چهارم", "پنجم", "ششم"];
@@ -50,40 +82,19 @@ export async function seed(db: Database) {
         [randomUUID(), sku],
       );
     }
-    for (const role of ["owner", "support", "auditor", "catalog"])
-      await c.query(
-        "INSERT INTO admin_roles VALUES($1) ON CONFLICT DO NOTHING",
-        [role],
-      );
-    for (const p of permissions) {
-      await c.query(
-        "INSERT INTO admin_permissions VALUES($1) ON CONFLICT DO NOTHING",
-        [p],
-      );
-      await c.query(
-        "INSERT INTO admin_role_permissions VALUES('owner',$1) ON CONFLICT DO NOTHING",
-        [p],
-      );
-    }
-    for (const [role, p] of [
-      ["support", "support.password_reset"],
-      ["support", "customers.read"],
-      ["support", "devices.read"],
-      ["support", "licenses.read"],
-      ["support", "trials.read"],
-      ["auditor", "audit.read"],
-      ["catalog", "products.manage"],
-    ])
-      await c.query(
-        "INSERT INTO admin_role_permissions VALUES($1,$2) ON CONFLICT DO NOTHING",
-        [role, p],
-      );
+    await seedAdminRoles(c);
   });
 }
 if (require.main === module) {
   void (async () => {
     let db: Database | undefined;
     try {
+      // Development/test data only (synthetic prices, sale enabled for G1). Production uses
+      // the separately reviewed bootstrap in production-bootstrap.ts.
+      if (process.env.NODE_ENV === "production")
+        throw new ConfigurationError(
+          "DEVELOPMENT_SEED_REFUSED: use dist/src/database/production-bootstrap.js",
+        );
       db = new Database();
       await seed(db);
       console.log("Six products seeded");

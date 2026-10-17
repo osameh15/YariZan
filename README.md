@@ -38,18 +38,23 @@ Fresh captures of the current WPF views using the local G1 catalog. Activation/t
   </tr>
 </table>
 
-<details>
-<summary>More activation and trial states</summary>
-
-| State | Screenshot |
-|---|---|
-| Trial information | [View](docs/Images/info-page-trial.png) |
-| One trial entry remaining | [View](docs/Images/lock-page-trial-one-remain.png) |
-| Trial exhausted | [View](docs/Images/trial-end.png) |
-| Copy support message | [View](docs/Images/lock-page-copy-message.png) |
-| Invalid serial | [View](docs/Images/lock-page-invalid-serial.png) |
-
-</details>
+<table>
+  <tr><th>Web storefront</th><th>Catalog</th></tr>
+  <tr>
+    <td><a href="docs/Images/web/home.png"><img src="docs/Images/web/home.png" width="440" alt="Persian RTL YariZan storefront home page" /></a></td>
+    <td><a href="docs/Images/web/catalog.png"><img src="docs/Images/web/catalog.png" width="440" alt="Grade catalog with purchase options" /></a></td>
+  </tr>
+  <tr><th>Checkout</th><th>Customer dashboard</th></tr>
+  <tr>
+    <td><a href="docs/Images/web/checkout.png"><img src="docs/Images/web/checkout.png" width="440" alt="Checkout summary with server-side quote" /></a></td>
+    <td><a href="docs/Images/web/customer-dashboard.png"><img src="docs/Images/web/customer-dashboard.png" width="440" alt="Customer dashboard with devices and licenses" /></a></td>
+  </tr>
+  <tr><th>Admin dashboard</th><th></th></tr>
+  <tr>
+    <td><a href="docs/Images/web/admin-dashboard.png"><img src="docs/Images/web/admin-dashboard.png" width="440" alt="Admin dashboard overview" /></a></td>
+    <td></td>
+  </tr>
+</table>
 
 Regenerate the images with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/Capture-AppScreenshots.ps1` after packing the local catalog. See [screenshot notes](docs/Images/README.md).
 
@@ -165,13 +170,17 @@ Website: [osameh.dev](https://osameh.dev) · Support: [support@osameh.dev](mailt
 
 ## V2 Phase 3 web and provisioning review
 
-The isolated [Nuxt 4 storefront and portals](apps/web/README.md) use the real NestJS/PostgreSQL contracts. Browser pairing returns only an approval receipt; a fresh Windows CNG proof picks up enrollment and the short-lived credential. See [ADR-0006](docs/adr/0006-web-and-desktop-provisioning.md), [Phase 3 engineering report](docs/YARIZAN-PHASE-3-REPORT.md), and [implemented screenshots](docs/Images/phase3/). Commercial startup remains closed. Payments and deployment are not implemented or authorized; SMS authentication is implemented for review with a fake local provider and a gated vendor adapter. Existing legacy services remain separate.
+The isolated [Nuxt 4 storefront and portals](apps/web/README.md) use the real NestJS/PostgreSQL contracts. Browser pairing returns only an approval receipt; a fresh Windows CNG proof picks up enrollment and the short-lived credential. See [ADR-0006](docs/adr/0006-web-and-desktop-provisioning.md), [Phase 3 engineering report](docs/YARIZAN-PHASE-3-REPORT.md), and [web screenshots](docs/Images/web/). Commercial startup remains closed. Payments and deployment are not implemented or authorized; SMS authentication is implemented for review with a fake local provider and a gated vendor adapter. Existing legacy services remain separate.
 
 ## Phase 3.1 authentication, UX, SMS and notes
 
 The same Draft PR includes mobile OTP first claim/login/reset, optional passwords and mobile management, SMS Admin MFA, shared Persian validation, and revisioned searchable internal notes. [Auth/SMS contracts](docs/YARIZAN-AUTH-AND-SMS-CONTRACTS.md) and the [Phase 3.1 report](docs/YARIZAN-PHASE-3-1-REPORT.md) distinguish tested local behavior from missing live provider credentials/template and commercial ownership/signing gates. Desktop credential pickup remains desktop-only; paid/trial offline guarantees are unchanged.
 
 
+## V2 production readiness (Draft PR #5)
+
+The owner approved a staged launch. **Stage A** is a brochure-only public website: a separately built web image (`YARIZAN_BUILD_PROFILE=brochure`, `YARIZAN_SITE_MODE=brochure`) that needs no API, database or secret and refuses every account, commerce, Admin and API route. **Stage B**, the full application, stays blocked by the closed production gates. See the [readiness report](docs/YARIZAN-PRODUCTION-READINESS-REPORT.md), [infrastructure handoff](docs/YARIZAN-INFRASTRUCTURE-HANDOFF-V2.md) and [release and rollback](docs/YARIZAN-RELEASE-AND-ROLLBACK.md). Nothing has been published or deployed.
+
 ## V2 Phase 4 synthetic commerce review
 
-[Phase 4 report](docs/YARIZAN-PHASE-4-REPORT.md), [commerce contracts](docs/YARIZAN-COMMERCE-CONTRACTS.md) and [17 application screenshots](docs/Images/phase4/) cover authoritative orders/coupons, a labeled payment simulator, durable reconciliation, exactly-once perpetual license fulfillment and customer/Admin finance pages. Existing PostgreSQL commerce tables are extended by migration 009. Enable COMMERCE_MODE=fake only for isolated development; disabled remains the default. Real ZarinPal selection and production startup refuse to run. No live charge, refund, SMS or deployment is authorized; commercial [release gates](docs/YARIZAN-COMMERCIAL-RELEASE-CHECKLIST.md) remain closed.
+[Phase 4 report](docs/YARIZAN-PHASE-4-REPORT.md), [commerce contracts](docs/YARIZAN-COMMERCE-CONTRACTS.md) and [web screenshots](docs/Images/web/) cover authoritative orders/coupons, a labeled payment simulator, durable reconciliation, exactly-once perpetual license fulfillment and customer/Admin finance pages. Existing PostgreSQL commerce tables are extended by migration 009. Enable COMMERCE_MODE=fake only for isolated development; disabled remains the default. Real ZarinPal selection and production startup refuse to run. No live charge, refund, SMS or deployment is authorized; commercial [release gates](docs/YARIZAN-COMMERCIAL-RELEASE-CHECKLIST.md) remain closed.

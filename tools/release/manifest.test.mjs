@@ -1,0 +1,147 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { validateManifest } from './manifest.mjs';
+
+const sha = 'a'.repeat(40);
+const d = (c) => 'sha256:' + c.repeat(64);
+const valid = () => ({
+  schema: 'yarizan-release-manifest/v1',
+  release_scope: 'stage-a-brochure',
+  source_commit: sha,
+  ci_run_url: 'https://github.com/osameh15/YariZan/actions/runs/123',
+  built_at: '2026-10-16T12:00:00Z',
+  migrations: 9,
+  environment_changes: ['YARIZAN_SITE_MODE (web, required)'],
+  route_changes: [],
+  images: [
+    {
+      name: 'yarizan-web',
+      profile: 'brochure',
+      tag: 'brochure-' + sha.slice(0, 12),
+      digest: d('1'),
+      reference: 'ghcr.io/osameh15/yarizan-web@' + d('1'),
+      eligibility: 'stage-a-brochure-candidate',
+      scan: {
+        tool: 'trivy',
+        policy: 'stage-a-zero-high-critical',
+        artifact_digest: d('1'),
+        critical: 0,
+        high: 0,
+      },
+    },
+  ],
+});
+const api = () => ({
+  name: 'yarizan-api',
+  tag: sha.slice(0, 12),
+  digest: d('2'),
+  reference: 'ghcr.io/osameh15/yarizan-api@' + d('2'),
+  eligibility: 'blocked-stage-b',
+  scan: { tool: 'trivy', critical: 0, high: 0 },
+});
+const fullWeb = () => ({
+  name: 'yarizan-web',
+  profile: 'full',
+  tag: 'full-' + sha.slice(0, 12),
+  digest: d('4'),
+  reference: 'ghcr.io/osameh15/yarizan-web@' + d('4'),
+  eligibility: 'blocked-stage-b',
+  scan: { tool: 'trivy', critical: 0, high: 0 },
+});
+const rehearsal = () => {
+  const m = valid();
+  m.release_scope = 'local-rehearsal';
+  m.ci_run_url = 'local-rehearsal';
+  m.images.push(api());
+  for (const image of m.images)
+    image.reference = image.reference.replace('ghcr.io/osameh15/', 'localhost:5000/');
+  return m;
+};
+const opts = { expectedMigrations: 9 };
+
+test('accepts a complete digest-pinned manifest', () => {
+  assert.deepEqual(validateManifest(valid(), opts), []);
+});
+test('rejects mutable tags, malformed or mismatched digests', () => {
+  for (const reference of [
+    'ghcr.io/osameh15/yarizan-web:latest',
+    'ghcr.io/osameh15/yarizan-web:brochure-aaaaaaaaaaaa',
+    'ghcr.io/osameh15/yarizan-web@' + d('3'),
+    'docker.io/osameh15/yarizan-web@' + d('1'),
+    'localhost:5000/yarizan-web@' + d('1'),
+  ]) {
+    const m = valid();
+    m.images[0].reference = reference;
+    assert.ok(
+      validateManifest(m, opts).some((e) => e.includes('reference')),
+      reference,
+    );
+  }
+  const m = valid();
+  m.images[0].digest = 'sha256:1234';
+  assert.ok(validateManifest(m, opts).some((e) => e.includes('digest')));
+});
+test('rejects wrong migration count, short commit and missing evidence', () => {
+  const m = valid();
+  m.migrations = 8;
+  m.source_commit = 'abc1234';
+  m.ci_run_url = 'https://example.com/run';
+  delete m.images[0].scan;
+  const errors = validateManifest(m, opts);
+  for (const field of ['migrations', 'source_commit', 'ci_run_url', 'scan'])
+    assert.ok(
+      errors.some((e) => e.includes(field)),
+      field,
+    );
+});
+test('never classifies full application images as deployable', () => {
+  const m = rehearsal();
+  m.images[1].eligibility = 'stage-a-brochure-candidate';
+  const local = { ...opts, allowLocalRegistry: true };
+  assert.ok(validateManifest(m, local).some((e) => e.includes('blocked-stage-b')));
+  const w = valid();
+  w.images[0].profile = 'full';
+  assert.ok(validateManifest(w, opts).some((e) => e.includes('eligibility')));
+});
+test('a Stage A release carries only the brochure web image', () => {
+  for (const extra of [api(), fullWeb()]) {
+    const m = valid();
+    m.images.push(extra);
+    assert.ok(
+      validateManifest(m, opts).some((e) => e.includes('stage-a-brochure must contain exactly')),
+      extra.name + (extra.profile ?? ''),
+    );
+  }
+  const m = valid();
+  m.images = [api()];
+  assert.ok(validateManifest(m, opts).some((e) => e.includes('must contain exactly')));
+});
+test('no published scope exists for Stage B images', () => {
+  for (const scope of [undefined, 'stage-b', 'stage-b-full', 'local-rehearsal', 'all']) {
+    const m = valid();
+    m.release_scope = scope;
+    m.images.push(api(), fullWeb());
+    assert.ok(
+      validateManifest(m, opts).some((e) => e.includes('release_scope')),
+      String(scope),
+    );
+  }
+});
+test('local rehearsal scope and registry are accepted only when explicitly allowed', () => {
+  const m = rehearsal();
+  assert.ok(validateManifest(m, opts).length > 0);
+  assert.deepEqual(validateManifest(m, { ...opts, allowLocalRegistry: true }), []);
+});
+test('a Stage A image with HIGH or CRITICAL findings or missing policy evidence is not eligible', () => {
+  for (const change of [
+    (s) => (s.high = 1),
+    (s) => (s.critical = 1),
+    (s) => delete s.policy,
+    (s) => (s.policy = 'ignore-unfixed'),
+    (s) => (s.artifact_digest = d('9')),
+  ]) {
+    const m = valid();
+    change(m.images[0].scan);
+    assert.ok(validateManifest(m, opts).some((e) => e.includes('zero HIGH and CRITICAL')));
+  }
+});

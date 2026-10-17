@@ -60,6 +60,7 @@ backend/*.pem
 apps/web/node_modules/
 apps/web/.nuxt/
 apps/web/.output/
+apps/web/.output-brochure/
 apps/web/coverage/
 apps/web/test-results/
 apps/web/playwright-report/

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { data: products, status, error, refresh } = await useCatalog();
+const { brochure } = useSiteMode();
 useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
 </script>
 <template>
@@ -13,7 +14,11 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
       <div class="actions">
         <NuxtLink class="button primary" to="/products"
           >کشف دنیای پایه‌ها <span aria-hidden="true">←</span></NuxtLink
-        ><NuxtLink class="text-link" to="/connect">برنامه را دارم؛ متصل می‌شوم ↗</NuxtLink>
+        ><NuxtLink v-if="!brochure" class="text-link" to="/connect"
+          >برنامه را دارم؛ متصل می‌شوم ↗</NuxtLink
+        ><NuxtLink v-else class="text-link" to="/support"
+          >پرسشی دارید؟ با ما تماس بگیرید ↗</NuxtLink
+        >
       </div>
       <div class="hero-footnote">
         <span class="seal" aria-hidden="true">✦</span>
@@ -90,6 +95,10 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
       <div>
         <p class="eyebrow">خیال راحتِ خانواده، لذتِ کشفِ کودک</p>
         <h2>برای تجربه کردن،<br />عجله‌ای نیست.</h2>
+        <p v-if="brochure" class="notice">
+          این بخش، سیاست آزمایش و مجوز را پس از آغاز عرضه توضیح می‌دهد. شروع آزمایش و فعال‌سازی هنوز
+          در دسترس نیست.
+        </p>
         <p>
           هر دستگاه برای هر پایه دو فرصت آزمایشی دارد. اینترنت فقط برای شروع هر نوبت لازم است؛ تا
           وقتی برنامه باز است، بازی بدون محدودیت زمانی ادامه دارد.

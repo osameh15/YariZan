@@ -38,7 +38,7 @@ Do not hide overflow to mask a broken layout. No fixed bottom overlay may cover 
 
 ## Visual evidence
 
-Before: `docs/Images/phase4/`. After: `docs/Images/phase4-premium/`. Compare checkout summary, finance overview, orders and long coupon dialogs at matching viewport widths. The Phase 4 report records executed tests, evidence and limitations.
+Before/after evidence was committed under `docs/Images/phase4/` and `docs/Images/phase4-premium/` up to main@30ffa05; current runs write to `apps/web/.local/screenshots/` (CI artifact). Compare checkout summary, finance overview, orders and long coupon dialogs at matching viewport widths. The Phase 4 report records executed tests, evidence and limitations.
 
 
 ## Persian form controls

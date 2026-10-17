@@ -96,16 +96,16 @@ Screenshots come from the running Nuxt production output with actual isolated Po
 
 | Screen | Evidence |
 |---|---|
-| Homepage | [01](Images/phase3/01-homepage.png) |
-| Catalog | [02](Images/phase3/02-catalog.png) |
-| Grade 1 | [03](Images/phase3/03-grade-one.png) |
-| Connect | [04](Images/phase3/04-connect.png) |
-| Customer dashboard | [05](Images/phase3/05-customer-dashboard.png) |
-| Admin dashboard | [06](Images/phase3/06-admin-dashboard.png) |
-| Product management | [07](Images/phase3/07-admin-products.png) |
-| Device management | [08](Images/phase3/08-admin-devices.png) |
-| Mobile navigation/dialog | [09](Images/phase3/09-mobile-navigation.png), [10](Images/phase3/10-mobile-dialog.png) |
-| License management | [11](Images/phase3/11-admin-licenses.png) |
+| Homepage | [01](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase3/01-homepage.png) |
+| Catalog | [02](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase3/02-catalog.png) |
+| Grade 1 | [03](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase3/03-grade-one.png) |
+| Connect | [04](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase3/04-connect.png) |
+| Customer dashboard | [05](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase3/05-customer-dashboard.png) |
+| Admin dashboard | [06](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase3/06-admin-dashboard.png) |
+| Product management | [07](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase3/07-admin-products.png) |
+| Device management | [08](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase3/08-admin-devices.png) |
+| Mobile navigation/dialog | [09](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase3/09-mobile-navigation.png), [10](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase3/10-mobile-dialog.png) |
+| License management | [11](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase3/11-admin-licenses.png) |
 
 Ignored local logs are under backend/.local and apps/web/.local; reproducible CI logs/artifacts provide durable evidence. Tests touch only loopback named disposable databases. No real account/purchase data was used.
 

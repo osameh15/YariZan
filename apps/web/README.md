@@ -45,7 +45,7 @@ $env:PLAYWRIGHT_CHANNEL='msedge'
 npm --prefix apps/web run test:e2e
 ```
 
-Browser tests create/reset only `yarizan_phase3_web_test` on loopback; backend tests use `yarizan_phase2_test`. Never supply a live database. Tests start real NestJS and the Nuxt production output, create synthetic users/MFA by test-only fixtures, and execute actual API operations. The combined browser/C# test uses actual CNG/DPAPI on Windows and a labeled software adapter on Linux. It never adds loopback support to the commercial transport. Browser traces are disabled to avoid recording secrets. Screenshots in docs/Images/phase3 contain synthetic data and no one-time secrets.
+Browser tests create/reset only `yarizan_phase3_web_test` on loopback; backend tests use `yarizan_phase2_test`. Never supply a live database. Tests start real NestJS and the Nuxt production output, create synthetic users/MFA by test-only fixtures, and execute actual API operations. The combined browser/C# test uses actual CNG/DPAPI on Windows and a labeled software adapter on Linux. It never adds loopback support to the commercial transport. Browser traces are disabled to avoid recording secrets. Screenshots written to `.local/screenshots/` contain synthetic data and no one-time secrets.
 
 CI runs the same commands with an isolated PostgreSQL 17 service, .NET 9, Chromium and Docker. The workflow contains no deployment. Runtime audit is clean; the complete build tree has two **unpatched high advisories**, explicitly reported by audit:dependencies. See docs/YARIZAN-PHASE-3-DEPENDENCY-FINDINGS.md. A passing policy gate does not mean a clean full dependency audit.
 
@@ -80,4 +80,15 @@ Commerce navigation maps only to the ten implemented OpenAPI sections. Financial
 
 ## Presentation system
 
-The premium shared layer is `app/assets/css/premium.css`, loaded after established layout/validation rules. See [the design-system reference](../../docs/YARIZAN-WEB-DESIGN-SYSTEM.md) for semantic tokens, component states, mobile rules and accessibility acceptance. Checkout/order/finance totals still come exclusively from the backend; presentation does not open commercial gates. Fresh API-backed browser evidence lives in `docs/Images/phase4-premium/` and is uploaded by web CI. `tests/e2e/premium.spec.ts` covers public layouts; commerce tests cover checkout/Admin widths, enlarged presentation, dialog reachability and financial report error recovery. Pixel-perfect snapshot comparison and full manual WCAG certification are not claimed.
+The premium shared layer is `app/assets/css/premium.css`, loaded after established layout/validation rules. See [the design-system reference](../../docs/YARIZAN-WEB-DESIGN-SYSTEM.md) for semantic tokens, component states, mobile rules and accessibility acceptance. Checkout/order/finance totals still come exclusively from the backend; presentation does not open commercial gates. Fresh API-backed browser evidence is written to the ignored `apps/web/.local/screenshots/` and uploaded by web CI; a curated set lives in `docs/Images/web/`. `tests/e2e/premium.spec.ts` covers public layouts; commerce tests cover checkout/Admin widths, enlarged presentation, dialog reachability and financial report error recovery. Pixel-perfect snapshot comparison and full manual WCAG certification are not claimed.
+
+
+## Site modes: brochure (Stage A) and full
+
+The web server requires `YARIZAN_SITE_MODE` (`brochure` or `full`) and refuses to start when it is missing, unknown or different from the image build profile (`YARIZAN_BUILD_PROFILE`, default `full`).
+
+- `npm run build:brochure` builds into `.output-brochure/` without any account, checkout, payment, Admin or `/api` proxy route. Public pages (`/`, `/products`, `/products/grade-1`…`6`, `/support`) render a reviewed static catalog (`shared/catalog-snapshot.ts`); no API request is made. A server middleware (`server/middleware/site-mode.ts`) enforces an exact allowlist before any page logic: disabled pages return a Persian `503`, every `/api/*` path returns `503` JSON with `Retry-After`, non-canonical or encoded paths return `404`, other methods return `405`; all with `Cache-Control: no-store`.
+- `npm run test:brochure` runs the Stage A acceptance suite (`tests/brochure/`) against the brochure build with no Backend, database or secrets; a tripwire on the API port proves that no request reaches it. Screenshots are written to `.local/screenshots/brochure/`.
+- The full build behaves as before with `YARIZAN_SITE_MODE=full`; `npm run test:e2e` covers it.
+
+Docker: `docker build -f apps/web/Dockerfile --build-arg YARIZAN_BUILD_PROFILE=brochure .` (the build argument is required). The image runs as uid/gid 1000 with a read-only root filesystem and needs only `/tmp`. Container acceptance: `node tools/release/check-web-image.mjs <image> brochure` from the repository root. For local `nuxt dev`, set `YARIZAN_SITE_MODE=full` in the ignored `.env`.

@@ -223,7 +223,7 @@ Trial evidence: status consumes zero; lost HTTP response consumes one but does n
 
 Not executed: physical all-network disconnection for 60+ minutes, real backend activation/trials, real PostgreSQL contention/retention, Windows reboot/reinstall, second Windows account, TPM removal/loss, six built installers/clean installation, authentic production game assets and real server key rotation. The workstation was not rebooted, reconfigured or disconnected; no production data/keys/games were used for tests. No installer/commercial-release claim is made. Remote GitHub CI results, if available, are separate from local results.
 
-Screenshot: [V2 Lock with test identity](Images/phase1-lock-v2.png). Other local regression renders are under ignored `publish/`; no real game artwork was required.
+Screenshot: [V2 Lock with test identity](https://github.com/osameh15/YariZan/blob/30ffa0580f6f743ee4d5241585b584d1dad6ef1a/docs/Images/phase1-lock-v2.png). Other local regression renders are under ignored `publish/`; no real game artwork was required.
 
 ## E. Requirement matrix
 

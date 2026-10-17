@@ -15,7 +15,13 @@ services:
       retries: 30
     mem_limit: 256m
   api:
-    build: .
+    # Development target only: adds a writable /app/.local. Local Compose runs migrations and
+    # the development seed before the API; the production image starts the API alone.
+    build: { context: ., target: development }
+    command:
+      - sh
+      - -c
+      - node dist/src/database/migrate.js && node dist/src/database/seed.js && node dist/src/main.js
     profiles: ["api", "web"]
     environment:
       NODE_ENV: development
@@ -50,7 +56,9 @@ services:
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
+      args: { YARIZAN_BUILD_PROFILE: full }
     environment:
+      YARIZAN_SITE_MODE: full
       HOST: 0.0.0.0
       PORT: 3200
       NUXT_API_BASE: http://api:3100/api/v2/

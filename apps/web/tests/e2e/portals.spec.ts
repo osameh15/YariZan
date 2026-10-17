@@ -15,7 +15,7 @@ import {
   smsCode,
   nextMobile,
 } from '../../tools/test-fixtures.mjs';
-const images = path.resolve('../../docs/Images/phase3-1');
+const images = path.resolve('.local/screenshots/phase3-1');
 test.beforeEach(async () => {
   await sql('DELETE FROM rate_buckets');
 });
