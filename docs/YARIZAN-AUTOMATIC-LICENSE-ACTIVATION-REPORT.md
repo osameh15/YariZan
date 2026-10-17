@@ -38,14 +38,21 @@ Checked against `main@30ffa05` before any change:
 
 ```
 Launch
- ├─ controller.IsPurchased (local signed license + decision verified, no network)  ──► Game library
+ 1 controller.IsPurchased (local signed license + decision verified, no network) ──► Game library
  │      background SynchronizePurchasedAsync (never blocks, revocation applies next launch)
- ├─ enrolled AND not locally revoked AND wait marker present ──► Lock, automatic wait resumes
- ├─ enrolled AND not locally revoked ──► Cover + one bounded startup check (20 s deadline)
+ 2 enrolled AND not locally revoked AND wait marker present
+ │      ──► neutral recovery screen «در حال بررسی مجوز خرید…» + one bounded check (20 s)
+ │          ├─ signed license verified and stored ──► «نسخه شما فعال شد» ──► Game library (no Lock)
+ │          ├─ not ready / network / deadline ──► Lock, visible wait resumes (marker kept)
+ │          ├─ refused (revoked, blocked, invalid, restricted) ──► Lock showing the refusal (marker cleared)
+ │          └─ «نمایش گزینه‌ها» (skip) ──► Lock without polling (marker kept)
+ 3 enrolled AND not locally revoked ──► Cover + one bounded background check (20 s)
  │      ├─ ACTIVATED ──► Game library (Lock never shown)
- │      └─ waiting / network / any other result ──► stays on Cover; Lock shows normal choices
- └─ otherwise (not enrolled, revoked, invalid) ──► Cover, existing Lock behavior
+ │      └─ any other result ──► stays on Cover; Lock shows normal choices
+ 4 otherwise (not enrolled, revoked, invalid) ──► Cover, existing fail-closed Lock behavior
 ```
+
+The wait marker only chooses between routes 2 and 3; access is decided only by the controller.
 
 Coordinator phases (`PaidActivationPhase`) and the requested names:
 
@@ -102,7 +109,7 @@ Why the two waiting states are merged: payment fulfillment creates the entitleme
 | --- | --- | --- |
 | 1. License already stored | Library at once, no network, no Lock page, background sync only | WPF check with transport offline: zero entitlement, pickup, status and trial requests; separate OS process accepts the DPAPI store offline |
 | 2. Paid while closed | Cover, one bounded check, pickup, store, library; Lock never shown | WPF check records every page shown; real-backend interop with an empty store |
-| 2b. Customer was waiting when the app closed | Lock opens in the waiting state and continues | WPF check |
+| 2b. Customer was waiting when the app closed (interrupted purchase) | Neutral recovery screen, one bounded check; success enters the library without ever creating the Lock page; otherwise the Lock wait resumes | WPF checks record every page the window shows (§11a) |
 | 3. Closed during activation | Token cancelled, no callback, nothing stored, existing files untouched. The wait marker (a timestamp file, not a payment status) may remain so the wait resumes | WPF check |
 | 4. Offline, no stored license | Fails closed; Lock: «ارتباط با سرور برقرار نشد. برای فعال‌سازی اولیه یا شروع آزمایش به اینترنت نیاز دارید.»; waiting panel: «برای فعال‌سازی اولیه به اینترنت نیاز دارید…» | WPF check, screenshot 09 and 10 |
 | Cached signed revocation | Enforced at launch; automatic activation makes no request and cannot clear it; recovery stays the explicit authenticated decision path behind «فعال‌سازی نسخه» | Core and WPF checks |
@@ -140,17 +147,29 @@ Real WPF pages rendered off-screen by the test harness with synthetic fixtures (
 | 7, 8 | Automatic entry to game selection; restart with cached paid license offline (identical frame; synthetic empty library) | `07-automatic-game-selection.png` |
 | 9 | Restart unpaid and offline | `09-restart-unpaid-offline.png` |
 | 10 | Recoverable network failure | `10-recoverable-network-failure.png` |
-| Small | 800×600 window | `03-waiting-for-purchase-800x600.png` |
-| High DPI | 811×519 logical window rendered at 144 DPI (150%) | `03-waiting-for-purchase-150pct.png` |
+| 11 | Seamless startup recovery (neutral screen) | `11-startup-recovery.png` |
+| 12 | Recovery succeeded, about to enter the library | `12-startup-recovery-activated.png` |
+| 13 | Library after recovery, no Lock in between | same frame as `07-automatic-game-selection.png` |
+| 14 | Marker + offline: fallback to the Lock wait (150%) | `14-recovery-offline-fallback-150pct.png` |
+| 15 | Cancelled wait after fallback | `15-recovery-cancelled.png` |
+| 16 | Marker + not yet paid: fallback to waiting | `16-recovery-pending-fallback.png` |
+| Small | 800×600 window | `03-waiting-for-purchase-800x600.png`, `11-startup-recovery-800x600.png` |
+| High DPI | 811×519 logical window rendered at 144 DPI (150%) | `03-waiting-for-purchase-150pct.png`, `11-startup-recovery-150pct.png` |
 
 ![Waiting for purchase](Images/auto-activation/03-waiting-for-purchase.png)
+
+## 10a. Interrupted-purchase recovery (independent review correction)
+
+**Finding.** At `3c49a83`, a relaunch with a pending wait marker opened the Lock page and resumed the wait there. Activation was automatic, but the Lock page appeared first.
+
+**Correction.** `MainWindow.ShowStartPage` now follows the four-priority routing in §3. Route 2 shows `ActivationRecoveryPage`, a compact parchment card with the logo, «در حال بررسی مجوز خرید…», one progress bar (still under reduced motion), a short explanation, and one action, «نمایش گزینه‌ها». It has no trial or activation choices. `MainWindow` remains the only navigator: success first shows «نسخه شما فعال شد» and «در حال ورود به بازی‌ها…» on the recovery card, then opens the library. Any stale completion (window closed, customer skipped, page changed) is ignored. `LockPage` gained a `resumeWaiting` option (skip opens Lock without restarting polling) and keeps a startup refusal visible. During the Lock success screen, the trial button and trial count are hidden so a customer who has just bought the full version is not offered a trial. No Core, backend or security code changed in this correction.
 
 ## 11. Tests
 
 Commands (Windows 11 10.0.26300, .NET 9.0.20, Node 24):
 
 ```powershell
-.\tests\Run-V2Checks.ps1        # 387 passed, 0 failed (was 300 on main)
+.\tests\Run-V2Checks.ps1        # 406 passed, 0 failed (was 300 on main; 387 at 3c49a83)
 # backend, disposable local PostgreSQL 17 (docker compose up -d db), NODE_ENV=test,
 # DATABASE_URL=...127.0.0.1:55432/yarizan_phase2_test and the synthetic CI HMAC keys
 cd backend; npm run build; npm test   # 158 passed, 0 failed
@@ -159,6 +178,28 @@ cd backend; npm run build; npm test   # 158 passed, 0 failed
 The backend run includes the real C# checks: `DOTNET_INTEROP 24`, `DOTNET_API 10`, `DOTNET_PROVISIONING 29` (portable) and `30` (Windows CNG + DPAPI). The provisioning checks now also prove, against the real API and the synthetic payment simulator: entitlement lookup before purchase waits without access; a waiting coordinator picks up the verified purchase automatically; a relaunch with an empty license store recovers the signed license at startup.
 
 Local note: Claude Code sets `NoDefaultCurrentDirectoryInExePath=1`, which makes the existing installer-preflight check fail locally (`cmd` cannot find `build-installer.bat` in the current directory). The suite was run with that variable removed; CI is unaffected.
+
+### 11a. Interrupted-purchase regression checks (`tests/V2Checks/RecoveryUiChecks.cs`)
+
+All 13 run against the real `MainWindow` with a `PageShown` recorder, synthetic fixtures and real DPAPI files:
+
+| # | Check |
+| --- | --- |
+| 1 | Pair, start waiting (marker set), exit: polling stops, only the marker remains, nothing stored |
+| 2 | Payment fulfilled while closed (fake server entitlement ACTIVE) |
+| 3 | Relaunch: first page shown is `ActivationRecoveryPage`; accessible live title, skip action, no trial or activation choices |
+| 4 | ACTIVE entitlement alone neither unlocks nor navigates; signed pickup is verified and stored before «نسخه شما فعال شد» |
+| 5 | Pages shown are exactly `ActivationRecoveryPage`, `GamesBookPage`; no `LockPage` created |
+| 6 | Stored paid license with a stale marker, offline: only `GamesBookPage`, zero requests |
+| 7 | Marker + no internet: recovery, then Lock wait with guidance, retry, cancel and trial; cancel clears the marker |
+| 8 | Marker + no entitlement: falls back to waiting, no pickup, no access |
+| 9 | Marker + invalid signature: no access, nothing stored, refusal shown on Lock, library never shown |
+| 10 | Exit while the recovery check is pending: no later page, pickup or stored license |
+| 11 | Skip while pending, then a late ACTIVE response: stays on Lock, no pickup, polling not restarted |
+| 12 | Cached signed revocation + marker: Cover only, zero requests |
+| 13 | No trial start or trial consumption during recovery |
+
+Plus fit checks for the recovery screen at 800×600 and at 811×519 logical rendered at 144 DPI.
 
 Required scenarios:
 
@@ -191,7 +232,12 @@ Also: HTTP contract for entitlements, `Retry-After`, malformed and captive-porta
 
 Draft PR, final HEAD and final-HEAD CI results are recorded in the PR description.
 
-## 13. Known gaps
+## 13. Evidence classes and known gaps
+
+- **Automated test-harness evidence** (this PR): Core checks with virtual time; real WPF pages driven off-screen on Windows 11 with synthetic signing keys, a fake desktop server and real per-user DPAPI files; real backend and PostgreSQL with the synthetic payment simulator for the C# interop checks; screenshots rendered by `RenderTargetBitmap`.
+- **Physical-device acceptance** (not done): a signed commercial build on real hardware with TPM-backed CNG keys, two real Windows profiles, a real 150% display, real network loss during a real purchase, and a customer completing a live payment. This needs the commercial gates to open and must be done by the owner before Stage B.
+
+Known gaps:
 
 - No physical Windows acceptance: CNG uses the software provider, the second profile is simulated, and screenshots are off-screen renders, not a real 150% display.
 - Automatic activation was not run against live payment, live SMS or the public hostname; Stage A serves no API.

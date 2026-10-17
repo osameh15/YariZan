@@ -622,6 +622,7 @@ internal static partial class Program
         Check(((ContentControl)paidWindow.FindName("PageHost")).Content is InfoPage && paid.CanEnter, "WPF purchased entry succeeds offline");
         paidWindow.Close();
         AutoActivationUiChecks(signing, identity, screenshots);
+        RecoveryUiChecks(signing, identity, screenshots);
         app.Shutdown();
     }
     private static void Save(UserControl page, string root, string name, int width = 1200, int height = 740)

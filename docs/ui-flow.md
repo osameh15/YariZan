@@ -4,7 +4,7 @@
 
 ## Desktop
 
-The Persian RTL WPF app starts on the closed-book cover, except that a locally verified paid license opens the game library directly (no network wait) and a payment wait the customer started earlier resumes on Lock. An enrolled unpaid device makes one bounded background pickup check at launch and enters the library automatically if a purchase was fulfilled while the app was closed. See [automatic license activation report](YARIZAN-AUTOMATIC-LICENSE-ACTIVATION-REPORT.md).
+The Persian RTL WPF app starts on the closed-book cover, except that a locally verified paid license opens the game library directly (no network wait) and a payment wait the customer started earlier is resumed by a neutral recovery screen that enters the library directly when the purchase is ready (otherwise the Lock wait continues). An enrolled unpaid device makes one bounded background pickup check at launch and enters the library automatically if a purchase was fulfilled while the app was closed. See [automatic license activation report](YARIZAN-AUTOMATIC-LICENSE-ACTIVATION-REPORT.md).
 
 | Screen | Behavior |
 |---|---|

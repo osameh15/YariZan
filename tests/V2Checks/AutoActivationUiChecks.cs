@@ -125,8 +125,8 @@ internal static partial class Program
             access = Access(identity, signing, Store("auto-ui-resume"), server);
             activation = UiCoordinator(access, intent);
             window = Window(access, activation);
-            window.Show(); Pump(() => Page(window) is not null);
-            Check(Page(window) is LockPage, "a wait the customer started before closing resumes on the activation page");
+            window.Show(); Pump(() => Page(window) is LockPage);
+            Check(Page(window) is LockPage, "a pending wait with no purchase yet falls back from recovery to the activation page");
             var page = (LockPage)Page(window)!;
             Pump(() => activation.Phase == PaidActivationPhase.WaitingForPurchase);
             Check(C<Border>(page, "ActivationProgressPanel").IsVisible && !access.CanEnter, "resumed wait shows the waiting state and stays locked");

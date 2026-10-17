@@ -21,6 +21,9 @@ public partial class MainWindow : Window
 
     public MainWindow() : this(null) { }
 
+    /// <summary>Raised for every page the window displays (diagnostics and UI tests).</summary>
+    public event EventHandler<UserControl>? PageShown;
+
     /// <summary>Pause between the visible success message and entering the game library.</summary>
     public TimeSpan ActivationEntryDelay { get; set; } = TimeSpan.FromMilliseconds(1600);
 
@@ -44,9 +47,14 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Launch routing. A locally verified paid license enters the library at once with no network wait.
-    /// An enrolled device without one gets a short bounded online pickup check, or resumes a wait the
-    /// customer started earlier. Everything else starts at the cover as before.
+    /// Launch routing, in priority order:
+    /// 1. A locally verified paid license enters the library at once, with no network wait.
+    /// 2. An enrolled device whose customer was waiting for a purchase shows a neutral recovery
+    ///    screen during one bounded check; success enters the library without the Lock page,
+    ///    anything else falls back to the visible Lock wait.
+    /// 3. Any other enrolled device starts at the cover with one bounded background check.
+    /// 4. Not enrolled, revoked or invalid: the cover and the existing fail-closed Lock behavior.
+    /// The wait marker only selects the screen; it never grants access.
     /// </summary>
     private void ShowStartPage()
     {
@@ -56,9 +64,26 @@ public partial class MainWindow : Window
             _ = _access.SynchronizePurchasedAsync();
             return;
         }
-        if (_activation.CanCheckOnline && _activation.HasPendingIntent) { ShowLock(animate: false); return; }
+        if (_activation.CanCheckOnline && _activation.HasPendingIntent) { ShowRecovery(); return; }
         ShowCover(animate: false);
         if (_activation.CanCheckOnline) _ = _activation.StartStartupRecoveryAsync();
+    }
+
+    private async void ShowRecovery()
+    {
+        var page = new ActivationRecoveryPage();
+        page.SkipRequested += (_, _) =>
+        {
+            if (_closed || PageHost.Content != page) return;
+            // The customer chose not to wait here; keep the intent but do not restart polling.
+            _activation.Stop(clearIntent: false);
+            ShowLock(animate: false, resumeWaiting: false);
+        };
+        SwapPage(page, animate: false);
+        await _activation.StartStartupRecoveryAsync();
+        // Stale completion: the window closed, the customer skipped, or success navigation owns it.
+        if (_closed || PageHost.Content != page || _access.IsPurchased || page.Succeeded) return;
+        ShowLock(animate: false);
     }
 
     private async void OnPaidActivated(object? sender, EventArgs e)
@@ -73,6 +98,15 @@ public partial class MainWindow : Window
             lockPage.ShowEnteringGames();
             await Task.Delay(ActivationEntryDelay / 4);
             if (_closed || PageHost.Content != lockPage) return;
+        }
+        else if (PageHost.Content is ActivationRecoveryPage recovery)
+        {
+            recovery.ShowActivationSucceeded();
+            await Task.Delay(ActivationEntryDelay);
+            if (_closed || PageHost.Content != recovery) return;
+            recovery.ShowEnteringGames();
+            await Task.Delay(ActivationEntryDelay / 4);
+            if (_closed || PageHost.Content != recovery) return;
         }
         // Never pull the customer out of a page they chose (information, library or a running game).
         else if (PageHost.Content is not CoverPage) return;
@@ -89,9 +123,9 @@ public partial class MainWindow : Window
         SwapPage(page, animate);
     }
 
-    public void ShowLock(bool animate = true)
+    public void ShowLock(bool animate = true, bool resumeWaiting = true)
     {
-        var page = new LockPage(_access, activation: _activation);
+        var page = new LockPage(_access, activation: _activation, resumeWaiting: resumeWaiting);
         page.Activated    += (_, _) => ShowInfo();
         page.TrialStarted += (_, _) => ShowInfo();
         page.Cancelled    += (_, _) => ShowCover();
@@ -179,6 +213,7 @@ public partial class MainWindow : Window
 
     private void SwapPage(UserControl next, bool animate)
     {
+        PageShown?.Invoke(this, next);
         if (!animate || PageHost.Content is null)
         {
             PageHost.Content = next;

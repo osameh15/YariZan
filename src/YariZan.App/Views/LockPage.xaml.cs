@@ -36,10 +36,12 @@ public partial class LockPage : UserControl
     private readonly PaidActivationCoordinator _activation;
     private bool _connectedThisVisit;
     private bool _entering;
+    private readonly bool _resumeWaiting;
 
     public LockPage(DesktopAccessController access, ILockDesktopActions? desktopActions = null, StoreDestinations? storeDestinations = null,
-        PaidActivationCoordinator? activation = null)
+        PaidActivationCoordinator? activation = null, bool resumeWaiting = true)
     {
+        _resumeWaiting = resumeWaiting;
         _access = access;
         _desktopActions = desktopActions ?? new WindowsLockDesktopActions();
         _storeDestinations = storeDestinations ?? StoreDestinations.LoadEmbedded();
@@ -60,7 +62,7 @@ public partial class LockPage : UserControl
             _activation.Changed += Activation_Changed;
             _lockRefresh.Start();
             // A wait the customer started earlier resumes; nothing is assumed paid until a signed license verifies.
-            if (_activation.HasPendingIntent && _activation.CanCheckOnline && !_activation.IsRunning) _ = _activation.StartWaitingAsync();
+            if (_resumeWaiting && _activation.HasPendingIntent && _activation.CanCheckOnline && !_activation.IsRunning) _ = _activation.StartWaitingAsync();
             RenderActivation();
             await RefreshTrialAsync();
         };
@@ -398,9 +400,15 @@ public partial class LockPage : UserControl
         var phase = _activation.Phase;
         bool waiting = _activation.Mode == PaidActivationMode.Waiting;
         bool startup = _activation.Mode == PaidActivationMode.StartupRecovery && _activation.IsRunning;
-        bool show = _entering || waiting || startup;
+        // A startup check that ended in a definite refusal (revoked, blocked, invalid...) stays visible.
+        bool refused = _activation.Mode == PaidActivationMode.StartupRecovery && !_activation.IsRunning && phase is
+            PaidActivationPhase.EnrollmentRequired or PaidActivationPhase.ProductBlocked or PaidActivationPhase.ProductUnavailable
+            or PaidActivationPhase.AccountRestricted or PaidActivationPhase.LicenseRevoked or PaidActivationPhase.InvalidLicense;
+        bool show = _entering || waiting || startup || refused;
         ActivationProgressPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         ActivateButton.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+        // After a purchase is activated, a trial entry would only confuse; hide it during the success screen.
+        TrialButton.Visibility = TrialCountText.Visibility = _entering ? Visibility.Collapsed : Visibility.Visible;
         PrimaryActions.Columns = show || ActualWidth is > 0 and < 520 ? 1 : 2;
         if (!show) return;
         if (_entering) phase = PaidActivationPhase.Activated;
