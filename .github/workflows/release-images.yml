@@ -1,11 +1,15 @@
 name: Release images (manual approval, no deployment)
-# Publishes digest-pinned web and API images to GHCR for ONE already-tested commit and
-# produces the release manifest for the infrastructure session. It never deploys, never
-# uses SSH/VPS credentials and never receives payment, SMS or signing secrets.
+# Stage A only: publishes the digest-pinned BROCHURE web image to GHCR for ONE already-tested
+# commit and produces the release manifest for the infrastructure session. It never builds or
+# publishes the full web image or the API image: approving this workflow cannot authorize
+# Stage B. A Stage B publication needs a separate reviewed workflow, its own protected
+# environment (for example yarizan-release-stage-b) and a new manifest scope in
+# tools/release/manifest.mjs, all approved by the owner. It never deploys, never uses SSH/VPS
+# credentials and never receives payment, SMS or signing secrets.
 #
 # Owner prerequisites (docs/YARIZAN-RELEASE-AND-ROLLBACK.md):
-#   1. Environment "yarizan-release" with at least one required reviewer.
-#   2. Agreement that GHCR packages ghcr.io/osameh15/yarizan-web and yarizan-api may be created.
+#   1. Environment "yarizan-release-stage-a" with at least one required reviewer.
+#   2. Agreement that the GHCR package ghcr.io/osameh15/yarizan-web may be created.
 on:
   workflow_dispatch:
     inputs:
@@ -19,6 +23,8 @@ concurrency:
   cancel-in-progress: false
 env:
   REGISTRY: ghcr.io/osameh15
+  RELEASE_SCOPE: stage-a-brochure
+  RELEASE_ENVIRONMENT: yarizan-release-stage-a
   TRIVY_IMAGE: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
 jobs:
   verify:
@@ -53,16 +59,16 @@ jobs:
             [[ "$ok" -gt 0 ]] || { echo "Missing successful '$workflow' run for $COMMIT"; exit 1; }
           done
           # Refuse to continue without an approval-protected environment (owner gate).
-          reviewers=$(gh api "repos/$REPO/environments/yarizan-release" \
+          reviewers=$(gh api "repos/$REPO/environments/$RELEASE_ENVIRONMENT" \
             --jq '[.protection_rules[]?|select(.type=="required_reviewers")]|length' 2>/dev/null || echo 0)
-          [[ "$reviewers" -gt 0 ]] || { echo 'Environment yarizan-release with required reviewers is missing'; exit 1; }
+          [[ "$reviewers" -gt 0 ]] || { echo "Environment $RELEASE_ENVIRONMENT with required reviewers is missing"; exit 1; }
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
 
   publish:
-    name: Publish ${{ matrix.image }} ${{ matrix.profile }}
+    name: Publish ${{ matrix.image }} ${{ matrix.profile }} (Stage A)
     needs: verify
     runs-on: ubuntu-latest
-    environment: yarizan-release
+    environment: yarizan-release-stage-a
     permissions:
       contents: read
       packages: write
@@ -71,27 +77,27 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
+        # Stage A scope: the brochure web image only. Do not add the full web or API image here;
+        # the manifest validator rejects a stage-a-brochure manifest that contains them.
         include:
           - image: yarizan-web
             profile: brochure
             context: .
             file: apps/web/Dockerfile
             eligibility: stage-a-brochure-candidate
-          - image: yarizan-web
-            profile: full
-            context: .
-            file: apps/web/Dockerfile
-            eligibility: blocked-stage-b
-          - image: yarizan-api
-            profile: ''
-            context: backend
-            file: backend/Dockerfile
-            eligibility: blocked-stage-b
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.verify.outputs.commit }}
           persist-credentials: false
+      - name: Refuse anything outside the Stage A scope before registry login
+        env:
+          IMAGE: ${{ matrix.image }}
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE" == yarizan-web && "$PROFILE" == brochure ]] || {
+            echo "Only the brochure web image may be published in scope $RELEASE_SCOPE"; exit 1; }
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
@@ -170,11 +176,10 @@ jobs:
           set -euo pipefail
           migrations=$(sed -n 's/.*SCHEMA_MIGRATION_COUNT = \([0-9]*\).*/\1/p' backend/src/database/schema-version.ts)
           jq -s --arg commit "$COMMIT" --arg run "$RUN_URL" --argjson migrations "$migrations" \
-            --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{schema:"yarizan-release-manifest/v1",source_commit:$commit,ci_run_url:$run,built_at:$built,
+            --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg scope "$RELEASE_SCOPE" \
+            '{schema:"yarizan-release-manifest/v1",release_scope:$scope,source_commit:$commit,ci_run_url:$run,built_at:$built,
               migrations:$migrations,
-              environment_changes:["web: YARIZAN_SITE_MODE (required; must equal the image build profile)",
-                "api: MIGRATION_DATABASE_URL (one-off migration and bootstrap only; separate login)"],
+              environment_changes:["web: YARIZAN_SITE_MODE=brochure (required; must equal the image build profile)"],
               route_changes:["Stage A: every /api/* path answered by web with 503 JSON; desktop routes must not reach an API container"],
               images:.}' entries/*.json > release-manifest.json
           node tools/release/validate-manifest.mjs release-manifest.json

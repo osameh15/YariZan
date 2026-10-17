@@ -7,6 +7,14 @@ export const eligibility = {
   'yarizan-web:full': 'blocked-stage-b',
   'yarizan-api:': 'blocked-stage-b',
 };
+// A published release names exactly one approved scope. Only Stage A exists: it may contain the
+// brochure web image and nothing else. A Stage B (full web + API) scope needs its own reviewed
+// change and owner approval; until then the validator rejects any manifest that tries to carry it.
+export const releaseScopes = {
+  'stage-a-brochure': ['yarizan-web:brochure'],
+};
+// Local rollback rehearsals exercise every image against a throwaway registry and never publish.
+export const rehearsalScope = 'local-rehearsal';
 const digest = /^sha256:[0-9a-f]{64}$/;
 const commit = /^[0-9a-f]{40}$/;
 
@@ -24,6 +32,17 @@ export function validateManifest(m, { expectedMigrations, allowLocalRegistry = f
   if (!Array.isArray(m?.environment_changes)) fail('environment_changes');
   if (!Array.isArray(m?.route_changes)) fail('route_changes');
   if (!Array.isArray(m?.images) || m.images.length === 0) fail('images');
+  const scope = m?.release_scope;
+  const scoped = releaseScopes[scope];
+  if (!scoped && !(allowLocalRegistry && scope === rehearsalScope))
+    fail(`release_scope must be one of: ${Object.keys(releaseScopes).join(', ')}`);
+  if (scoped) {
+    const keys = (m?.images ?? []).map(
+      (i) => `${i.name}:${i.name === 'yarizan-web' ? i.profile : ''}`,
+    );
+    if (keys.length !== scoped.length || !scoped.every((k) => keys.includes(k)))
+      fail(`release_scope ${scope} must contain exactly: ${scoped.join(', ')}`);
+  }
   const seen = new Set();
   for (const [index, image] of (m?.images ?? []).entries()) {
     const at = `images[${index}]`;

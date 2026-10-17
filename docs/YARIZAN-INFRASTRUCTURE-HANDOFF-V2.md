@@ -17,8 +17,8 @@ Two release stages exist:
 | Image | Build | Registry reference (proposed) | Digest |
 | --- | --- | --- | --- |
 | Web, brochure | `docker build -f apps/web/Dockerfile --build-arg YARIZAN_BUILD_PROFILE=brochure .` | `ghcr.io/osameh15/yarizan-web:brochure-<commit12>` | **Not published.** Owner gate, see §1.1 |
-| Web, full | same, `YARIZAN_BUILD_PROFILE=full` | `ghcr.io/osameh15/yarizan-web:full-<commit12>` | Not published; Stage B only |
-| API | `docker build backend` (default target `production`) | `ghcr.io/osameh15/yarizan-api:<commit12>` | Not published; Stage B only |
+| Web, full | same, `YARIZAN_BUILD_PROFILE=full` | `ghcr.io/osameh15/yarizan-web:full-<commit12>` | Not published; Stage B only. The Stage A release workflow cannot publish it |
+| API | `docker build backend` (default target `production`) | `ghcr.io/osameh15/yarizan-api:<commit12>` | Not published; Stage B only. The Stage A release workflow cannot publish it |
 
 - Base image for both: `node:24.22.0-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f` (multi-arch index digest, resolved 2026-10-16). Multi-stage builds; `npm ci` from committed lockfiles; development dependencies stay in the build stage.
 - Runtime stages remove npm, npx, corepack and yarn. Application files are root-owned and read-only; the process runs as `1000:1000`.
@@ -27,10 +27,10 @@ Two release stages exist:
 
 ### 1.1 Registry and permissions (open question 3)
 
-- Proposed registry: **GHCR**, packages `ghcr.io/osameh15/yarizan-web` and `ghcr.io/osameh15/yarizan-api`. The VPS already reaches `ghcr.io` (contract R1).
+- Proposed registry: **GHCR**, packages `ghcr.io/osameh15/yarizan-web` (Stage A) and, only after a separate Stage B approval, `ghcr.io/osameh15/yarizan-api`. The VPS already reaches `ghcr.io` (contract R1).
 - Push rights: only the `Release images` workflow (`.github/workflows/release-images.yml`) through the job-scoped `GITHUB_TOKEN` with `packages: write`. No personal access token, SSH key or VPS credential is stored in GitHub.
 - Owner gate before the first publication:
-  1. Create the repository environment `yarizan-release` with at least one required reviewer. The workflow refuses to run without it; GitHub would otherwise create an unprotected environment automatically.
+  1. Create the repository environment `yarizan-release-stage-a` with at least one required reviewer. It approves the brochure image only; Stage B needs its own environment and workflow change. The workflow refuses to run without it; GitHub would otherwise create an unprotected environment automatically.
   2. Accept the GHCR package names. Packages of a public repository are public by default after the first push. If the owner wants private packages, the infrastructure session needs a read-only pull token on the VPS (`read:packages`), created and stored by the owner, never in Git.
 - **No image was published by this session**, because gate 1 does not exist yet. No digest in this document is invented.
 
@@ -40,6 +40,7 @@ The `Release images` workflow writes `release-manifest.json` (schema `yarizan-re
 
 | Field | Meaning |
 | --- | --- |
+| `release_scope` | `stage-a-brochure`: exactly one image, the brochure web image. No Stage B scope exists yet |
 | `source_commit` | Full 40-hex commit that passed every required workflow |
 | `ci_run_url` | The release workflow run |
 | `built_at` | UTC timestamp |
@@ -135,7 +136,7 @@ The API image refuses `NODE_ENV=production` with `PRODUCTION_GATE_CLOSED: G1_FIR
 
 ### Plan A — brochure-only web (Stage A)
 
-Prerequisites: owner creates `yarizan-release` (§1.1); a `Release images` run produces a validated manifest; the infrastructure PR adds the brochure Compose project and route file (§2.1); the owner approves a window.
+Prerequisites: owner creates `yarizan-release-stage-a` (§1.1); a `Release images` run produces a validated manifest; the infrastructure PR adds the brochure Compose project and route file (§2.1); the owner approves a window.
 
 1. Infrastructure PR: brochure Compose project + `yarizan-brochure.yml` route, CI-tested against the published digest. Keep the maintenance page active.
 2. Pull the brochure digest on the VPS; run `yarizan-preflight.sh` (digest-only check).

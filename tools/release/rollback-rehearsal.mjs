@@ -204,6 +204,7 @@ try {
   const short = commit.slice(0, 12);
   const manifest = {
     schema: 'yarizan-release-manifest/v1',
+    release_scope: 'local-rehearsal',
     source_commit: commit,
     ci_run_url: 'local-rehearsal',
     built_at: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),

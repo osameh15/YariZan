@@ -8,24 +8,26 @@ How application images are built, validated, published and handed to the infrast
 | --- | --- | --- | --- | --- |
 | 1. PR CI | `CI` (Windows), `V2 Backend CI`, `V2 Web and Provisioning CI` | Pull request to `main`, push to `main` | `contents: read` | Test results, browser evidence |
 | 2. Image build and security validation | `images.yml` | Pull request, push to `main`, manual | `contents: read`; no registry login | Built (not pushed) images; container checks; Trivy findings; rollback rehearsal |
-| 3. Controlled publication | `release-images.yml` | **Manual only** (`workflow_dispatch`, input: full commit SHA) | `packages: write`, `id-token: write`, `attestations: write` only inside the `publish` job, behind environment `yarizan-release` | GHCR images with SBOM, provenance and GitHub attestation |
-| 4. Manual approval | Environment `yarizan-release` required reviewers | Reviewer approves the waiting `publish` job | — | — |
+| 3. Controlled publication (Stage A only) | `release-images.yml` | **Manual only** (`workflow_dispatch`, input: full commit SHA) | `packages: write`, `id-token: write`, `attestations: write` only inside the `publish` job, behind environment `yarizan-release-stage-a` | The brochure web image only, on GHCR, with SBOM, provenance and GitHub attestation |
+| 4. Manual approval | Environment `yarizan-release-stage-a` required reviewers | Reviewer approves the waiting `publish` job | — | — |
 | 5. Deployment handoff | `release-images.yml` → `manifest` job | After publication | `contents: read` | `release-manifest.json` artifact and job summary |
 
 Design rules:
 
 - Pull requests, including forks, never receive registry write credentials: stages 1–2 have read-only tokens and stage 3 does not run on pull requests.
 - Stage 3 verifies, before any credential is used, that the commit is a full SHA on `main` or on a same-repository PR branch, and that `CI`, `V2 Backend CI`, `V2 Web and Provisioning CI` and `Image build and security validation` all succeeded for that exact SHA. Untested commits cannot be published.
-- It also refuses to continue if environment `yarizan-release` has no required reviewer (GitHub would otherwise create an unprotected environment silently).
+- It also refuses to continue if environment `yarizan-release-stage-a` has no required reviewer (GitHub would otherwise create an unprotected environment silently).
+- **Publication scope.** The workflow publishes only the brochure web image (`release_scope: stage-a-brochure`). It has no job, matrix entry or manifest scope for the full web image or the API image, and a guard step refuses any other image before registry login. The manifest validator rejects a `stage-a-brochure` manifest that contains anything else, and it has no scope that accepts a published Stage B image. Approving a Stage A release therefore cannot authorize Stage B.
+- **Stage B publication is not implemented.** It needs a separate reviewed change: its own workflow (or job) behind a separate protected environment (for example `yarizan-release-stage-b`) with its own reviewers, and a new manifest scope in `tools/release/manifest.mjs`. Both need owner approval after the Stage B production gates are closed.
 - All third-party actions are pinned to full commit SHAs; base images and the scanner are pinned by digest.
 - No SSH key, VPS credential, payment key, SMS credential or signing key exists in any workflow or image.
 - Build arguments contain only the profile and the source commit.
 
 ## 2. Owner actions before the first publication
 
-1. Repository → Settings → Environments → New environment `yarizan-release`. Add required reviewers (at least the owner). Optionally restrict deployment branches to `main` and `feat/yarizan-v2-production-readiness`.
-2. Accept the GHCR package names `ghcr.io/osameh15/yarizan-web` and `ghcr.io/osameh15/yarizan-api`. After the first push, decide package visibility. If private, create a read-only pull token for the VPS in the infrastructure session.
-3. Run `Release images` with the commit to release; approve the `publish` jobs.
+1. Repository → Settings → Environments → New environment `yarizan-release-stage-a`. Add required reviewers (at least the owner). Optionally restrict deployment branches to `main` and `feat/yarizan-v2-production-readiness`. Do not reuse this environment for any future Stage B publication.
+2. Accept the GHCR package name `ghcr.io/osameh15/yarizan-web` (Stage A creates no `yarizan-api` package). After the first push, decide package visibility. If private, create a read-only pull token for the VPS in the infrastructure session.
+3. Run `Release images` with the commit to release; approve the single brochure `publish` job.
 4. Hand `release-manifest.json` (artifact of that run) to the infrastructure session.
 
 ## 3. Image validation (stage 2)
@@ -39,7 +41,7 @@ Design rules:
 
 ## 4. Release manifest
 
-Schema `yarizan-release-manifest/v1`, validated by `node tools/release/validate-manifest.mjs <file>` (unit tests: `node --test tools/release/manifest.test.mjs`). The validator rejects mutable tags, malformed or mismatched digests, short commits, a migration count different from `backend/src/database/schema-version.ts`, missing scan evidence and any full-application image classified as deployable.
+Schema `yarizan-release-manifest/v1`, validated by `node tools/release/validate-manifest.mjs <file>` (unit tests: `node --test tools/release/manifest.test.mjs`). The validator rejects mutable tags, malformed or mismatched digests, short commits, a migration count different from `backend/src/database/schema-version.ts`, missing scan evidence and any full-application image classified as deployable. Every manifest names a `release_scope`: `stage-a-brochure` must contain exactly the brochure web image; `local-rehearsal` is accepted only with `--local` (disposable registry, never published).
 
 ## 5. Rollback
 

@@ -48,7 +48,7 @@ Exact list: `git diff --name-status 30ffa05 <final HEAD>`.
 | 7. Commerce/payment | BLOCKED | BLOCKED (`ZARINPAL_LIVE_GATE_CLOSED`); absent from brochure build | Merchant acceptance |
 | 8. Rate limiting | NEEDS WORK | Reviewed; IP-bucket collapse documented; Stage A has no API | Trusted client IP or per-device limits |
 | 9. Images/runtime | NEEDS WORK | **DONE**: digest-pinned base, uid 1000, read-only, no package managers, content/secret checks, 20 s shutdown | — |
-| 10. CI/release/rollback | NEEDS WORK | **DONE (application side)**: validation, approval-gated GHCR publication, manifest, rehearsal | Owner creates `yarizan-release`; first publication |
+| 10. CI/release/rollback | NEEDS WORK | **DONE (application side)**: validation, approval-gated GHCR publication, manifest, rehearsal | Owner creates `yarizan-release-stage-a`; first publication (brochure image only) |
 | 11. Monitoring/backup | BLOCKED | BLOCKED (infrastructure) | Keys, bucket, restore drill (expected count 9) |
 | 12. CDN/errors/cache | NEEDS WORK | Application contract implemented and tested locally | Live CDN tests (B13) |
 
@@ -97,7 +97,7 @@ Full Trivy findings by severity are written to the `image-evidence-*` artifacts 
 
 ## 8. CI/CD architecture
 
-Five separated stages (`docs/YARIZAN-RELEASE-AND-ROLLBACK.md`): PR CI; image build and security validation (no registry credentials); manual, approval-gated publication (`release-images.yml`, environment `yarizan-release`); manual reviewer approval; release manifest handoff. Publication verifies the commit is on `main` or a same-repository PR and that all four required workflows succeeded for that exact SHA. Least-privilege permissions per job; third-party actions pinned to full SHAs; SBOM, `mode=max` provenance and GitHub build attestation on publication. No deployment job exists.
+Five separated stages (`docs/YARIZAN-RELEASE-AND-ROLLBACK.md`): PR CI; image build and security validation (no registry credentials); manual, approval-gated publication of the brochure web image only (`release-images.yml`, environment `yarizan-release-stage-a`, manifest scope `stage-a-brochure`); manual reviewer approval; release manifest handoff. Publication verifies the commit is on `main` or a same-repository PR and that all four required workflows succeeded for that exact SHA. Least-privilege permissions per job; third-party actions pinned to full SHAs; SBOM, `mode=max` provenance and GitHub build attestation on publication. No deployment job exists.
 
 ## 9. Published image digests
 
@@ -111,7 +111,7 @@ Five separated stages (`docs/YARIZAN-RELEASE-AND-ROLLBACK.md`): PR CI; image bui
 
 ## 11. Registry permission blockers
 
-1. Environment `yarizan-release` with required reviewers does not exist (the repository has only `licensing-production`, without protection rules). `release-images.yml` refuses to publish until it exists.
+1. Environment `yarizan-release-stage-a` with required reviewers does not exist (the repository has only `licensing-production`, without protection rules). `release-images.yml` refuses to publish until it exists.
 2. Owner acceptance of GHCR package names and visibility.
 
 ## 12. Resource usage
@@ -189,7 +189,7 @@ Not covered by CI: physical Windows devices, real SMS/ZarinPal providers, live i
 
 ## 19. Owner actions required
 
-1. Create environment `yarizan-release` with required reviewers; accept GHCR package names/visibility.
+1. Create environment `yarizan-release-stage-a` with required reviewers; accept the GHCR package name `yarizan-web` and its visibility.
 2. Run `Release images` for the reviewed commit and approve publication.
 3. Approve the infrastructure PR for the brochure topology and a deployment window.
 4. Decide whether the brochure site may be indexed and whether to publish an approved Grade 1 price.
@@ -198,3 +198,33 @@ Not covered by CI: physical Windows devices, real SMS/ZarinPal providers, live i
 ## 20. Actions intentionally not performed
 
 No merge; no deployment; no image publication; no VPS/SSH access; no DNS, CDN, Origin Lockdown, Traefik or live Compose change; no infrastructure repository change; no production secret or signing key; no live payment, refund or SMS; no repository settings change (environments were only read).
+
+## 21. Release follow-up (after `f2a5c17`)
+
+### 21.1 Stage A publication scope
+
+The owner approved only the Stage A brochure launch. At `f2a5c17`, one approval of `release-images.yml` published three images (brochure web, full web, API), so approving Stage A would also have pushed Stage B images. Changes:
+
+- `release-images.yml` now publishes only `yarizan-web` with profile `brochure`. The full web and API matrix entries were removed, and a guard step refuses any other image before registry login.
+- The protected environment is renamed to `yarizan-release-stage-a`. It did not exist yet, so no approval is lost. A future Stage B publication must use a separate environment and a separate reviewed workflow change.
+- The release manifest carries `release_scope`. The validator accepts `stage-a-brochure` only when the manifest contains exactly the brochure web image, and it has no published scope for Stage B images. The local rollback rehearsal uses `local-rehearsal`, which is valid only with `--local`.
+- Retained: commit and CI-evidence verification, required-reviewer check, digest-only references, SBOM, `mode=max` provenance, GitHub attestation, Trivy scan of the published digest, manifest validation, and no deployment job.
+- Tests: `node --test tools/release/manifest.test.mjs` (7 tests, including Stage A scope and Stage B rejection).
+
+### 21.2 Brand Kit files added in `f2a5c17`
+
+The final commit of the first pass also included seven untracked Brand Kit files from the owner's working tree. They were not requested for this PR. History is not rewritten, and the asset set is unchanged pending an owner decision.
+
+| File (under `docs/YariZan_Brand_Kit_v1/`) | Size | Referenced? |
+| --- | ---: | --- |
+| `02_Primary_Logo/02_PNG_Transparent/YariZan_Symbol_Only_64x64.png` | 4,650 B | No |
+| `02_Primary_Logo/02_PNG_Transparent/YariZan_Symbol_Only_128x128.png` | 13,022 B | No |
+| `02_Primary_Logo/02_PNG_Transparent/YariZan_Symbol_Only_256x256.png` | 37,652 B | Indirectly: byte-identical source of `src/YariZan.App/Resources/YariZan_Symbol_Only_256x256.png` (used by `GamesBookPage.xaml` and `LockPage.xaml`); named in `docs/YARIZAN-PHASE-1-REPORT.md` |
+| `02_Primary_Logo/02_PNG_Transparent/YariZan_Symbol_Only_512x512.png` | 117,481 B | No |
+| `02_Primary_Logo/02_PNG_Transparent/YariZan_Symbol_Only_1024x1024.png` | 394,474 B | No |
+| `02_Primary_Logo/02_PNG_Transparent/YariZan_Symbol_Only_2048x2048.png` | 1,159,668 B | No |
+| `04_App_Icon/Windows/YariZan_Symbol_Only.ico` | 62,054 B | No (the app icon `Resources/icon.ico` is identical to `YariZan.ico`, not this file) |
+
+Total: about 1.79 MB. None is shipped in a web or API image, and none affects a build.
+
+Recommendation: keep the `02_PNG_Transparent` folder, because it is the documented provenance of an embedded application resource and the set is complete. The `.ico` is unused; keep it only if the owner wants a symbol-only Windows icon variant in the kit. If the owner prefers this PR to stay free of Brand Kit changes, a follow-up commit can remove any of these files from the tree (history still keeps them). No file was changed or removed without that approval.
