@@ -6,7 +6,7 @@ import { configuration } from "../src/config";
 const request: PaymentRequest = {
   attempt_id: "00000000-0000-4000-8000-000000000001",
   order_id: "00000000-0000-4000-8000-000000000002",
-  authority: "A" + "0".repeat(32),
+  authority: "A" + "0".repeat(35),
   amount_irr: 12990000,
   currency: "IRR",
   provider_config: "offline-adapter-fixture",
@@ -143,4 +143,61 @@ test("Invalid merchant, callback, currency or amount contracts are refused befor
       { state: "UNKNOWN" },
     );
   assert.equal(requests, 0);
+});
+
+test("ZarinPal authority pattern accepts the documented 36-character form and rejects path tricks", async () => {
+  const { ZARINPAL_AUTHORITY } = await import("../src/commerce/gateway");
+  assert.ok(ZARINPAL_AUTHORITY.test("A" + "0".repeat(35)));
+  for (const bad of [
+    "",
+    "A" + "0".repeat(31),
+    "A" + "0".repeat(41),
+    "B" + "0".repeat(35),
+    "A" + "0".repeat(34) + "/",
+    "A" + "0".repeat(34) + "?",
+    "A" + "0".repeat(34) + "\n",
+  ])
+    assert.equal(ZARINPAL_AUTHORITY.test(bad), false, JSON.stringify(bad));
+});
+test("ZarinPal verify treats non-success codes, missing reference and amount mismatch as unknown", async () => {
+  const mk = (data: unknown) =>
+    new ZarinPalAdapter(
+      "00000000-0000-4000-8000-000000000003",
+      "https://example.invalid/payment/return",
+      async () => new Response(JSON.stringify({ data })),
+    );
+  for (const data of [
+    { code: -50 },
+    { code: -51 },
+    { code: -53 },
+    { code: 100 },
+    { code: 100, ref_id: 0 },
+    { code: 100, ref_id: "abc" },
+    [],
+  ])
+    assert.equal((await mk(data).verify(request)).state, "UNKNOWN");
+  assert.equal(
+    (await mk({ code: 100, ref_id: 77 }).verify(request)).state,
+    "VERIFIED",
+  );
+});
+test("ZarinPal verify never reaches the network for a malformed authority or non-IRR currency", async () => {
+  let calls = 0;
+  const adapter = new ZarinPalAdapter(
+    "00000000-0000-4000-8000-000000000003",
+    "https://example.invalid/payment/return",
+    async () => {
+      calls++;
+      return new Response("{}");
+    },
+  );
+  assert.equal(
+    (await adapter.verify({ ...request, authority: "A/../x" })).state,
+    "UNKNOWN",
+  );
+  assert.equal(
+    (await adapter.verify({ ...request, authority: null })).state,
+    "UNKNOWN",
+  );
+  assert.equal(calls, 0);
 });

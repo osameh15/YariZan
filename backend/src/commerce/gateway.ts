@@ -4,6 +4,9 @@ import { Security } from "../security/security";
 import { requireCondition } from "../common/errors";
 import { z } from "zod";
 
+// Documented authorities are 36 characters ("A" + 35 alphanumerics); the range stays tolerant
+// of length but never admits anything that could alter the StartPay URL path.
+export const ZARINPAL_AUTHORITY = /^A[A-Za-z0-9]{32,40}$/;
 export interface PaymentRequest {
   attempt_id: string;
   order_id: string;
@@ -147,7 +150,7 @@ export class ZarinPalAdapter implements PaymentGateway {
     });
     requireCondition(
       result.data?.code === 100 &&
-        /^A[A-Za-z0-9]{32}$/.test(result.data.authority ?? ""),
+        ZARINPAL_AUTHORITY.test(result.data.authority ?? ""),
       "GATEWAY_UNKNOWN",
       503,
     );
@@ -160,7 +163,7 @@ export class ZarinPalAdapter implements PaymentGateway {
   async verify(r: PaymentRequest): Promise<PaymentResult> {
     if (
       !r.authority ||
-      !/^A[A-Za-z0-9]{32}$/.test(r.authority) ||
+      !ZARINPAL_AUTHORITY.test(r.authority) ||
       r.currency !== "IRR"
     )
       return { state: "UNKNOWN" };
