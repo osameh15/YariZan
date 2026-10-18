@@ -2,6 +2,19 @@
 const open = ref(false);
 const { publicOnly, storefront } = useSiteMode();
 const route = useRoute();
+// The eNamad seal is third-party: request it only after the page has loaded, so a slow or
+// unreachable host never delays the load event, and show it only if the image really loads.
+const sealUrl =
+  'https://trustseal.enamad.ir/logo.aspx?id=8237399&Code=y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX';
+const sealSrc = ref<string | undefined>(undefined);
+const sealLoaded = ref(false);
+onMounted(() => {
+  const start = () => {
+    sealSrc.value = sealUrl;
+  };
+  if (document.readyState === 'complete') setTimeout(start, 0);
+  else window.addEventListener('load', () => setTimeout(start, 0), { once: true });
+});
 watch(
   () => route.path,
   () => {
@@ -90,6 +103,22 @@ watch(
             <span>OAR Nova Games Studio</span>
           </a>
           <p class="footer-copyright">حق مالکیت سایت برای یاریزان محفوظ است.</p>
+          <a
+            class="enamad-seal"
+            :class="{ 'is-loaded': sealLoaded }"
+            href="https://trustseal.enamad.ir/?id=8237399&amp;Code=y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX"
+            target="_blank"
+            rel="noopener"
+            referrerpolicy="origin"
+            ><img
+              :src="sealSrc"
+              alt="نماد اعتماد الکترونیکی (اینماد)"
+              referrerpolicy="origin"
+              width="90"
+              @load="sealLoaded = true"
+              @error="sealLoaded = false"
+              height="100"
+          /></a>
         </div>
       </div>
     </footer>
