@@ -145,3 +145,42 @@ test('a Stage A image with HIGH or CRITICAL findings or missing policy evidence 
     assert.ok(validateManifest(m, opts).some((e) => e.includes('zero HIGH and CRITICAL')));
   }
 });
+
+const storefront = () => {
+  const m = valid();
+  m.release_scope = 'public-storefront';
+  Object.assign(m.images[0], {
+    profile: 'storefront',
+    tag: 'storefront-' + sha.slice(0, 12),
+    eligibility: 'public-storefront-candidate',
+  });
+  return m;
+};
+test('a public storefront release carries only the storefront image with passing scan evidence', () => {
+  assert.deepEqual(validateManifest(storefront(), opts), []);
+  const wrongImage = storefront();
+  wrongImage.images[0].profile = 'brochure';
+  assert.ok(validateManifest(wrongImage, opts).length > 0);
+  const extra = storefront();
+  extra.images.push(api());
+  assert.ok(validateManifest(extra, opts).some((e) => e.includes('must contain exactly')));
+  const eligibilityMix = storefront();
+  eligibilityMix.images[0].eligibility = 'stage-a-brochure-candidate';
+  assert.ok(validateManifest(eligibilityMix, opts).some((e) => e.includes('eligibility')));
+  for (const change of [(s) => (s.high = 2), (s) => (s.critical = 1), (s) => delete s.policy]) {
+    const m = storefront();
+    change(m.images[0].scan);
+    assert.ok(validateManifest(m, opts).some((e) => e.includes('zero HIGH and CRITICAL')));
+  }
+});
+test('Stage A and storefront scopes cannot carry each other image', () => {
+  const m = valid();
+  Object.assign(m.images[0], {
+    profile: 'storefront',
+    tag: 'storefront-' + sha.slice(0, 12),
+    eligibility: 'public-storefront-candidate',
+  });
+  assert.ok(
+    validateManifest(m, opts).some((e) => e.includes('stage-a-brochure must contain exactly')),
+  );
+});

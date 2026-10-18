@@ -1,6 +1,6 @@
 <script setup lang="ts">
 useSeoMeta({ title: 'همراه شما | پشتیبانی یاریزان' });
-const { brochure } = useSiteMode();
+const { publicOnly } = useSiteMode();
 </script>
 <template>
   <section class="wrap section">
@@ -22,7 +22,7 @@ const { brochure } = useSiteMode();
           خصوصی را در پیام عمومی نفرستید.
         </p>
       </article>
-      <article v-if="brochure" class="panel">
+      <article v-if="publicOnly" class="panel">
         <h2>در مرحلهٔ معرفی چه چیزی در دسترس است؟</h2>
         <p>
           در این مرحله می‌توانید با پایه‌ها، سیاست آزمایش و مجوز آشنا شوید و با پشتیبانی گفت‌وگو
@@ -54,7 +54,7 @@ const { brochure } = useSiteMode();
         </details>
       </article>
     </div>
-    <article v-if="!brochure" class="panel">
+    <article v-if="!publicOnly" class="panel">
       <h2>شرایط بررسی درخواست بازپرداخت</h2>
       <p>
         اگر دربارهٔ سفارش خود مشکلی دارید، از بخش سفارش‌های حساب درخواست بررسی ثبت کنید یا با
@@ -69,7 +69,7 @@ const { brochure } = useSiteMode();
     </article>
     <div class="section faq-list" id="faq">
       <h2>پرسش‌های پرتکرار</h2>
-      <details v-if="brochure">
+      <details v-if="publicOnly">
         <summary>کی می‌توانم حساب بسازم یا خرید کنم؟</summary>
         <p>
           ساخت حساب، اتصال دستگاه و خرید اینترنتی پس از پایان مرحلهٔ معرفی فعال می‌شود. تا آن زمان

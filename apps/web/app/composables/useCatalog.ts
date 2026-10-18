@@ -1,10 +1,13 @@
 import { z } from 'zod';
 import { productSchema } from '#shared/domain';
-import { catalogSnapshot, type PublicProduct } from '#shared/catalog-snapshot';
+import { publicCatalog, type PublicProduct } from '#shared/catalog-snapshot';
 export function useCatalog() {
-  // Brochure mode never calls the API: it renders the reviewed static snapshot.
-  if (useSiteMode().brochure.value)
-    return useAsyncData<PublicProduct[]>('catalog', async () => [...catalogSnapshot.products]);
+  // Public-only profiles never call the API: they render the reviewed static snapshot.
+  const { publicOnly, storefront } = useSiteMode();
+  if (publicOnly.value)
+    return useAsyncData<PublicProduct[]>('catalog', async () => [
+      ...publicCatalog(storefront.value ? 'storefront' : 'brochure').products,
+    ]);
   return useFetch('/api/v2/products', {
     transform: (data): PublicProduct[] => z.array(productSchema).parse(data),
     key: 'catalog',

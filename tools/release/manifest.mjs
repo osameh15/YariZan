@@ -5,14 +5,28 @@ export const schema = 'yarizan-release-manifest/v1';
 export const registries = ['ghcr.io/osameh15/', 'localhost:5000/'];
 export const eligibility = {
   'yarizan-web:brochure': 'stage-a-brochure-candidate',
+  'yarizan-web:storefront': 'public-storefront-candidate',
   'yarizan-web:full': 'blocked-stage-b',
   'yarizan-api:': 'blocked-stage-b',
 };
-// A published release names exactly one approved scope. Only Stage A exists: it may contain the
-// brochure web image and nothing else. A Stage B (full web + API) scope needs its own reviewed
-// change and owner approval; until then the validator rejects any manifest that tries to carry it.
+// A published release names exactly one approved scope, published by its own workflow behind
+// its own protected environment:
+//  - stage-a-brochure (release-images.yml, yarizan-release-stage-a): brochure web image only;
+//    kept as the maintenance/rollback site.
+//  - public-storefront (release-storefront.yml, yarizan-release-public-storefront): storefront
+//    web image only (public pages with approved prices, no Backend).
+// A full web + API scope needs its own reviewed change and owner approval; until then the
+// validator rejects any manifest that tries to carry those images.
 export const releaseScopes = {
   'stage-a-brochure': ['yarizan-web:brochure'],
+  'public-storefront': ['yarizan-web:storefront'],
+};
+export const releaseWorkflows = {
+  'stage-a-brochure': { file: 'release-images.yml', environment: 'yarizan-release-stage-a' },
+  'public-storefront': {
+    file: 'release-storefront.yml',
+    environment: 'yarizan-release-public-storefront',
+  },
 };
 // Local rollback rehearsals exercise every image against a throwaway registry and never publish.
 export const rehearsalScope = 'local-rehearsal';
@@ -49,7 +63,7 @@ export function validateManifest(m, { expectedMigrations, allowLocalRegistry = f
     const at = `images[${index}]`;
     if (!['yarizan-web', 'yarizan-api'].includes(image.name)) fail(`${at}.name`);
     const profile = image.name === 'yarizan-web' ? image.profile : '';
-    if (image.name === 'yarizan-web' && !['brochure', 'full'].includes(profile))
+    if (image.name === 'yarizan-web' && !['brochure', 'storefront', 'full'].includes(profile))
       fail(`${at}.profile`);
     if (image.name === 'yarizan-api' && image.profile !== undefined) fail(`${at}.profile`);
     const key = `${image.name}:${profile ?? ''}`;

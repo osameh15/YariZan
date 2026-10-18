@@ -44,3 +44,9 @@ Extract `publish/YariZan-licensing-panel.zip` directly into the public root, inc
 See [panel checks/preview](../web/licensing/README.md#tests-and-local-preview). Never deploy preview credentials. Use Conventional Commit prefixes (`feat:`, `fix:`, `chore:`, `docs:`), configured SSH signing and the SSH Git remote.
 
 `tests/Run-LauncherChecks.ps1` builds a disposable invisible synthetic game and verifies cancellation, revocation, shutdown, Persian filenames, GUI readiness and temporary-file cleanup. It uses no real games, license state or production keys.
+
+## Full web release additions (PR #7)
+
+- `Image build and security validation` builds and checks three web profiles (`brochure`, `storefront`, `full`) and the API image, runs the release policy tests (`scan-policy`, `manifest`, `release-workflows`, `catalog-drift`), rehearses both publication scopes against disposable registries, and runs `full-stack-rehearsal`: the production-built API and full web images with PostgreSQL 17.11, fake SMS and fake ZarinPal on internal networks, driving catalog publication, the production C# desktop client (pairing, purchase, automatic activation, offline restart), coupon checkout, signed license pickup and Admin finance.
+- `V2 Web and Provisioning CI` additionally builds the storefront profile and runs `npm run test:storefront`.
+- Manual publication: `release-images.yml` (Stage A brochure) and `release-storefront.yml` (public storefront), each behind its own protected environment. No workflow deploys.

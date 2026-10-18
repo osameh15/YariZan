@@ -6,7 +6,7 @@ import {
 } from '#shared/site-mode';
 
 // The server reads the validated runtime mode; the client receives it through the payload.
-// A client without a server value assumes brochure mode (fail closed).
+// A client without a server value assumes brochure mode (fail closed: public-only, no prices).
 export default defineNuxtPlugin(() => {
   const mode = useState<SiteMode>('site-mode', () =>
     import.meta.server ? parseSiteMode(process.env.YARIZAN_SITE_MODE) : 'brochure',

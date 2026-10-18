@@ -7,7 +7,7 @@ obj/
 *.suo
 .vs/
 
-# Secrets — NEVER commit these
+# Secrets â€” NEVER commit these
 secrets/private.pem
 secrets/master.key
 
@@ -61,6 +61,7 @@ apps/web/node_modules/
 apps/web/.nuxt/
 apps/web/.output/
 apps/web/.output-brochure/
+apps/web/.output-storefront/
 apps/web/coverage/
 apps/web/test-results/
 apps/web/playwright-report/

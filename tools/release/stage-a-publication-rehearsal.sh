@@ -4,10 +4,18 @@
 #   OCI archive -> copy with preserved digests to a second disposable registry standing in for
 #   GHCR -> digest equality -> local manifest validation.
 # It also proves that a synthetic HIGH or CRITICAL scan stops the sequence before publication.
-# Usage: tools/release/stage-a-publication-rehearsal.sh <evidence-dir>
+# Usage: tools/release/stage-a-publication-rehearsal.sh <evidence-dir> [brochure|storefront]
+#   brochure   -> scope stage-a-brochure   (release-images.yml)
+#   storefront -> scope public-storefront  (release-storefront.yml)
 # Needs docker with buildx. SKOPEO_IMAGE runs skopeo in a container when it is not installed.
 set -euo pipefail
 out=${1:?evidence directory}
+profile=${2:-brochure}
+case "$profile" in
+  brochure) scope=stage-a-brochure; eligibility=stage-a-brochure-candidate ;;
+  storefront) scope=public-storefront; eligibility=public-storefront-candidate ;;
+  *) echo "Profile must be brochure or storefront" >&2; exit 1 ;;
+esac
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
 # Git Bash on Windows: use a C:/ path that bash, node and docker all accept.
@@ -42,10 +50,10 @@ docker run -d --name "${names[1]}" -p "127.0.0.1:$publish_port:5000" "$REGISTRY_
 docker buildx create --name "$builder" --driver docker-container --driver-opt network=host >/dev/null
 
 commit=$(git rev-parse HEAD)
-tag="brochure-${commit:0:12}"
+tag="$profile-${commit:0:12}"
 candidate="localhost:$candidate_port/yarizan-web"
 docker buildx build --builder "$builder" -f apps/web/Dockerfile \
-  --build-arg YARIZAN_BUILD_PROFILE=brochure --build-arg SOURCE_COMMIT="$commit" \
+  --build-arg YARIZAN_BUILD_PROFILE="$profile" --build-arg SOURCE_COMMIT="$commit" \
   --provenance mode=max --sbom true --push -t "$candidate:$tag" \
   --metadata-file "$(native "$out/build-metadata.json")" . > "$out/build.log" 2>&1 || { tail -30 "$out/build.log"; exit 1; }
 digest=$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))['containerimage.digest'])" "$out/build-metadata.json")
@@ -82,14 +90,14 @@ echo "Published digest equals the scanned candidate digest: $published"
 
 node -e "
 const f=require('fs'),s=JSON.parse(f.readFileSync(process.argv[1],'utf8'));
-const [digest,tag,commit,out]=process.argv.slice(2);
+const [digest,tag,commit,out,profile,scope,eligibility]=process.argv.slice(2);
 const migrations=Number(f.readFileSync('backend/src/database/schema-version.ts','utf8').match(/SCHEMA_MIGRATION_COUNT = (\d+)/)[1]);
-f.writeFileSync(out,JSON.stringify({schema:'yarizan-release-manifest/v1',release_scope:'stage-a-brochure',
+f.writeFileSync(out,JSON.stringify({schema:'yarizan-release-manifest/v1',release_scope:scope,
  source_commit:commit,ci_run_url:'local-rehearsal',built_at:new Date().toISOString().replace(/\.\d+Z$/,'Z'),
- migrations,environment_changes:[],route_changes:[],images:[{name:'yarizan-web',profile:'brochure',tag,digest,
- reference:'localhost:5000/yarizan-web@'+digest,eligibility:'stage-a-brochure-candidate',
+ migrations,environment_changes:[],route_changes:[],images:[{name:'yarizan-web',profile,tag,digest,
+ reference:'localhost:5000/yarizan-web@'+digest,eligibility,
  scan:{tool:'trivy 0.76.0',policy:s.policy,artifact_digest:digest,critical:s.critical,high:s.high,medium:s.medium,low:s.low}}]},null,2)+'\n');
-" "$out/scan-summary.json" "$digest" "$tag" "$commit" "$out/stage-a-manifest.json"
-node tools/release/validate-manifest.mjs "$out/stage-a-manifest.json" --local
+" "$out/scan-summary.json" "$digest" "$tag" "$commit" "$out/$scope-manifest.json" "$profile" "$scope" "$eligibility"
+node tools/release/validate-manifest.mjs "$out/$scope-manifest.json" --local
 rm -f "$out/candidate.oci.tar"
-echo "Stage A publication rehearsal passed"
+echo "Publication rehearsal passed for scope $scope ($profile image)"

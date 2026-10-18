@@ -1,4 +1,5 @@
 import { defineEventHandler, setHeader, getRequestURL } from 'h3';
+import { parseIndexing, robotsHeader } from '#shared/seo';
 export default defineEventHandler((event) => {
   if (
     /^\/(?:account|zanyari|login|connect|reset-password|support-reset|checkout|payment)(?:\/|$)/.test(
@@ -6,6 +7,12 @@ export default defineEventHandler((event) => {
     )
   )
     setHeader(event, 'Cache-Control', 'no-store');
+  // Default noindex, nofollow; protected routes are never indexable (see shared/seo.ts).
+  setHeader(
+    event,
+    'X-Robots-Tag',
+    robotsHeader(parseIndexing(process.env.YARIZAN_SEO_INDEXING), getRequestURL(event).pathname),
+  );
   setHeader(event, 'X-Content-Type-Options', 'nosniff');
   setHeader(event, 'Referrer-Policy', 'no-referrer');
   setHeader(event, 'X-Frame-Options', 'DENY');

@@ -112,6 +112,21 @@ internal static class BookChecks
         Invoke("NavigateTo", 0);
         Pump(() => !Turning() && ImageAt(0).Source is not null);
         SavePreview(page, args[1]);
+        Invoke("Contact_Click", page, new RoutedEventArgs());
+        Check(Find<StackPanel>("ContactPanel").Visibility == Visibility.Visible
+            && Find<ScrollViewer>("InfoScroll").Visibility == Visibility.Collapsed
+            && !Find<Grid>("BookContent").IsEnabled, "contact modal blocks book interaction");
+        var contactRows = Find<StackPanel>("ContactPanel").Children.OfType<Button>().ToArray();
+        Check(contactRows.Length == 2 && contactRows.All(row =>
+            ((Grid)row.Content).Children.OfType<Image>().Single().Source is not null),
+            "both website rows load their logos");
+        SavePreview(page, Path.Combine(Path.GetDirectoryName(args[1])!, "contact-preview.png"));
+        Invoke("HideInfo");
+        Invoke("About_Click", page, new RoutedEventArgs());
+        Check(Find<StackPanel>("ContactPanel").Visibility == Visibility.Collapsed
+            && Find<ScrollViewer>("InfoScroll").Visibility == Visibility.Visible,
+            "about content is restored after contact modal");
+        Invoke("HideInfo");
         var brandedCover = new CoverPage(1);
         window.Content = brandedCover;
         SavePreview(brandedCover, Path.Combine(Path.GetDirectoryName(args[1])!, "cover-preview.png"));

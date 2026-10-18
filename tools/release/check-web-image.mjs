@@ -5,9 +5,12 @@ import { randomUUID } from 'node:crypto';
 // Container acceptance for the web image, matching the infrastructure runtime contract:
 // uid/gid 1000, read-only root, cap_drop ALL, /tmp-only tmpfs, no network egress, 384 MiB,
 // 0.75 CPU, fail-closed site mode, /healthz, and shutdown inside the 20 s grace period.
-// Usage: node tools/release/check-web-image.mjs <image> <brochure|full>
+// Usage: node tools/release/check-web-image.mjs <image> <brochure|storefront|full>
 const [image, profile] = process.argv.slice(2);
-assert.ok(image && ['brochure', 'full'].includes(profile), 'usage: <image> <brochure|full>');
+assert.ok(
+  image && ['brochure', 'storefront', 'full'].includes(profile),
+  'usage: <image> <brochure|storefront|full>',
+);
 const docker = (...args) =>
   execFileSync('docker', args, {
     encoding: 'utf8',
@@ -99,10 +102,12 @@ const probe = (name, script) =>
     `(async()=>{const b='http://127.0.0.1:3200';${script}})().catch(e=>{console.error(e.message);process.exit(1)})`,
   );
 try {
-  const other = profile === 'brochure' ? 'full' : 'brochure';
+  const other = profile === 'full' ? 'brochure' : 'full';
   refused([], 'YARIZAN_SITE_MODE_REQUIRED');
   refused(['YARIZAN_SITE_MODE=staging'], 'YARIZAN_SITE_MODE_INVALID');
   refused([`YARIZAN_SITE_MODE=${other}`], 'YARIZAN_SITE_MODE_MISMATCH');
+  if (profile === 'storefront')
+    refused(['YARIZAN_SITE_MODE=brochure'], 'YARIZAN_SITE_MODE_MISMATCH');
   // No API, database, SMS, payment or signing configuration is supplied.
   const name = start([
     `YARIZAN_SITE_MODE=${profile}`,
@@ -124,15 +129,18 @@ try {
       `
       const h=await fetch(b+'/healthz');
       if(await h.text()!=='ok'||h.headers.get('cache-control')!=='no-store')throw Error('healthz contract');
-      const brochure=${JSON.stringify(profile === 'brochure')};
+      const brochure=${JSON.stringify(profile !== 'full')};
+      const storefront=${JSON.stringify(profile === 'storefront')};
       if(brochure){
         for(const p of ['/','/products','/products/grade-1','/support']){const r=await fetch(b+p);if(r.status!==200)throw Error(p+' '+r.status);const t=await r.text();if(!t.includes('dir="rtl"'))throw Error('rtl '+p)}
         for(const p of ['/account','/login','/zanyari','/checkout']){const r=await fetch(b+p,{headers:{accept:'text/html'}});if(r.status!==503||r.headers.get('cache-control')!=='no-store')throw Error(p+' '+r.status)}
         const a=await fetch(b+'/api/v2/devices/challenges',{method:'POST',body:'{}',headers:{'content-type':'application/json'}});
         if(a.status!==503||a.headers.get('retry-after')!=='3600'||(await a.text())!=='{"error":{"code":"SERVICE_UNAVAILABLE"}}')throw Error('api contract');
+        const g=await (await fetch(b+'/products/grade-2')).text();
+        if(storefront!==g.includes('۱٬۲۹۹٬۰۰۰'))throw Error('approved price visibility');
         for(let i=0;i<60;i++)await (await fetch(b+['/','/products','/products/grade-1','/support'][i%4])).text();
       }
-      console.log('Runtime: healthz ok'+(brochure?', 4 public pages 200, disabled pages 503, API 503 JSON, 60-request load':' with no API'));
+      console.log('Runtime: healthz ok'+(brochure?', 4 public pages 200, disabled pages 503, API 503 JSON, '+(storefront?'approved prices shown':'no prices')+', 60-request load':' with no API'));
     `,
     ),
   );

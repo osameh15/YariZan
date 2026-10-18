@@ -1,5 +1,5 @@
 name: Image build and security validation
-# Builds the web (brochure, full) and API images exactly as a release would, without any
+# Builds the web (brochure, storefront, full) and API images exactly as a release would, without any
 # registry credential, then validates contents, hardened runtime, startup gates, resource
 # use, vulnerabilities and a disposable digest-based rollback. Nothing is pushed.
 on:
@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [brochure, full]
+        profile: [brochure, storefront, full]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -158,13 +158,51 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
-      - name: Scan policy and manifest negative tests
-        run: node --test tools/release/scan-policy.test.mjs tools/release/manifest.test.mjs
+      - name: Scan policy, manifest and release workflow tests
+        run: node --test tools/release/scan-policy.test.mjs tools/release/manifest.test.mjs tools/release/release-workflows.test.mjs tools/release/catalog-drift.test.mjs
       - name: Stage A publication rehearsal (scan before publish, preserved digest)
-        run: tools/release/stage-a-publication-rehearsal.sh stage-a-evidence
+        run: tools/release/stage-a-publication-rehearsal.sh stage-a-evidence brochure
+      - name: Public storefront publication rehearsal (scan before publish, preserved digest)
+        run: tools/release/stage-a-publication-rehearsal.sh stage-a-evidence/storefront storefront
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: stage-a-publication-rehearsal
           path: stage-a-evidence/
+          retention-days: 30
+
+  full-stack-rehearsal:
+    # Disposable isolated integration of the production-built full web and API images with
+    # PostgreSQL 17.11, fake SMS and fake ZarinPal: catalog publication and price drift, desktop
+    # pairing and automatic activation (production C# client), coupon checkout, signed license,
+    # history and Admin finance. Synthetic acceptance only, never a production approval.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: '9.0.x'
+      - name: Backend helpers for the rehearsal runner
+        working-directory: backend
+        run: npm ci --no-audit --no-fund && npm run build
+      - name: Build the API and full web images
+        run: |
+          docker build -q -t yarizan-api:rehearsal backend
+          docker build -q -f apps/web/Dockerfile --build-arg YARIZAN_BUILD_PROFILE=full -t yarizan-web:full-rehearsal .
+      - name: Full-stack rehearsal
+        run: node tools/integration/full-stack-rehearsal.mjs yarizan-api:rehearsal yarizan-web:full-rehearsal integration-evidence
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: full-stack-rehearsal
+          path: |
+            integration-evidence/
+            !integration-evidence/api-local/
           retention-days: 30

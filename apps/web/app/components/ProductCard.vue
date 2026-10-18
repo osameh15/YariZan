@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { PublicProduct } from '#shared/catalog-snapshot';
 import { gradeNames, toman, availability } from '#shared/domain';
-defineProps<{ product: PublicProduct }>();
+// publicOnly: rendered by the public storefront/brochure, where nothing can be bought yet.
+defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
 </script>
 <template>
   <article
@@ -22,7 +23,7 @@ defineProps<{ product: PublicProduct }>();
       <span
         class="badge"
         :class="product.publication_status === 'coming_soon' ? 'neutral' : 'available'"
-        >{{ availability(product) }}</span
+        >{{ availability(product, publicOnly) }}</span
       >
       <h3>
         <NuxtLink :to="`/products/grade-${product.grade}`"

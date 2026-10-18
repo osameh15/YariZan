@@ -5,9 +5,10 @@ import { brochurePageAllowed } from './shared/site-mode';
 // Build profile: "full" (default) or "brochure". A brochure build physically omits every
 // account, commerce, Admin and API proxy route; the runtime YARIZAN_SITE_MODE must match it.
 const buildProfile = process.env.YARIZAN_BUILD_PROFILE ?? 'full';
-if (buildProfile !== 'full' && buildProfile !== 'brochure')
-  throw new Error('YARIZAN_BUILD_PROFILE_INVALID: expected full or brochure');
-const brochure = buildProfile === 'brochure';
+if (!['full', 'brochure', 'storefront'].includes(buildProfile))
+  throw new Error('YARIZAN_BUILD_PROFILE_INVALID: expected full, brochure or storefront');
+// brochure and storefront are public-only builds with the same physical omissions.
+const brochure = buildProfile !== 'full';
 function keepBrochurePages(pages: NuxtPage[]) {
   for (let index = pages.length - 1; index >= 0; index--) {
     const page = pages[index]!;
@@ -27,7 +28,7 @@ export default defineNuxtConfig({
     esbuild: { options: { target: 'es2022' } },
     replace: { __YARIZAN_BUILD_PROFILE__: JSON.stringify(buildProfile) },
     output: {
-      dir: process.env.YARIZAN_OUTPUT_DIR ?? (brochure ? '.output-brochure' : '.output'),
+      dir: process.env.YARIZAN_OUTPUT_DIR ?? (brochure ? `.output-${buildProfile}` : '.output'),
     },
   },
   // Brochure builds never contain the browser API proxy or the payment return handler.

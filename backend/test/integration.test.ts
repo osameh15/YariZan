@@ -1659,7 +1659,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 9 });
+    assert.deepEqual(await verifyMigrations(c), { total: 10 });
   } finally {
     await c.query("RESET ROLE");
     c.release();
@@ -3349,14 +3349,19 @@ test("Commerce uses real snapshots, idempotency, ownership and disabled product 
       "PRODUCT_NOT_AVAILABLE",
       other.browser,
     );
-  const price = (
-    await db.query(
-      "SELECT amount_irr FROM product_prices WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
-    )
-  ).rows[0].amount_irr;
-  await db.query(
-    "UPDATE product_prices SET amount_irr=14000000 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
-  );
+  // A later price change is appended (price history is append-only) and never alters the
+  // order's captured snapshot; the original price is then restored by another appended row.
+  const changePrice = (amount: number) =>
+    db.transaction(async (c) => {
+      await c.query(
+        "UPDATE product_prices SET ended_at=clock_timestamp() WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
+      );
+      await c.query(
+        "INSERT INTO product_prices(id,sku,amount_irr,effective_at,source,pricing_revision) VALUES($1,'YARIZAN-G1',$2,clock_timestamp(),'BOOTSTRAP','pricing-2026-10-18-r9')",
+        [randomUUID(), amount],
+      );
+    });
+  await changePrice(14000000);
   try {
     assert.equal(
       (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body
@@ -3364,10 +3369,7 @@ test("Commerce uses real snapshots, idempotency, ownership and disabled product 
       12990000,
     );
   } finally {
-    await db.query(
-      "UPDATE product_prices SET amount_irr=$1 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
-      [price],
-    );
+    await changePrice(12990000);
   }
   await assert.rejects(
     db.query("UPDATE order_items SET total_irr=total_irr WHERE order_id=$1", [
@@ -3381,6 +3383,47 @@ test("Commerce uses real snapshots, idempotency, ownership and disabled product 
   );
 });
 
+test("Disabled commerce and client-supplied prices cannot create an order over direct HTTP", async () => {
+  // The browser never sends a price: unknown fields, including any price or total, are refused.
+  for (const extra of [
+    { price_irr: 1 },
+    { total_irr: 0 },
+    { unit_price_irr: 12990000 },
+    { pricing_revision: "pricing-2026-10-18-r1" },
+  ])
+    await denied(
+      "/orders",
+      { request_id: randomUUID(), sku: "YARIZAN-G1", ...extra },
+      "INVALID_REQUEST",
+      owner,
+    );
+  // With commerce disabled (the public and production default) no order, quote or payment
+  // can be created even by a direct, authenticated, CSRF-valid request.
+  const config = security.config as { COMMERCE_MODE: string };
+  const mode = config.COMMERCE_MODE;
+  const before = (await db.query("SELECT count(*)::int n FROM orders")).rows[0]
+    .n;
+  config.COMMERCE_MODE = "disabled";
+  try {
+    assert.equal(
+      (await ok<{ checkout_enabled: boolean }>("/commerce/capabilities")).body
+        .checkout_enabled,
+      false,
+    );
+    await denied(
+      "/orders",
+      { request_id: randomUUID(), sku: "YARIZAN-G1" },
+      "COMMERCE_UNAVAILABLE",
+      owner,
+    );
+  } finally {
+    config.COMMERCE_MODE = mode;
+  }
+  assert.equal(
+    (await db.query("SELECT count(*)::int n FROM orders")).rows[0].n,
+    before,
+  );
+});
 test("Parallel duplicate order clicks expose only one financial order", async () => {
   const e = await buyer();
   const results = await Promise.all(

@@ -74,3 +74,19 @@ Schema `yarizan-release-manifest/v1`, validated by `node tools/release/validate-
 4. If the whole application must go offline, put the maintenance route back and stop `web` and `api` only.
 
 **Never delete a database volume as part of a rollback.** Customer accounts, devices, signed license decisions, trials, orders, payments and audit records cannot be recreated, and offline desktop licenses keep referring to them. Restoring an older backup over newer data requires an explicit, reviewed reconciliation of later entitlements, revocations, codes and payments; it is a recovery operation, not a rollback.
+
+## 6. Public storefront release scope (added in PR #7)
+
+A second, independently approved publication path exists for the public storefront image:
+
+| Item | Stage A brochure | Public storefront |
+| --- | --- | --- |
+| Workflow | `release-images.yml` | `release-storefront.yml` |
+| Protected environment | `yarizan-release-stage-a` | `yarizan-release-public-storefront` |
+| Manifest scope | `stage-a-brochure` | `public-storefront` |
+| Image | `yarizan-web`, profile `brochure` | `yarizan-web`, profile `storefront` |
+| Eligibility | `stage-a-brochure-candidate` | `public-storefront-candidate` |
+
+Both use the same reviewed sequence (credential-free build and scan, zero HIGH/CRITICAL for the exact candidate digest, reviewer approval, preserved-digest push, read-back digest check, attestation, manifest). `tools/release/release-workflows.test.mjs` proves each workflow publishes only its own scope and profile behind its own environment, is manually triggered, and writes packages in exactly one job. CI rehearses both sequences against disposable registries (`stage-a-publication-rehearsal` job). The brochure scope stays available as the maintenance and rollback site. Full web and API publication still has no scope.
+
+The release manifest now expects **10** migrations (`010_price_provenance`).

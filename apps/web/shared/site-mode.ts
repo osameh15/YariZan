@@ -1,17 +1,25 @@
-// Release mode of the public website. "brochure" is the approved Stage A public mode:
-// informational pages only, no API, no accounts, no commerce. "full" is the complete
-// application and stays behind the Backend production gates.
-export const siteModes = ['brochure', 'full'] as const;
+// Release mode of the website.
+//  - brochure: Stage A maintenance/rollback site; informational pages only, no prices.
+//  - storefront: public storefront; the same public-only boundary as brochure (no API, no
+//    accounts, no commerce, no Admin) plus owner-approved informational prices.
+//  - full: the complete application; stays behind the Backend production gates.
+export const siteModes = ['brochure', 'storefront', 'full'] as const;
 export type SiteMode = (typeof siteModes)[number];
 
 export class SiteModeError extends Error {}
 
 export function parseSiteMode(value: unknown): SiteMode {
   if (value === undefined || value === '')
-    throw new SiteModeError('YARIZAN_SITE_MODE_REQUIRED: set brochure or full explicitly');
-  if (value !== 'brochure' && value !== 'full')
-    throw new SiteModeError('YARIZAN_SITE_MODE_INVALID: expected brochure or full');
-  return value;
+    throw new SiteModeError(
+      'YARIZAN_SITE_MODE_REQUIRED: set brochure, storefront or full explicitly',
+    );
+  if (!siteModes.includes(value as SiteMode))
+    throw new SiteModeError('YARIZAN_SITE_MODE_INVALID: expected brochure, storefront or full');
+  return value as SiteMode;
+}
+// Both public-only profiles share one route boundary.
+export function isPublicOnly(mode: SiteMode) {
+  return mode !== 'full';
 }
 
 // The runtime mode must equal the profile the image was built with. A full build cannot
@@ -23,7 +31,7 @@ export function assertSiteMode(runtime: unknown, buildProfile: unknown): SiteMod
   return mode;
 }
 
-// Reviewed public allowlist for brochure mode. Paths must match exactly: no trailing
+// Reviewed public allowlist for the public-only profiles (brochure and storefront). Paths must match exactly: no trailing
 // slash, no case variants, no aliases such as /products/yarizan-g1.
 export const brochurePages = [/^\/$/, /^\/products$/, /^\/products\/grade-[1-6]$/, /^\/support$/];
 const staticAsset = /^\/(?:_nuxt|brand|fonts)\/[A-Za-z0-9._\-/]+$/;
@@ -50,6 +58,9 @@ export function brochureDecision(method: string, rawPath: string): BrochureDecis
   if (suspicious) return 'not-found';
   const read = method === 'GET' || method === 'HEAD';
   if (path === '/healthz') return read ? 'health' : 'method-not-allowed';
+  // Crawler policy files are public in every profile (they default to disallow-all).
+  if (path === '/robots.txt' || path === '/sitemap.xml')
+    return read ? 'asset' : 'method-not-allowed';
   // Nuxt renders error pages through this internal route; it only renders the error view.
   if (path === '/__nuxt_error') return read ? 'internal-error' : 'method-not-allowed';
   if (staticAsset.test(path)) return read ? 'asset' : 'method-not-allowed';

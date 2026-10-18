@@ -10,9 +10,9 @@ useSeoMeta({
   title: () => (product.value ? `${product.value.title_fa} | یاریزان` : 'محصولات یاریزان'),
 });
 const assistance = ref(false);
-const { brochure } = useSiteMode();
-// Brochure mode has no API: commerce capabilities are never requested.
-const commerce = brochure.value
+const { publicOnly, storefront } = useSiteMode();
+// Public-only profiles have no API: commerce capabilities are never requested.
+const commerce = publicOnly.value
   ? ref<ApiResult<'/api/v2/commerce/capabilities', 'get'> | null>(null)
   : (
       await useFetch<ApiResult<'/api/v2/commerce/capabilities', 'get'>>(
@@ -40,7 +40,7 @@ const commerce = brochure.value
           <span
             class="badge"
             :class="product.publication_status === 'coming_soon' ? 'neutral' : 'available'"
-            >{{ availability(product) }}</span
+            >{{ availability(product, publicOnly) }}</span
           >
           <h1>{{ product.title_fa }}</h1>
           <p class="hero-lead">
@@ -57,8 +57,12 @@ const commerce = brochure.value
           <p v-if="product.publication_status === 'coming_soon'" class="notice">
             این پایه هنوز عرضه نشده است. فروش و فعال‌سازی آن در دسترس نیست.
           </p>
-          <template v-else-if="brochure">
-            <p class="notice">
+          <template v-else-if="publicOnly">
+            <p v-if="storefront" class="notice">
+              خرید اینترنتی، فعال‌سازی و شروع آزمایش این پایه به‌زودی فعال می‌شود. قیمت
+              نمایش‌داده‌شده قیمت رسمی است، اما هنوز هیچ سفارش یا پرداختی در این سایت ثبت نمی‌شود.
+            </p>
+            <p v-else class="notice">
               یاریزان در مرحلهٔ معرفی است. خرید اینترنتی، فعال‌سازی و شروع آزمایش این پایه هنوز در
               دسترس نیست و هیچ پرداختی در این سایت انجام نمی‌شود.
             </p>

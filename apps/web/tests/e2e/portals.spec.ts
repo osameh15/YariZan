@@ -14,6 +14,7 @@ import {
   sql,
   smsCode,
   nextMobile,
+  setPrice,
 } from '../../tools/test-fixtures.mjs';
 const images = path.resolve('.local/screenshots/phase3-1');
 test.beforeEach(async () => {
@@ -77,16 +78,12 @@ test('Persian SSR homepage and real six-grade catalog', async ({ page, request }
 });
 
 test('Catalog reflects backend price updates without rebuilding', async ({ page }) => {
-  await sql(
-    "UPDATE product_prices SET amount_irr=15000000 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
-  );
+  await setPrice('YARIZAN-G1', '15000000');
   try {
     await page.goto('/products');
     await expect(page.locator('.price').first()).toContainText('۱٬۵۰۰٬۰۰۰');
   } finally {
-    await sql(
-      "UPDATE product_prices SET amount_irr=12990000 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
-    );
+    await setPrice('YARIZAN-G1', '12990000');
   }
 });
 
@@ -237,9 +234,7 @@ test('MFA Admin dashboard, product edit and stale revision protection', async ({
   await page.getByRole('button', { name: 'تأیید و ثبت عملیات' }).click();
   await expect(page.getByRole('dialog').getByRole('status')).toContainText('اطلاعات تغییر کرده');
   await page.keyboard.press('Escape');
-  await sql(
-    "UPDATE product_prices SET amount_irr=12990000 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
-  );
+  await setPrice('YARIZAN-G1', '12990000');
 });
 
 test('Admin device block/unblock and activation codes display once', async ({ page }) => {

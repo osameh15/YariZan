@@ -2,7 +2,7 @@ import { defineEventHandler, setHeader, setResponseStatus, createError, type H3E
 import { brochureDecision } from '#shared/site-mode';
 import { serverSiteMode } from '../utils/site-mode';
 
-// Brochure mode boundary. Runs after security.ts (alphabetical order) and before every page,
+// Public-only boundary (brochure and storefront). Runs after security.ts (alphabetical order) and before every page,
 // server route and API handler, so protected routes fail closed before their own logic runs.
 const retryAfterSeconds = 3600;
 // Nuxt's error renderer marks 404 responses "no-cache"; refused requests must stay "no-store".
@@ -14,7 +14,7 @@ function pinNoStore(event: H3Event) {
   setHeader(event, 'Cache-Control', 'no-store');
 }
 export default defineEventHandler((event) => {
-  if (serverSiteMode() !== 'brochure') return;
+  if (serverSiteMode() === 'full') return;
   // Use the raw request target: h3 may already have decoded or normalized event.path.
   const decision = brochureDecision(event.method, event.node.req.url ?? '');
   if (decision === 'page' || decision === 'asset' || decision === 'health') return;

@@ -3,9 +3,12 @@ import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
-// Stage A acceptance for the brochure-only build. The server runs without Backend,
-// PostgreSQL, SMS, payment or signing configuration; see playwright.brochure.config.ts.
-const images = path.resolve('.local/screenshots/brochure');
+// Acceptance for the public-only builds (brochure and storefront). The server runs without
+// Backend, PostgreSQL, SMS, payment or signing configuration; see playwright.brochure.config.ts
+// and playwright.storefront.config.ts. The storefront additionally shows approved prices.
+const profile = process.env.YARIZAN_PUBLIC_PROFILE === 'storefront' ? 'storefront' : 'brochure';
+const storefront = profile === 'storefront';
+const images = path.resolve('.local/screenshots/' + profile);
 const publicPages = ['/', '/products', '/products/grade-1', '/products/grade-4', '/support'];
 const disabledPages = [
   '/account',
@@ -95,7 +98,9 @@ test('public pages render in Persian RTL with no API, console errors or broken l
     expect(response?.status(), url).toBe(200);
     await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await expect(page.getByRole('note')).toContainText('مرحلهٔ معرفی');
+    await expect(page.getByRole('note')).toContainText(
+      storefront ? 'قیمت‌ها رسمی و به تومان است' : 'مرحلهٔ معرفی',
+    );
     const hrefs = await page
       .locator('a[href^="/"]')
       .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));
@@ -116,15 +121,26 @@ test('catalog shows six grades, Grade 1 information and Coming Soon without live
   await page.goto('/products');
   await expect(page.locator('.product-card')).toHaveCount(6);
   await expect(page.locator('.product-card.coming-soon')).toHaveCount(5);
-  await expect(page.getByText('قیمت هنگام آغاز فروش اعلام می‌شود').first()).toBeVisible();
-  await expect(page.getByText('تومان')).toHaveCount(0);
+  if (storefront) {
+    // Every grade shows the approved price; availability is shown separately from price.
+    await expect(page.locator('.product-card .price')).toHaveText(Array(6).fill('۱٬۲۹۹٬۰۰۰ تومان'));
+    await expect(page.locator('.product-card .badge').first()).toHaveText('فروش اینترنتی به‌زودی');
+    await expect(page.locator('.product-card.coming-soon .badge')).toHaveText(
+      Array(5).fill('به‌زودی'),
+    );
+  } else {
+    await expect(page.getByText('قیمت هنگام آغاز فروش اعلام می‌شود').first()).toBeVisible();
+    await expect(page.getByText('تومان')).toHaveCount(0);
+  }
   await page.goto('/products/grade-1');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('یاریزان پایه اول دبستان');
-  await expect(page.getByText('معرفی محصول')).toBeVisible();
+  await expect(page.getByText(storefront ? 'فروش اینترنتی به‌زودی' : 'معرفی محصول')).toBeVisible();
+  if (storefront) await expect(page.locator('.detail-price')).toHaveText('۱٬۲۹۹٬۰۰۰ تومان');
   await expect(page.getByText('خرید اینترنتی، فعال‌سازی و شروع آزمایش')).toBeVisible();
   await expect(page.getByRole('link', { name: /خرید/ })).toHaveCount(0);
   await page.goto('/products/grade-3');
   await expect(page.getByText('این پایه هنوز عرضه نشده است.')).toBeVisible();
+  if (storefront) await expect(page.locator('.detail-price')).toHaveText('۱٬۲۹۹٬۰۰۰ تومان');
 });
 
 test('disabled pages return a Persian 503 page that is never cached', async ({ request }) => {
@@ -251,7 +267,7 @@ test('mobile layout has no horizontal overflow', async ({ browser }) => {
   await context.close();
 });
 
-test('screenshots of the brochure website at desktop and mobile widths', async ({ browser }) => {
+test(`screenshots of the ${profile} website at desktop and mobile widths`, async ({ browser }) => {
   for (const [label, viewport] of [
     ['1440', { width: 1440, height: 1000 }],
     ['390', { width: 390, height: 844 }],
@@ -262,6 +278,7 @@ test('screenshots of the brochure website at desktop and mobile widths', async (
       ['home', '/'],
       ['catalog', '/products'],
       ['grade-1', '/products/grade-1'],
+      ['grade-2', '/products/grade-2'],
       ['support', '/support'],
       ['disabled-checkout', '/checkout'],
       ['disabled-account', '/login'],
@@ -273,6 +290,19 @@ test('screenshots of the brochure website at desktop and mobile widths', async (
     }
     await context.close();
   }
+});
+
+test('first deployment is noindex: robots.txt disallows all and every page sends X-Robots-Tag', async ({
+  request,
+}) => {
+  const robots = await request.get('/robots.txt');
+  expect(robots.status()).toBe(200);
+  expect(await robots.text()).toBe(['User-agent: *', 'Disallow: /', ''].join('\n'));
+  for (const url of ['/', '/products', '/products/grade-1', '/support', '/checkout'])
+    expect((await request.get(url)).headers()['x-robots-tag'], url).toBe('noindex, nofollow');
+  const sitemap = await (await request.get('/sitemap.xml')).text();
+  expect(sitemap.match(/<loc>/g)).toHaveLength(9);
+  expect(sitemap).not.toMatch(/account|zanyari|checkout|payment|login/);
 });
 
 // Must stay last: proves the website never contacted the API port during the suite.

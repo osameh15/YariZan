@@ -39,6 +39,7 @@
     <Resource Include="Resources\logo.png" />
     <Resource Include="Resources\YariZan_Symbol_Only_256x256.png" />
     <Resource Include="Resources\OAR_Nova_Game.png" />
+    <Resource Include="Resources\YariZan_Contact_Icon_128x128.png" />
   </ItemGroup>
 
   <ItemGroup>

@@ -3,10 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FlowDirection="RightToLeft" FontFamily="{DynamicResource ShabnamFont}"
              Background="#D9160A04" IsVisibleChanged="VisibilityChanged">
-    <Border Width="440" Padding="32" CornerRadius="16"
-            Background="{StaticResource ParchmentBrushGradient}"
-            BorderBrush="{StaticResource GoldBrush}" BorderThickness="2"
-            HorizontalAlignment="Center" VerticalAlignment="Center">
+    <Border Width="440" Padding="32" Style="{StaticResource BookModalCard}">
         <StackPanel>
             <Image x:Name="LoadingLogo" Source="pack://application:,,,/YariZan;component/Resources/logo.png"
                    Width="170" Height="195" Stretch="Uniform" FlowDirection="LeftToRight"

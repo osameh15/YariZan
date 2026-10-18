@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { data: products, status, error, refresh } = await useCatalog();
-const { brochure } = useSiteMode();
+const { publicOnly } = useSiteMode();
 useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
 </script>
 <template>
@@ -14,7 +14,7 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
       <div class="actions">
         <NuxtLink class="button primary" to="/products"
           >کشف دنیای پایه‌ها <span aria-hidden="true">←</span></NuxtLink
-        ><NuxtLink v-if="!brochure" class="text-link" to="/connect"
+        ><NuxtLink v-if="!publicOnly" class="text-link" to="/connect"
           >برنامه را دارم؛ متصل می‌شوم ↗</NuxtLink
         ><NuxtLink v-else class="text-link" to="/support"
           >پرسشی دارید؟ با ما تماس بگیرید ↗</NuxtLink
@@ -81,6 +81,7 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
           v-for="product in products?.slice(0, 3)"
           :key="product.sku"
           :product="product"
+          :public-only="publicOnly"
         /></div
     ></LoadState>
   </section>
@@ -95,7 +96,7 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
       <div>
         <p class="eyebrow">خیال راحتِ خانواده، لذتِ کشفِ کودک</p>
         <h2>برای تجربه کردن،<br />عجله‌ای نیست.</h2>
-        <p v-if="brochure" class="notice">
+        <p v-if="publicOnly" class="notice">
           این بخش، سیاست آزمایش و مجوز را پس از آغاز عرضه توضیح می‌دهد. شروع آزمایش و فعال‌سازی هنوز
           در دسترس نیست.
         </p>
