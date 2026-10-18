@@ -57,8 +57,7 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
   for (const name of [
     "MOBILE_ENCRYPTION_KEY",
     "OTP_HMAC_KEY",
-    "MELIPAYAMAK_USERNAME",
-    "MELIPAYAMAK_PASSWORD",
+    "MELIPAYAMAK_API_TOKEN",
     "SMS_FAKE_OUTBOX",
   ])
     if (runtimeEnv[name] === "") delete runtimeEnv[name];
@@ -88,8 +87,10 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
         .string()
         .regex(/^[a-fA-F0-9]{64}$/)
         .optional(),
-      MELIPAYAMAK_USERNAME: z.string().min(1).optional(),
-      MELIPAYAMAK_PASSWORD: z.string().min(1).optional(),
+      MELIPAYAMAK_API_TOKEN: z
+        .string()
+        .regex(/^[A-Za-z0-9._~-]{8,256}$/)
+        .optional(),
       SMS_ALLOW_LIVE: z.enum(["true", "false"]).default("false"),
       SMS_FAKE_OUTBOX: z.string().optional(),
       MFA_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/),
@@ -123,8 +124,7 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
       throw new ConfigurationError("INDEPENDENT_SECRETS_REQUIRED");
     if (
       parsed.data.SMS_PROVIDER === "melipayamak" &&
-      (!parsed.data.MELIPAYAMAK_USERNAME ||
-        !parsed.data.MELIPAYAMAK_PASSWORD ||
+      (!parsed.data.MELIPAYAMAK_API_TOKEN ||
         parsed.data.SMS_ALLOW_LIVE !== "true")
     )
       throw new ConfigurationError("SMS_PROVIDER_CONFIGURATION_REQUIRED");

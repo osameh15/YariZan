@@ -45,13 +45,32 @@ export class FakeSmsProvider implements SmsProvider {
     return this.messages.findLast((m) => m.challengeId === id)?.code;
   }
 }
-export class MeliPayamakProvider implements SmsProvider {
+/**
+ * MeliPayamak console shared-service JSON API.
+ *
+ * POST https://console.melipayamak.com/api/send/shared/{token} with {"bodyId":N,"to":"09...","args":[...]}.
+ * The token is a secret that sits in the URL path: the URL is built here from the allowlisted
+ * host and a validated token, is never logged, and no error produced here carries the URL, the
+ * token, the phone number or the code (every failure is the generic SMS_UNAVAILABLE).
+ *
+ * Response semantics are NOT yet confirmed against provider documentation or a controlled test:
+ * a send is accepted only for HTTP 200 with a JSON `recId` that is a positive integer (string
+ * or number) and, when present, a `status` string without a failure marker. The first controlled
+ * live test must record the real `status` vocabulary and tighten this check.
+ */
+export const MELIPAYAMAK_HOST = "console.melipayamak.com";
+export const MELIPAYAMAK_TOKEN_PATTERN = /^[A-Za-z0-9._~-]{8,256}$/;
+const FAILURE_STATUS =
+  /fail|error|invalid|reject|denied|unauthor|insufficient|block/i;
+export class MeliPayamakSharedProvider implements SmsProvider {
   constructor(
-    private username: string,
-    private password: string,
+    private token: string,
     private transport: typeof fetch = fetch,
     private requireConfirmed = true,
-  ) {}
+  ) {
+    if (!MELIPAYAMAK_TOKEN_PATTERN.test(token))
+      throw new ApiError("SMS_UNAVAILABLE", 503);
+  }
   async send(m: SmsMessage) {
     await this.post(
       m.mobile,
@@ -69,18 +88,19 @@ export class MeliPayamakProvider implements SmsProvider {
   private async post(mobile: string, rendered: RenderedSms) {
     try {
       const r = await this.transport(
-        "https://rest.payamak-panel.com/api/SendSMS/BaseServiceNumber",
+        `https://${MELIPAYAMAK_HOST}/api/send/shared/${this.token}`,
         {
           method: "POST",
           redirect: "error",
           signal: AbortSignal.timeout(10000),
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            username: this.username,
-            password: this.password,
-            to: mobile,
-            text: rendered.text,
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
             bodyId: rendered.bodyId,
+            to: mobile,
+            args: rendered.args,
           }),
         },
       );
@@ -102,15 +122,17 @@ export class MeliPayamakProvider implements SmsProvider {
       } finally {
         reader.releaseLock();
       }
-      const text = Buffer.concat(chunks).toString("utf8");
-      const d = JSON.parse(text) as {
-        Value?: string | number;
-        RetStatus?: number;
+      const d = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+        recId?: string | number;
+        status?: unknown;
       };
       if (
-        !r.ok ||
-        Number(d.RetStatus) !== 1 ||
-        !/^[1-9][0-9]*$/.test(String(d.Value))
+        r.status !== 200 ||
+        !/^[1-9][0-9]{0,18}$/.test(String(d.recId)) ||
+        (d.status !== undefined &&
+          (typeof d.status !== "string" ||
+            d.status.length > 64 ||
+            FAILURE_STATUS.test(d.status)))
       )
         throw Error();
     } catch {
@@ -126,10 +148,7 @@ export class Sms {
     const c = security.config;
     if (c.SMS_PROVIDER === "fake") this.provider = this.fake;
     else if (c.SMS_PROVIDER === "melipayamak")
-      this.provider = new MeliPayamakProvider(
-        c.MELIPAYAMAK_USERNAME!,
-        c.MELIPAYAMAK_PASSWORD!,
-      );
+      this.provider = new MeliPayamakSharedProvider(c.MELIPAYAMAK_API_TOKEN!);
   }
   available() {
     if (!this.provider) throw new ApiError("SMS_UNAVAILABLE", 503);
@@ -145,7 +164,9 @@ export class Sms {
     return (
       c.SMS_PROVIDER === "melipayamak" &&
       c.SMS_ALLOW_LIVE === "true" &&
-      NOTICE_TEMPLATES[event].textConfirmed
+      NOTICE_TEMPLATES[event].textConfirmed &&
+      // A purchase notice is never sent for a simulated or disabled commerce flow.
+      (event !== "PURCHASE_CONFIRMED" || c.COMMERCE_MODE === "zarinpal")
     );
   }
   async notify(n: SmsNotice) {

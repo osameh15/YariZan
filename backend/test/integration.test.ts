@@ -4326,3 +4326,87 @@ test("Purchase confirmation is sent once after durable fulfillment and carries o
     "1",
   );
 });
+
+test("OTP lifetime is exactly 180 seconds in the API response and the database", async () => {
+  const e = await enroll(candidate());
+  const r = await ok<{
+    challenge_id: string;
+    expires_in: number;
+    retry_after: number;
+  }>("/auth/otp/request", {
+    username: e.username,
+    mobile: await mobileFor(e),
+    purpose: "LOGIN",
+  });
+  assert.equal(r.body.expires_in, 180);
+  assert.equal(r.body.retry_after, 60);
+  const row = (
+    await db.query(
+      "SELECT extract(epoch FROM expires_at-created_at)::int AS seconds FROM otp_challenges WHERE id=$1",
+      [r.body.challenge_id],
+    )
+  ).rows[0];
+  assert.equal(row.seconds, 180);
+});
+
+test("OTP boundary: accepted at 179 seconds, rejected at 180 and 181, by database time", async () => {
+  for (const [elapsed, accepted] of [
+    [179, true],
+    [180, false],
+    [181, false],
+  ] as const) {
+    const e = await enroll(candidate());
+    const { challenge_id, code } = await requestOtp(e);
+    // Move issue time back so that `elapsed` seconds have passed on the database clock.
+    await db.query(
+      "UPDATE otp_challenges SET created_at=now()-make_interval(secs=>$2), expires_at=now()-make_interval(secs=>$2)+make_interval(secs=>180) WHERE id=$1",
+      [challenge_id, elapsed],
+    );
+    if (accepted) await ok("/auth/otp/verify", { challenge_id, code });
+    else {
+      await denied("/auth/otp/verify", { challenge_id, code }, "OTP_INVALID");
+      // An expired code never authenticates, even with the right value and a spare attempt.
+      await denied("/auth/otp/verify", { challenge_id, code }, "OTP_INVALID");
+    }
+  }
+});
+
+test("An expired Admin MFA code cannot open a session", async () => {
+  const id = randomUUID(),
+    username = "test-admin-expiry-" + id,
+    phone = nextMobile();
+  await db.query(
+    "INSERT INTO admins(id,username,password_hash,mfa_ciphertext) VALUES($1,$2,$3,$4)",
+    [
+      id,
+      username,
+      await passwordHash("Synthetic!Admin123456", {
+        type: 2,
+        memoryCost: 65536,
+        timeCost: 3,
+        parallelism: 1,
+      }),
+      seal(randomBytes(20).toString("hex"), process.env.MFA_ENCRYPTION_KEY!),
+    ],
+  );
+  await db.query("INSERT INTO admin_user_roles VALUES($1,$2)", [id, "owner"]);
+  await db.query(
+    "UPDATE admins SET mobile_ciphertext=$2,mobile_last4=$3 WHERE id=$1",
+    [id, seal(phone, process.env.MOBILE_ENCRYPTION_KEY!), phone.slice(-4)],
+  );
+  const sent = await ok<{ challenge_id: string }>("/admin/auth/login", {
+    username,
+    password: "Synthetic!Admin123456",
+  });
+  const code = await otpCode(sent.body.challenge_id);
+  await db.query(
+    "UPDATE otp_challenges SET created_at=now()-interval '181 seconds', expires_at=now()-interval '1 second' WHERE id=$1",
+    [sent.body.challenge_id],
+  );
+  const r = await denied(
+    "/admin/auth/sms/verify",
+    { challenge_id: sent.body.challenge_id, code },
+    "OTP_INVALID",
+  );
+  assert.equal(r.headers.get("set-cookie"), null);
+});

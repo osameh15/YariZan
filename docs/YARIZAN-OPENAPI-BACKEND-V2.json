@@ -1040,7 +1040,7 @@
                     },
                     "expires_in": {
                       "type": "number",
-                      "const": 300
+                      "const": 180
                     },
                     "retry_after": {
                       "type": "number",
@@ -2012,7 +2012,7 @@
                     },
                     "expires_in": {
                       "type": "number",
-                      "const": 300
+                      "const": 180
                     },
                     "retry_after": {
                       "type": "number",
@@ -6948,7 +6948,7 @@
                     },
                     "expires_in": {
                       "type": "number",
-                      "const": 300
+                      "const": 180
                     },
                     "retry_after": {
                       "type": "number",
@@ -7343,7 +7343,7 @@
                     },
                     "expires_in": {
                       "type": "number",
-                      "const": 300
+                      "const": 180
                     },
                     "retry_after": {
                       "type": "number",

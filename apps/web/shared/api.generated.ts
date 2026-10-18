@@ -2051,7 +2051,7 @@ export interface operations {
           'application/json': {
             challenge_id: string;
             /** @constant */
-            expires_in: 300;
+            expires_in: 180;
             /** @constant */
             retry_after: 60;
           };
@@ -2688,7 +2688,7 @@ export interface operations {
           'application/json': {
             challenge_id: string;
             /** @constant */
-            expires_in: 300;
+            expires_in: 180;
             /** @constant */
             retry_after: 60;
           };
@@ -5780,7 +5780,7 @@ export interface operations {
           'application/json': {
             challenge_id: string;
             /** @constant */
-            expires_in: 300;
+            expires_in: 180;
             /** @constant */
             retry_after: 60;
           };
@@ -6080,7 +6080,7 @@ export interface operations {
           'application/json': {
             challenge_id: string;
             /** @constant */
-            expires_in: 300;
+            expires_in: 180;
             /** @constant */
             retry_after: 60;
           };
