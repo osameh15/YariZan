@@ -24,6 +24,11 @@ LABEL org.opencontainers.image.title="yarizan-web" \
   org.opencontainers.image.source="https://github.com/osameh15/YariZan" \
   org.opencontainers.image.revision="${SOURCE_COMMIT}" \
   games.oarnova.yarizan.build-profile="${YARIZAN_BUILD_PROFILE}"
+# Security maintenance (CVE-2026-85091): the reviewed base digest still ships zlib 1.3.2-r0 and
+# no newer node:24 Alpine base exists yet. Install the fixed Alpine package explicitly and fail
+# the build unless exactly zlib-1.3.2-r1 is installed; a later revision must be reviewed again.
+RUN apk add --no-cache --upgrade 'zlib=1.3.2-r1' \
+  && [ "$(apk list --installed zlib | cut -d' ' -f1)" = zlib-1.3.2-r1 ]
 # Runtime needs only node: remove package managers so no install tooling ships in the image.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-v* \
   /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
