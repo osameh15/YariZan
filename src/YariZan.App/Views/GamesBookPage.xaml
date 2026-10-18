@@ -97,6 +97,9 @@
                                FontSize="22" Foreground="{StaticResource GoldBrush}"
                                VerticalAlignment="Center" Margin="8,0" />
 
+
+
+
                     <Image x:Name="HeaderLogo" Grid.Column="1" Width="110" Height="70" Margin="12,0"
                            Source="pack://application:,,,/YariZan;component/Resources/YariZan_Symbol_Only_256x256.png"
                            Stretch="Uniform" FlowDirection="LeftToRight" HorizontalAlignment="Center"
@@ -105,6 +108,19 @@
 
                     <!-- RTL StackPanel: minimize before خروج in source = minimize visually right of خروج. -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                        <Button Width="44" Height="44" Padding="3" Margin="4,0" Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                VerticalAlignment="Center"
+                                Click="Contact_Click" ToolTip="ارتباط با ما" AutomationProperties.Name="ارتباط با ما">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <Image Source="/YariZan;component/Resources/YariZan_Contact_Icon_128x128.png"
+                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                        </Button>
                         <Button Content="درباره" Style="{StaticResource GoldButton}" FontSize="14" MinHeight="36" Padding="14,6" Click="About_Click" Margin="4,0" ToolTip="دربارهٔ مجموعهٔ آموزشی" />
                         <Button Content="بازگشت" Style="{StaticResource GoldButton}"
                                 FontSize="14" MinHeight="36" Padding="14,6"
@@ -161,12 +177,9 @@
             </Grid>
 
             <!-- Modal info overlay -->
-            <Grid x:Name="InfoOverlay" Visibility="Collapsed" Background="#B0000000"
+            <Grid x:Name="InfoOverlay" Visibility="Collapsed" Background="#D9160A04"
                   MouseLeftButtonDown="Overlay_BackgroundClick" KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.ControlTabNavigation="Cycle">
-                <Border MaxWidth="640" Margin="40" CornerRadius="12"
-                        Background="{StaticResource ParchmentBrushGradient}"
-                        BorderBrush="{StaticResource LeatherDarkBrush}" BorderThickness="3"
-                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                <Border MaxWidth="640" Margin="40" Style="{StaticResource BookModalCard}"
                         MouseLeftButtonDown="Overlay_PanelClick">
                     <Border.Effect>
                         <DropShadowEffect Color="Black" BlurRadius="40" Opacity="0.7" ShadowDepth="0" />
@@ -189,6 +202,33 @@
                             <TextBlock x:Name="InfoBody" FontSize="18" Foreground="{StaticResource InkBrush}"
                                        TextWrapping="Wrap" TextAlignment="Justify" LineHeight="32" />
                         </ScrollViewer>
+
+                        <StackPanel x:Name="ContactPanel" Grid.Row="2" Visibility="Collapsed" Margin="0,16,0,0" MinWidth="420">
+                            <Button Style="{StaticResource GoldButton}" HorizontalContentAlignment="Stretch" Click="StudioWebsite_Click" Margin="0,0,0,12" Padding="16,12"
+                                    AutomationProperties.Name="وب‌سایت استودیو OAR NOVA Games">
+                                <Grid FlowDirection="LeftToRight">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="80" /></Grid.ColumnDefinitions>
+                                    <Image Grid.Column="1" Source="/YariZan;component/Resources/OAR_Nova_Game.png" Width="64" Height="64" Stretch="Uniform" Margin="16,0,0,0" />
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="استودیو OAR NOVA Games" FontSize="18" FlowDirection="LeftToRight" TextAlignment="Right" />
+                                        <TextBlock Text="oarnova.games" FontSize="16" FlowDirection="LeftToRight" TextAlignment="Right" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                            <Button Style="{StaticResource GoldButton}" HorizontalContentAlignment="Stretch" Click="YarizanWebsite_Click" Padding="16,12"
+                                    AutomationProperties.Name="وب‌سایت یاریزان">
+                                <Grid FlowDirection="LeftToRight">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="80" /></Grid.ColumnDefinitions>
+                                    <Image Grid.Column="1" Source="/YariZan;component/Resources/YariZan_Symbol_Only_256x256.png" Width="64" Height="64" Stretch="Uniform" Margin="16,0,0,0" />
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="یاریزان" FontSize="18" FlowDirection="LeftToRight" TextAlignment="Right" />
+                                        <TextBlock Text="yarizan.oarnova.games" FontSize="16" FlowDirection="LeftToRight" TextAlignment="Right" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                            <TextBlock x:Name="ContactFeedback" TextWrapping="Wrap" FontSize="14" Margin="0,12,0,0"
+                                       Foreground="{StaticResource InkBrush}" AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
 
                         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
                             <Button x:Name="InfoLaunchButton" Content="اجرا" Style="{StaticResource GoldButton}" MinWidth="140"

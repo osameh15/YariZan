@@ -170,6 +170,8 @@ public partial class GamesBookPage : UserControl
 
     private void ShowInfo(GameEntry e)
     {
+        ContactPanel.Visibility = Visibility.Collapsed;
+        InfoScroll.Visibility = Visibility.Visible;
         _infoGame = e;
         InfoTitle.Text = e.Name;
         InfoBody.Text = string.IsNullOrWhiteSpace(e.Description)
@@ -182,12 +184,40 @@ public partial class GamesBookPage : UserControl
 
     private void About_Click(object sender, RoutedEventArgs e)
     {
+        ContactPanel.Visibility = Visibility.Collapsed;
+        InfoScroll.Visibility = Visibility.Visible;
         _infoGame = null;
         InfoTitle.Text = "دربارهٔ مجموعه";
         InfoBody.Text = AboutText;
         InfoLaunchButton.Visibility = Visibility.Collapsed;
         InfoScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
         ShowModal();
+    }
+
+    private void Contact_Click(object sender, RoutedEventArgs e)
+    {
+        _infoGame = null;
+        InfoTitle.Text = "ارتباط با ما";
+        InfoScroll.Visibility = InfoLaunchButton.Visibility = Visibility.Collapsed;
+        ContactPanel.Visibility = Visibility.Visible;
+        ContactFeedback.Text = "";
+        ShowModal();
+    }
+
+    private void StudioWebsite_Click(object sender, RoutedEventArgs e) => OpenContactWebsite("https://oarnova.games/");
+    private void YarizanWebsite_Click(object sender, RoutedEventArgs e) => OpenContactWebsite("https://yarizan.oarnova.games/");
+
+    private void OpenContactWebsite(string url)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+            ContactFeedback.Text = "";
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            ContactFeedback.Text = "مرورگر باز نشد. نشانی وب‌سایت را در مرورگر وارد کنید.";
+        }
     }
 
     private void ShowModal()
