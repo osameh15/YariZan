@@ -1901,6 +1901,7 @@ textarea[aria-invalid='true'] {
 }
 
 .enamad-seal {
+  justify-self: end;
   display: inline-flex;
   flex-shrink: 0;
   line-height: 0;
