@@ -1,4 +1,4 @@
-﻿# Public storefront release execution — 2026-10-18
+# Public storefront release execution — 2026-10-18
 
 PR #7 merged as `e0f11da5929deb6b59e9650b2d9d2fa6386c46fb`, preserving pricing, storefront isolation, release authorization fixes, commercial gates and the Windows contact modal. All four CI workflows passed on that actual merged SHA:
 
@@ -9,7 +9,7 @@ PR #7 merged as `e0f11da5929deb6b59e9650b2d9d2fa6386c46fb`, preserving pricing, 
 
 Protected storefront release run: https://github.com/osameh15/YariZan/actions/runs/39121124075
 
-Source verification, candidate build and exact-digest scan passed. Publication is waiting for a separate authorized review identity: the environment has required reviewer `osameh15`, self-review prevention enabled, administrator bypass disabled, and main-only deployment branches. No GHCR publication, final release manifest or production cutover is claimed. The upstream base-image tag still resolves to the reviewed digest; no dependency upgrade or scan exception was introduced.
+Source verification, candidate build and exact-digest scan passed. Publication is waiting for the owner to approve the protected job in GitHub. The environment requires reviewer `osameh15`, disables administrator bypass and permits main only. It initially prevented self-review; the owner explicitly waived the second-person requirement for solo operation, so self-review is now allowed while required manual approval remains. The agent did not approve its own run. No GHCR publication, final release manifest or production cutover is claimed. The upstream base-image tag still resolves to the reviewed digest; no dependency upgrade or scan exception was introduced.
 
 Infrastructure PR: https://github.com/OAR-NOVA-Games/oarnova-infrastructure/pull/30
 
