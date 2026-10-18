@@ -316,12 +316,22 @@ try {
   );
   for (let n = 0; n < 60; n++) {
     if (
-      spawnSync('docker', ['exec', names.db, 'pg_isready', '-U', 'postgres', '-d', 'yarizan'])
-        .status === 0
+      spawnSync('docker', [
+        'exec',
+        names.db,
+        'pg_isready',
+        '-h',
+        '127.0.0.1',
+        '-U',
+        'postgres',
+        '-d',
+        'yarizan',
+      ]).status === 0
     )
       break;
     await new Promise((r) => setTimeout(r, 1000));
   }
+  // The loop waits for TCP readiness: the image's temporary init server listens on the socket only.
   assert.match(sql('SELECT version()'), /PostgreSQL 17\.11/);
   step('PostgreSQL 17.11 on an internal network with no published port');
 
