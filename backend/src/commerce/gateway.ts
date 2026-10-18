@@ -22,6 +22,10 @@ export type PaymentResult = {
   amount_irr?: number;
   currency?: string;
   provider_config?: string;
+  /** Provider code 101: the authority was already verified by an earlier call. */
+  previously_verified?: boolean;
+  /** The provider returned a parsed, documented answer (not a timeout or transport failure). */
+  answered?: boolean;
 };
 export interface PaymentGateway {
   create(
@@ -172,32 +176,31 @@ export class ZarinPalAdapter implements PaymentGateway {
         authority: r.authority,
         amount: r.amount_irr,
       });
-      if (
-        ![100, 101].includes(result.data?.code ?? 0) ||
-        !/^[1-9][0-9]{0,30}$/.test(String(result.data?.ref_id ?? ""))
-      )
-        return { state: "UNKNOWN" };
-      // The documented verify endpoint binds the supplied amount; it does not echo amount/currency.
-      return {
-        state: "VERIFIED",
-        authority: r.authority,
-        reference: String(result.data!.ref_id),
-        amount_irr: r.amount_irr,
-        currency: "IRR",
-        provider_config: r.provider_config,
-      };
+      const code = result.data?.code;
+      // Official contract: 100 = verified now, 101 = already verified earlier.
+      const reference = /^[1-9][0-9]{0,30}$/.test(
+        String(result.data?.ref_id ?? ""),
+      );
+      if ((code === 100 || code === 101) && reference)
+        // The documented verify endpoint binds the supplied amount; it does not echo amount/currency.
+        return {
+          state: "VERIFIED",
+          authority: r.authority,
+          reference: String(result.data!.ref_id),
+          amount_irr: r.amount_irr,
+          currency: "IRR",
+          provider_config: r.provider_config,
+          previously_verified: code === 101,
+          answered: true,
+        };
+      return { state: "UNKNOWN", answered: typeof code === "number" };
     } catch {
       return { state: "UNKNOWN" };
     }
   }
-  async query(r: PaymentRequest): Promise<PaymentResult> {
-    if (!r.authority) return { state: "UNKNOWN" };
-    try {
-      await this.call("inquiry", { authority: r.authority });
-    } catch {
-      return { state: "UNKNOWN" };
-    }
-    // Inquiry status vocabulary/terminal failure semantics require merchant acceptance.
+  // Authoritative status check = server-side verify. The inquiry endpoint's status vocabulary
+  // is not mapped (recorded as an open item in the readiness matrix), so it is never consulted.
+  query(r: PaymentRequest): Promise<PaymentResult> {
     return this.verify(r);
   }
 }
