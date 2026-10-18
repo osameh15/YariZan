@@ -3383,6 +3383,46 @@ test("Commerce uses real snapshots, idempotency, ownership and disabled product 
   );
 });
 
+test("Disabled commerce and client-supplied prices cannot create an order over direct HTTP", async () => {
+  // The browser never sends a price: unknown fields, including any price or total, are refused.
+  for (const extra of [
+    { price_irr: 1 },
+    { total_irr: 0 },
+    { unit_price_irr: 12990000 },
+    { pricing_revision: "pricing-2026-10-18-r1" },
+  ])
+    await denied(
+      "/orders",
+      { request_id: randomUUID(), sku: "YARIZAN-G1", ...extra },
+      "INVALID_REQUEST",
+      owner,
+    );
+  // With commerce disabled (the public and production default) no order, quote or payment
+  // can be created even by a direct, authenticated, CSRF-valid request.
+  const config = security.config as { COMMERCE_MODE: string };
+  const mode = config.COMMERCE_MODE;
+  const before = (await db.query("SELECT count(*)::int n FROM orders")).rows[0].n;
+  config.COMMERCE_MODE = "disabled";
+  try {
+    assert.equal(
+      (await ok<{ checkout_enabled: boolean }>("/commerce/capabilities")).body
+        .checkout_enabled,
+      false,
+    );
+    await denied(
+      "/orders",
+      { request_id: randomUUID(), sku: "YARIZAN-G1" },
+      "COMMERCE_UNAVAILABLE",
+      owner,
+    );
+  } finally {
+    config.COMMERCE_MODE = mode;
+  }
+  assert.equal(
+    (await db.query("SELECT count(*)::int n FROM orders")).rows[0].n,
+    before,
+  );
+});
 test("Parallel duplicate order clicks expose only one financial order", async () => {
   const e = await buyer();
   const results = await Promise.all(
