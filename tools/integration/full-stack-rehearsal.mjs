@@ -64,7 +64,9 @@ const dbPassword = randomBytes(18).toString('hex');
 // The API writes its synthetic signing key and fake SMS outbox (mode 0600) into a bind mount
 // that this runner must read, so on Linux it runs as the runner's own non-root uid/gid.
 const apiUser =
-  process.getuid && process.getuid() !== 0 ? `${process.getuid()}:${process.getgid()}` : '1000:1000';
+  process.getuid && process.getuid() !== 0
+    ? `${process.getuid()}:${process.getgid()}`
+    : '1000:1000';
 const POSTGRES =
   'public.ecr.aws/docker/library/postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24';
 const log = [];
@@ -389,22 +391,24 @@ try {
 
   // 1. Public catalog before and after Admin publication through the web proxy.
   assert.deepEqual(expectOk(await web('products'), 'products'), []);
-  const adminId = randomUUID(),
-    adminName = 'integration-owner-' + id,
-    adminPassword = 'Synthetic!IntegrationAdmin1',
-    adminMobile = '0912' + String(1000000 + Math.floor(Math.random() * 8999999));
+  // Each stage signs in a separate synthetic owner (own mobile): permissioned Admin operations
+  // need SMS MFA within five minutes, and the real OTP cooldown refuses rapid re-sends to one phone.
+  const adminPassword = 'Synthetic!IntegrationAdmin1';
   const passwordHash = await argon2.hash(adminPassword, {
     type: argon2.argon2id,
     memoryCost: 65536,
     timeCost: 3,
     parallelism: 1,
   });
-  sql(
-    `INSERT INTO admins(id,username,password_hash,mfa_ciphertext,mobile_ciphertext,mobile_last4) VALUES('${adminId}','${adminName}','${passwordHash}','${seal(randomBytes(20).toString('hex'), keys.MFA_ENCRYPTION_KEY)}','${seal(adminMobile, keys.MOBILE_ENCRYPTION_KEY)}','${adminMobile.slice(-4)}')`,
-  );
-  sql(`INSERT INTO admin_user_roles VALUES('${adminId}','owner')`);
-  // Permissioned Admin operations need a fresh second factor (5 minutes), so sign in per stage.
+  let admins = 0;
   const adminSession = async () => {
+    const adminId = randomUUID(),
+      adminName = `integration-owner-${id}-${++admins}`,
+      adminMobile = '0912' + String(1000000 + Math.floor(Math.random() * 8999999));
+    sql(
+      `INSERT INTO admins(id,username,password_hash,mfa_ciphertext,mobile_ciphertext,mobile_last4) VALUES('${adminId}','${adminName}','${passwordHash}','${seal(randomBytes(20).toString('hex'), keys.MFA_ENCRYPTION_KEY)}','${seal(adminMobile, keys.MOBILE_ENCRYPTION_KEY)}','${adminMobile.slice(-4)}')`,
+    );
+    sql(`INSERT INTO admin_user_roles VALUES('${adminId}','owner')`);
     const challenge = expectOk(
       await web('admin/auth/login', { body: { username: adminName, password: adminPassword } }),
       'admin login',

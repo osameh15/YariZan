@@ -96,3 +96,51 @@ test("Real gateway selection is closed even with synthetic merchant-like environ
     /ZARINPAL_LIVE_GATE_CLOSED/,
   );
 });
+test("Invalid merchant, callback, currency or amount contracts are refused before any provider request", async () => {
+  let requests = 0;
+  const transport: typeof fetch = async () => {
+    requests++;
+    return new Response(
+      '{"data":{"code":100,"authority":"A' + "0".repeat(32) + '"}}',
+    );
+  };
+  for (const [merchant, callback] of [
+    ["not-a-merchant-uuid", "https://example.invalid/payment/return"],
+    [
+      "00000000-0000-4000-8000-000000000003",
+      "http://example.invalid/payment/return",
+    ],
+    [
+      "00000000-0000-4000-8000-000000000003",
+      "https://example.invalid/return?x=1",
+    ],
+    [
+      "00000000-0000-4000-8000-000000000003",
+      "https://user:pass@example.invalid/return",
+    ],
+  ])
+    assert.throws(() => new ZarinPalAdapter(merchant, callback, transport));
+  const adapter = new ZarinPalAdapter(
+    "00000000-0000-4000-8000-000000000003",
+    "https://example.invalid/payment/return",
+    transport,
+  );
+  for (const bad of [
+    { currency: "IRT" },
+    { amount_irr: 9999 },
+    { amount_irr: 12990000.5 },
+    { amount_irr: Number.MAX_SAFE_INTEGER + 2 },
+  ])
+    await assert.rejects(
+      adapter.create({ ...request, ...bad } as PaymentRequest),
+      (e: { code?: string }) => e.code === "GATEWAY_CONFIG_INVALID",
+    );
+  assert.equal(requests, 0);
+  // Verification with a foreign currency or a malformed authority is never "paid".
+  for (const bad of [{ currency: "IRT" }, { authority: "FAKE-authority" }])
+    assert.deepEqual(
+      await adapter.verify({ ...request, ...bad } as PaymentRequest),
+      { state: "UNKNOWN" },
+    );
+  assert.equal(requests, 0);
+});
