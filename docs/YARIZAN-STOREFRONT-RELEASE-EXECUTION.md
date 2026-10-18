@@ -42,3 +42,10 @@ Correction (both release workflows): the push logs in to one job-scoped Docker-f
 - Production screenshots (`docs/Images/production/`): `home-1440`, `catalog-1440`, `grade-1-390`, `disabled-checkout-390`. Also checked at 768 px; no horizontal overflow at any width.
 
 Still closed: every Backend production gate and live ZarinPal. No account, payment, licensing or Admin service is reachable; indexing stays off until the owner decides otherwise. Rollback: previous maintenance page via the recorded archive or `scripts/deploy.sh yarizan-maintenance`.
+
+## Post-launch closure — 2026-10-18
+
+- Records merged: app PR #11 as `0edae71121724a1c07dc34addf8cb743b4e6e395`; infrastructure PR #34 as `951bd2dc28f70bfbb08cae6224ba052f97d3d73f`. Merged docs branches deleted after confirming their content is on `main`.
+- Health after the merges: `/healthz` 200 and storefront acceptance 35/35 PASS through the public CDN; still `noindex, nofollow`, `robots.txt` disallows all, disabled routes 503.
+- Security maintenance: the live image's only finding (1 Medium, CVE-2026-85091 in Alpine `zlib 1.3.2-r0`) is fixed in PR #12 by installing `zlib 1.3.2-r1` on the same pinned base digest; the PR's storefront image scan reports zero findings. The live image is unchanged; replacing it needs a new owner-approved storefront release and an infrastructure manifest update.
+- Follow-up documents: `YARIZAN-SEO-LAUNCH-READINESS-AUDIT.md`, `YARIZAN-PAYMENT-READINESS-DASHBOARD-DESIGN.md`, `YARIZAN-BACKEND-GATE-READINESS-PLAN.md`.
