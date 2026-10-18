@@ -1,0 +1,264 @@
+name: Release public storefront image (manual approval, no deployment)
+# Public storefront only: publishes the digest-pinned STOREFRONT web image (public pages with
+# the owner-approved prices; no Backend, accounts, commerce or Admin) to GHCR for ONE already
+# tested commit and produces the release manifest for the infrastructure session.
+# Same reviewed sequence as release-images.yml (Stage A): verify -> build and scan the candidate
+# without registry credentials (zero HIGH/CRITICAL or stop) -> reviewer approval -> push the same
+# archive with preserved digests -> attest -> manifest. It uses its OWN protected environment, so
+# approving a Stage A brochure release never authorizes a storefront release and vice versa. It
+# never builds or publishes the full web image or the API image, never deploys, never uses
+# SSH/VPS credentials and never receives payment, SMS or signing secrets.
+#
+# Owner prerequisites (docs/YARIZAN-INFRASTRUCTURE-HANDOFF-V3.md):
+#   1. Environment "yarizan-release-public-storefront" with at least one required reviewer.
+#   2. Agreement that the GHCR package ghcr.io/osameh15/yarizan-web may carry storefront tags.
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full 40-hex commit SHA to release (must already have green CI)
+        required: true
+        type: string
+permissions: {}
+concurrency:
+  group: release-images
+  cancel-in-progress: false
+env:
+  REGISTRY: ghcr.io/osameh15
+  RELEASE_SCOPE: public-storefront
+  RELEASE_ENVIRONMENT: yarizan-release-public-storefront
+  TRIVY_IMAGE: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
+jobs:
+  verify:
+    name: Verify commit, CI evidence and release controls
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      commit: ${{ steps.check.outputs.commit }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ inputs.commit }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo 'Commit must be a full lowercase 40-hex SHA'; exit 1; }
+          # Only commits on main or on a same-repository pull request branch (never a fork).
+          status=$(gh api "repos/$REPO/compare/main...$COMMIT" --jq .status)
+          if [[ "$status" != identical && "$status" != behind ]]; then
+            heads=$(gh api "repos/$REPO/commits/$COMMIT/pulls" \
+              --jq "[.[]|select(.head.repo.full_name==\"$REPO\")]|length")
+            [[ "$heads" -gt 0 ]] || { echo 'Commit is not on main or a same-repository PR'; exit 1; }
+          fi
+          # Every required workflow must have succeeded for this exact commit.
+          for workflow in 'CI' 'V2 Backend CI' 'V2 Web and Provisioning CI' 'Image build and security validation'; do
+            ok=$(gh api "repos/$REPO/actions/runs?head_sha=$COMMIT&per_page=100" \
+              --jq "[.workflow_runs[]|select(.name==\"$workflow\" and .conclusion==\"success\")]|length")
+            [[ "$ok" -gt 0 ]] || { echo "Missing successful '$workflow' run for $COMMIT"; exit 1; }
+          done
+          # Refuse to continue without an approval-protected environment (owner gate).
+          reviewers=$(gh api "repos/$REPO/environments/$RELEASE_ENVIRONMENT" \
+            --jq '[.protection_rules[]?|select(.type=="required_reviewers")]|length' 2>/dev/null || echo 0)
+          [[ "$reviewers" -gt 0 ]] || { echo "Environment $RELEASE_ENVIRONMENT with required reviewers is missing"; exit 1; }
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+
+  # Build and scan BEFORE any registry credential exists. The candidate is pushed only to a
+  # job-local registry, scanned by digest and exported as an OCI archive. A policy failure ends
+  # the run here: nothing reaches GHCR and no manifest is produced.
+  candidate:
+    name: Build and scan the storefront candidate (no registry credentials)
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      IMAGE: yarizan-web
+      PROFILE: storefront
+      LOCAL: localhost:5000/yarizan-web
+    services:
+      registry:
+        image: registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
+        ports: ['5000:5000']
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      tag: ${{ steps.tag.outputs.tag }}
+      archive_sha256: ${{ steps.export.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Refuse anything outside the Stage A scope
+        run: |
+          set -euo pipefail
+          # Storefront scope: the storefront web image only. Do not add the full web or API image;
+          # the manifest validator rejects a public-storefront manifest that contains them.
+          [[ "$RELEASE_SCOPE" == public-storefront && "$IMAGE" == yarizan-web && "$PROFILE" == storefront ]] || {
+            echo "Only the storefront web image may be released in scope $RELEASE_SCOPE"; exit 1; }
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          driver-opts: network=host
+      - id: tag
+        env:
+          COMMIT: ${{ needs.verify.outputs.commit }}
+        run: echo "tag=${PROFILE}-${COMMIT:0:12}" >> "$GITHUB_OUTPUT"
+      - id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            YARIZAN_BUILD_PROFILE=storefront
+            SOURCE_COMMIT=${{ needs.verify.outputs.commit }}
+          tags: ${{ env.LOCAL }}:${{ steps.tag.outputs.tag }}
+      - name: Scan the exact candidate digest and enforce the Stage A policy
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p candidate
+          reference="$LOCAL@$DIGEST"
+          docker run --rm --network host -e TRIVY_INSECURE=true "$TRIVY_IMAGE" image --quiet \
+            --scanners vuln --format json --platform linux/amd64 "$reference" > candidate/trivy.json
+          # Every finding stays in the uploaded evidence; only the gate decision is binary.
+          node tools/release/check-scan.mjs candidate/trivy.json "$reference" candidate/scan-summary.json
+      - id: export
+        name: Export the scanned artifact unchanged
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          skopeo --version
+          skopeo copy --all --preserve-digests --src-tls-verify=false \
+            "docker://$LOCAL@$DIGEST" "oci-archive:candidate/candidate.oci.tar"
+          echo "sha256=$(sha256sum candidate/candidate.oci.tar | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: storefront-candidate
+          path: candidate/
+          retention-days: 7
+
+  # Reached only when the candidate passed the policy. After reviewer approval it pushes the
+  # SAME archive with its digests preserved, then proves GHCR serves exactly that digest.
+  publish:
+    name: Publish the scanned storefront candidate (public storefront)
+    needs: [verify, candidate]
+    runs-on: ubuntu-latest
+    environment: yarizan-release-public-storefront
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      IMAGE: yarizan-web
+      PROFILE: storefront
+      DIGEST: ${{ needs.candidate.outputs.digest }}
+      TAG: ${{ needs.candidate.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: storefront-candidate
+          path: candidate
+      - name: Re-check the archive and the scan evidence before using credentials
+        env:
+          ARCHIVE_SHA256: ${{ needs.candidate.outputs.archive_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo 'Invalid candidate digest'; exit 1; }
+          echo "$ARCHIVE_SHA256  candidate/candidate.oci.tar" | sha256sum -c -
+          node tools/release/check-scan.mjs candidate/trivy.json "localhost:5000/$IMAGE@$DIGEST" recheck.json
+      - name: Push the scanned artifact by digest
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | skopeo login ghcr.io -u "$ACTOR" --password-stdin
+          skopeo copy --all --preserve-digests "oci-archive:candidate/candidate.oci.tar" \
+            "docker://$REGISTRY/$IMAGE:$TAG"
+          published="sha256:$(skopeo inspect --raw "docker://$REGISTRY/$IMAGE:$TAG" | sha256sum | cut -d' ' -f1)"
+          [[ "$published" == "$DIGEST" ]] || { echo "Published $published differs from scanned $DIGEST"; exit 1; }
+          skopeo logout ghcr.io
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          subject-digest: ${{ env.DIGEST }}
+          push-to-registry: true
+      - name: Record the manifest entry from the passing scan
+        run: |
+          set -euo pipefail
+          mkdir -p entry
+          jq -n --arg name "$IMAGE" --arg profile "$PROFILE" --arg tag "$TAG" --arg digest "$DIGEST" \
+            --arg reference "$REGISTRY/$IMAGE@$DIGEST" --slurpfile s candidate/scan-summary.json \
+            '{name:$name,profile:$profile,tag:$tag,digest:$digest,reference:$reference,
+              eligibility:"public-storefront-candidate",
+              scan:{tool:"trivy 0.76.0",policy:$s[0].policy,artifact_digest:$digest,
+                critical:$s[0].critical,high:$s[0].high,medium:$s[0].medium,low:$s[0].low}}' \
+            > "entry/$IMAGE-$PROFILE.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: manifest-entry-yarizan-web-storefront
+          path: entry/
+
+  manifest:
+    name: Release manifest for the infrastructure handoff
+    needs: [verify, candidate, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: manifest-entry-*
+          path: entries
+          merge-multiple: true
+      - env:
+          COMMIT: ${{ needs.verify.outputs.commit }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          migrations=$(sed -n 's/.*SCHEMA_MIGRATION_COUNT = \([0-9]*\).*/\1/p' backend/src/database/schema-version.ts)
+          jq -s --arg commit "$COMMIT" --arg run "$RUN_URL" --argjson migrations "$migrations" \
+            --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg scope "$RELEASE_SCOPE" \
+            '{schema:"yarizan-release-manifest/v1",release_scope:$scope,source_commit:$commit,ci_run_url:$run,built_at:$built,
+              migrations:$migrations,
+              environment_changes:["web: YARIZAN_SITE_MODE=storefront (required; must equal the image build profile)"],
+              route_changes:["Public storefront: same public-only routes as Stage A; every /api/* path answered by web with 503 JSON; desktop routes must not reach an API container"],
+              images:.}' entries/*.json > release-manifest.json
+          node tools/release/validate-manifest.mjs release-manifest.json
+          {
+            echo '## YariZan release manifest'
+            echo '```json'
+            cat release-manifest.json
+            echo '```'
+            echo 'Not deployed. Infrastructure deploys by digest only after separate owner approval.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-manifest
+          path: release-manifest.json
+          retention-days: 90

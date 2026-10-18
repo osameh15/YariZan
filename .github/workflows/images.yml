@@ -1,5 +1,5 @@
 name: Image build and security validation
-# Builds the web (brochure, full) and API images exactly as a release would, without any
+# Builds the web (brochure, storefront, full) and API images exactly as a release would, without any
 # registry credential, then validates contents, hardened runtime, startup gates, resource
 # use, vulnerabilities and a disposable digest-based rollback. Nothing is pushed.
 on:
@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [brochure, full]
+        profile: [brochure, storefront, full]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -158,10 +158,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
-      - name: Scan policy and manifest negative tests
-        run: node --test tools/release/scan-policy.test.mjs tools/release/manifest.test.mjs
+      - name: Scan policy, manifest and release workflow tests
+        run: node --test tools/release/scan-policy.test.mjs tools/release/manifest.test.mjs tools/release/release-workflows.test.mjs
       - name: Stage A publication rehearsal (scan before publish, preserved digest)
-        run: tools/release/stage-a-publication-rehearsal.sh stage-a-evidence
+        run: tools/release/stage-a-publication-rehearsal.sh stage-a-evidence brochure
+      - name: Public storefront publication rehearsal (scan before publish, preserved digest)
+        run: tools/release/stage-a-publication-rehearsal.sh stage-a-evidence/storefront storefront
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
