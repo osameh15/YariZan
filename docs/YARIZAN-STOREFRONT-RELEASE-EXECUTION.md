@@ -31,3 +31,14 @@ Correction (both release workflows): the push logs in to one job-scoped Docker-f
 - Provenance: GitHub attestation https://github.com/osameh15/YariZan/attestations/57124648 (SLSA v1; subject is the digest; workflow `release-storefront.yml` at `refs/heads/main`; uploaded to repository and registry).
 - Release manifest validated by `tools/release/validate-manifest.mjs` and by the infrastructure validator `scripts/storefront-release.py`. GHCR serves the digest anonymously (HTTP 200).
 - Infrastructure PR https://github.com/OAR-NOVA-Games/oarnova-infrastructure/pull/32 records this manifest. Deployment remains an owner-run step with `scripts/launch-yarizan-storefront.sh`; the live site serves the maintenance page until then.
+
+## Production launch — 2026-10-18 (live)
+
+`https://yarizan.oarnova.games` now serves the public storefront image `ghcr.io/osameh15/yarizan-web@sha256:9febe61a9689640c76c241b701c91cfc4fc994e9c71adaa4dd5c58745f2c2be4` (source `main@209887c`), deployed by the owner with infrastructure bundle `7de0d7d8023a8c5fcd49c8f6c882fdd8d34b031c`.
+
+- Two earlier launch attempts rolled back automatically with all checks passing: (1) the VPS Docker daemon timed out reaching GHCR blob storage, solved by loading the exact digest from a verified OCI archive into the containerd image store; (2) the infrastructure acceptance script had an encoding-corrupted price check, fixed in infrastructure PR #33 (byte-escaped price, named failures, CI acceptance against the published image).
+- Final launch: server and public acceptance ALL PASS (origin and CDN); release recorded `ok`.
+- Independent public check from the workstation: 35/35 storefront acceptance checks; `noindex, nofollow`; `robots.txt` disallows all; `no-store`; HSTS; CSP.
+- Production screenshots (`docs/Images/production/`): `home-1440`, `catalog-1440`, `grade-1-390`, `disabled-checkout-390`. Also checked at 768 px; no horizontal overflow at any width.
+
+Still closed: every Backend production gate and live ZarinPal. No account, payment, licensing or Admin service is reachable; indexing stays off until the owner decides otherwise. Rollback: previous maintenance page via the recorded archive or `scripts/deploy.sh yarizan-maintenance`.
