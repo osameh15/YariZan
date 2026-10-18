@@ -60,7 +60,21 @@ Connect links directly to /account after approval. This is browser authenticatio
 
 ## MeliPayamak adapter
 
-The adapter follows the vendor's [pattern-service method](https://github.com/Melipayamak/melipayamak-php/blob/master/src/SmsRest.php) and [service messaging examples](https://github.com/Melipayamak/melipayamak-php). Fixed destination: `https://rest.payamak-panel.com/api/SendSMS/BaseServiceNumber`. POST form fields are username, password, to, text and bodyId. The OTP alone is passed as the single ordered pattern variable (`{0}`); use an approved security/account template such as a brand-qualified OTP message containing `{0}`. No static zero-variable message or advertising sender is assumed.
+The adapter follows the vendor's [pattern-service method](https://github.com/Melipayamak/melipayamak-php/blob/master/src/SmsRest.php) and [service messaging examples](https://github.com/Melipayamak/melipayamak-php). Fixed destination: `https://rest.payamak-panel.com/api/SendSMS/BaseServiceNumber`. POST form fields are username, password, to, text and bodyId. `text` carries the pattern variables in template order, joined by `;`. Values never contain `;` or control characters, digits are sent as Latin digits, and an OTP must be exactly six digits.
+
+The registry `backend/src/accounts/sms-templates.ts` selects the Body ID per event. The owner's panel confirmed ID and purpose only. **The pattern text (variable count and order) is not yet verified against the panel**, so every entry has `textConfirmed:false` and the live provider refuses to send it (generic `SMS_UNAVAILABLE`, no vendor call). Setting a flag requires a reviewed change citing the panel text.
+
+| Event | Body ID | Variables (in order) | State |
+|---|---|---|---|
+| CLAIM, MOBILE_OLD, MOBILE_NEW | 559424 mobile verification | code | text unconfirmed |
+| LOGIN | 559422 account login | code | text unconfirmed |
+| RESET | 559372 password recovery | code | text unconfirmed |
+| PASSWORD_CHANGED (notice, not OTP) | 559421 | date `YYYY/MM/DD` Jalali, Latin digits (assumed) | text and date format unconfirmed; dispatch not wired |
+| PURCHASE_CONFIRMED (notice) | 559397 | unknown | variables unknown; purchase delivery stays simulated |
+| PASSWORD (OTP) | none | n/a | **unmapped**: 559421 is a post-change notice, not an OTP. Needs an approved OTP pattern |
+| ADMIN (MFA OTP) | none | n/a | **unmapped**: the customer login wording is not suitable for a privileged step-up. Needs a separately approved Admin pattern. G6 stays closed |
+
+Unmapped events fail closed in live mode. The fake provider still serves them for local tests.
 
 TLS verification stays enabled; redirects are forbidden, timeout is ten seconds, response body is bounded to 8 KiB. The adapter accepts HTTP success plus RetStatus=1 and a positive numeric Value; malformed/error/negative receipts fail closed. It never logs vendor payloads. Vendor acceptance/carrier delivery, template approval, actual variable mapping, credits and account permissions require a separately authorized live acceptance test. None was attempted here.
 
@@ -71,7 +85,6 @@ TLS verification stays enabled; redirects are forbidden, timeout is ten seconds,
 | MOBILE_ENCRYPTION_KEY | independent random 32-byte hex key for phone/fake-fixture encryption |
 | OTP_HMAC_KEY | independent random 32-byte hex key for OTP verifiers and domain-separated phone lookup |
 | MELIPAYAMAK_USERNAME/PASSWORD | vendor account/API credentials, outside Git and logs |
-| MELIPAYAMAK_BODY_ID | approved positive pattern identifier with one `{0}` variable |
 | SMS_ALLOW_LIVE | explicit true required for vendor selection; defaults false |
 | SMS_FAKE_OUTBOX | optional `.local/<lowercase-name>.jsonl`; encrypted fake delivery only |
 | ADMIN_MOBILE | independently verified phone for development-only Admin bootstrap |

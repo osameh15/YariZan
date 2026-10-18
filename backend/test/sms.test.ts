@@ -7,7 +7,7 @@ const message = {
   challengeId: "synthetic",
   mobile: "09123456789",
   code: "123456",
-  purpose: "ADMIN",
+  purpose: "LOGIN" as const,
 };
 test("MeliPayamak uses fixed HTTPS pattern service, one OTP variable, no redirects", async () => {
   let calls = 0;
@@ -25,7 +25,7 @@ test("MeliPayamak uses fixed HTTPS pattern service, one OTP variable, no redirec
         password: "test-api-password",
         to: message.mobile,
         text: message.code,
-        bodyId: "42",
+        bodyId: "559422",
       },
     );
     return new Response(JSON.stringify({ RetStatus: 1, Value: "123456789" }));
@@ -33,8 +33,8 @@ test("MeliPayamak uses fixed HTTPS pattern service, one OTP variable, no redirec
   await new MeliPayamakProvider(
     "test-user",
     "test-api-password",
-    "42",
     transport,
+    false,
   ).send(message);
   assert.equal(calls, 1);
 });
@@ -48,16 +48,21 @@ test("MeliPayamak failure, malformed result, timeout and negative receipt fail c
       new MeliPayamakProvider(
         "u",
         "p",
-        "42",
         async () => new Response(response),
+        false,
       ).send(message),
       (e: unknown) => (e as { code: string }).code === "SMS_UNAVAILABLE",
     );
   }
   await assert.rejects(
-    new MeliPayamakProvider("u", "p", "42", async () => {
-      throw Error("secret");
-    }).send(message),
+    new MeliPayamakProvider(
+      "u",
+      "p",
+      async () => {
+        throw Error("secret");
+      },
+      false,
+    ).send(message),
     (e: unknown) => (e as { code: string }).code === "SMS_UNAVAILABLE",
   );
 });

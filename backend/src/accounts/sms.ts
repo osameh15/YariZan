@@ -3,20 +3,39 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { Security } from "../security/security";
 import { seal } from "../security/crypto";
 import { ApiError } from "../common/errors";
+import {
+  NOTICE_TEMPLATES,
+  NoticeEvent,
+  OtpPurpose,
+  RenderedSms,
+  renderOtp,
+  renderSms,
+} from "./sms-templates";
 export interface SmsMessage {
   challengeId: string;
   mobile: string;
   code: string;
-  purpose: string;
+  purpose: OtpPurpose;
+}
+export interface SmsNotice {
+  event: NoticeEvent;
+  mobile: string;
+  values: Readonly<Record<string, string>>;
 }
 export interface SmsProvider {
   send(message: SmsMessage): Promise<void>;
+  notify(notice: SmsNotice): Promise<void>;
 }
 export class FakeSmsProvider implements SmsProvider {
   readonly messages: SmsMessage[] = [];
   async send(message: SmsMessage) {
     this.messages.push({ ...message });
     if (this.messages.length > 512) this.messages.shift();
+  }
+  readonly notices: SmsNotice[] = [];
+  async notify(notice: SmsNotice) {
+    this.notices.push({ ...notice });
+    if (this.notices.length > 512) this.notices.shift();
   }
   codeFor(id: string) {
     return this.messages.findLast((m) => m.challengeId === id)?.code;
@@ -26,10 +45,24 @@ export class MeliPayamakProvider implements SmsProvider {
   constructor(
     private username: string,
     private password: string,
-    private bodyId: string,
     private transport: typeof fetch = fetch,
+    private requireConfirmed = true,
   ) {}
   async send(m: SmsMessage) {
+    await this.post(
+      m.mobile,
+      renderOtp(m.purpose, m.code, { requireConfirmed: this.requireConfirmed }),
+    );
+  }
+  async notify(n: SmsNotice) {
+    await this.post(
+      n.mobile,
+      renderSms(NOTICE_TEMPLATES[n.event], n.values, {
+        requireConfirmed: this.requireConfirmed,
+      }),
+    );
+  }
+  private async post(mobile: string, rendered: RenderedSms) {
     try {
       const r = await this.transport(
         "https://rest.payamak-panel.com/api/SendSMS/BaseServiceNumber",
@@ -41,9 +74,9 @@ export class MeliPayamakProvider implements SmsProvider {
           body: new URLSearchParams({
             username: this.username,
             password: this.password,
-            to: m.mobile,
-            text: m.code,
-            bodyId: this.bodyId,
+            to: mobile,
+            text: rendered.text,
+            bodyId: rendered.bodyId,
           }),
         },
       );
@@ -92,7 +125,6 @@ export class Sms {
       this.provider = new MeliPayamakProvider(
         c.MELIPAYAMAK_USERNAME!,
         c.MELIPAYAMAK_PASSWORD!,
-        c.MELIPAYAMAK_BODY_ID!,
       );
   }
   available() {
@@ -101,6 +133,10 @@ export class Sms {
   async send(m: SmsMessage) {
     this.available();
     await this.provider!.send(m);
+  }
+  async notify(n: SmsNotice) {
+    this.available();
+    await this.provider!.notify(n);
   }
   async record(m: SmsMessage) {
     const c = this.security.config;

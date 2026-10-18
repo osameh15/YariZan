@@ -7,14 +7,8 @@ import { Audit, Actor } from "../audit/audit";
 import { equal, keyed, seal } from "../security/crypto";
 import { requireCondition } from "../common/errors";
 import { Sms } from "./sms";
-export type Purpose =
-  | "CLAIM"
-  | "LOGIN"
-  | "RESET"
-  | "PASSWORD"
-  | "MOBILE_OLD"
-  | "MOBILE_NEW"
-  | "ADMIN";
+import { OtpPurpose } from "./sms-templates";
+export type Purpose = OtpPurpose;
 export interface OtpRow {
   id: string;
   purpose: Purpose;
