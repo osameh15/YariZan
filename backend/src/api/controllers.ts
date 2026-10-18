@@ -1,3 +1,4 @@
+import { SCHEMA_MIGRATION_COUNT } from "../database/schema-version";
 import {
   Body,
   Controller,
@@ -58,7 +59,11 @@ export class HealthController {
     const r = await this.db.query<{ count: string }>(
       "SELECT count(*) FROM schema_migrations",
     );
-    requireCondition(Number(r.rows[0].count) === 9, "MIGRATIONS_REQUIRED", 503);
+    requireCondition(
+      Number(r.rows[0].count) === SCHEMA_MIGRATION_COUNT,
+      "MIGRATIONS_REQUIRED",
+      503,
+    );
     return { status: "ready", production_gate: "closed" };
   }
 }

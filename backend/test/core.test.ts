@@ -2,7 +2,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { generateKeyPairSync, sign, verify } from "node:crypto";
-import { configuration } from "../src/config";
+import { readdirSync } from "node:fs";
+import {
+  configuration,
+  closedProductionGates,
+  migrationConfiguration,
+  productionGates,
+} from "../src/config";
+import {
+  migrationFilePattern,
+  SCHEMA_MIGRATION_COUNT,
+} from "../src/database/schema-version";
 import {
   canonical,
   Signing,
@@ -54,6 +64,74 @@ test("Production gate cannot be enabled by environment flag", () =>
     /PRODUCTION_GATE_CLOSED/,
   ));
 
+test("Every production gate is closed in source and named in the refusal", () => {
+  assert.ok(productionGates.length >= 6);
+  assert.equal(closedProductionGates().length, productionGates.length);
+  for (const env of [
+    { PRODUCTION_READY: "true" },
+    { PRODUCTION_GATES: "open" },
+    { G1_SIGNING_CUSTODY: "open" },
+    { SMS_PROVIDER: "disabled", COMMERCE_MODE: "disabled" },
+  ])
+    assert.throws(
+      () => configuration({ ...process.env, NODE_ENV: "production", ...env }),
+      (error: Error) =>
+        productionGates.every((gate) => error.message.includes(gate.id)) &&
+        error.message.startsWith("PRODUCTION_GATE_CLOSED: "),
+    );
+});
+test("Release migration count matches the reviewed migration directory", () => {
+  assert.equal(
+    readdirSync("migrations").filter((f) => migrationFilePattern.test(f))
+      .length,
+    SCHEMA_MIGRATION_COUNT,
+  );
+  assert.equal(SCHEMA_MIGRATION_COUNT, 9);
+});
+test("Migration configuration requires a separate production migration login", () => {
+  const runtime = "postgresql://yarizan_api:x@db:5432/yarizan";
+  const owner = "postgresql://yarizan_migrator:y@db:5432/yarizan";
+  assert.throws(
+    () =>
+      migrationConfiguration({ NODE_ENV: "production", DATABASE_URL: runtime }),
+    /MIGRATION_DATABASE_URL_REQUIRED/,
+  );
+  assert.throws(
+    () =>
+      migrationConfiguration({
+        NODE_ENV: "production",
+        DATABASE_URL: runtime,
+        MIGRATION_DATABASE_URL: runtime,
+      }),
+    /INDEPENDENT_DATABASE_CREDENTIALS_REQUIRED/,
+  );
+  assert.throws(
+    () =>
+      migrationConfiguration({
+        NODE_ENV: "production",
+        MIGRATION_DATABASE_URL: "postgresql://m:y@remote.invalid/live",
+      }),
+    /DISPOSABLE_LOCAL_DATABASE_REQUIRED/,
+  );
+  assert.throws(() => migrationConfiguration({}), /NODE_ENV_REQUIRED/);
+  assert.throws(
+    () => migrationConfiguration({ NODE_ENV: "staging", DATABASE_URL: owner }),
+    /NODE_ENV_INVALID/,
+  );
+  assert.equal(
+    migrationConfiguration({
+      NODE_ENV: "production",
+      DATABASE_URL: runtime,
+      MIGRATION_DATABASE_URL: owner,
+    }).url,
+    owner,
+  );
+  // No HMAC, encryption or provider keys are needed to migrate.
+  assert.equal(
+    migrationConfiguration({ NODE_ENV: "test", DATABASE_URL: owner }).url,
+    owner,
+  );
+});
 test("Runtime environment must be explicit and exact", () => {
   for (const value of [undefined, ""])
     assert.throws(

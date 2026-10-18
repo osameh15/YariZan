@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const open = ref(false);
+const { brochure } = useSiteMode();
 const route = useRoute();
 watch(
   () => route.path,
@@ -17,10 +18,13 @@ watch(
       /></NuxtLink>
       <nav class="desktop-nav" aria-label="منوی اصلی">
         <NuxtLink to="/">خانه</NuxtLink><NuxtLink to="/products">دنیای پایه‌ها</NuxtLink
-        ><NuxtLink to="/connect">اتصال برنامه</NuxtLink><NuxtLink to="/support">همراه شما</NuxtLink>
+        ><NuxtLink v-if="!brochure" to="/connect">اتصال برنامه</NuxtLink
+        ><NuxtLink to="/support">همراه شما</NuxtLink>
       </nav>
-      <NuxtLink class="button secondary desktop-login" to="/account"
+      <NuxtLink v-if="!brochure" class="button secondary desktop-login" to="/account"
         >حساب من <span aria-hidden="true">↗</span></NuxtLink
+      ><NuxtLink v-else class="button secondary desktop-login" to="/support"
+        >پشتیبانی <span aria-hidden="true">↗</span></NuxtLink
       >
       <button
         class="menu-toggle button secondary"
@@ -34,10 +38,19 @@ watch(
     <BaseDialog v-model="open" title="به یاریزان خوش آمدید"
       ><nav class="mobile-nav" aria-label="منوی همراه">
         <NuxtLink to="/">خانه</NuxtLink><NuxtLink to="/products">دنیای پایه‌ها</NuxtLink
-        ><NuxtLink to="/connect">اتصال برنامه</NuxtLink><NuxtLink to="/account">حساب من</NuxtLink
+        ><template v-if="!brochure"
+          ><NuxtLink to="/connect">اتصال برنامه</NuxtLink
+          ><NuxtLink to="/account">حساب من</NuxtLink></template
         ><NuxtLink to="/support">پشتیبانی</NuxtLink>
       </nav></BaseDialog
     >
+    <div v-if="brochure" class="wrap brochure-notice" role="note">
+      <span aria-hidden="true">✦</span>
+      <p>
+        یاریزان در مرحلهٔ معرفی است. ثبت‌نام، ورود به حساب، خرید، فعال‌سازی و شروع آزمایش برنامه
+        هنوز در دسترس نیست. برای راهنمایی با پشتیبانی تماس بگیرید.
+      </p>
+    </div>
     <main id="main"><slot /></main>
     <footer class="site-footer">
       <div class="wrap footer-grid">
@@ -48,9 +61,9 @@ watch(
         </div>
         <nav aria-label="پیوندهای پایانی">
           <NuxtLink to="/products">محصولات</NuxtLink
-          ><NuxtLink to="/connect">اتصال امن برنامه</NuxtLink
+          ><NuxtLink v-if="!brochure" to="/connect">اتصال امن برنامه</NuxtLink
           ><NuxtLink to="/support">پرسش‌ها و پشتیبانی</NuxtLink
-          ><NuxtLink to="/login">ورود به حساب</NuxtLink>
+          ><NuxtLink v-if="!brochure" to="/login">ورود به حساب</NuxtLink>
         </nav>
         <nav aria-label="پیوندهای مرتبط">
           <span>پیوندهای مرتبط</span>

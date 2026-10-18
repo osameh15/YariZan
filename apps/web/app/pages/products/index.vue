@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { data: products, status, error, refresh } = await useCatalog();
 useSeoMeta({ title: 'دنیای پایه‌ها | یاریزان' });
+const { brochure } = useSiteMode();
 </script>
 <template>
   <div class="wrap section">
@@ -11,7 +12,11 @@ useSeoMeta({ title: 'دنیای پایه‌ها | یاریزان' });
     </div>
     <div class="catalog-note">
       <span aria-hidden="true">✦</span>
-      <p>
+      <p v-if="brochure">
+        این فهرست برای معرفی پایه‌هاست. قیمت هنگام آغاز فروش اعلام می‌شود و خرید اینترنتی هنوز فعال
+        نیست؛ برای راهنمایی کنار شما هستیم.
+      </p>
+      <p v-else>
         قیمت‌ها به تومان است. پرداخت اینترنتی هنوز فعال نیست؛ برای راهنمایی خرید کنار شما هستیم.
       </p>
     </div>

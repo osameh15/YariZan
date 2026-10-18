@@ -25,7 +25,8 @@ import { Pool } from "pg";
 import { hash as passwordHash } from "argon2";
 import { createApp } from "../src/main";
 import { Database } from "../src/database/database";
-import { migrate } from "../src/database/migrate";
+import { migrate, verifyMigrations } from "../src/database/migrate";
+import { productionBootstrap } from "../src/database/production-bootstrap";
 import { seed } from "../src/database/seed";
 import { Signing, Envelope, canonical, profiles } from "../src/signing/signing";
 import { Security } from "../src/security/security";
@@ -1626,7 +1627,11 @@ test("Parallel outbox workers claim disjoint batches; failure leaves event retry
   assert.equal(failed.attempted, 1);
 });
 test("Runtime role cannot edit audit, migration metadata or schema", async () => {
-  await db.query(await readFile("tools/runtime-role.sql", "utf8"));
+  await db.query(
+    await readFile("migrations/roles/create-runtime-role.sql", "utf8"),
+  );
+  // The migrator applies grants after migrating once the role exists.
+  assert.equal((await migrate(db)).grants, true);
   const c = await db.pool.connect();
   try {
     await c.query("SET ROLE yarizan_runtime");
@@ -1642,12 +1647,47 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
       c.query("ALTER TABLE products ADD COLUMN bad integer"),
       /must be owner/,
     );
+    await assert.rejects(c.query("TRUNCATE rate_buckets"), /permission denied/);
+    await assert.rejects(
+      c.query("DELETE FROM audit_logs"),
+      /permission denied/,
+    );
+    await assert.rejects(
+      c.query("CREATE TABLE intruder(id int)"),
+      /permission denied/,
+    );
+    // The single runtime DELETE used by the application stays permitted.
+    await c.query("DELETE FROM discount_products WHERE false");
+    // Read-only migration verification works with runtime privileges.
+    assert.deepEqual(await verifyMigrations(c), { total: 9 });
   } finally {
     await c.query("RESET ROLE");
     c.release();
   }
 });
 
+test("Production bootstrap is idempotent and never edits catalog or prices", async () => {
+  const before = (
+    await db.query(
+      "SELECT sku,publication_status,sale_enabled FROM products ORDER BY sku",
+    )
+  ).rows;
+  const prices = (await db.query("SELECT count(*) FROM product_prices"))
+    .rows[0];
+  assert.deepEqual(await productionBootstrap(db.pool), { products_created: 0 });
+  assert.deepEqual(
+    (
+      await db.query(
+        "SELECT sku,publication_status,sale_enabled FROM products ORDER BY sku",
+      )
+    ).rows,
+    before,
+  );
+  assert.deepEqual(
+    (await db.query("SELECT count(*) FROM product_prices")).rows[0],
+    prices,
+  );
+});
 test("Admin logout works without unrelated privilege or fresh MFA", async () => {
   const support = await adminLogin("support");
   await db.query(

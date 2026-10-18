@@ -12,7 +12,7 @@ import {
   smsCode,
   sql,
 } from '../../tools/test-fixtures.mjs';
-const images = path.resolve('../../docs/Images/phase4-premium');
+const images = path.resolve('.local/screenshots/phase4-premium');
 test.beforeEach(async () => {
   await sql('DELETE FROM rate_buckets');
 });

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { Product } from '#shared/domain';
+import type { PublicProduct } from '#shared/catalog-snapshot';
 import { gradeNames, toman, availability } from '#shared/domain';
-defineProps<{ product: Product }>();
+defineProps<{ product: PublicProduct }>();
 </script>
 <template>
   <article
@@ -31,7 +31,9 @@ defineProps<{ product: Product }>();
       </h3>
       <p>یک دنیای مستقل، برای یک پایهٔ تازه.</p>
       <div class="card-bottom">
-        <span class="price">{{ toman(product.price_irr) }} <small>تومان</small></span
+        <span v-if="product.price_irr === null" class="price"
+          ><small>قیمت هنگام آغاز فروش اعلام می‌شود</small></span
+        ><span v-else class="price">{{ toman(product.price_irr) }} <small>تومان</small></span
         ><NuxtLink
           class="round-link"
           :to="`/products/grade-${product.grade}`"

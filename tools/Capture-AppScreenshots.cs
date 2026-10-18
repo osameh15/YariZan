@@ -66,7 +66,6 @@ internal static class CaptureAppScreenshots
 
         Capture("cover-page.png", new CoverPage(grade));
         Capture("info-page.png", new InfoPage(isActivated: true, grade: grade));
-        Capture("info-page-trial.png", new InfoPage(trialRemaining: 2, grade: grade));
         // Let all real first-spread thumbnails finish decoding before taking the book snapshot.
         for (int i = 0; i < 30; i++)
         {
@@ -98,12 +97,6 @@ internal static class CaptureAppScreenshots
             return view;
         }
         Capture("lock-page.png", LockSnapshot(2));
-        Capture("lock-page-trial-one-remain.png", LockSnapshot(1));
-        Capture("trial-end.png", LockSnapshot(0));
-        Capture("lock-page-copy-message.png", LockSnapshot(2, "پیام آماده کپی شد. آن را برای پشتیبانی ارسال کنید."));
-        var invalid = LockSnapshot(2, "سریال واردشده معتبر نیست. لطفاً دوباره بررسی کنید.");
-        ((TextBox)invalid.FindName("SerialBox")).Text = "DEMO-INVALID-SERIAL";
-        Capture("lock-page-invalid-serial.png", invalid);
         Console.WriteLine("Screenshots use the real catalog; trial/activation states are illustrative and HWID is masked.");
         app.Shutdown();
     }

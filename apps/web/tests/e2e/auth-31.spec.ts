@@ -14,7 +14,7 @@ import {
   smsCode,
   nextMobile,
 } from '../../tools/test-fixtures.mjs';
-const images = path.resolve('../../docs/Images/phase3-1');
+const images = path.resolve('.local/screenshots/phase3-1');
 test('Customer OTP is default, keyboard switching preserves password alternative and Admin primary factor', async ({
   page,
 }) => {
