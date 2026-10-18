@@ -2,7 +2,10 @@
 useSeoMeta({ title: 'قوانین و حریم خصوصی | یاریزان' });
 </script>
 <template>
-  <LegalDocument title="قوانین و حریم خصوصی" intro="متن‌های رسمی خرید، حریم خصوصی و پشتیبانی یاریزان.">
+  <LegalDocument
+    title="قوانین و حریم خصوصی"
+    intro="متن‌های رسمی خرید، حریم خصوصی و پشتیبانی یاریزان."
+  >
     <ul class="legal-list">
       <li><NuxtLink to="/legal/privacy">سیاست حریم خصوصی</NuxtLink></li>
       <li><NuxtLink to="/legal/terms">شرایط استفاده</NuxtLink></li>

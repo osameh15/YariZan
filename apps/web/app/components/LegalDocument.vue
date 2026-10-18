@@ -9,7 +9,8 @@ defineProps<{ title: string; intro: string }>();
       <p>{{ intro }}</p>
     </div>
     <p class="legal-draft" role="note">
-      پیش‌نویس: این متن هنوز توسط مالک و مشاور حقوقی تأیید نشده است. بخش‌های نشان‌دار هنوز تکمیل نشده‌اند.
+      پیش‌نویس: این متن هنوز توسط مالک و مشاور حقوقی تأیید نشده است. بخش‌های نشان‌دار هنوز تکمیل
+      نشده‌اند.
     </p>
     <article class="panel legal-body"><slot /></article>
     <p><NuxtLink class="text-link" to="/legal">همهٔ متن‌های رسمی</NuxtLink></p>
