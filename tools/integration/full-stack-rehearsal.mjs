@@ -67,8 +67,22 @@ const apiUser =
   process.getuid && process.getuid() !== 0
     ? `${process.getuid()}:${process.getgid()}`
     : '1000:1000';
-const POSTGRES =
-  'public.ecr.aws/docker/library/postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24';
+// The infrastructure's pinned PostgreSQL 17.11 image. The digest is immutable, so the Docker Hub
+// fallback (used only if the ECR mirror throttles) yields byte-identical content.
+const POSTGRES_DIGEST = 'sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24';
+const POSTGRES_SOURCES = [
+  `public.ecr.aws/docker/library/postgres:17.11-alpine@${POSTGRES_DIGEST}`,
+  `docker.io/library/postgres@${POSTGRES_DIGEST}`,
+];
+async function pullPostgres() {
+  for (const reference of POSTGRES_SOURCES)
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      if (spawnSync('docker', ['pull', '-q', reference], { stdio: 'ignore' }).status === 0)
+        return reference;
+      await new Promise((r) => setTimeout(r, attempt * 5000));
+    }
+  throw new Error('PostgreSQL 17.11 image could not be pulled by digest');
+}
 const log = [];
 const step = (message) => {
   log.push(message);
@@ -287,7 +301,7 @@ try {
     'POSTGRES_USER=postgres',
     '-e',
     `POSTGRES_PASSWORD=${dbPassword}`,
-    POSTGRES,
+    await pullPostgres(),
   );
   for (let n = 0; n < 60; n++) {
     if (
