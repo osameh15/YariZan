@@ -144,12 +144,23 @@ async function call(base, route, { body, method, browser, bearer } = {}) {
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (browser) Object.assign(headers, { Cookie: browser.cookie, 'X-CSRF-Token': browser.csrf });
   if (bearer) headers.Authorization = 'Bearer ' + bearer;
-  const r = await fetch(base + route, {
-    method: method ?? (body === undefined ? 'GET' : 'POST'),
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-    redirect: 'manual',
-  });
+  const send = () =>
+    fetch(base + route, {
+      method: method ?? (body === undefined ? 'GET' : 'POST'),
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      redirect: 'manual',
+    });
+  let r;
+  try {
+    r = await send();
+  } catch (error) {
+    // A pooled keep-alive connection that the server closed while idle (for example during the
+    // long desktop stage) fails before the request is sent; retry exactly once on a new socket.
+    if (!/other side closed|ECONNRESET/.test(String(error?.cause?.message ?? error?.cause?.code)))
+      throw error;
+    r = await send();
+  }
   const text = await r.text();
   let json;
   try {
@@ -685,10 +696,13 @@ try {
   );
   console.log(`Full-stack rehearsal passed: ${log.length} stages`);
 } finally {
-  writeFileSync(
-    path.join(evidence, 'api.log'),
-    spawnSync('docker', ['logs', names.api], { encoding: 'utf8' }).stdout ?? '',
-  );
+  for (const [name, file] of [
+    [names.api, 'api.log'],
+    [names.web, 'web.log'],
+  ]) {
+    const logs = spawnSync('docker', ['logs', name], { encoding: 'utf8' });
+    writeFileSync(path.join(evidence, file), (logs.stdout ?? '') + (logs.stderr ?? ''));
+  }
   // Remove only what this rehearsal created.
   for (const name of containers) spawnSync('docker', ['rm', '-f', name]);
   for (const net of networks) spawnSync('docker', ['network', 'rm', net]);
