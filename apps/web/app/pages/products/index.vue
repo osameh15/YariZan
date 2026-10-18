@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const { data: products, status, error, refresh } = await useCatalog();
 useSeoMeta({ title: 'دنیای پایه‌ها | یاریزان' });
-const { brochure } = useSiteMode();
+const { publicOnly, storefront } = useSiteMode();
 </script>
 <template>
   <div class="wrap section">
@@ -12,7 +12,11 @@ const { brochure } = useSiteMode();
     </div>
     <div class="catalog-note">
       <span aria-hidden="true">✦</span>
-      <p v-if="brochure">
+      <p v-if="storefront">
+        قیمت‌ها به تومان و برای هر پایه جداگانه است. پایهٔ اول نخستین عرضه است و پایه‌های دیگر
+        به‌زودی می‌رسند. خرید اینترنتی هنوز فعال نیست؛ برای تهیهٔ برنامه کنار شما هستیم.
+      </p>
+      <p v-else-if="publicOnly">
         این فهرست برای معرفی پایه‌هاست. قیمت هنگام آغاز فروش اعلام می‌شود و خرید اینترنتی هنوز فعال
         نیست؛ برای راهنمایی کنار شما هستیم.
       </p>
@@ -26,7 +30,12 @@ const { brochure } = useSiteMode();
       :empty="products?.length === 0"
       @retry="refresh()"
       ><div class="product-grid">
-        <ProductCard v-for="p in products" :key="p.sku" :product="p" /></div
+        <ProductCard
+          v-for="p in products"
+          :key="p.sku"
+          :product="p"
+          :public-only="publicOnly"
+        /></div
     ></LoadState>
   </div>
 </template>

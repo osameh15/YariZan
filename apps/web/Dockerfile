@@ -1,13 +1,15 @@
 # YariZan web (Nuxt 4 SSR). Build context: repository root.
-#   docker build -f apps/web/Dockerfile --build-arg YARIZAN_BUILD_PROFILE=brochure -t yarizan-web .
+#   docker build -f apps/web/Dockerfile --build-arg YARIZAN_BUILD_PROFILE=storefront -t yarizan-web .
+# Profiles: brochure (maintenance/rollback), storefront (public site with approved prices), full.
 # The profile is baked in; at runtime YARIZAN_SITE_MODE must equal it or the server refuses to start.
 # Base image: node 24.22.0 Alpine, pinned by multi-arch index digest (reviewed 2026-10-16).
 ARG NODE_IMAGE=node:24.22.0-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f
 
 FROM ${NODE_IMAGE} AS build
 ARG YARIZAN_BUILD_PROFILE
-RUN test "$YARIZAN_BUILD_PROFILE" = brochure || test "$YARIZAN_BUILD_PROFILE" = full \
-  || (echo 'YARIZAN_BUILD_PROFILE must be brochure or full' >&2; exit 1)
+RUN test "$YARIZAN_BUILD_PROFILE" = brochure || test "$YARIZAN_BUILD_PROFILE" = storefront \
+  || test "$YARIZAN_BUILD_PROFILE" = full \
+  || (echo 'YARIZAN_BUILD_PROFILE must be brochure, storefront or full' >&2; exit 1)
 WORKDIR /app
 COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
