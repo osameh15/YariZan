@@ -22,3 +22,12 @@ No Backend production gate or live ZarinPal gate was opened. No real SMS/payment
 After owner approval the publish job pushed the scanned candidate to GHCR and verified it: `ghcr.io/osameh15/yarizan-web:storefront-e0f11da5929d` = `sha256:abd843946c0a93d84cc73e803f2529a80e711cfb993cbdb7bd0910bd92aad3e8` (equal to the scanned digest). The next step, `actions/attest-build-provenance` with `push-to-registry`, failed with `No credentials found for registry ghcr.io`: the job had logged in with skopeo's own credential file and logged out before attestation, while the attestation action reads Docker-format credentials. No GitHub attestation and no release manifest were produced, so this digest has no manifest and must not be deployed.
 
 Correction (both release workflows): the push logs in to one job-scoped Docker-format credential file (`$HOME/.docker/config.json`), keeps it through the attestation step, then removes it in an `if: always()` step. `tools/release/release-workflows.test.mjs` asserts the login → attest → cleanup order and that no logout happens before attestation. Publication must be re-dispatched from main after this correction merges; the new run produces its own scanned candidate, attestation and manifest.
+
+## Second publication (run 39127424927) — published and verified
+
+- Source: `main@209887c368e2a7f3dce571fbfbc0f4bc3ec4c18d` (PR #9 merged; all four workflows green on that SHA), dispatched from `main`, approved by the owner in `yarizan-release-public-storefront`. All four jobs succeeded: https://github.com/osameh15/YariZan/actions/runs/39127424927
+- Image: `ghcr.io/osameh15/yarizan-web@sha256:9febe61a9689640c76c241b701c91cfc4fc994e9c71adaa4dd5c58745f2c2be4`, tag `storefront-209887c368e2`.
+- Scan bound to that digest: 0 Critical, 0 High, 1 Medium (`stage-a-zero-high-critical` policy).
+- Provenance: GitHub attestation https://github.com/osameh15/YariZan/attestations/57124648 (SLSA v1; subject is the digest; workflow `release-storefront.yml` at `refs/heads/main`; uploaded to repository and registry).
+- Release manifest validated by `tools/release/validate-manifest.mjs` and by the infrastructure validator `scripts/storefront-release.py`. GHCR serves the digest anonymously (HTTP 200).
+- Infrastructure PR https://github.com/OAR-NOVA-Games/oarnova-infrastructure/pull/32 records this manifest. Deployment remains an owner-run step with `scripts/launch-yarizan-storefront.sh`; the live site serves the maintenance page until then.
