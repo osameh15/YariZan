@@ -19,37 +19,57 @@ export type OtpPurpose =
 export type NoticeEvent = "PASSWORD_CHANGED" | "PURCHASE_CONFIRMED";
 export type SmsEvent = OtpPurpose | NoticeEvent;
 
+/** Backend OTP lifetime (otp.ts issues "5 minutes"). Provider OTP texts must state the same. */
+export const OTP_VALIDITY_MINUTES = 5;
+
 export interface SmsTemplate {
   bodyId: string;
   /** Ordered pattern variables; the provider joins them with ";". */
   variables: readonly string[];
+  /** Owner transcription of the panel text, kept as review evidence. */
+  providerText: string;
+  /** Validity the provider text promises, for OTP templates. */
+  providerValidityMinutes?: number;
+  /** True only after the exact text and approval were checked in the provider panel. */
   textConfirmed: boolean;
 }
 
 export const MOBILE_VERIFICATION: SmsTemplate = {
   bodyId: "559424",
   variables: ["code"],
+  providerText:
+    "یاریزان: کد تایید شماره موبایل شما: {0} اعتبار کد: ۲ دقیقه این کد محرمانه است.",
+  providerValidityMinutes: 2, // Mismatch: backend issues 5-minute codes. Update the provider text.
   textConfirmed: false,
 };
 export const ACCOUNT_LOGIN: SmsTemplate = {
   bodyId: "559422",
   variables: ["code"],
+  providerText:
+    "یاریزان: کد ورود شما: {0} اعتبار کد: ۲ دقیقه این کد را در اختیار دیگران قرار ندهید.",
+  providerValidityMinutes: 2, // Mismatch: backend issues 5-minute codes. Update the provider text.
   textConfirmed: false,
 };
 export const PASSWORD_RECOVERY: SmsTemplate = {
   bodyId: "559372",
   variables: ["code"],
+  providerText:
+    "یاریزان: کد بازیابی رمز عبور شما: {0} است. اعتبار: ۵ دقیقه. این کد را در اختیار دیگران قرار ندهید.",
+  providerValidityMinutes: 5,
   textConfirmed: false,
 };
 export const PASSWORD_CHANGE_NOTICE: SmsTemplate = {
   bodyId: "559421",
   variables: ["date"],
+  providerText:
+    "یاریزان: رمز عبور حساب شما در تاریخ {0} تغییر کرد. اگر این تغییر توسط شما انجام نشده است، با پشتیبانی یاریزان تماس بگیرید.",
   textConfirmed: false,
 };
 export const PURCHASE_NOTICE: SmsTemplate = {
   bodyId: "559397",
-  // Variable list is unknown until the owner supplies the pattern text.
-  variables: [],
+  variables: ["order"],
+  providerText:
+    "یاریزان: سفارش شماره {0} با موفقیت پرداخت شد. برای مشاهده و فعال‌سازی محصول به حساب کاربری خود مراجعه کنید.",
   textConfirmed: false,
 };
 
@@ -87,6 +107,12 @@ function safeValue(name: string, value: string) {
   if (name === "code" && !/^[0-9]{6}$/.test(v)) throw unavailable();
   if (name === "date" && !/^[0-9]{4}\/[0-9]{2}\/[0-9]{2}$/.test(v))
     throw unavailable();
+  // The customer-visible order number is the order UUID.
+  if (
+    name === "order" &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v)
+  )
+    throw unavailable();
   if (!v || v.length > 64 || UNSAFE_VALUE.test(v)) throw unavailable();
   return v;
 }
@@ -120,8 +146,16 @@ export function renderOtp(
   purpose: OtpPurpose,
   code: string,
   options: { requireConfirmed: boolean },
+  templates: Readonly<Record<OtpPurpose, SmsTemplate | null>> = OTP_TEMPLATES,
 ) {
-  return renderSms(OTP_TEMPLATES[purpose], { code }, options);
+  const template = templates[purpose];
+  // A provider text that promises a different lifetime would mislead the user.
+  if (
+    options.requireConfirmed &&
+    template?.providerValidityMinutes !== OTP_VALIDITY_MINUTES
+  )
+    throw unavailable();
+  return renderSms(template, { code }, options);
 }
 
 /** Jalali date with Latin digits, e.g. 1405/07/27, the format assumed for the date variable. */

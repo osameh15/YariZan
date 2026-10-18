@@ -17,6 +17,7 @@ import {
 } from "./signing/signing";
 import { Identity } from "./identity/identity";
 import { Sms } from "./accounts/sms";
+import { Notifications } from "./accounts/notifications";
 import { Otp } from "./accounts/otp";
 import { AuthFlows } from "./accounts/auth-flows";
 import { Accounts } from "./accounts/accounts";
@@ -40,6 +41,7 @@ import {
     Database,
     Security,
     Sms,
+    Notifications,
     Otp,
     AuthFlows,
     PasswordHashing,
@@ -53,6 +55,7 @@ import {
   ],
   exports: [
     Sms,
+    Notifications,
     Otp,
     AuthFlows,
     Database,

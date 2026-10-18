@@ -34,6 +34,10 @@ export class FakeSmsProvider implements SmsProvider {
   }
   readonly notices: SmsNotice[] = [];
   async notify(notice: SmsNotice) {
+    // Fake mode still enforces the provider variable contract so tests catch drift.
+    renderSms(NOTICE_TEMPLATES[notice.event], notice.values, {
+      requireConfirmed: false,
+    });
     this.notices.push({ ...notice });
     if (this.notices.length > 512) this.notices.shift();
   }
@@ -133,6 +137,16 @@ export class Sms {
   async send(m: SmsMessage) {
     this.available();
     await this.provider!.send(m);
+  }
+  /** True when a notice can leave this process now (fake mode, or a confirmed live template). */
+  canNotify(event: NoticeEvent) {
+    const c = this.security.config;
+    if (c.SMS_PROVIDER === "fake") return true;
+    return (
+      c.SMS_PROVIDER === "melipayamak" &&
+      c.SMS_ALLOW_LIVE === "true" &&
+      NOTICE_TEMPLATES[event].textConfirmed
+    );
   }
   async notify(n: SmsNotice) {
     this.available();

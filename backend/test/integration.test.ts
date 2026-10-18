@@ -41,6 +41,7 @@ import {
   PaymentResult,
 } from "../src/commerce/gateway";
 import { Sms } from "../src/accounts/sms";
+import { Notifications } from "../src/accounts/notifications";
 process.env.NODE_ENV = "test";
 process.env.COMMERCE_MODE = "fake";
 process.env.SMS_PROVIDER = "fake";
@@ -4217,6 +4218,117 @@ test("Refund request and review never execute a refund or revoke the purchased l
     "0",
   );
   await ok("/desktop/licenses/pickup", { sku: "YARIZAN-G1" }, e.credential);
+});
+
+test("Password change sends one notice from the durable outbox, never twice", async () => {
+  const notifications = app.get(Notifications);
+  const e = await enroll(candidate()),
+    browser = await login(e),
+    sent = await ok<{ challenge_id: string }>(
+      "/account/security/otp",
+      { purpose: "PASSWORD" },
+      browser,
+    );
+  await ok(
+    "/account/security/password",
+    {
+      challenge_id: sent.body.challenge_id,
+      code: await otpCode(sent.body.challenge_id),
+      password: "Notified!Password12345",
+    },
+    browser,
+  );
+  for (let n = 0; n < 3; n++) await notifications.drain(50);
+  const count = async (action: string) =>
+    Number(
+      (
+        await db.query(
+          "SELECT count(*) FROM audit_logs WHERE action=$1 AND entity_id=$2",
+          [action, e.customer_id],
+        )
+      ).rows[0].count,
+    );
+  assert.equal(await count("sms.notice_sent"), 1);
+  assert.equal(await count("sms.notice_unavailable"), 0);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM outbox_events WHERE aggregate_id=$1 AND type='password.changed' AND processed_at IS NULL",
+        [e.customer_id],
+      )
+    ).rows[0].count,
+    "0",
+  );
+  const fake = app.get(Sms).fake;
+  const notice = fake.notices.findLast((n) => n.event === "PASSWORD_CHANGED");
+  assert.match(notice!.values.date!, /^14\d\d\/\d\d\/\d\d$/);
+  assert.equal(
+    JSON.stringify(fake.notices).includes("Notified!Password"),
+    false,
+  );
+  await Promise.all([notifications.drain(50), notifications.drain(50)]);
+  assert.equal(await count("sms.notice_sent"), 1);
+});
+
+test("Purchase confirmation is sent once after durable fulfillment and carries only the order number", async () => {
+  const notifications = app.get(Notifications);
+  const e = await buyer(),
+    o = await saleOrder(e),
+    p = await salePayment(e, o);
+  const before = Number(
+    (
+      await db.query(
+        "SELECT count(*) FROM audit_logs WHERE action='sms.notice_sent' AND entity_id=$1",
+        [o.id],
+      )
+    ).rows[0].count,
+  );
+  assert.equal(before, 0);
+  await notifications.drain(50);
+  assert.equal(
+    app.get(Sms).fake.notices.some((n) => n.values.order === o.id),
+    false,
+    "no notice before payment",
+  );
+  await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+  await db.query("UPDATE commerce_jobs SET due_at=now() WHERE target_id=$1", [
+    p.attempt_id,
+  ]);
+  await recoverCommerce();
+  assert.equal(
+    (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body.state,
+    "FULFILLED",
+  );
+  await Promise.all([
+    notifications.drain(50),
+    notifications.drain(50),
+    notifications.drain(50),
+  ]);
+  const notices = app
+    .get(Sms)
+    .fake.notices.filter((n) => n.values.order === o.id);
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0]!.event, "PURCHASE_CONFIRMED");
+  assert.deepEqual(Object.keys(notices[0]!.values), ["order"]);
+  await db.query(
+    "UPDATE commerce_jobs SET state='PENDING',due_at=now() WHERE order_id=$1 AND kind='PURCHASE_NOTICE'",
+    [o.id],
+  );
+  await recoverCommerce();
+  await notifications.drain(50);
+  assert.equal(
+    app.get(Sms).fake.notices.filter((n) => n.values.order === o.id).length,
+    1,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM order_fulfillments WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id=$1)",
+        [o.id],
+      )
+    ).rows[0].count,
+    "1",
+  );
 });
 
 // Scripted provider: create/ledger come from the fake, verification answers are scripted.
