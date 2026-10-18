@@ -9,7 +9,20 @@ import path from 'node:path';
 const profile = process.env.YARIZAN_PUBLIC_PROFILE === 'storefront' ? 'storefront' : 'brochure';
 const storefront = profile === 'storefront';
 const images = path.resolve('.local/screenshots/' + profile);
-const publicPages = ['/', '/products', '/products/grade-1', '/products/grade-4', '/support'];
+const publicPages = [
+  '/',
+  '/products',
+  '/products/grade-1',
+  '/products/grade-4',
+  '/support',
+  '/legal',
+  '/legal/privacy',
+  '/legal/terms',
+  '/legal/refund',
+  '/legal/delivery',
+  '/legal/disputes',
+  '/legal/merchant-info',
+];
 const disabledPages = [
   '/account',
   '/account/orders',

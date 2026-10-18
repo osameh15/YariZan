@@ -80,6 +80,7 @@ watch(
           <NuxtLink to="/products">محصولات</NuxtLink
           ><NuxtLink v-if="!publicOnly" to="/connect">اتصال امن برنامه</NuxtLink
           ><NuxtLink to="/support">پرسش‌ها و پشتیبانی</NuxtLink
+          ><NuxtLink to="/legal">قوانین و حریم خصوصی</NuxtLink
           ><NuxtLink v-if="!publicOnly" to="/login">ورود به حساب</NuxtLink>
         </nav>
         <nav aria-label="پیوندهای مرتبط">

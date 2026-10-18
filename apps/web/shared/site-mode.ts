@@ -33,7 +33,14 @@ export function assertSiteMode(runtime: unknown, buildProfile: unknown): SiteMod
 
 // Reviewed public allowlist for the public-only profiles (brochure and storefront). Paths must match exactly: no trailing
 // slash, no case variants, no aliases such as /products/yarizan-g1.
-export const brochurePages = [/^\/$/, /^\/products$/, /^\/products\/grade-[1-6]$/, /^\/support$/];
+export const brochurePages = [
+  /^\/$/,
+  /^\/products$/,
+  /^\/products\/grade-[1-6]$/,
+  /^\/support$/,
+  /^\/legal$/,
+  /^\/legal\/(?:privacy|terms|refund|delivery|disputes|merchant-info)$/,
+];
 const staticAsset = /^\/(?:_nuxt|brand|fonts)\/[A-Za-z0-9._\-/]+$/;
 // Functionality that exists in the full application and is deliberately unavailable.
 const disabledPage =
