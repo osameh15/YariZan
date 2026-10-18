@@ -7,7 +7,7 @@ export default defineNitroPlugin((app) => {
     setHeader(
       event,
       'Content-Security-Policy',
-      `default-src 'self'; script-src 'self' 'nonce-${nonce}'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`,
+      `default-src 'self'; script-src 'self' 'nonce-${nonce}'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://trustseal.enamad.ir; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`,
     );
     for (const field of ['head', 'bodyPrepend', 'body', 'bodyAppend'] as const)
       html[field] = html[field].map((part) =>

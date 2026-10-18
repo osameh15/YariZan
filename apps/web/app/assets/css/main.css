@@ -1899,3 +1899,19 @@ textarea[aria-invalid='true'] {
   color: var(--gold);
   font-size: 22px;
 }
+
+.enamad-seal {
+  display: inline-flex;
+  flex-shrink: 0;
+  line-height: 0;
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px;
+}
+.enamad-seal img {
+  display: block;
+  width: auto;
+  height: 64px;
+  max-width: 100%;
+  cursor: pointer;
+}

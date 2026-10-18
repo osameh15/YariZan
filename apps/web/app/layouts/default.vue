@@ -89,6 +89,20 @@ watch(
             <img src="/brand/oar-nova-games.png" width="64" height="64" alt="" />
             <span>OAR Nova Games Studio</span>
           </a>
+          <a
+            class="enamad-seal"
+            href="https://trustseal.enamad.ir/?id=8237399&amp;Code=y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX"
+            target="_blank"
+            rel="noopener"
+            referrerpolicy="origin"
+            ><img
+              src="https://trustseal.enamad.ir/logo.aspx?id=8237399&amp;Code=y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX"
+              alt="نماد اعتماد الکترونیکی (اینماد)"
+              referrerpolicy="origin"
+              loading="lazy"
+              width="90"
+              height="100"
+          /></a>
           <p class="footer-copyright">حق مالکیت سایت برای یاریزان محفوظ است.</p>
         </div>
       </div>
