@@ -48,10 +48,11 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Launch routing, in priority order:
-    /// 1. A locally verified paid license enters the library at once, with no network wait.
+    /// 1. A locally verified paid license opens the cover at once, with no network wait; the
+    ///    customer continues cover, information, game book as usual and never sees Lock.
     /// 2. An enrolled device whose customer was waiting for a purchase shows a neutral recovery
-    ///    screen during one bounded check; success enters the library without the Lock page,
-    ///    anything else falls back to the visible Lock wait.
+    ///    screen during one bounded check; success opens the information page without the Lock
+    ///    page, anything else falls back to the visible Lock wait.
     /// 3. Any other enrolled device starts at the cover with one bounded background check.
     /// 4. Not enrolled, revoked or invalid: the cover and the existing fail-closed Lock behavior.
     /// The wait marker only selects the screen; it never grants access.
@@ -60,7 +61,7 @@ public partial class MainWindow : Window
     {
         if (_access.IsPurchased)
         {
-            ShowGames(animate: false);
+            ShowCover(animate: false);
             _ = _access.SynchronizePurchasedAsync();
             return;
         }
@@ -95,7 +96,7 @@ public partial class MainWindow : Window
             lockPage.ShowActivationSucceeded();
             await Task.Delay(ActivationEntryDelay);
             if (_closed || PageHost.Content != lockPage) return;
-            lockPage.ShowEnteringGames();
+            lockPage.ShowEntering();
             await Task.Delay(ActivationEntryDelay / 4);
             if (_closed || PageHost.Content != lockPage) return;
         }
@@ -104,13 +105,14 @@ public partial class MainWindow : Window
             recovery.ShowActivationSucceeded();
             await Task.Delay(ActivationEntryDelay);
             if (_closed || PageHost.Content != recovery) return;
-            recovery.ShowEnteringGames();
+            recovery.ShowEntering();
             await Task.Delay(ActivationEntryDelay / 4);
             if (_closed || PageHost.Content != recovery) return;
         }
         // Never pull the customer out of a page they chose (information, library or a running game).
         else if (PageHost.Content is not CoverPage) return;
-        if (!_closed && _access.IsPurchased) ShowGames();
+        // Every activated entry continues through the information page to the game book.
+        if (!_closed && _access.IsPurchased) ShowInfo();
     }
 
     public void ShowCover(bool animate = true)

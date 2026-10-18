@@ -62,12 +62,12 @@ internal static partial class Program
             Check(access.IsPurchased && store.ReadLicense(G1).Status == StoreReadStatus.Present && !C<Button>(recovery!, "SkipButton").IsVisible,
                 "signed pickup is verified and stored before the success message");
             Save(recovery!, shots, "12-startup-recovery-activated.png");
-            Pump(() => Page(relaunch) is GamesBookPage);
-            Check(pages.SequenceEqual(new[] { typeof(ActivationRecoveryPage), typeof(GamesBookPage) }),
-                "successful recovery goes straight to the library; no Lock page was created or shown");
+            Pump(() => Page(relaunch) is InfoPage);
+            Check(pages.SequenceEqual(new[] { typeof(ActivationRecoveryPage), typeof(InfoPage) }),
+                "successful recovery goes to the information page; no Lock page was created or shown");
             Check(!intent.IsPending(G1) && server.StartRequests == trialStarts && server.Used() == 0,
                 "recovery clears the marker and consumes no trial");
-            Save((UserControl)Page(relaunch)!, shots, "13-startup-recovery-library.png");
+            Save((UserControl)Page(relaunch)!, shots, "13-startup-recovery-info.png");
             relaunch.Close();
 
             // 6. Existing valid paid license: library at once, fully offline, no recovery screen.
@@ -76,8 +76,11 @@ internal static partial class Program
             access = Access(identity, signing, store, offline);
             activation = UiCoordinator(access, intent);
             var (paid, paidPages) = Launch(access, activation);
-            Check(paidPages.SequenceEqual(new[] { typeof(GamesBookPage) }) && offline.EntitlementRequests == 0 && offline.PickupRequests == 0,
-                "a stored paid license opens the library immediately offline, even with a stale wait marker");
+            Check(paidPages.SequenceEqual(new[] { typeof(CoverPage) }) && offline.EntitlementRequests == 0 && offline.PickupRequests == 0,
+                "a stored paid license opens the cover immediately offline, even with a stale wait marker");
+            OpenToGames(paid);
+            Check(paidPages.SequenceEqual(new[] { typeof(CoverPage), typeof(InfoPage), typeof(GamesBookPage) }) && offline.EntitlementRequests == 0,
+                "paid launch follows cover, information, game book with no Lock and no request");
             paid.Close();
         }
 
@@ -131,7 +134,7 @@ internal static partial class Program
             var page = (LockPage)Page(window)!;
             Check(!access.CanEnter && store.ReadLicense(G1).Status == StoreReadStatus.Missing && activation.Phase == PaidActivationPhase.InvalidLicense
                 && C<Border>(page, "ActivationProgressPanel").IsVisible && C<TextBlock>(page, "ActivationPhaseText").Text == "مجوز دریافتی معتبر نبود"
-                && !pages.Contains(typeof(GamesBookPage)), "invalid signature during recovery never unlocks and shows the refusal on Lock");
+                && !pages.Contains(typeof(InfoPage)) && !pages.Contains(typeof(GamesBookPage)), "invalid signature during recovery never unlocks and shows the refusal on Lock");
             window.Close();
         }
 

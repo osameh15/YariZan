@@ -8,7 +8,7 @@
 | Draft PR | see §12 |
 | Scope | Windows desktop only. Separate from Production Readiness PR #5 (release pipeline). |
 
-**Summary.** The desktop now waits automatically for a purchased license once it is connected to an account. When the backend has fulfilled the purchase, the app picks up the signed license, verifies it, stores it with DPAPI and enters the game library without another click. A locally verified paid license opens the library at launch with no network call. An enrolled device without a license makes one bounded pickup check at launch, so a purchase completed while the app was closed activates on the next start. No backend route, signed-artifact field or commercial gate changed. Nothing was merged, published or deployed.
+**Summary.** The desktop now waits automatically for a purchased license once it is connected to an account. When the backend has fulfilled the purchase, the app picks up the signed license, verifies it, stores it with DPAPI and opens the information page without another click; the customer continues to the game book from there. Page order is always cover → (Lock only when not yet licensed) → information → game book. A locally verified paid license opens the cover at launch with no network call and never shows Lock. An enrolled device without a license makes one bounded pickup check at launch, so a purchase completed while the app was closed activates on the next start. No backend route, signed-artifact field or commercial gate changed. Nothing was merged, published or deployed.
 
 ## 1. Verified starting behavior
 
@@ -38,16 +38,16 @@ Checked against `main@30ffa05` before any change:
 
 ```
 Launch
- 1 controller.IsPurchased (local signed license + decision verified, no network) ──► Game library
+ 1 controller.IsPurchased (local signed license + decision verified, no network) ──► Cover ──► Info ──► Game book (no Lock)
  │      background SynchronizePurchasedAsync (never blocks, revocation applies next launch)
  2 enrolled AND not locally revoked AND wait marker present
  │      ──► neutral recovery screen «در حال بررسی مجوز خرید…» + one bounded check (20 s)
- │          ├─ signed license verified and stored ──► «نسخه شما فعال شد» ──► Game library (no Lock)
+ │          ├─ signed license verified and stored ──► «نسخه شما فعال شد» ──► Info page (no Lock)
  │          ├─ not ready / network / deadline ──► Lock, visible wait resumes (marker kept)
  │          ├─ refused (revoked, blocked, invalid, restricted) ──► Lock showing the refusal (marker cleared)
  │          └─ «نمایش گزینه‌ها» (skip) ──► Lock without polling (marker kept)
  3 enrolled AND not locally revoked ──► Cover + one bounded background check (20 s)
- │      ├─ ACTIVATED ──► Game library (Lock never shown)
+ │      ├─ ACTIVATED ──► Info page (Lock never shown)
  │      └─ any other result ──► stays on Cover; Lock shows normal choices
  4 otherwise (not enrolled, revoked, invalid) ──► Cover, existing fail-closed Lock behavior
 ```
@@ -84,7 +84,7 @@ Why the two waiting states are merged: payment fulfillment creates the entitleme
 6. Customer pays on the website; backend verifies the payment and fulfills it exactly once (unchanged).
 7. Next attempt sees ACTIVE → «مجوز آماده است؛ در حال فعال‌سازی…» → `POST desktop/licenses/pickup`.
 8. `AcceptPickedUpLicense`: signature, trusted key ID, domain, device UUID, fingerprint, grade/SKU, license revision, retained decision conflict; then DPAPI write (`WriteThrough` + flush + atomic replace).
-9. Only then `Activated`: «نسخه شما فعال شد» (1.6 s), «در حال ورود به بازی‌ها…», then the game library. No game is launched.
+9. Only then `Activated`: «نسخه شما فعال شد» (1.6 s), «در حال ورود به یاریزان…», then the information page; «ورود به کتاب بازی‌ها» opens the game book. No game is launched.
 
 ## 5. Polling and cancellation
 
@@ -108,7 +108,7 @@ Why the two waiting states are merged: payment fulfillment creates the entitleme
 | Case | Behavior | Evidence |
 | --- | --- | --- |
 | 1. License already stored | Library at once, no network, no Lock page, background sync only | WPF check with transport offline: zero entitlement, pickup, status and trial requests; separate OS process accepts the DPAPI store offline |
-| 2. Paid while closed | Cover, one bounded check, pickup, store, library; Lock never shown | WPF check records every page shown; real-backend interop with an empty store |
+| 2. Paid while closed | Cover, one bounded check, pickup, store, information page; Lock never shown | WPF check records every page shown; real-backend interop with an empty store |
 | 2b. Customer was waiting when the app closed (interrupted purchase) | Neutral recovery screen, one bounded check; success enters the library without ever creating the Lock page; otherwise the Lock wait resumes | WPF checks record every page the window shows (§11a) |
 | 3. Closed during activation | Token cancelled, no callback, nothing stored, existing files untouched. The wait marker (a timestamp file, not a payment status) may remain so the wait resumes | WPF check |
 | 4. Offline, no stored license | Fails closed; Lock: «ارتباط با سرور برقرار نشد. برای فعال‌سازی اولیه یا شروع آزمایش به اینترنت نیاز دارید.»; waiting panel: «برای فعال‌سازی اولیه به اینترنت نیاز دارید…» | WPF check, screenshot 09 and 10 |
@@ -144,12 +144,13 @@ Real WPF pages rendered off-screen by the test harness with synthetic fixtures (
 | 3 | Waiting for purchase | `03-waiting-for-purchase.png` |
 | 5 | Retrieving signed license | `05-retrieving-signed-license.png` |
 | 6 | Activation complete | `06-activation-complete.png` |
-| 7, 8 | Automatic entry to game selection; restart with cached paid license offline (identical frame; synthetic empty library) | `07-automatic-game-selection.png` |
+| 7 | Automatic entry to the information page after activation | `07-automatic-info-page.png` |
+| 8 | Restart with cached paid license offline: cover first | `08-restart-offline-cached-paid.png` |
 | 9 | Restart unpaid and offline | `09-restart-unpaid-offline.png` |
 | 10 | Recoverable network failure | `10-recoverable-network-failure.png` |
 | 11 | Seamless startup recovery (neutral screen) | `11-startup-recovery.png` |
-| 12 | Recovery succeeded, about to enter the library | `12-startup-recovery-activated.png` |
-| 13 | Library after recovery, no Lock in between | same frame as `07-automatic-game-selection.png` |
+| 12 | Recovery succeeded, about to open the information page | `12-startup-recovery-activated.png` |
+| 13 | Information page after recovery, no Lock in between | same frame as `07-automatic-info-page.png` |
 | 14 | Marker + offline: fallback to the Lock wait (150%) | `14-recovery-offline-fallback-150pct.png` |
 | 15 | Cancelled wait after fallback | `15-recovery-cancelled.png` |
 | 16 | Marker + not yet paid: fallback to waiting | `16-recovery-pending-fallback.png` |
@@ -231,6 +232,21 @@ Also: HTTP contract for entitlements, `Retry-After`, malformed and captive-porta
 ## 12. Draft PR and CI
 
 Draft PR, final HEAD and final-HEAD CI results are recorded in the PR description.
+
+## 12a. Page order (owner decision, 2026-10-18)
+
+Owner rule: pages are always cover → information → game book once access is valid, and an automatic activation lands on the information page.
+
+| Situation | Pages |
+| --- | --- |
+| Launch with a valid stored license (offline OK) | Cover → «باز کردن» → Info → Game book; Lock never shown |
+| Launch without a license | Cover → «باز کردن» → Lock → (activation or trial) → Info → Game book |
+| Automatic activation on Lock | Lock success «نسخه شما فعال شد» → Info → Game book |
+| Interrupted purchase recovered at launch | Recovery screen → «نسخه شما فعال شد» → Info → Game book; Lock never shown |
+| Purchase found by the cover's background check | Cover → Info → Game book |
+| Activation code entered by hand | Lock → «ورود به بازی» → Info → Game book (unchanged) |
+
+WPF checks walk the real cover command and information button and record every page shown.
 
 ## 13. Evidence classes and known gaps
 

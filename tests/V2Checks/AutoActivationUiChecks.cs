@@ -30,6 +30,19 @@ internal static partial class Program
 
     private static object? Page(MainWindow window) => ((ContentControl)window.FindName("PageHost")).Content;
 
+    /// <summary>Cover, then information, then game book, exactly as a customer clicks through.</summary>
+    private static void OpenToGames(MainWindow window)
+    {
+        ((CoverPage)Page(window)!).OpenCommand.Execute(null);
+        Pump(() => Page(window) is InfoPage);
+        NextFromInfo(window);
+        Pump(() => Page(window) is GamesBookPage);
+    }
+
+    private static void NextFromInfo(MainWindow window) =>
+        typeof(InfoPage).GetMethod("Next_Click", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(Page(window), new object?[] { null, new RoutedEventArgs() });
+
     private static void AutoActivationUiChecks(SigningFixture signing, IDeviceIdentity identity, string screenshots)
     {
         string shots = Path.Combine(screenshots, "auto-activation");
@@ -86,10 +99,13 @@ internal static partial class Program
             Check(access.IsPurchased && store.ReadLicense(G1).Status == StoreReadStatus.Present && Page(window) == page,
                 "success is shown only after the signed license is verified and stored");
             Save(page, shots, "06-activation-complete.png");
-            Pump(() => C<TextBlock>(page, "ActivationDetailText").Text == "در حال ورود به بازی‌ها…");
+            Pump(() => C<TextBlock>(page, "ActivationDetailText").Text == "در حال ورود به یاریزان…");
+            Pump(() => Page(window) is InfoPage);
+            Check(server.PickupRequests == 1 && access.IsPurchased, "automatic activation continues to the information page");
+            Save((UserControl)Page(window)!, shots, "07-automatic-info-page.png");
+            NextFromInfo(window);
             Pump(() => Page(window) is GamesBookPage);
-            Check(server.PickupRequests == 1 && access.IsPurchased, "the app enters the game library automatically after activation");
-            Save((UserControl)Page(window)!, shots, "07-automatic-game-selection.png");
+            Check(access.IsPurchased, "information page continues to the game book after activation");
             window.Close();
         }
 
@@ -103,9 +119,12 @@ internal static partial class Program
             var seen = new List<Type>();
             window.Show(); Pump(() => Page(window) is not null);
             seen.Add(Page(window)!.GetType());
-            Check(Page(window) is GamesBookPage && offline.EntitlementRequests == 0 && offline.PickupRequests == 0 && offline.StatusRequests == 0,
-                "restart with a cached paid license enters the library at once, fully offline, without the Lock page");
+            Check(Page(window) is CoverPage && offline.EntitlementRequests == 0 && offline.PickupRequests == 0 && offline.StatusRequests == 0,
+                "restart with a cached paid license opens the cover at once, fully offline, without the Lock page");
             Save((UserControl)Page(window)!, shots, "08-restart-offline-cached-paid.png");
+            OpenToGames(window);
+            Check(seen.Count == 1 && !seen.Contains(typeof(LockPage)) && offline.EntitlementRequests == 0 && offline.StatusRequests == 0,
+                "cached paid license walks cover, information, game book offline with no Lock and no request");
             window.Close();
 
             var closedStore = Store("auto-ui-paid-while-closed");
@@ -115,9 +134,9 @@ internal static partial class Program
             window = Window(access, activation);
             seen.Clear();
             window.Show();
-            Pump(() => { if (Page(window) is { } current) seen.Add(current.GetType()); return Page(window) is GamesBookPage; });
+            Pump(() => { if (Page(window) is { } current) seen.Add(current.GetType()); return Page(window) is InfoPage; });
             Check(access.IsPurchased && server.PickupRequests == 1 && !seen.Contains(typeof(LockPage)) && closedStore.ReadLicense(G1).Status == StoreReadStatus.Present,
-                "purchase completed while closed is picked up at launch and enters the library without the Lock page");
+                "purchase completed while closed is picked up at launch and opens the information page without the Lock page");
             window.Close();
 
             var intent = new MemoryActivationIntentStore(); intent.MarkPending(G1);
@@ -131,7 +150,7 @@ internal static partial class Program
             Pump(() => activation.Phase == PaidActivationPhase.WaitingForPurchase);
             Check(C<Border>(page, "ActivationProgressPanel").IsVisible && !access.CanEnter, "resumed wait shows the waiting state and stays locked");
             server.EntitlementState = "ACTIVE";
-            Pump(() => Page(window) is GamesBookPage);
+            Pump(() => Page(window) is InfoPage);
             Check(access.IsPurchased && !intent.IsPending(G1), "resumed wait activates automatically and clears the marker");
             window.Close();
 
@@ -156,7 +175,7 @@ internal static partial class Program
             Save(page, shots, "10-recoverable-network-failure.png");
             server.Offline = false; server.EntitlementState = "ACTIVE";
             Click(page, "CheckNowButton");
-            Pump(() => Page(window) is GamesBookPage);
+            Pump(() => Page(window) is InfoPage);
             Check(access.IsPurchased, "check again after the network returns activates automatically");
             window.Close();
         }

@@ -22,7 +22,7 @@ public partial class ActivationRecoveryPage : UserControl
     }
 
     public void ShowActivationSucceeded() => Show("نسخه شما فعال شد", "از این پس می‌توانید بدون اینترنت بازی کنید.");
-    public void ShowEnteringGames() => Show("نسخه شما فعال شد", "در حال ورود به بازی‌ها…");
+    public void ShowEntering() => Show("نسخه شما فعال شد", "در حال ورود به یاریزان…");
 
     private void Show(string title, string detail)
     {

@@ -392,7 +392,7 @@ public partial class LockPage : UserControl
 
     /// <summary>Called by the window only after the signed license is verified and durably stored.</summary>
     public void ShowActivationSucceeded() { _entering = true; RenderActivation(); }
-    public void ShowEnteringGames() { _entering = true; RenderActivation("در حال ورود به بازی‌ها…"); }
+    public void ShowEntering() { _entering = true; RenderActivation("در حال ورود به یاریزان…"); }
 
     private void RenderActivation(string? enteringText = null)
     {
