@@ -1,10 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MeliPayamakProvider, FakeSmsProvider } from "../src/accounts/sms";
+import { MeliPayamakProvider, FakeSmsProvider, Sms } from "../src/accounts/sms";
+import { Security } from "../src/security/security";
 import {
   OTP_TEMPLATES,
   NOTICE_TEMPLATES,
+  OTP_VALIDITY_MINUTES,
   OtpPurpose,
+  SmsTemplate,
   jalaliDate,
   renderOtp,
   renderSms,
@@ -69,11 +72,51 @@ test("password change notice carries exactly one date variable", () => {
   );
 });
 
-test("purchase notice is not renderable until its variables are confirmed", () => {
-  assert.throws(
-    () => renderSms(NOTICE_TEMPLATES.PURCHASE_CONFIRMED, { order: "1" }, loose),
-    unavailable,
+test("purchase notice carries exactly the order UUID", () => {
+  const id = "0b9f3c1e-8a2d-4c7e-9f10-2b6d5a4e3c21";
+  const t = NOTICE_TEMPLATES.PURCHASE_CONFIRMED;
+  assert.deepEqual(renderSms(t, { order: id }, loose), {
+    bodyId: "559397",
+    text: id,
+  });
+  for (const bad of ["1", id.toUpperCase(), id + ";x", "x" + id])
+    assert.throws(() => renderSms(t, { order: bad }, loose), unavailable, bad);
+  assert.throws(() => renderSms(t, { code: "123456" }, loose), unavailable);
+});
+
+test("provider texts promising a different OTP lifetime are never production-ready", () => {
+  assert.equal(OTP_VALIDITY_MINUTES, 5);
+  assert.equal(OTP_TEMPLATES.CLAIM?.providerValidityMinutes, 2);
+  assert.equal(OTP_TEMPLATES.LOGIN?.providerValidityMinutes, 2);
+  assert.equal(OTP_TEMPLATES.RESET?.providerValidityMinutes, 5);
+  const confirmedMap = Object.fromEntries(
+    Object.entries(OTP_TEMPLATES).map(([k, t]) => [
+      k,
+      t && { ...t, textConfirmed: true },
+    ]),
+  ) as Record<OtpPurpose, SmsTemplate | null>;
+  for (const p of ["CLAIM", "MOBILE_OLD", "MOBILE_NEW", "LOGIN"] as const)
+    assert.throws(
+      () => renderOtp(p, "123456", strict, confirmedMap),
+      unavailable,
+      p,
+    );
+  assert.equal(
+    renderOtp("RESET", "123456", strict, confirmedMap).text,
+    "123456",
   );
+});
+
+test("every transcribed pattern has exactly one {0} and stays unconfirmed", () => {
+  for (const t of [
+    ...Object.values(OTP_TEMPLATES),
+    ...Object.values(NOTICE_TEMPLATES),
+  ]) {
+    if (!t) continue;
+    assert.equal(t.providerText.split("{0}").length - 1, 1, t.bodyId);
+    assert.equal(t.variables.length, 1, t.bodyId);
+    assert.equal(t.textConfirmed, false, t.bodyId);
+  }
 });
 
 test("invalid Body IDs and missing templates fail closed", () => {
@@ -81,7 +124,12 @@ test("invalid Body IDs and missing templates fail closed", () => {
     assert.throws(
       () =>
         renderSms(
-          { bodyId, variables: ["code"], textConfirmed: true },
+          {
+            bodyId,
+            variables: ["code"],
+            providerText: "",
+            textConfirmed: true,
+          },
           { code: "123456" },
           loose,
         ),
@@ -179,7 +227,35 @@ test("fake provider records notices without any network", async () => {
   await fake.notify({
     event: "PURCHASE_CONFIRMED",
     mobile: "09123456789",
-    values: { order: "1" },
+    values: { order: "0b9f3c1e-8a2d-4c7e-9f10-2b6d5a4e3c21" },
   });
   assert.equal(fake.notices.length, 1);
+  await assert.rejects(
+    fake.notify({
+      event: "PURCHASE_CONFIRMED",
+      mobile: "09123456789",
+      values: { order: "1" },
+    }),
+  );
+});
+
+test("Sms.canNotify refuses live notices until the template text is confirmed", () => {
+  const sms = (config: Record<string, string>) =>
+    new Sms({ config } as unknown as Security);
+  const live = {
+    SMS_PROVIDER: "melipayamak",
+    SMS_ALLOW_LIVE: "true",
+    MELIPAYAMAK_USERNAME: "u",
+    MELIPAYAMAK_PASSWORD: "p",
+  };
+  assert.equal(sms(live).canNotify("PASSWORD_CHANGED"), false);
+  assert.equal(sms(live).canNotify("PURCHASE_CONFIRMED"), false);
+  assert.equal(
+    sms({ SMS_PROVIDER: "disabled" }).canNotify("PURCHASE_CONFIRMED"),
+    false,
+  );
+  assert.equal(
+    sms({ SMS_PROVIDER: "fake" }).canNotify("PURCHASE_CONFIRMED"),
+    true,
+  );
 });

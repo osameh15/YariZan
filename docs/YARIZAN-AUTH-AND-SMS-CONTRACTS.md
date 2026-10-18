@@ -62,17 +62,21 @@ Connect links directly to /account after approval. This is browser authenticatio
 
 The adapter follows the vendor's [pattern-service method](https://github.com/Melipayamak/melipayamak-php/blob/master/src/SmsRest.php) and [service messaging examples](https://github.com/Melipayamak/melipayamak-php). Fixed destination: `https://rest.payamak-panel.com/api/SendSMS/BaseServiceNumber`. POST form fields are username, password, to, text and bodyId. `text` carries the pattern variables in template order, joined by `;`. Values never contain `;` or control characters, digits are sent as Latin digits, and an OTP must be exactly six digits.
 
-The registry `backend/src/accounts/sms-templates.ts` selects the Body ID per event. The owner's panel confirmed ID and purpose only. **The pattern text (variable count and order) is not yet verified against the panel**, so every entry has `textConfirmed:false` and the live provider refuses to send it (generic `SMS_UNAVAILABLE`, no vendor call). Setting a flag requires a reviewed change citing the panel text.
+The registry `backend/src/accounts/sms-templates.ts` selects the Body ID per event. Each pattern has exactly one `{0}` variable. The owner transcribed the five approved texts from the MeliPayamak panel screenshot (keep the screenshot as review evidence). **The exact wording and current approval status are not yet verified in the panel**, so every entry has `textConfirmed:false` and the live provider refuses to send it (generic `SMS_UNAVAILABLE`, no vendor call). Setting a flag requires a reviewed change that cites the panel check.
 
-| Event | Body ID | Variables (in order) | State |
-|---|---|---|---|
-| CLAIM, MOBILE_OLD, MOBILE_NEW | 559424 mobile verification | code | text unconfirmed |
-| LOGIN | 559422 account login | code | text unconfirmed |
-| RESET | 559372 password recovery | code | text unconfirmed |
-| PASSWORD_CHANGED (notice, not OTP) | 559421 | date `YYYY/MM/DD` Jalali, Latin digits (assumed) | text and date format unconfirmed; dispatch not wired |
-| PURCHASE_CONFIRMED (notice) | 559397 | unknown | variables unknown; purchase delivery stays simulated |
-| PASSWORD (OTP) | none | n/a | **unmapped**: 559421 is a post-change notice, not an OTP. Needs an approved OTP pattern |
-| ADMIN (MFA OTP) | none | n/a | **unmapped**: the customer login wording is not suitable for a privileged step-up. Needs a separately approved Admin pattern. G6 stays closed |
+| Event | Body ID | Variable `{0}` | Provider text promises | State |
+|---|---|---|---|---|
+| CLAIM, MOBILE_OLD, MOBILE_NEW | 559424 mobile verification | 6 Latin digits | 2 minutes | **Blocked: backend issues 5-minute codes.** Update provider text to 5 minutes |
+| LOGIN | 559422 account login | 6 Latin digits | 2 minutes | **Blocked: same lifetime mismatch** |
+| RESET | 559372 password recovery | 6 Latin digits | 5 minutes | matches backend; text unconfirmed |
+| PASSWORD_CHANGED (notice) | 559421 | Jalali change date `YYYY/MM/DD`, Latin digits (assumed format) | n/a | wired; text and date format unconfirmed |
+| PURCHASE_CONFIRMED (notice) | 559397 | order number = the order UUID shown to customers | n/a | wired; text unconfirmed |
+| PASSWORD (verification OTP) | none | n/a | n/a | **unmapped.** Request a dedicated password-change verification pattern |
+| ADMIN (MFA OTP) | none | n/a | n/a | **unmapped.** Request a dedicated Admin MFA pattern. G6 stays closed |
+
+Lifetime rule: `renderOtp` refuses a template whose provider text promises a lifetime other than `OTP_VALIDITY_MINUTES` (5) in live mode. Do not shorten the backend contract to match; update the two provider patterns instead. A short human-friendly order number would need a schema migration and is a recommended follow-up; until then the SMS carries the order UUID.
+
+Notices are sent by `Notifications` from durable outbox events: `password.changed`, `password.reset_mobile` and `password.reset_completed` (password notice), and `purchase.notification_recorded` (purchase notice, written once per order after durable fulfillment). Delivery is at-most-once: an event is claimed before the provider call, a failure or ambiguous timeout is audited (`sms.notice_unavailable`) and never retried, notices older than 24 hours or without a verified mobile are skipped (`sms.notice_skipped`), and a notice whose template is not confirmed stays pending untouched. Fake mode records notices in memory only. CI never reaches the vendor.
 
 Unmapped events fail closed in live mode. The fake provider still serves them for local tests.
 
