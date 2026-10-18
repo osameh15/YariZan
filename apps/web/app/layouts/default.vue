@@ -2,6 +2,13 @@
 const open = ref(false);
 const { publicOnly, storefront } = useSiteMode();
 const route = useRoute();
+// The eNamad seal is third-party: show it only after the image actually loads.
+const sealImage = ref<HTMLImageElement | null>(null);
+const sealLoaded = ref(false);
+onMounted(() => {
+  const img = sealImage.value;
+  if (img?.complete && img.naturalWidth > 0) sealLoaded.value = true;
+});
 watch(
   () => route.path,
   () => {
@@ -92,16 +99,19 @@ watch(
           <p class="footer-copyright">حق مالکیت سایت برای یاریزان محفوظ است.</p>
           <a
             class="enamad-seal"
+            :class="{ 'is-loaded': sealLoaded }"
             href="https://trustseal.enamad.ir/?id=8237399&amp;Code=y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX"
             target="_blank"
             rel="noopener"
             referrerpolicy="origin"
             ><img
+              ref="sealImage"
               src="https://trustseal.enamad.ir/logo.aspx?id=8237399&amp;Code=y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX"
               alt="نماد اعتماد الکترونیکی (اینماد)"
               referrerpolicy="origin"
-              loading="lazy"
               width="90"
+              @load="sealLoaded = true"
+              @error="sealLoaded = false"
               height="100"
           /></a>
         </div>

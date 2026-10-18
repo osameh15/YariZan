@@ -1901,8 +1901,8 @@ textarea[aria-invalid='true'] {
 }
 
 .enamad-seal {
+  display: none;
   justify-self: end;
-  display: inline-flex;
   flex-shrink: 0;
   line-height: 0;
   background: #fff;
@@ -1915,4 +1915,7 @@ textarea[aria-invalid='true'] {
   height: 64px;
   max-width: 100%;
   cursor: pointer;
+}
+.enamad-seal.is-loaded {
+  display: inline-flex;
 }
