@@ -1659,7 +1659,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 9 });
+    assert.deepEqual(await verifyMigrations(c), { total: 10 });
   } finally {
     await c.query("RESET ROLE");
     c.release();
@@ -3349,14 +3349,19 @@ test("Commerce uses real snapshots, idempotency, ownership and disabled product 
       "PRODUCT_NOT_AVAILABLE",
       other.browser,
     );
-  const price = (
-    await db.query(
-      "SELECT amount_irr FROM product_prices WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
-    )
-  ).rows[0].amount_irr;
-  await db.query(
-    "UPDATE product_prices SET amount_irr=14000000 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
-  );
+  // A later price change is appended (price history is append-only) and never alters the
+  // order's captured snapshot; the original price is then restored by another appended row.
+  const changePrice = (amount: number) =>
+    db.transaction(async (c) => {
+      await c.query(
+        "UPDATE product_prices SET ended_at=clock_timestamp() WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
+      );
+      await c.query(
+        "INSERT INTO product_prices(id,sku,amount_irr,effective_at,source,pricing_revision) VALUES($1,'YARIZAN-G1',$2,clock_timestamp(),'BOOTSTRAP','pricing-2026-10-18-r9')",
+        [randomUUID(), amount],
+      );
+    });
+  await changePrice(14000000);
   try {
     assert.equal(
       (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body
@@ -3364,10 +3369,7 @@ test("Commerce uses real snapshots, idempotency, ownership and disabled product 
       12990000,
     );
   } finally {
-    await db.query(
-      "UPDATE product_prices SET amount_irr=$1 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
-      [price],
-    );
+    await changePrice(12990000);
   }
   await assert.rejects(
     db.query("UPDATE order_items SET total_irr=total_irr WHERE order_id=$1", [

@@ -421,7 +421,7 @@ export class Admin {
       [sku],
     );
     await c.query(
-      "INSERT INTO product_prices(id,sku,amount_irr,effective_at,changed_by) VALUES($1,$2,$3,transaction_timestamp(),$4)",
+      "INSERT INTO product_prices(id,sku,amount_irr,effective_at,changed_by,source) VALUES($1,$2,$3,transaction_timestamp(),$4,'ADMIN')",
       [randomUUID(), sku, changes.price_irr, actor.id],
     );
     await this.audit.append(c, actor, "product.updated", sku, {

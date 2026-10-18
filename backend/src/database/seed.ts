@@ -1,3 +1,4 @@
+import { approvedPricing } from "../catalog/approved-pricing";
 import { randomUUID } from "node:crypto";
 import { PoolClient } from "pg";
 import { Database } from "./database";
@@ -76,10 +77,12 @@ export async function seed(db: Database) {
           grade === 1,
         ],
       );
+      // Development/test data mirrors the approved revision so local prices never drift.
+      const approved = approvedPricing.products.find((p) => p.sku === sku)!;
       await c.query(
-        `INSERT INTO product_prices(id,sku,amount_irr) SELECT $1,$2,12990000
+        `INSERT INTO product_prices(id,sku,amount_irr,source,pricing_revision) SELECT $1,$2,$3,'BOOTSTRAP',$4
         WHERE NOT EXISTS(SELECT 1 FROM product_prices WHERE sku=$2)`,
-        [randomUUID(), sku],
+        [randomUUID(), sku, approved.price_irr, approvedPricing.revision],
       );
     }
     await seedAdminRoles(c);

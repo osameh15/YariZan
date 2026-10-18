@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { validateManifest } from './manifest.mjs';
+
+const migrations = Number(
+  readFileSync(
+    new URL('../../backend/src/database/schema-version.ts', import.meta.url),
+    'utf8',
+  ).match(/SCHEMA_MIGRATION_COUNT = (\d+)/)[1],
+);
 
 // Disposable rollback rehearsal. Everything runs on a private Docker network with a local
 // registry; nothing touches GHCR, the VPS or any real data.
@@ -190,14 +197,14 @@ try {
     run('stop', '--time', '20', name);
   }
   oneOff(api.previous.reference, ['node', 'dist/src/database/migrate.js', '--verify']);
-  assert.equal(psql('SELECT count(*) FROM schema_migrations'), '9');
+  assert.equal(psql('SELECT count(*) FROM schema_migrations'), String(migrations));
   assert.equal(psql('SELECT count(*) FROM rehearsal_marker'), '1');
   assert.ok(
     run('volume', 'ls', '-q').split('\n').includes(names.volume),
     'Database volume preserved',
   );
   console.log(
-    'API: previous → next → rollback by digest; volume, 9 migrations and marker row preserved',
+    `API: previous → next → rollback by digest; volume, ${migrations} migrations and marker row preserved`,
   );
 
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -208,7 +215,7 @@ try {
     source_commit: commit,
     ci_run_url: 'local-rehearsal',
     built_at: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
-    migrations: 9,
+    migrations,
     environment_changes: [],
     route_changes: [],
     images: [
@@ -231,7 +238,10 @@ try {
       },
     ],
   };
-  const errors = validateManifest(manifest, { expectedMigrations: 9, allowLocalRegistry: true });
+  const errors = validateManifest(manifest, {
+    expectedMigrations: migrations,
+    allowLocalRegistry: true,
+  });
   assert.deepEqual(errors, []);
   writeFileSync(manifestOut, JSON.stringify(manifest, null, 2) + '\n');
   console.log(`Rehearsal manifest valid: ${manifestOut}`);

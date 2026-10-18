@@ -38,7 +38,7 @@ try {
       "CREATE TABLE schema_migrations(name text PRIMARY KEY, hash text NOT NULL)",
     );
     for (const name of (await readdir("migrations"))
-      .filter((n) => /^00[1-8]_.*\.sql$/.test(n))
+      .filter((n) => /^00[1-9]_.*\.sql$/.test(n))
       .sort()) {
       const sql = (await readFile("migrations/" + name, "utf8")).replace(
         /\r\n/g,
@@ -58,7 +58,7 @@ try {
       (await fresh.query(sql)).rows,
     );
   console.log(
-    "Migration schema comparison: five catalog groups match fresh initialization against 001-008 upgraded through 009",
+    "Migration schema comparison: five catalog groups match fresh initialization against 001-009 upgraded through 010",
   );
 } finally {
   await fresh.onApplicationShutdown();
