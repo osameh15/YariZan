@@ -35,6 +35,15 @@ for (const [scope, { file, environment }] of Object.entries(releaseWorkflows)) {
     const publish = text.slice(text.indexOf('\n  publish:'), text.indexOf('\n  manifest:'));
     assert.ok(publish.includes('--preserve-digests'));
     assert.ok(publish.includes('differs from scanned'));
+    // Attestation with push-to-registry reads Docker-format credentials: the push must log in to
+    // that file, keep it until the attestation step, then remove it unconditionally.
+    const login = publish.indexOf('skopeo login --authfile "$AUTHFILE"');
+    const attest = publish.indexOf('actions/attest-build-provenance@');
+    const cleanup = publish.indexOf('- name: Remove registry credentials');
+    assert.ok(login > 0 && attest > login && cleanup > attest, 'login -> attest -> cleanup order');
+    assert.ok(/AUTHFILE: \/home\/runner\/\.docker\/config\.json/.test(publish));
+    assert.ok(/- name: Remove registry credentials\n {8}if: always\(\)/.test(publish));
+    assert.ok(!publish.slice(0, attest).includes('skopeo logout'), 'no logout before attestation');
   });
 }
 
@@ -52,13 +61,20 @@ test('every release scope has exactly one workflow and distinct environments', (
 // Execute the actual inline authorization code with a deterministic GitHub API stub.
 // No network, credentials, publication or duplicated implementation of the policy.
 const storefront = read('release-storefront.yml');
-const verifyShell = storefront.split('        run: |\n')[1]
+const verifyShell = storefront
+  .split('        run: |\n')[1]
   .split('\n  # Build and scan')[0]
-  .split('\n').map(line => line.startsWith('          ') ? line.slice(10) : line).join('\n');
+  .split('\n')
+  .map((line) => (line.startsWith('          ') ? line.slice(10) : line))
+  .join('\n');
 const bash = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash';
 const sha = 'a'.repeat(40);
 function verifySource(overrides = {}) {
-  return spawnSync(bash, ['-c', `
+  return spawnSync(
+    bash,
+    [
+      '-c',
+      `
     gh() {
       case "$2" in
         */compare/*) [ "$MOCK_COMPARE" != api-error ] || return 1; printf '%s' "$MOCK_COMPARE" ;;
@@ -68,12 +84,25 @@ function verifySource(overrides = {}) {
       esac
     }
     ${verifyShell}
-  `], { encoding: 'utf8', env: {
-    ...process.env, COMMIT: sha, REPO: 'osameh15/YariZan',
-    DISPATCH_EVENT: 'workflow_dispatch', DISPATCH_REF: 'refs/heads/main',
-    RELEASE_ENVIRONMENT: 'yarizan-release-public-storefront', GITHUB_OUTPUT: '/dev/null',
-    MOCK_COMPARE: 'identical', MOCK_CI: '1', MOCK_REVIEWERS: '1', ...overrides,
-  }});
+  `,
+    ],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        COMMIT: sha,
+        REPO: 'osameh15/YariZan',
+        DISPATCH_EVENT: 'workflow_dispatch',
+        DISPATCH_REF: 'refs/heads/main',
+        RELEASE_ENVIRONMENT: 'yarizan-release-public-storefront',
+        GITHUB_OUTPUT: '/dev/null',
+        MOCK_COMPARE: 'identical',
+        MOCK_CI: '1',
+        MOCK_REVIEWERS: '1',
+        ...overrides,
+      },
+    },
+  );
 }
 for (const status of ['identical', 'behind']) {
   test(`storefront accepts main-reachable commit (${status})`, () => {
@@ -86,13 +115,21 @@ for (const status of ['ahead', 'diverged', 'unknown', '', 'api-error']) {
     assert.notEqual(verifySource({ MOCK_COMPARE: status }).status, 0);
   });
 }
-for (const ref of ['refs/heads/feat/yarizan-v2-full-web-release', 'refs/tags/main', 'refs/pull/7/merge', '']) {
+for (const ref of [
+  'refs/heads/feat/yarizan-v2-full-web-release',
+  'refs/tags/main',
+  'refs/pull/7/merge',
+  '',
+]) {
   test(`storefront rejects dispatch outside main (${ref})`, () => {
     assert.notEqual(verifySource({ DISPATCH_REF: ref }).status, 0);
   });
 }
 for (const overrides of [
-  { DISPATCH_EVENT: 'push' }, { COMMIT: 'main' }, { MOCK_CI: '0' }, { MOCK_REVIEWERS: '0' },
+  { DISPATCH_EVENT: 'push' },
+  { COMMIT: 'main' },
+  { MOCK_CI: '0' },
+  { MOCK_REVIEWERS: '0' },
 ]) {
   test(`storefront fails closed: ${JSON.stringify(overrides)}`, () => {
     assert.notEqual(verifySource(overrides).status, 0);
@@ -104,23 +141,46 @@ test('storefront binds source checks to trusted context and preserves exact CI a
   assert.ok(!storefront.includes('/pulls'));
   assert.ok(storefront.includes('actions/runs?head_sha=$COMMIT'));
   assert.ok(storefront.includes('SCHEMA_MIGRATION_COUNT'));
-  const schema = readFileSync(new URL('../../backend/src/database/schema-version.ts', import.meta.url), 'utf8');
+  const schema = readFileSync(
+    new URL('../../backend/src/database/schema-version.ts', import.meta.url),
+    'utf8',
+  );
   assert.match(schema, /SCHEMA_MIGRATION_COUNT = 10;/);
 });
 
 test('current storefront manifest reports migration 10 and rejects stale version 9', () => {
   const digest = 'sha256:' + '1'.repeat(64);
   const manifest = {
-    schema: 'yarizan-release-manifest/v1', release_scope: 'public-storefront',
-    source_commit: sha, ci_run_url: 'https://github.com/osameh15/YariZan/actions/runs/123',
-    built_at: '2026-10-18T00:00:00Z', migrations: 10, environment_changes: [], route_changes: [],
-    images: [{ name: 'yarizan-web', profile: 'storefront', tag: 'storefront-' + sha.slice(0, 12),
-      digest, reference: 'ghcr.io/osameh15/yarizan-web@' + digest,
-      eligibility: 'public-storefront-candidate', scan: { tool: 'trivy',
-        policy: 'stage-a-zero-high-critical', artifact_digest: digest, critical: 0, high: 0, medium: 1 },
-    }],
+    schema: 'yarizan-release-manifest/v1',
+    release_scope: 'public-storefront',
+    source_commit: sha,
+    ci_run_url: 'https://github.com/osameh15/YariZan/actions/runs/123',
+    built_at: '2026-10-18T00:00:00Z',
+    migrations: 10,
+    environment_changes: [],
+    route_changes: [],
+    images: [
+      {
+        name: 'yarizan-web',
+        profile: 'storefront',
+        tag: 'storefront-' + sha.slice(0, 12),
+        digest,
+        reference: 'ghcr.io/osameh15/yarizan-web@' + digest,
+        eligibility: 'public-storefront-candidate',
+        scan: {
+          tool: 'trivy',
+          policy: 'stage-a-zero-high-critical',
+          artifact_digest: digest,
+          critical: 0,
+          high: 0,
+          medium: 1,
+        },
+      },
+    ],
   };
   assert.deepEqual(validateManifest(manifest, { expectedMigrations: 10 }), []);
   manifest.migrations = 9;
-  assert.ok(validateManifest(manifest, { expectedMigrations: 10 }).includes('migrations must equal 10'));
+  assert.ok(
+    validateManifest(manifest, { expectedMigrations: 10 }).includes('migrations must equal 10'),
+  );
 });

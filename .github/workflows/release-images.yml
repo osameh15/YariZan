@@ -167,6 +167,7 @@ jobs:
       PROFILE: brochure
       DIGEST: ${{ needs.candidate.outputs.digest }}
       TAG: ${{ needs.candidate.outputs.tag }}
+      AUTHFILE: /home/runner/.docker/config.json
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -193,17 +194,24 @@ jobs:
           ACTOR: ${{ github.actor }}
         run: |
           set -euo pipefail
-          printf '%s' "$GHCR_TOKEN" | skopeo login ghcr.io -u "$ACTOR" --password-stdin
-          skopeo copy --all --preserve-digests "oci-archive:candidate/candidate.oci.tar" \
+          # One job-scoped credential file in Docker format: skopeo pushes with it and the
+          # attestation action (push-to-registry) reads the same file. Removed in the next steps.
+          mkdir -p "$HOME/.docker"
+          printf '%s' "$GHCR_TOKEN" | skopeo login --authfile "$AUTHFILE" ghcr.io -u "$ACTOR" --password-stdin
+          skopeo copy --authfile "$AUTHFILE" --all --preserve-digests "oci-archive:candidate/candidate.oci.tar" \
             "docker://$REGISTRY/$IMAGE:$TAG"
-          published="sha256:$(skopeo inspect --raw "docker://$REGISTRY/$IMAGE:$TAG" | sha256sum | cut -d' ' -f1)"
+          published="sha256:$(skopeo inspect --authfile "$AUTHFILE" --raw "docker://$REGISTRY/$IMAGE:$TAG" | sha256sum | cut -d' ' -f1)"
           [[ "$published" == "$DIGEST" ]] || { echo "Published $published differs from scanned $DIGEST"; exit 1; }
-          skopeo logout ghcr.io
       - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE }}
           subject-digest: ${{ env.DIGEST }}
           push-to-registry: true
+      - name: Remove registry credentials
+        if: always()
+        run: |
+          skopeo logout --authfile "$AUTHFILE" ghcr.io || true
+          rm -f "$AUTHFILE"
       - name: Record the manifest entry from the passing scan
         run: |
           set -euo pipefail
