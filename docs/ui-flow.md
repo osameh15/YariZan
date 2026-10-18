@@ -4,7 +4,7 @@
 
 ## Desktop
 
-The Persian RTL WPF app always starts on the closed-book cover. Opening it checks access online and shows Information for accepted paid activation or Lock otherwise.
+The Persian RTL WPF app starts on the closed-book cover, except that a payment wait the customer started earlier is resumed by a neutral recovery screen. With valid access the order is always cover → information → game book; a locally verified paid license needs no network and never shows Lock. Without a license: cover → Lock → (activation or trial) → information → game book. Automatic activation always lands on the information page. An enrolled unpaid device makes one bounded background pickup check at launch and opens the information page automatically if a purchase was fulfilled while the app was closed. See [automatic license activation report](YARIZAN-AUTOMATIC-LICENSE-ACTIVATION-REPORT.md).
 
 | Screen | Behavior |
 |---|---|
