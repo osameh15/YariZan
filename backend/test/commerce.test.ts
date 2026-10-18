@@ -62,7 +62,9 @@ test("Offline ZarinPal adapter uses fixed TLS v4 endpoints, explicit IRR and unc
   assert.equal((await adapter.verify(request)).state, "VERIFIED");
   assert.equal(calls[1].body.amount, 12990000);
   await adapter.query(request);
-  assert.ok(calls.some((c) => c.url.endsWith("/inquiry.json")));
+  // Status checks are server-side verify; the unmapped inquiry endpoint is never consulted.
+  assert.equal(calls.length, 3);
+  assert.ok(calls.every((c) => !c.url.endsWith("/inquiry.json")));
 });
 test("Gateway malformed, nonauthoritative, oversized and transport failures stay unknown without refund methods", async () => {
   for (const transport of [
@@ -78,7 +80,9 @@ test("Gateway malformed, nonauthoritative, oversized and transport failures stay
       "https://example.invalid/payment/return",
       transport,
     );
-    assert.deepEqual(await adapter.verify(request), { state: "UNKNOWN" });
+    const result = await adapter.verify(request);
+    assert.equal(result.state, "UNKNOWN");
+    assert.equal(result.previously_verified, undefined);
     assert.equal("refund" in adapter, false);
   }
 });
@@ -200,4 +204,58 @@ test("ZarinPal verify never reaches the network for a malformed authority or non
     "UNKNOWN",
   );
   assert.equal(calls, 0);
+});
+
+test("ZarinPal code 100 is a new verification, code 101 is flagged previously verified", async () => {
+  const mk = (code: number) =>
+    new ZarinPalAdapter(
+      "00000000-0000-4000-8000-000000000003",
+      "https://example.invalid/payment/return",
+      async () =>
+        new Response(JSON.stringify({ data: { code, ref_id: 4242 } })),
+    );
+  const fresh = await mk(100).verify(request);
+  assert.equal(fresh.state, "VERIFIED");
+  assert.equal(fresh.previously_verified, false);
+  assert.equal(fresh.answered, true);
+  const again = await mk(101).verify(request);
+  assert.equal(again.state, "VERIFIED");
+  assert.equal(again.previously_verified, true);
+  const refused = await mk(-51).verify(request);
+  assert.deepEqual(refused, { state: "UNKNOWN", answered: true });
+});
+test("ZarinPal transport failure is unanswered, never a verification", async () => {
+  const adapter = new ZarinPalAdapter(
+    "00000000-0000-4000-8000-000000000003",
+    "https://example.invalid/payment/return",
+    async () => {
+      throw new DOMException("timeout", "TimeoutError");
+    },
+  );
+  assert.deepEqual(await adapter.verify(request), { state: "UNKNOWN" });
+});
+test("ZarinPal create sends the stored IRR amount, description and callback, never a client amount", async () => {
+  let sent: Record<string, unknown> = {};
+  const adapter = new ZarinPalAdapter(
+    "00000000-0000-4000-8000-000000000003",
+    "https://example.invalid/payment/return",
+    async (_url, init) => {
+      sent = JSON.parse(String(init?.body));
+      return new Response(
+        JSON.stringify({ data: { code: 100, authority: request.authority } }),
+      );
+    },
+  );
+  await adapter.create(request);
+  assert.deepEqual(Object.keys(sent).sort(), [
+    "amount",
+    "callback_url",
+    "currency",
+    "description",
+    "merchant_id",
+  ]);
+  assert.equal(sent.amount, 12990000);
+  assert.equal(sent.currency, "IRR");
+  await assert.rejects(adapter.create({ ...request, amount_irr: 9999 }));
+  await assert.rejects(adapter.create({ ...request, amount_irr: 1.5 }));
 });

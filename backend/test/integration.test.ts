@@ -35,7 +35,11 @@ import { seal, unseal, hash } from "../src/security/crypto";
 import { Otp } from "../src/accounts/otp";
 import { Orders } from "../src/commerce/orders";
 import { Payments } from "../src/commerce/payments";
-import { Gateway } from "../src/commerce/gateway";
+import {
+  Gateway,
+  PaymentGateway,
+  PaymentResult,
+} from "../src/commerce/gateway";
 import { Sms } from "../src/accounts/sms";
 process.env.NODE_ENV = "test";
 process.env.COMMERCE_MODE = "fake";
@@ -4213,4 +4217,125 @@ test("Refund request and review never execute a refund or revoke the purchased l
     "0",
   );
   await ok("/desktop/licenses/pickup", { sku: "YARIZAN-G1" }, e.credential);
+});
+
+// Scripted provider: create/ledger come from the fake, verification answers are scripted.
+async function scriptedVerification(
+  script: (a: Parameters<PaymentGateway["verify"]>[0]) => PaymentResult[],
+  run: (calls: () => number) => Promise<void>,
+) {
+  const gateway = app.get(Gateway);
+  const original = gateway.provider;
+  let calls = 0;
+  let queue: PaymentResult[] | undefined;
+  gateway.provider = {
+    create: (r) => original.create(r),
+    verify: (r) => gateway.provider.query(r),
+    query: async (r) => {
+      queue ??= script(r);
+      calls++;
+      return queue.shift() ?? { state: "UNKNOWN" };
+    },
+  };
+  try {
+    await run(() => calls);
+  } finally {
+    gateway.provider = original;
+  }
+}
+const verifiedAnswer = (
+  a: Parameters<PaymentGateway["verify"]>[0],
+  extra: Partial<PaymentResult> = {},
+): PaymentResult => ({
+  state: "VERIFIED",
+  authority: a.authority!,
+  reference: "REF-" + a.attempt_id,
+  amount_irr: a.amount_irr,
+  currency: a.currency,
+  provider_config: a.provider_config,
+  answered: true,
+  ...extra,
+});
+const runVerify = async (attemptId: string) => {
+  await db.query(
+    "UPDATE commerce_jobs SET due_at=now(),lease_until=NULL WHERE target_id=$1 AND state IN ('PENDING','RUNNING')",
+    [attemptId],
+  );
+  await app.get(Payments).work(50);
+};
+
+test("Provider code 101 without prior order-bound evidence never captures a payment", async () => {
+  const e = await buyer(),
+    o = await saleOrder(e),
+    p = await salePayment(e, o);
+  await scriptedVerification(
+    (a) => [verifiedAnswer(a, { previously_verified: true })],
+    async () => {
+      await runVerify(p.attempt_id);
+    },
+  );
+  const order = (
+    await db.query("SELECT state,exception_code FROM orders WHERE id=$1", [
+      o.id,
+    ])
+  ).rows[0];
+  assert.equal(order.state, "PENDING");
+  assert.equal(order.exception_code, "ALREADY_VERIFIED_UNPROVEN");
+  assert.equal(
+    (
+      await db.query("SELECT state FROM payment_attempts WHERE id=$1", [
+        p.attempt_id,
+      ])
+    ).rows[0].state !== "VERIFIED",
+    true,
+  );
+  // The unexplained 101 was an answered call, so a repeated 101 still captures nothing.
+  await scriptedVerification(
+    (a) => [verifiedAnswer(a, { previously_verified: true })],
+    async () => {
+      await runVerify(p.attempt_id);
+    },
+  );
+  assert.equal(
+    (await db.query("SELECT state FROM orders WHERE id=$1", [o.id])).rows[0]
+      .state,
+    "PENDING",
+  );
+});
+
+test("Provider code 101 after an unanswered verify call settles exactly once", async () => {
+  const e = await buyer(),
+    o = await saleOrder(e),
+    p = await salePayment(e, o);
+  await scriptedVerification(
+    (a) => [
+      { state: "UNKNOWN" },
+      verifiedAnswer(a, { previously_verified: true }),
+    ],
+    async (calls) => {
+      await runVerify(p.attempt_id);
+      assert.equal(
+        (await db.query("SELECT state FROM orders WHERE id=$1", [o.id])).rows[0]
+          .state,
+        "PENDING",
+        "timeout never creates a paid order",
+      );
+      await runVerify(p.attempt_id);
+      assert.equal(calls(), 2);
+    },
+  );
+  await recoverCommerce();
+  assert.equal(
+    (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body.state,
+    "FULFILLED",
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM order_fulfillments WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id=$1)",
+        [o.id],
+      )
+    ).rows[0].count,
+    "1",
+  );
 });
