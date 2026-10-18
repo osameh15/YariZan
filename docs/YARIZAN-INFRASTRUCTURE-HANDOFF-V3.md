@@ -114,7 +114,7 @@ Deploy only `ghcr.io/osameh15/yarizan-web@sha256:<64 hex>` from a validated mani
 
 ## 14. Release approval
 
-- Workflow: `.github/workflows/release-storefront.yml` (manual dispatch with a full commit SHA that has four green CI workflows).
+- Workflow: `.github/workflows/release-storefront.yml` (manual dispatch from `main` only, with a full commit SHA already reachable from `main` that has four green CI workflows).
 - Protected environment: **`yarizan-release-public-storefront`**, separate from `yarizan-release-stage-a`. Approving one never authorizes the other; neither can publish full web or API images.
 - Sequence: verify → credential-free build and scan of the candidate (policy gate) → reviewer approval → push of the same OCI archive with preserved digests → read-back digest check → attestation → manifest.
 - Owner prerequisites: create the environment with required reviewers; approve the `storefront-*` tags on the `yarizan-web` package.

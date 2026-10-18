@@ -110,7 +110,7 @@ Storefront Compose project (web only, `YARIZAN_SITE_MODE=storefront`, no `depend
 
 ## 12. GHCR approval requirements
 
-Owner creates environment `yarizan-release-public-storefront` with required reviewers and approves `storefront-*` tags on `ghcr.io/osameh15/yarizan-web`. Then run `Release public storefront image` with a green commit SHA and approve the single publish job. No image was pushed to GHCR in this work.
+Owner creates environment `yarizan-release-public-storefront` with required reviewers and approves `storefront-*` tags on `ghcr.io/osameh15/yarizan-web`. After independent review and merge, run `Release public storefront image` from `main` with a green commit SHA already reachable from `main` and approve the single publish job. No image was pushed to GHCR in this work.
 
 ## 13. Safe deployment and rollback
 

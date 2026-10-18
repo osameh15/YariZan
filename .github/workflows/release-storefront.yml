@@ -1,7 +1,7 @@
 name: Release public storefront image (manual approval, no deployment)
 # Public storefront only: publishes the digest-pinned STOREFRONT web image (public pages with
 # the owner-approved prices; no Backend, accounts, commerce or Admin) to GHCR for ONE already
-# tested commit and produces the release manifest for the infrastructure session.
+# tested commit reachable from main and produces the release manifest for the infrastructure session.
 # Same reviewed sequence as release-images.yml (Stage A): verify -> build and scan the candidate
 # without registry credentials (zero HIGH/CRITICAL or stop) -> reviewer approval -> push the same
 # archive with preserved digests -> attest -> manifest. It uses its OWN protected environment, so
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       commit:
-        description: Full 40-hex commit SHA to release (must already have green CI)
+        description: Full 40-hex SHA already on main with green CI (dispatch from main only)
         required: true
         type: string
 permissions: {}
@@ -35,7 +35,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-      pull-requests: read
     outputs:
       commit: ${{ steps.check.outputs.commit }}
     steps:
@@ -44,16 +43,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           COMMIT: ${{ inputs.commit }}
           REPO: ${{ github.repository }}
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
           [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo 'Commit must be a full lowercase 40-hex SHA'; exit 1; }
-          # Only commits on main or on a same-repository pull request branch (never a fork).
+          # Only main may authorize publication; PR association grants no release authority.
+          [[ "$DISPATCH_EVENT" == workflow_dispatch && "$DISPATCH_REF" == refs/heads/main ]] || {
+            echo 'Storefront releases must be dispatched from main'; exit 1; }
+          # With main as base, identical or behind means the target is reachable from main.
           status=$(gh api "repos/$REPO/compare/main...$COMMIT" --jq .status)
-          if [[ "$status" != identical && "$status" != behind ]]; then
-            heads=$(gh api "repos/$REPO/commits/$COMMIT/pulls" \
-              --jq "[.[]|select(.head.repo.full_name==\"$REPO\")]|length")
-            [[ "$heads" -gt 0 ]] || { echo 'Commit is not on main or a same-repository PR'; exit 1; }
-          fi
+          [[ "$status" == identical || "$status" == behind ]] || {
+            echo 'Release commit must already be reachable from main'; exit 1; }
           # Every required workflow must have succeeded for this exact commit.
           for workflow in 'CI' 'V2 Backend CI' 'V2 Web and Provisioning CI' 'Image build and security validation'; do
             ok=$(gh api "repos/$REPO/actions/runs?head_sha=$COMMIT&per_page=100" \
@@ -96,7 +97,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
-      - name: Refuse anything outside the Stage A scope
+      - name: Refuse anything outside the public storefront scope
         run: |
           set -euo pipefail
           # Storefront scope: the storefront web image only. Do not add the full web or API image;
@@ -122,7 +123,7 @@ jobs:
             YARIZAN_BUILD_PROFILE=storefront
             SOURCE_COMMIT=${{ needs.verify.outputs.commit }}
           tags: ${{ env.LOCAL }}:${{ steps.tag.outputs.tag }}
-      - name: Scan the exact candidate digest and enforce the Stage A policy
+      - name: Scan the exact candidate digest and enforce the zero HIGH/CRITICAL publication policy
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
