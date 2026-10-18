@@ -61,6 +61,10 @@ const keys = {
   OTP_HMAC_KEY: randomBytes(32).toString('hex'),
 };
 const dbPassword = randomBytes(18).toString('hex');
+// The API writes its synthetic signing key and fake SMS outbox (mode 0600) into a bind mount
+// that this runner must read, so on Linux it runs as the runner's own non-root uid/gid.
+const apiUser =
+  process.getuid && process.getuid() !== 0 ? `${process.getuid()}:${process.getgid()}` : '1000:1000';
 const POSTGRES =
   'public.ecr.aws/docker/library/postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24';
 const log = [];
@@ -303,7 +307,7 @@ try {
       names.dbNet,
       ...hardening,
       '--user',
-      '1000:1000',
+      apiUser,
       ...apiEnv,
       apiImage,
       ...command,
@@ -344,7 +348,7 @@ try {
     'api',
     ...hardening,
     '--user',
-    '1000:1000',
+    apiUser,
     '--memory',
     '512m',
     '-v',

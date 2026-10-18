@@ -292,6 +292,19 @@ test(`screenshots of the ${profile} website at desktop and mobile widths`, async
   }
 });
 
+test('first deployment is noindex: robots.txt disallows all and every page sends X-Robots-Tag', async ({
+  request,
+}) => {
+  const robots = await request.get('/robots.txt');
+  expect(robots.status()).toBe(200);
+  expect(await robots.text()).toBe(['User-agent: *', 'Disallow: /', ''].join('\n'));
+  for (const url of ['/', '/products', '/products/grade-1', '/support', '/checkout'])
+    expect((await request.get(url)).headers()['x-robots-tag'], url).toBe('noindex, nofollow');
+  const sitemap = await (await request.get('/sitemap.xml')).text();
+  expect(sitemap.match(/<loc>/g)).toHaveLength(9);
+  expect(sitemap).not.toMatch(/account|zanyari|checkout|payment|login/);
+});
+
 // Must stay last: proves the website never contacted the API port during the suite.
 test('no request ever reached the API port', async ({ request }) => {
   const report = await (await request.get('http://127.0.0.1:3101/tripwire')).json();

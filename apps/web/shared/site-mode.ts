@@ -58,6 +58,9 @@ export function brochureDecision(method: string, rawPath: string): BrochureDecis
   if (suspicious) return 'not-found';
   const read = method === 'GET' || method === 'HEAD';
   if (path === '/healthz') return read ? 'health' : 'method-not-allowed';
+  // Crawler policy files are public in every profile (they default to disallow-all).
+  if (path === '/robots.txt' || path === '/sitemap.xml')
+    return read ? 'asset' : 'method-not-allowed';
   // Nuxt renders error pages through this internal route; it only renders the error view.
   if (path === '/__nuxt_error') return read ? 'internal-error' : 'method-not-allowed';
   if (staticAsset.test(path)) return read ? 'asset' : 'method-not-allowed';

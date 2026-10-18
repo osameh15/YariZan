@@ -49,6 +49,29 @@ export async function sql(query, args = []) {
     await pool.end();
   }
 }
+// Price history is append-only: close the current row and append a new one in one transaction.
+export async function setPrice(sku, amountIrr) {
+  const pool = new Pool({ connectionString: database.toString() });
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    await c.query(
+      'UPDATE product_prices SET ended_at=clock_timestamp() WHERE sku=$1 AND ended_at IS NULL',
+      [sku],
+    );
+    await c.query(
+      "INSERT INTO product_prices(id,sku,amount_irr,effective_at,source,pricing_revision) VALUES(gen_random_uuid(),$1,$2,clock_timestamp(),'BOOTSTRAP','pricing-2026-10-18-r9')",
+      [sku, String(amountIrr)],
+    );
+    await c.query('COMMIT');
+  } catch (error) {
+    await c.query('ROLLBACK');
+    throw error;
+  } finally {
+    c.release();
+    await pool.end();
+  }
+}
 export async function call(route, body, auth) {
   if (route === '/auth/claim' && body?.password && !body.otp) {
     const owner = await sql(

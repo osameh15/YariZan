@@ -11,6 +11,7 @@ import {
   password,
   smsCode,
   sql,
+  setPrice,
 } from '../../tools/test-fixtures.mjs';
 const images = path.resolve('.local/screenshots/phase4-premium');
 test.beforeEach(async () => {
@@ -385,9 +386,7 @@ for (const width of [1440, 390])
 test('Production browser renders exact large IRR in checkout, paid order and finance', async ({
   page,
 }) => {
-  await sql(
-    "UPDATE product_prices SET amount_irr=9007199254740983 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
-  );
+  await setPrice('YARIZAN-G1', '9007199254740983');
   try {
     const e = await customer();
     await login(page, e);
@@ -419,9 +418,7 @@ test('Production browser renders exact large IRR in checkout, paid order and fin
         .locator('h2'),
     ).toContainText(expected);
   } finally {
-    await sql(
-      "UPDATE product_prices SET amount_irr=12990000 WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
-    );
+    await setPrice('YARIZAN-G1', '12990000');
   }
 });
 

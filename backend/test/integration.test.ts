@@ -3401,7 +3401,8 @@ test("Disabled commerce and client-supplied prices cannot create an order over d
   // can be created even by a direct, authenticated, CSRF-valid request.
   const config = security.config as { COMMERCE_MODE: string };
   const mode = config.COMMERCE_MODE;
-  const before = (await db.query("SELECT count(*)::int n FROM orders")).rows[0].n;
+  const before = (await db.query("SELECT count(*)::int n FROM orders")).rows[0]
+    .n;
   config.COMMERCE_MODE = "disabled";
   try {
     assert.equal(
