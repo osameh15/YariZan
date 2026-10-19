@@ -26,7 +26,7 @@ watch(selected, (grade) => {
   if (import.meta.client) history.replaceState(history.state, '', `/download?grade=${grade}`);
 });
 const release = computed(() => latestForGrade(selected.value));
-const history = computed(() => releasesForGrade(selected.value));
+const releaseHistory = computed(() => releasesForGrade(selected.value));
 const status = (grade: Grade) => gradeStatus(grade);
 const statusLabel = (grade: Grade) =>
   status(grade) === 'available'
@@ -180,11 +180,11 @@ const formatDate = (iso: string) =>
 
     <article class="panel">
       <h2>تاریخچهٔ نسخه‌ها و یادداشت انتشار، پایهٔ {{ gradeTitles[selected] }}</h2>
-      <p v-if="history.length === 0" data-testid="download-history-empty">
+      <p v-if="releaseHistory.length === 0" data-testid="download-history-empty">
         برای این پایه هنوز نسخه‌ای منتشر نشده است.
       </p>
       <ul v-else class="release-history">
-        <li v-for="item in history" :key="item.version">
+        <li v-for="item in releaseHistory" :key="item.version">
           <strong dir="ltr">{{ persianDigits(item.version) }}</strong>
           <span>{{ formatDate(item.releasedAt) }}</span>
           <ul>
