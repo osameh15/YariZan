@@ -68,19 +68,19 @@ The adapter uses the MeliPayamak **console shared-service JSON API** from the ow
 - **Response semantics (unconfirmed).** The documented response has `recId` and `status`. Their exact meaning has not been confirmed against provider documentation or a controlled test. A send is accepted only for HTTP 200 with a JSON `recId` that is a positive integer (string or number) and, when present, a `status` string that is at most 64 characters and has no failure marker (fail, error, invalid, reject, denied, unauthorized, insufficient, block). HTTP 200 alone is never acceptance. The first controlled live test must record the real `status` vocabulary and tighten this check.
 - **Arguments.** `args` carries the pattern variables in template order. Values never contain `;` or control characters, digits are Latin digits, and an OTP must be exactly six digits.
 
-The registry `backend/src/accounts/sms-templates.ts` selects the Body ID per event. Each pattern has exactly one `{0}` variable. Every entry has `textConfirmed:false`, and the live provider refuses to send it (generic `SMS_UNAVAILABLE`, no vendor call). An approved pattern still needs an exact-text and placeholder check against the panel before the flag is changed in a reviewed commit.
+The registry `backend/src/accounts/sms-templates.ts` selects the Body ID per event. Each pattern has exactly one `{0}` variable. Every entry has `textConfirmed:false`, and the live provider refuses to send it (generic `SMS_UNAVAILABLE`, no vendor call). Each entry also records `verification`. All seven are `OWNER_ATTESTED`: the owner transcribed the texts from the panel screenshot and later attested that the provider approved all seven patterns. That is not a fresh check of the live panel. `textConfirmed` may only become `true` together with `verification: PANEL_VERIFIED`, in a reviewed commit that cites a direct panel check showing that neither the Body ID nor the wording changed (a test enforces the pairing).
 
 | Event | Body ID | Argument `{0}` | Panel status | Live state |
 |---|---|---|---|---|
-| ADMIN (Admin MFA OTP) | 562281 | 6 Latin digits | pending approval | blocked |
-| PASSWORD (password-change verification OTP) | 562280 | 6 Latin digits | pending approval | blocked |
-| CLAIM, MOBILE_OLD, MOBILE_NEW | 559424 mobile verification | 6 Latin digits | pending approval | blocked |
-| LOGIN | 559422 account login | 6 Latin digits | pending approval | blocked |
-| RESET | 559372 password recovery | 6 Latin digits | pending approval | blocked |
-| PASSWORD_CHANGED (notice) | 559421 | Jalali change date `YYYY/MM/DD`, Latin digits (assumed format) | approved | text and date format unverified, blocked |
-| PURCHASE_CONFIRMED (notice) | 559397 | order number = the order UUID shown to customers | approved | text unverified, blocked |
+| ADMIN (Admin MFA OTP) | 562281 | 6 Latin digits | approved (owner attestation) | blocked until panel verification |
+| PASSWORD (password-change verification OTP) | 562280 | 6 Latin digits | approved (owner attestation) | blocked until panel verification |
+| CLAIM, MOBILE_OLD, MOBILE_NEW | 559424 mobile verification | 6 Latin digits | approved (owner attestation) | blocked until panel verification |
+| LOGIN | 559422 account login | 6 Latin digits | approved (owner attestation) | blocked until panel verification |
+| RESET | 559372 password recovery | 6 Latin digits | approved (owner attestation) | blocked until panel verification |
+| PASSWORD_CHANGED (notice) | 559421 | Jalali change date `YYYY/MM/DD`, Latin digits (assumed format) | approved (owner attestation) | text and date format unverified, blocked |
+| PURCHASE_CONFIRMED (notice) | 559397 | order number = the order UUID shown to customers | approved (owner attestation) | text unverified, blocked |
 
-The five OTP patterns state a three-minute validity, matching the authoritative 180-second lifetime. `renderOtp` refuses a template whose provider text promises any other lifetime in live mode. Admin MFA and the password-change verification have their own patterns; the customer login wording and the 559421 notice are never reused. The two new patterns' texts have not been transcribed yet (the owner states one `{0}` each).
+All five OTP patterns state a three-minute validity, matching the authoritative 180-second lifetime. `renderOtp` refuses a template whose provider text promises any other lifetime in live mode. Admin MFA and the password-change verification have their own patterns; the customer login wording and the 559421 notice are never reused. The registry holds the owner's exact transcriptions of all seven texts, including 562281 (`... کد تایید ورود به پنل مدیریت شما: {0} اعتبار: ۳ دقیقه ...`) and 562280 (`... کد تایید تغییر رمز عبور شما: {0} اعتبار: ۳ دقیقه ...`); a test compares them character for character.
 
 OTP lifetime: every challenge expires exactly 180 seconds after issue. The database sets `expires_at = now() + 180 s`, the API returns `expires_in: 180`, and both admission and consumption compare against `clock_timestamp()` (never the application clock). At 179 seconds a code is accepted, at 180 and later it is rejected. The five-attempt budget, cooldowns, single-use and enumeration rules are unchanged. The 5-minute desktop pairing request and the Admin recent-MFA window are separate contracts and are unchanged.
 
