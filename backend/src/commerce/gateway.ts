@@ -7,6 +7,13 @@ import { z } from "zod";
 // Documented authorities are 36 characters ("A" + 35 alphanumerics); the range stays tolerant
 // of length but never admits anything that could alter the StartPay URL path.
 export const ZARINPAL_AUTHORITY = /^A[A-Za-z0-9]{32,40}$/;
+// The official sandbox issues authorities that start with "S" instead of "A".
+export const ZARINPAL_SANDBOX_AUTHORITY = /^S[A-Za-z0-9]{32,40}$/;
+export type ZarinPalEnvironment = "production" | "sandbox";
+const ZARINPAL_HOSTS: Record<ZarinPalEnvironment, string> = {
+  production: "https://payment.zarinpal.com",
+  sandbox: "https://sandbox.zarinpal.com",
+};
 export interface PaymentRequest {
   attempt_id: string;
   order_id: string;
@@ -85,6 +92,7 @@ export class ZarinPalAdapter implements PaymentGateway {
     private merchant: string,
     private callback: string,
     private transport: typeof fetch,
+    private environment: ZarinPalEnvironment = "production",
   ) {
     z.uuid().parse(merchant);
     const u = new URL(callback);
@@ -97,12 +105,20 @@ export class ZarinPalAdapter implements PaymentGateway {
       "GATEWAY_CONFIG_INVALID",
     );
   }
+  private get host() {
+    return ZARINPAL_HOSTS[this.environment];
+  }
+  private get authorityPattern() {
+    return this.environment === "sandbox"
+      ? ZARINPAL_SANDBOX_AUTHORITY
+      : ZARINPAL_AUTHORITY;
+  }
   private async call(
     path: "request" | "verify" | "inquiry",
     body: Record<string, unknown>,
   ) {
     const response = await this.transport(
-      "https://payment.zarinpal.com/pg/v4/payment/" + path + ".json",
+      this.host + "/pg/v4/payment/" + path + ".json",
       {
         method: "POST",
         headers: {
@@ -154,20 +170,19 @@ export class ZarinPalAdapter implements PaymentGateway {
     });
     requireCondition(
       result.data?.code === 100 &&
-        ZARINPAL_AUTHORITY.test(result.data.authority ?? ""),
+        this.authorityPattern.test(result.data.authority ?? ""),
       "GATEWAY_UNKNOWN",
       503,
     );
     return {
       authority: result.data!.authority!,
-      redirect_url:
-        "https://payment.zarinpal.com/pg/StartPay/" + result.data!.authority,
+      redirect_url: this.host + "/pg/StartPay/" + result.data!.authority,
     };
   }
   async verify(r: PaymentRequest): Promise<PaymentResult> {
     if (
       !r.authority ||
-      !ZARINPAL_AUTHORITY.test(r.authority) ||
+      !this.authorityPattern.test(r.authority) ||
       r.currency !== "IRR"
     )
       return { state: "UNKNOWN" };

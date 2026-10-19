@@ -58,6 +58,7 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
     "MOBILE_ENCRYPTION_KEY",
     "OTP_HMAC_KEY",
     "MELIPAYAMAK_API_TOKEN",
+    "ZARINPAL_MERCHANT_ID",
     "SMS_FAKE_OUTBOX",
   ])
     if (runtimeEnv[name] === "") delete runtimeEnv[name];
@@ -91,6 +92,9 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
         .string()
         .regex(/^[A-Za-z0-9._~-]{8,256}$/)
         .optional(),
+      // Private payment identity. Validated for shape only; COMMERCE_MODE=zarinpal stays refused
+      // until the payment go/no-go gate is recorded, so nothing consumes it at runtime yet.
+      ZARINPAL_MERCHANT_ID: z.uuid().optional(),
       SMS_ALLOW_LIVE: z.enum(["true", "false"]).default("false"),
       SMS_FAKE_OUTBOX: z.string().optional(),
       MFA_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/),
