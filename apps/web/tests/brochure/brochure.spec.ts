@@ -122,6 +122,10 @@ test('public pages render in Persian RTL with no API, console errors or broken l
       expect(href, `${url} links to a disabled route`).not.toMatch(
         /^\/(?:account|login|connect|zanyari|checkout|payment|reset-password|support-reset)/,
       );
+    for (const font of ['Shabnam', 'Shabnam-Bold'])
+      await expect(
+        page.locator(`link[rel="preload"][as="font"][href="/fonts/${font}.woff2"]`),
+      ).toHaveCount(1);
     const html = await page.content();
     for (const secret of ['3101', 'apiBase', 'NUXT_API', 'local-disposable', 'PRIVATE KEY'])
       expect(html, `${url} exposes ${secret}`).not.toContain(secret);

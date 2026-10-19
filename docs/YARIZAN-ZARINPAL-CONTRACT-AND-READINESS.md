@@ -47,13 +47,13 @@ Tests: unit tests for 100, 101, other codes and transport failure; integration t
 | Currency and minimum | Implemented | IRR explicit, 10,000 IRR floor |
 | Code 100 / 101 semantics | Implemented | section 3 |
 | Idempotent settlement and fulfillment | Implemented | duplicate-worker and replay integration tests |
-| Merchant ID handling | Private only | never committed, logged or sent to the browser; live gate still closed |
+| Merchant ID handling | Private only | `ZARINPAL_MERCHANT_ID` is a validated optional UUID setting; never committed, logged, echoed in errors or sent to the browser; nothing consumes it while the live gate is closed |
 | Merchant activation | **Blocked (owner)** | account provisioned, not activated |
 | Callback domain acceptance | **Unverified** | assumption: ZarinPal accepts only the merchant's registered domain; confirm in the panel before cutover |
 | Callback query parameter names (`Authority`, `Status`) | Assumed from the SDK | used only to schedule a verify; confirm in a sandbox or activation test |
 | Provider error codes other than 100 and 101 | **Unmapped** | all treated as `UNKNOWN`; no behaviour depends on them |
 | Inquiry endpoint status vocabulary | **Unresolved** | inquiry exists in the official docs; its status values are not mapped, so inquiry is never used |
-| Sandbox | Not used | the SDK supports sandbox mode; endpoints and behaviour not validated; CI uses deterministic mocks |
+| Sandbox | Adapter supports it, not exercised | the adapter takes an explicit `sandbox` environment (`sandbox.zarinpal.com`, authorities start with `S`, tested offline). No sandbox request has been made; CI uses deterministic mocks |
 | Refunds and reversals | **Unresolved** | no refund method exists in the adapter; refund needs a reviewed API contract or panel process and explicit order states |
 | Settlement timing and fees | **Unresolved** | merchant-specific; needs the activated account and finance sign-off |
 | Reconciliation | Partial | Admin reconcile route and exceptions exist; no scheduled provider-side reconciliation |
@@ -63,3 +63,15 @@ Tests: unit tests for 100, 101, other codes and transport failure; integration t
 ## 5. Why inquiry is not used
 
 The previous adapter called inquiry and then verify inside one status check, and the job then called verify again. That made a real capture look like a 100 followed by a 101. Because the inquiry status vocabulary is not mapped, the status check is now one verify call and inquiry stays out of the money path until it is mapped and reviewed.
+
+## 6. Official documentation MCP verification (2026-10-19)
+
+The public documentation MCP (`https://www.zarinpal.com/docs/mcp`, tools `list_docs`, `search_docs`, `get_doc`, `get_error_code`; no token, documentation only) was queried directly. Results used here:
+
+- `get_error_code` 100 = "Success" (public) and 101 = "Verified" (PaymentVerify, "the transaction has already been verified"). This matches the adapter and the section 3 policy.
+- The sandbox page: replace `payment.zarinpal.com` with `sandbox.zarinpal.com`; every authority received from the sandbox starts with `S`; any UUIDv4 is accepted as the merchant ID in the sandbox.
+- Doc pages for `request`, `verify`, `inquiry`, `unVerified`, `currency` and `session-validation` exist under `/paymentGateway/`. Their full review for the inquiry vocabulary and the unverified-payments method is still open.
+
+Connection note: Claude Code's MCP client failed with `ECONNRESET` because the workstation HTTP proxy cannot reach `zarinpal.com`; direct requests work (`--noproxy '*'`). This is a workstation setting, not a provider outage. The MCP is documentation-only and must never receive a merchant or access token.
+
+Not consumed: `ZARINPAL_ACCESS_TOKEN`. The documented v4 REST contract used here needs only the merchant ID, so no code reads an access token. Do not keep a credential on the server that nothing uses.
