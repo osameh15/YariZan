@@ -20,14 +20,11 @@ useSeoMeta({
 });
 const route = useRoute();
 const selected = ref<Grade>(parseGrade(route.query.grade));
-// Keep the address in step with the choice so a grade can be shared or bookmarked.
-watch(selected, (grade) => navigateTo({ path: '/download', query: { grade } }, { replace: true }));
-watch(
-  () => route.query.grade,
-  (value) => {
-    selected.value = parseGrade(value);
-  },
-);
+// Keep the address in step with the choice so a grade can be shared or bookmarked. The router is
+// not involved: a lagging route update must never overwrite a newer keyboard selection.
+watch(selected, (grade) => {
+  if (import.meta.client) history.replaceState(history.state, '', `/download?grade=${grade}`);
+});
 const release = computed(() => latestForGrade(selected.value));
 const history = computed(() => releasesForGrade(selected.value));
 const status = (grade: Grade) => gradeStatus(grade);

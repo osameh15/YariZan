@@ -52,13 +52,20 @@ test('choosing a grade updates the panel, the address and the history', async ({
 
 test('keyboard selection works with the arrow keys', async ({ page }) => {
   await page.goto('/download');
+  await page.waitForFunction(
+    () => (document.querySelector('#__nuxt') as { __vue_app__?: unknown } | null)?.__vue_app__,
+  );
   await page.waitForLoadState('networkidle');
   await page.locator('.grade-card[data-grade="1"] input').focus();
   await page.keyboard.press('ArrowDown');
   await expect(page.locator('.grade-card[data-grade="2"] input')).toBeChecked();
+  // A person pauses between key presses; wait until the page has settled on the new grade.
+  await expect(page.locator('.grade-card.is-selected')).toHaveAttribute('data-grade', '2');
+  await expect(page).toHaveURL(/grade=2$/);
   await page.keyboard.press('ArrowDown');
   await expect(page.locator('.grade-card[data-grade="3"] input')).toBeChecked();
   await expect(page.getByTestId('download-unavailable')).toContainText('پایهٔ سوم');
+  await expect(page).toHaveURL(/grade=3$/);
   await page.keyboard.press('ArrowUp');
   await expect(page.locator('.grade-card[data-grade="2"] input')).toBeChecked();
 });
