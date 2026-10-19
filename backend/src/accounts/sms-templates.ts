@@ -19,8 +19,8 @@ export type OtpPurpose =
 export type NoticeEvent = "PASSWORD_CHANGED" | "PURCHASE_CONFIRMED";
 export type SmsEvent = OtpPurpose | NoticeEvent;
 
-/** Backend OTP lifetime (otp.ts issues "5 minutes"). Provider OTP texts must state the same. */
-export const OTP_VALIDITY_MINUTES = 5;
+/** Authoritative OTP lifetime. Provider OTP texts must state the same (three minutes). */
+export const OTP_VALIDITY_SECONDS = 180;
 
 export interface SmsTemplate {
   bodyId: string;
@@ -29,33 +29,49 @@ export interface SmsTemplate {
   /** Owner transcription of the panel text, kept as review evidence. */
   providerText: string;
   /** Validity the provider text promises, for OTP templates. */
-  providerValidityMinutes?: number;
+  providerValiditySeconds?: number;
   /** True only after the exact text and approval were checked in the provider panel. */
   textConfirmed: boolean;
 }
 
+// Provider texts below are the owner's earlier transcription with the validity changed to three
+// minutes as the owner stated; the exact approved wording still has to be checked in the panel.
 export const MOBILE_VERIFICATION: SmsTemplate = {
   bodyId: "559424",
   variables: ["code"],
   providerText:
-    "یاریزان: کد تایید شماره موبایل شما: {0} اعتبار کد: ۲ دقیقه این کد محرمانه است.",
-  providerValidityMinutes: 2, // Mismatch: backend issues 5-minute codes. Update the provider text.
+    "یاریزان: کد تایید شماره موبایل شما: {0} اعتبار کد: ۳ دقیقه این کد محرمانه است.",
+  providerValiditySeconds: OTP_VALIDITY_SECONDS,
   textConfirmed: false,
 };
 export const ACCOUNT_LOGIN: SmsTemplate = {
   bodyId: "559422",
   variables: ["code"],
   providerText:
-    "یاریزان: کد ورود شما: {0} اعتبار کد: ۲ دقیقه این کد را در اختیار دیگران قرار ندهید.",
-  providerValidityMinutes: 2, // Mismatch: backend issues 5-minute codes. Update the provider text.
+    "یاریزان: کد ورود شما: {0} اعتبار کد: ۳ دقیقه این کد را در اختیار دیگران قرار ندهید.",
+  providerValiditySeconds: OTP_VALIDITY_SECONDS,
   textConfirmed: false,
 };
 export const PASSWORD_RECOVERY: SmsTemplate = {
   bodyId: "559372",
   variables: ["code"],
   providerText:
-    "یاریزان: کد بازیابی رمز عبور شما: {0} است. اعتبار: ۵ دقیقه. این کد را در اختیار دیگران قرار ندهید.",
-  providerValidityMinutes: 5,
+    "یاریزان: کد بازیابی رمز عبور شما: {0} است. اعتبار: ۳ دقیقه. این کد را در اختیار دیگران قرار ندهید.",
+  providerValiditySeconds: OTP_VALIDITY_SECONDS,
+  textConfirmed: false,
+};
+export const ADMIN_MFA: SmsTemplate = {
+  bodyId: "562281",
+  variables: ["code"],
+  providerText: "", // Text not transcribed yet; the owner states one {0} and three-minute validity.
+  providerValiditySeconds: OTP_VALIDITY_SECONDS,
+  textConfirmed: false,
+};
+export const PASSWORD_CHANGE_VERIFICATION: SmsTemplate = {
+  bodyId: "562280",
+  variables: ["code"],
+  providerText: "", // Text not transcribed yet; the owner states one {0} and three-minute validity.
+  providerValiditySeconds: OTP_VALIDITY_SECONDS,
   textConfirmed: false,
 };
 export const PASSWORD_CHANGE_NOTICE: SmsTemplate = {
@@ -74,9 +90,8 @@ export const PURCHASE_NOTICE: SmsTemplate = {
 };
 
 /**
- * `null` means no approved pattern exists. Admin MFA is deliberately unmapped: the customer
- * login pattern wording is not contractually suitable for a privileged Admin step-up, and
- * PASSWORD has no OTP pattern (559421 is a post-change notice, not an OTP).
+ * `null` means no pattern exists. Every purpose has its own pattern: Admin MFA and the
+ * password-change verification never reuse the customer login wording or the 559421 notice.
  */
 export const OTP_TEMPLATES: Readonly<Record<OtpPurpose, SmsTemplate | null>> = {
   CLAIM: MOBILE_VERIFICATION,
@@ -84,8 +99,8 @@ export const OTP_TEMPLATES: Readonly<Record<OtpPurpose, SmsTemplate | null>> = {
   MOBILE_NEW: MOBILE_VERIFICATION,
   LOGIN: ACCOUNT_LOGIN,
   RESET: PASSWORD_RECOVERY,
-  PASSWORD: null,
-  ADMIN: null,
+  PASSWORD: PASSWORD_CHANGE_VERIFICATION,
+  ADMIN: ADMIN_MFA,
 };
 export const NOTICE_TEMPLATES: Readonly<Record<NoticeEvent, SmsTemplate>> = {
   PASSWORD_CHANGED: PASSWORD_CHANGE_NOTICE,
@@ -118,8 +133,8 @@ function safeValue(name: string, value: string) {
 }
 
 export interface RenderedSms {
-  bodyId: string;
-  text: string;
+  bodyId: number;
+  args: string[];
 }
 
 export function renderSms(
@@ -137,8 +152,8 @@ export function renderSms(
   )
     throw unavailable();
   return {
-    bodyId: template.bodyId,
-    text: template.variables.map((n) => safeValue(n, values[n]!)).join(";"),
+    bodyId: Number(template.bodyId),
+    args: template.variables.map((n) => safeValue(n, values[n]!)),
   };
 }
 
@@ -152,7 +167,7 @@ export function renderOtp(
   // A provider text that promises a different lifetime would mislead the user.
   if (
     options.requireConfirmed &&
-    template?.providerValidityMinutes !== OTP_VALIDITY_MINUTES
+    template?.providerValiditySeconds !== OTP_VALIDITY_SECONDS
   )
     throw unavailable();
   return renderSms(template, { code }, options);

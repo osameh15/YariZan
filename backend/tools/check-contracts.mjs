@@ -166,7 +166,7 @@ const page = z.strictObject({
 });
 const otpReceipt = z.strictObject({
   challenge_id: schemas.uuid,
-  expires_in: z.literal(300),
+  expires_in: z.literal(180),
   retry_after: z.literal(60),
 });
 const responses = {

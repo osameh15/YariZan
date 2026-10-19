@@ -14,7 +14,7 @@ All paths below are prefixed `/api/v2`. Browser POST requires exact configured O
 
 | Method/path | Body | Success |
 |---|---|---|
-| POST `/auth/claim/otp/request` | pairing_id, pairing_secret, mobile | challenge_id, expires_in:300, retry_after:60 |
+| POST `/auth/claim/otp/request` | pairing_id, pairing_secret, mobile | challenge_id, expires_in:180, retry_after:60 |
 | POST `/auth/claim` | pairing_id, pairing_secret, otp:{challenge_id,code}; optional password | APPROVED, public username, expiry, authenticated:true; first claim also sets customer cookies and returns csrf_token |
 | POST `/device-pairings/:id/confirm` | same claim fields except ID in route | same receipt; existing owner uses its session/CSRF and receives no new session/cookies or csrf_token |
 | POST `/auth/login` | username, password | customer cookies + csrf_token |
@@ -49,7 +49,7 @@ Connect links directly to /account after approval. This is browser authenticatio
 
 ## OTP authority and delivery rules
 
-- Six cryptographically random digits; five-minute expiry; five admitted verification attempts persisted transactionally, including failures.
+- Six cryptographically random digits; 180-second expiry (database time, `expires_at>clock_timestamp()`; client countdowns are informational only); five admitted verification attempts persisted transactionally, including failures.
 - HMAC verifier includes challenge UUID, purpose and code. No plaintext OTP is stored in PostgreSQL or application logs.
 - One consumption under row lock; parallel verifications create at most one business effect/session. Customer/device generation, principal, session, phone and credential stamp are rechecked where relevant. Cheap proof/binding admission precedes password hashing; no database locks span Argon2id.
 - New requests retire previous unused proofs for the same purpose and principal/pairing (even when the proposed phone changes); decoy requests are isolated by phone. Fresh codes do not expand desktop trial quota.
@@ -60,27 +60,31 @@ Connect links directly to /account after approval. This is browser authenticatio
 
 ## MeliPayamak adapter
 
-The adapter follows the vendor's [pattern-service method](https://github.com/Melipayamak/melipayamak-php/blob/master/src/SmsRest.php) and [service messaging examples](https://github.com/Melipayamak/melipayamak-php). Fixed destination: `https://rest.payamak-panel.com/api/SendSMS/BaseServiceNumber`. POST form fields are username, password, to, text and bodyId. `text` carries the pattern variables in template order, joined by `;`. Values never contain `;` or control characters, digits are sent as Latin digits, and an OTP must be exactly six digits.
+The adapter uses the MeliPayamak **console shared-service JSON API** from the owner's console documentation: `POST https://console.melipayamak.com/api/send/shared/{token}` with `{"bodyId":<number>,"to":"09...","args":["..."]}`. The old username/password web service is no longer used by this application.
 
-The registry `backend/src/accounts/sms-templates.ts` selects the Body ID per event. Each pattern has exactly one `{0}` variable. The owner transcribed the five approved texts from the MeliPayamak panel screenshot (keep the screenshot as review evidence). **The exact wording and current approval status are not yet verified in the panel**, so every entry has `textConfirmed:false` and the live provider refuses to send it (generic `SMS_UNAVAILABLE`, no vendor call). Setting a flag requires a reviewed change that cites the panel check.
+- **Authentication.** The console documentation puts a private API token in the URL path. No username or password is sent. The token is a different credential from the legacy panel API key and password; a panel API key may be rejected by the console. The exact semantics (token scope, any IP allow-list, expiry) must be confirmed in the console before production. The token is a secret: `MELIPAYAMAK_API_TOKEN`, 8 to 256 characters of `A-Za-z0-9._~-` so it cannot alter the URL path.
+- **No leakage.** The URL is built from the fixed host and the validated token, only at send time. Every failure is the generic `SMS_UNAVAILABLE`; no error, log line or audit record contains the URL, token, phone number or code. A test injects a transport error that embeds the URL and asserts none of them survives.
+- **Transport.** Native `fetch` (the request length is computed from the encoded body), TLS verification on, redirects forbidden, 10 second timeout, response body bounded to 8 KiB, no retry after an ambiguous timeout.
+- **Response semantics (unconfirmed).** The documented response has `recId` and `status`. Their exact meaning has not been confirmed against provider documentation or a controlled test. A send is accepted only for HTTP 200 with a JSON `recId` that is a positive integer (string or number) and, when present, a `status` string that is at most 64 characters and has no failure marker (fail, error, invalid, reject, denied, unauthorized, insufficient, block). HTTP 200 alone is never acceptance. The first controlled live test must record the real `status` vocabulary and tighten this check.
+- **Arguments.** `args` carries the pattern variables in template order. Values never contain `;` or control characters, digits are Latin digits, and an OTP must be exactly six digits.
 
-| Event | Body ID | Variable `{0}` | Provider text promises | State |
+The registry `backend/src/accounts/sms-templates.ts` selects the Body ID per event. Each pattern has exactly one `{0}` variable. Every entry has `textConfirmed:false`, and the live provider refuses to send it (generic `SMS_UNAVAILABLE`, no vendor call). An approved pattern still needs an exact-text and placeholder check against the panel before the flag is changed in a reviewed commit.
+
+| Event | Body ID | Argument `{0}` | Panel status | Live state |
 |---|---|---|---|---|
-| CLAIM, MOBILE_OLD, MOBILE_NEW | 559424 mobile verification | 6 Latin digits | 2 minutes | **Blocked: backend issues 5-minute codes.** Update provider text to 5 minutes |
-| LOGIN | 559422 account login | 6 Latin digits | 2 minutes | **Blocked: same lifetime mismatch** |
-| RESET | 559372 password recovery | 6 Latin digits | 5 minutes | matches backend; text unconfirmed |
-| PASSWORD_CHANGED (notice) | 559421 | Jalali change date `YYYY/MM/DD`, Latin digits (assumed format) | n/a | wired; text and date format unconfirmed |
-| PURCHASE_CONFIRMED (notice) | 559397 | order number = the order UUID shown to customers | n/a | wired; text unconfirmed |
-| PASSWORD (verification OTP) | none | n/a | n/a | **unmapped.** Request a dedicated password-change verification pattern |
-| ADMIN (MFA OTP) | none | n/a | n/a | **unmapped.** Request a dedicated Admin MFA pattern. G6 stays closed |
+| ADMIN (Admin MFA OTP) | 562281 | 6 Latin digits | pending approval | blocked |
+| PASSWORD (password-change verification OTP) | 562280 | 6 Latin digits | pending approval | blocked |
+| CLAIM, MOBILE_OLD, MOBILE_NEW | 559424 mobile verification | 6 Latin digits | pending approval | blocked |
+| LOGIN | 559422 account login | 6 Latin digits | pending approval | blocked |
+| RESET | 559372 password recovery | 6 Latin digits | pending approval | blocked |
+| PASSWORD_CHANGED (notice) | 559421 | Jalali change date `YYYY/MM/DD`, Latin digits (assumed format) | approved | text and date format unverified, blocked |
+| PURCHASE_CONFIRMED (notice) | 559397 | order number = the order UUID shown to customers | approved | text unverified, blocked |
 
-Lifetime rule: `renderOtp` refuses a template whose provider text promises a lifetime other than `OTP_VALIDITY_MINUTES` (5) in live mode. Do not shorten the backend contract to match; update the two provider patterns instead. A short human-friendly order number would need a schema migration and is a recommended follow-up; until then the SMS carries the order UUID.
+The five OTP patterns state a three-minute validity, matching the authoritative 180-second lifetime. `renderOtp` refuses a template whose provider text promises any other lifetime in live mode. Admin MFA and the password-change verification have their own patterns; the customer login wording and the 559421 notice are never reused. The two new patterns' texts have not been transcribed yet (the owner states one `{0}` each).
 
-Notices are sent by `Notifications` from durable outbox events: `password.changed`, `password.reset_mobile` and `password.reset_completed` (password notice), and `purchase.notification_recorded` (purchase notice, written once per order after durable fulfillment). Delivery is at-most-once: an event is claimed before the provider call, a failure or ambiguous timeout is audited (`sms.notice_unavailable`) and never retried, notices older than 24 hours or without a verified mobile are skipped (`sms.notice_skipped`), and a notice whose template is not confirmed stays pending untouched. Fake mode records notices in memory only. CI never reaches the vendor.
+OTP lifetime: every challenge expires exactly 180 seconds after issue. The database sets `expires_at = now() + 180 s`, the API returns `expires_in: 180`, and both admission and consumption compare against `clock_timestamp()` (never the application clock). At 179 seconds a code is accepted, at 180 and later it is rejected. The five-attempt budget, cooldowns, single-use and enumeration rules are unchanged. The 5-minute desktop pairing request and the Admin recent-MFA window are separate contracts and are unchanged.
 
-Unmapped events fail closed in live mode. The fake provider still serves them for local tests.
-
-TLS verification stays enabled; redirects are forbidden, timeout is ten seconds, response body is bounded to 8 KiB. The adapter accepts HTTP success plus RetStatus=1 and a positive numeric Value; malformed/error/negative receipts fail closed. It never logs vendor payloads. Vendor acceptance/carrier delivery, template approval, actual variable mapping, credits and account permissions require a separately authorized live acceptance test. None was attempted here.
+Notices are sent by `Notifications` from durable outbox events: `password.changed`, `password.reset_mobile` and `password.reset_completed` (password notice), and `purchase.notification_recorded` (purchase notice, written once per order after authoritative payment verification and durable fulfillment). Delivery is at-most-once: an event is claimed before the provider call, a failure or ambiguous timeout is audited (`sms.notice_unavailable`) and never retried, notices older than 24 hours or without a verified mobile are skipped (`sms.notice_skipped`), and a notice whose template is not confirmed stays pending untouched. A purchase notice is never sent unless commerce mode is `zarinpal`; fake and simulated purchases only reach the in-memory fake provider. CI never reaches the vendor.
 
 | Environment | Meaning |
 |---|---|
@@ -88,7 +92,7 @@ TLS verification stays enabled; redirects are forbidden, timeout is ten seconds,
 | SMS_PROVIDER | disabled (default), fake (development/test only), melipayamak |
 | MOBILE_ENCRYPTION_KEY | independent random 32-byte hex key for phone/fake-fixture encryption |
 | OTP_HMAC_KEY | independent random 32-byte hex key for OTP verifiers and domain-separated phone lookup |
-| MELIPAYAMAK_USERNAME/PASSWORD | vendor account/API credentials, outside Git and logs |
+| MELIPAYAMAK_API_TOKEN | MeliPayamak console API token (secret, sits in the request path), outside Git and logs |
 | SMS_ALLOW_LIVE | explicit true required for vendor selection; defaults false |
 | SMS_FAKE_OUTBOX | optional `.local/<lowercase-name>.jsonl`; encrypted fake delivery only |
 | ADMIN_MOBILE | independently verified phone for development-only Admin bootstrap |
