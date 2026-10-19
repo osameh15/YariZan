@@ -9,7 +9,20 @@ import path from 'node:path';
 const profile = process.env.YARIZAN_PUBLIC_PROFILE === 'storefront' ? 'storefront' : 'brochure';
 const storefront = profile === 'storefront';
 const images = path.resolve('.local/screenshots/' + profile);
-const publicPages = ['/', '/products', '/products/grade-1', '/products/grade-4', '/support'];
+const publicPages = [
+  '/',
+  '/products',
+  '/products/grade-1',
+  '/products/grade-4',
+  '/support',
+  '/legal',
+  '/legal/privacy',
+  '/legal/terms',
+  '/legal/refund',
+  '/legal/delivery',
+  '/legal/disputes',
+  '/legal/merchant-info',
+];
 const disabledPages = [
   '/account',
   '/account/orders',
@@ -98,7 +111,7 @@ test('public pages render in Persian RTL with no API, console errors or broken l
     expect(response?.status(), url).toBe(200);
     await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await expect(page.getByRole('note')).toContainText(
+    await expect(page.locator('.brochure-notice[role="note"]')).toContainText(
       storefront ? 'قیمت‌ها رسمی و به تومان است' : 'مرحلهٔ معرفی',
     );
     const hrefs = await page
