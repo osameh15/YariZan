@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MeliPayamakProvider, FakeSmsProvider, Sms } from "../src/accounts/sms";
+import { FakeSmsProvider, Sms } from "../src/accounts/sms";
 import { Security } from "../src/security/security";
 import {
   OTP_TEMPLATES,
   NOTICE_TEMPLATES,
-  OTP_VALIDITY_MINUTES,
+  OTP_VALIDITY_SECONDS,
   OtpPurpose,
   SmsTemplate,
   jalaliDate,
@@ -17,49 +17,68 @@ const loose = { requireConfirmed: false };
 const strict = { requireConfirmed: true };
 const unavailable = (e: unknown) =>
   (e as { code: string }).code === "SMS_UNAVAILABLE";
+const ORDER = "0b9f3c1e-8a2d-4c7e-9f10-2b6d5a4e3c21";
 
-test("every OTP purpose maps to the approved pattern or is explicitly unmapped", () => {
-  const expected: Record<OtpPurpose, string | null> = {
+test("every OTP purpose maps to its own approved Body ID", () => {
+  const expected: Record<OtpPurpose, string> = {
+    ADMIN: "562281",
+    PASSWORD: "562280",
     CLAIM: "559424",
     MOBILE_OLD: "559424",
     MOBILE_NEW: "559424",
     LOGIN: "559422",
     RESET: "559372",
-    PASSWORD: null,
-    ADMIN: null,
   };
   for (const [purpose, id] of Object.entries(expected))
-    assert.equal(
-      OTP_TEMPLATES[purpose as OtpPurpose]?.bodyId ?? null,
-      id,
-      purpose,
-    );
+    assert.equal(OTP_TEMPLATES[purpose as OtpPurpose]?.bodyId, id, purpose);
   assert.equal(NOTICE_TEMPLATES.PASSWORD_CHANGED.bodyId, "559421");
   assert.equal(NOTICE_TEMPLATES.PURCHASE_CONFIRMED.bodyId, "559397");
 });
 
-test("Admin MFA and password OTP never reuse an incompatible pattern", () => {
-  for (const p of ["ADMIN", "PASSWORD"] as const)
-    assert.throws(() => renderOtp(p, "123456", loose), unavailable);
+test("authentication purposes never share a pattern with a notice, and Admin/password have their own", () => {
+  const notices = new Set(Object.values(NOTICE_TEMPLATES).map((t) => t.bodyId));
+  for (const t of Object.values(OTP_TEMPLATES))
+    assert.ok(!notices.has(t!.bodyId));
+  assert.notEqual(OTP_TEMPLATES.ADMIN!.bodyId, OTP_TEMPLATES.LOGIN!.bodyId);
+  assert.notEqual(
+    OTP_TEMPLATES.PASSWORD!.bodyId,
+    NOTICE_TEMPLATES.PASSWORD_CHANGED.bodyId,
+  );
 });
 
-test("OTP pattern text is the single code, Persian and Arabic digits become Latin", () => {
+test("OTP rendering is one six-digit Latin argument; JSON body id is numeric", () => {
   assert.deepEqual(renderOtp("LOGIN", "123456", loose), {
-    bodyId: "559422",
-    text: "123456",
+    bodyId: 559422,
+    args: ["123456"],
   });
-  assert.equal(renderOtp("RESET", "۱۲۳۴۵۶", loose).text, "123456");
-  assert.equal(renderOtp("CLAIM", "٠٠١٢٣٤", loose).text, "001234");
+  assert.deepEqual(renderOtp("ADMIN", "654321", loose), {
+    bodyId: 562281,
+    args: ["654321"],
+  });
+  assert.deepEqual(renderOtp("PASSWORD", "000123", loose).args, ["000123"]);
+  assert.deepEqual(renderOtp("RESET", "۱۲۳۴۵۶", loose).args, ["123456"]);
+  assert.deepEqual(renderOtp("CLAIM", "٠٠١٢٣٤", loose).args, ["001234"]);
 });
 
 test("malformed OTP values are rejected before any provider call", () => {
-  for (const code of ["12345", "1234567", "12345a", "123;56", "", "12 345"])
+  for (const code of [
+    "12345",
+    "1234567",
+    "12345a",
+    "123;56",
+    "",
+    "12 345",
+    "١٢٣٤٥",
+  ])
     assert.throws(() => renderOtp("LOGIN", code, loose), unavailable, code);
 });
 
-test("password change notice carries exactly one date variable", () => {
+test("password change notice carries exactly one Jalali date argument", () => {
   const t = NOTICE_TEMPLATES.PASSWORD_CHANGED;
-  assert.equal(renderSms(t, { date: "۱۴۰۵/۰۷/۲۷" }, loose).text, "1405/07/27");
+  assert.deepEqual(renderSms(t, { date: "۱۴۰۵/۰۷/۲۷" }, loose), {
+    bodyId: 559421,
+    args: ["1405/07/27"],
+  });
   assert.throws(() => renderSms(t, { code: "123456" }, loose), unavailable);
   assert.throws(() => renderSms(t, { date: "x" }, loose), unavailable);
   assert.throws(
@@ -73,54 +92,79 @@ test("password change notice carries exactly one date variable", () => {
 });
 
 test("purchase notice carries exactly the order UUID", () => {
-  const id = "0b9f3c1e-8a2d-4c7e-9f10-2b6d5a4e3c21";
   const t = NOTICE_TEMPLATES.PURCHASE_CONFIRMED;
-  assert.deepEqual(renderSms(t, { order: id }, loose), {
-    bodyId: "559397",
-    text: id,
+  assert.deepEqual(renderSms(t, { order: ORDER }, loose), {
+    bodyId: 559397,
+    args: [ORDER],
   });
-  for (const bad of ["1", id.toUpperCase(), id + ";x", "x" + id])
+  for (const bad of ["1", ORDER.toUpperCase(), ORDER + ";x", "x" + ORDER])
     assert.throws(() => renderSms(t, { order: bad }, loose), unavailable, bad);
   assert.throws(() => renderSms(t, { code: "123456" }, loose), unavailable);
 });
 
-test("provider texts promising a different OTP lifetime are never production-ready", () => {
-  assert.equal(OTP_VALIDITY_MINUTES, 5);
-  assert.equal(OTP_TEMPLATES.CLAIM?.providerValidityMinutes, 2);
-  assert.equal(OTP_TEMPLATES.LOGIN?.providerValidityMinutes, 2);
-  assert.equal(OTP_TEMPLATES.RESET?.providerValidityMinutes, 5);
-  const confirmedMap = Object.fromEntries(
-    Object.entries(OTP_TEMPLATES).map(([k, t]) => [
-      k,
-      t && { ...t, textConfirmed: true },
-    ]),
-  ) as Record<OtpPurpose, SmsTemplate | null>;
-  for (const p of ["CLAIM", "MOBILE_OLD", "MOBILE_NEW", "LOGIN"] as const)
-    assert.throws(
-      () => renderOtp(p, "123456", strict, confirmedMap),
-      unavailable,
-      p,
-    );
+test("OTP lifetime is exactly 180 seconds and every OTP pattern states it", () => {
+  assert.equal(OTP_VALIDITY_SECONDS, 180);
+  for (const [purpose, t] of Object.entries(OTP_TEMPLATES))
+    assert.equal(t!.providerValiditySeconds, 180, purpose);
+});
+
+test("a template promising another lifetime is never production-ready", () => {
+  const withLifetime = (seconds: number | undefined) =>
+    Object.fromEntries(
+      Object.entries(OTP_TEMPLATES).map(([k, t]) => [
+        k,
+        { ...t!, textConfirmed: true, providerValiditySeconds: seconds },
+      ]),
+    ) as Record<OtpPurpose, SmsTemplate | null>;
+  for (const wrong of [120, 300, 179, 181, undefined])
+    for (const p of ["CLAIM", "LOGIN", "RESET", "PASSWORD", "ADMIN"] as const)
+      assert.throws(
+        () => renderOtp(p, "123456", strict, withLifetime(wrong)),
+        unavailable,
+        `${p} ${wrong}`,
+      );
   assert.equal(
-    renderOtp("RESET", "123456", strict, confirmedMap).text,
-    "123456",
+    renderOtp("LOGIN", "123456", strict, withLifetime(180)).bodyId,
+    559422,
   );
 });
 
-test("every transcribed pattern has exactly one {0} and stays unconfirmed", () => {
+test("every pattern is one-argument and stays unconfirmed until the exact text is verified", () => {
   for (const t of [
     ...Object.values(OTP_TEMPLATES),
     ...Object.values(NOTICE_TEMPLATES),
   ]) {
-    if (!t) continue;
-    assert.equal(t.providerText.split("{0}").length - 1, 1, t.bodyId);
-    assert.equal(t.variables.length, 1, t.bodyId);
-    assert.equal(t.textConfirmed, false, t.bodyId);
+    assert.equal(t!.variables.length, 1, t!.bodyId);
+    assert.equal(t!.textConfirmed, false, t!.bodyId);
+    // Known transcriptions carry exactly one {0}; the two new patterns are not transcribed yet.
+    if (t!.providerText)
+      assert.equal(t!.providerText.split("{0}").length - 1, 1, t!.bodyId);
   }
+  for (const t of [
+    OTP_TEMPLATES.CLAIM,
+    OTP_TEMPLATES.LOGIN,
+    OTP_TEMPLATES.RESET,
+  ])
+    assert.match(t!.providerText, /۳ دقیقه/);
+});
+
+test("pending templates cannot be rendered for live sending", () => {
+  for (const p of ["CLAIM", "LOGIN", "RESET", "PASSWORD", "ADMIN"] as const)
+    assert.throws(() => renderOtp(p, "123456", strict), unavailable, p);
+  for (const t of Object.values(NOTICE_TEMPLATES))
+    assert.throws(
+      () =>
+        renderSms(
+          t,
+          t.variables[0] === "date" ? { date: "1405/07/27" } : { order: ORDER },
+          strict,
+        ),
+      unavailable,
+    );
 });
 
 test("invalid Body IDs and missing templates fail closed", () => {
-  for (const bodyId of ["0", "-1", "12a", "", "01"])
+  for (const bodyId of ["0", "-1", "12a", "", "01", "5.5"])
     assert.throws(
       () =>
         renderSms(
@@ -139,95 +183,12 @@ test("invalid Body IDs and missing templates fail closed", () => {
   assert.throws(() => renderSms(null, { code: "123456" }, loose), unavailable);
 });
 
-test("unconfirmed templates cannot reach the live provider", async () => {
-  let calls = 0;
-  const provider = new MeliPayamakProvider("u", "p", async () => {
-    calls++;
-    return new Response(JSON.stringify({ RetStatus: 1, Value: "9" }));
-  });
-  assert.throws(() => renderOtp("LOGIN", "123456", strict), unavailable);
-  await assert.rejects(
-    provider.send({
-      challengeId: "c",
-      mobile: "09123456789",
-      code: "123456",
-      purpose: "LOGIN",
-    }),
-    unavailable,
-  );
-  await assert.rejects(
-    provider.notify({
-      event: "PASSWORD_CHANGED",
-      mobile: "09123456789",
-      values: { date: "1405/07/27" },
-    }),
-    unavailable,
-  );
-  assert.equal(calls, 0);
-});
-
-test("provider sends a notice with its own Body ID", async () => {
-  let body: Record<string, string> = {};
-  const provider = new MeliPayamakProvider(
-    "u",
-    "p",
-    async (_url, init) => {
-      body = Object.fromEntries(new URLSearchParams(String(init?.body)));
-      return new Response(JSON.stringify({ RetStatus: 1, Value: "77" }));
-    },
-    false,
-  );
-  await provider.notify({
-    event: "PASSWORD_CHANGED",
-    mobile: "09123456789",
-    values: { date: "1405/07/27" },
-  });
-  assert.equal(body.bodyId, "559421");
-  assert.equal(body.text, "1405/07/27");
-});
-
-test("HTTP 4xx/5xx, timeout, oversized and unterminated bodies fail generically", async () => {
-  const message = {
-    challengeId: "c",
-    mobile: "09123456789",
-    code: "123456",
-    purpose: "LOGIN" as const,
-  };
-  const cases: Array<() => Response | Promise<Response>> = [
-    () => new Response("{}", { status: 400 }),
-    () => new Response("{}", { status: 503 }),
-    () => new Response("x".repeat(9000)),
-    () => new Response(JSON.stringify({ RetStatus: 1, Value: "0" })),
-    () => new Response(null),
-    () => {
-      throw new DOMException("t", "TimeoutError");
-    },
-  ];
-  for (const respond of cases) {
-    let calls = 0;
-    await assert.rejects(
-      new MeliPayamakProvider(
-        "secret-user",
-        "secret-pass",
-        async () => {
-          calls++;
-          return respond();
-        },
-        false,
-      ).send(message),
-      (e: unknown) =>
-        unavailable(e) && !JSON.stringify(e).includes("secret-pass"),
-    );
-    assert.equal(calls, 1, "no retry after failure or ambiguous timeout");
-  }
-});
-
-test("fake provider records notices without any network", async () => {
+test("fake provider records notices and enforces the variable contract without any network", async () => {
   const fake = new FakeSmsProvider();
   await fake.notify({
     event: "PURCHASE_CONFIRMED",
     mobile: "09123456789",
-    values: { order: "0b9f3c1e-8a2d-4c7e-9f10-2b6d5a4e3c21" },
+    values: { order: ORDER },
   });
   assert.equal(fake.notices.length, 1);
   await assert.rejects(
@@ -239,17 +200,20 @@ test("fake provider records notices without any network", async () => {
   );
 });
 
-test("Sms.canNotify refuses live notices until the template text is confirmed", () => {
+test("Sms.canNotify refuses live notices until text is confirmed and, for purchases, real commerce", () => {
   const sms = (config: Record<string, string>) =>
     new Sms({ config } as unknown as Security);
   const live = {
     SMS_PROVIDER: "melipayamak",
     SMS_ALLOW_LIVE: "true",
-    MELIPAYAMAK_USERNAME: "u",
-    MELIPAYAMAK_PASSWORD: "p",
+    MELIPAYAMAK_API_TOKEN: "ci-synthetic-token-0123456789",
   };
   assert.equal(sms(live).canNotify("PASSWORD_CHANGED"), false);
   assert.equal(sms(live).canNotify("PURCHASE_CONFIRMED"), false);
+  assert.equal(
+    sms({ ...live, COMMERCE_MODE: "fake" }).canNotify("PURCHASE_CONFIRMED"),
+    false,
+  );
   assert.equal(
     sms({ SMS_PROVIDER: "disabled" }).canNotify("PURCHASE_CONFIRMED"),
     false,

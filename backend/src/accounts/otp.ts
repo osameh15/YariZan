@@ -7,7 +7,7 @@ import { Audit, Actor } from "../audit/audit";
 import { equal, keyed, seal } from "../security/crypto";
 import { requireCondition } from "../common/errors";
 import { Sms } from "./sms";
-import { OtpPurpose } from "./sms-templates";
+import { OTP_VALIDITY_SECONDS, OtpPurpose } from "./sms-templates";
 export type Purpose = OtpPurpose;
 export interface OtpRow {
   id: string;
@@ -23,6 +23,7 @@ export interface OtpRow {
   attempts: number;
   delivered: boolean;
   expires_at: Date;
+  live: boolean;
   used_at: Date | null;
 }
 export function normalizeMobile(value: string) {
@@ -143,7 +144,7 @@ export class Otp implements BeforeApplicationShutdown {
           ],
         );
         await c.query(
-          "INSERT INTO otp_challenges(id,purpose,principal_id,pairing_id,generation,session_hash,mobile_ciphertext,mobile_lookup,code_hash,principal_stamp,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()+interval '5 minutes')",
+          `INSERT INTO otp_challenges(id,purpose,principal_id,pairing_id,generation,session_hash,mobile_ciphertext,mobile_lookup,code_hash,principal_stamp,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()+make_interval(secs=>${OTP_VALIDITY_SECONDS}))`,
           [
             id,
             purpose,
@@ -167,7 +168,11 @@ export class Otp implements BeforeApplicationShutdown {
       }
       this.pending.push(job);
       this.dispatch();
-      return { challenge_id: id, expires_in: 300, retry_after: 60 };
+      return {
+        challenge_id: id,
+        expires_in: OTP_VALIDITY_SECONDS,
+        retry_after: 60,
+      };
     } catch (error) {
       this.admittedDeliveries--;
       throw error;
@@ -255,7 +260,7 @@ export class Otp implements BeforeApplicationShutdown {
       r.purpose === p &&
       !r.used_at &&
       r.delivered &&
-      r.expires_at.getTime() > Date.now() &&
+      r.live && // authoritative database time, never the application clock
       equal(r.code_hash, this.verifier(r.id, p, code))
     );
   }
@@ -264,7 +269,7 @@ export class Otp implements BeforeApplicationShutdown {
     const valid = await this.db.transaction(async (c) => {
       const r = (
         await c.query<OtpRow>(
-          "SELECT * FROM otp_challenges WHERE id=$1 FOR UPDATE",
+          "SELECT *,expires_at>clock_timestamp() AS live FROM otp_challenges WHERE id=$1 FOR UPDATE",
           [id],
         )
       ).rows[0];
@@ -296,7 +301,7 @@ export class Otp implements BeforeApplicationShutdown {
   ) {
     const r = (
       await c.query<OtpRow>(
-        "SELECT * FROM otp_challenges WHERE id=$1 AND expires_at>clock_timestamp() FOR UPDATE",
+        "SELECT *,true AS live FROM otp_challenges WHERE id=$1 AND expires_at>clock_timestamp() FOR UPDATE",
         [id],
       )
     ).rows[0];

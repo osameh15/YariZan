@@ -545,14 +545,39 @@ export class Payments
           const a = await this.attempt(job.target_id);
           if (a.state !== "VERIFIED") {
             let result: PaymentResult;
+            // Evidence for provider code 101 (already verified): an earlier verify call for this
+            // attempt that never received an answer. Written before the call, so a lost response
+            // leaves proof that our own call may have captured the payment.
+            const had = async (kind: string) =>
+              Boolean(
+                (
+                  await this.orders.db.query(
+                    "SELECT 1 FROM payment_events WHERE provider='zarinpal' AND external_event_id=$1",
+                    [kind + ":" + a.id],
+                  )
+                ).rowCount,
+              );
+            const mark = (kind: string) =>
+              this.orders.db.query(
+                "INSERT INTO payment_events(id,payment_attempt_id,provider,external_event_id,payload_digest) VALUES($1,$2,'zarinpal',$3,$4) ON CONFLICT DO NOTHING",
+                [randomUUID(), a.id, kind + ":" + a.id, hash(kind)],
+              );
+            const priorUnanswered =
+              (await had("verify_requested")) &&
+              !(await had("verify_answered"));
+            await mark("verify_requested");
             try {
               result = await this.orders.gateway.provider.query(a);
-              if (result.state === "VERIFIED")
-                result = await this.orders.gateway.provider.verify({
-                  ...a,
-                  authority: result.authority ?? a.authority,
-                });
             } catch {
+              result = { state: "UNKNOWN" };
+            }
+            if (result.answered) await mark("verify_answered");
+            if (result.previously_verified && !priorUnanswered) {
+              // Never treat an unexplained 101 as a new capture; leave it for reconciliation.
+              await this.orders.db.transaction(async (c) => {
+                const o = await this.orderLock(c, a.order_id);
+                await this.exception(c, o, a.id, "ALREADY_VERIFIED_UNPROVEN");
+              });
               result = { state: "UNKNOWN" };
             }
             await this.settle(a.id, result);
