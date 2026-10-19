@@ -259,3 +259,75 @@ test("ZarinPal create sends the stored IRR amount, description and callback, nev
   await assert.rejects(adapter.create({ ...request, amount_irr: 9999 }));
   await assert.rejects(adapter.create({ ...request, amount_irr: 1.5 }));
 });
+
+test("Sandbox adapter uses the sandbox host and only accepts S-prefixed authorities", async () => {
+  const urls: string[] = [];
+  const sandboxAuthority = "S" + "0".repeat(35);
+  const adapter = new ZarinPalAdapter(
+    "00000000-0000-4000-8000-000000000003",
+    "https://example.invalid/payment/return",
+    async (url) => {
+      urls.push(String(url));
+      return new Response(
+        JSON.stringify({
+          data: String(url).includes("request")
+            ? { code: 100, authority: sandboxAuthority }
+            : { code: 100, ref_id: "777" },
+        }),
+      );
+    },
+    "sandbox",
+  );
+  const created = await adapter.create(request);
+  assert.equal(
+    created.redirect_url,
+    "https://sandbox.zarinpal.com/pg/StartPay/" + sandboxAuthority,
+  );
+  // A production-style "A" authority is not a sandbox authority.
+  assert.equal((await adapter.verify(request)).state, "UNKNOWN");
+  const verified = await adapter.verify({
+    ...request,
+    authority: sandboxAuthority,
+  });
+  assert.equal(verified.state, "VERIFIED");
+  assert.ok(
+    urls.every((u) => u.startsWith("https://sandbox.zarinpal.com/pg/v4/")),
+  );
+});
+test("Production adapter rejects sandbox authorities", async () => {
+  const adapter = new ZarinPalAdapter(
+    "00000000-0000-4000-8000-000000000003",
+    "https://example.invalid/payment/return",
+    async () =>
+      new Response(JSON.stringify({ data: { code: 100, ref_id: 1 } })),
+  );
+  assert.equal(
+    (await adapter.verify({ ...request, authority: "S" + "0".repeat(35) }))
+      .state,
+    "UNKNOWN",
+  );
+});
+test("ZARINPAL_MERCHANT_ID is optional, UUID-shaped and never echoed in errors", () => {
+  const base = {
+    NODE_ENV: "test",
+    DATABASE_URL: "postgresql://u:p@127.0.0.1:5432/d",
+    CODE_HMAC_KEY: "a".repeat(64),
+    TOKEN_HMAC_KEY: "b".repeat(64),
+    MFA_ENCRYPTION_KEY: "c".repeat(64),
+  } as NodeJS.ProcessEnv;
+  assert.doesNotThrow(() => configuration({ ...base }));
+  assert.doesNotThrow(() =>
+    configuration({ ...base, ZARINPAL_MERCHANT_ID: "" }),
+  );
+  assert.doesNotThrow(() =>
+    configuration({
+      ...base,
+      ZARINPAL_MERCHANT_ID: "00000000-0000-4000-8000-000000000003",
+    }),
+  );
+  const bad = "not-a-merchant-id-SECRETMARK";
+  assert.throws(
+    () => configuration({ ...base, ZARINPAL_MERCHANT_ID: bad }),
+    (error: Error) => !error.message.includes("SECRETMARK"),
+  );
+});
