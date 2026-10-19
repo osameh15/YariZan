@@ -46,7 +46,23 @@ export default defineNuxtConfig({
             'یاریزان؛ بازی‌های آموزشی فارسی برای شش پایهٔ دبستان. دو فرصت تجربه و دسترسی آفلاین پس از فعال‌سازی.',
         },
       ],
-      link: [{ rel: 'icon', href: '/brand/symbol.webp' }],
+      link: [
+        { rel: 'icon', href: '/brand/symbol.webp' },
+        {
+          rel: 'preload',
+          as: 'font',
+          type: 'font/woff2',
+          href: '/fonts/Shabnam.woff2',
+          crossorigin: 'anonymous',
+        },
+        {
+          rel: 'preload',
+          as: 'font',
+          type: 'font/woff2',
+          href: '/fonts/Shabnam-Bold.woff2',
+          crossorigin: 'anonymous',
+        },
+      ],
     },
   },
   routeRules: {
