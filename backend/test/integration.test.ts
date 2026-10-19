@@ -1664,7 +1664,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 10 });
+    assert.deepEqual(await verifyMigrations(c), { total: 11 });
   } finally {
     await c.query("RESET ROLE");
     c.release();

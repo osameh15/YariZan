@@ -58,7 +58,7 @@ try {
       (await fresh.query(sql)).rows,
     );
   console.log(
-    "Migration schema comparison: five catalog groups match fresh initialization against 001-009 upgraded through 010",
+    "Migration schema comparison: five catalog groups match fresh initialization against 001-009 upgraded to the latest migration",
   );
 } finally {
   await fresh.onApplicationShutdown();
