@@ -55,7 +55,6 @@ test('keyboard selection works with the arrow keys', async ({ page }) => {
   await page.waitForFunction(
     () => (document.querySelector('#__nuxt') as { __vue_app__?: unknown } | null)?.__vue_app__,
   );
-  await page.waitForLoadState('networkidle');
   await page.locator('.grade-card[data-grade="1"] input').focus();
   await page.keyboard.press('ArrowDown');
   await expect(page.locator('.grade-card[data-grade="2"] input')).toBeChecked();
