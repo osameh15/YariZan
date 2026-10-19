@@ -145,7 +145,7 @@ test('storefront binds source checks to trusted context and preserves exact CI a
     new URL('../../backend/src/database/schema-version.ts', import.meta.url),
     'utf8',
   );
-  assert.match(schema, /SCHEMA_MIGRATION_COUNT = 11;/);
+  assert.match(schema, /SCHEMA_MIGRATION_COUNT = 12;/);
 });
 
 test('current storefront manifest reports migration 10 and rejects stale version 9', () => {

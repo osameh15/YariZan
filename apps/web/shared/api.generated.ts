@@ -629,6 +629,75 @@ export interface paths {
     patch: operations['patch__api_v2_admin_products__sku_'];
     trace?: never;
   };
+  '/api/v2/admin/products/{sku}/promotions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/v2/admin/products/{sku}/promotions */
+    get: operations['get__api_v2_admin_products__sku__promotions'];
+    put?: never;
+    /** POST /api/v2/admin/products/{sku}/promotions */
+    post: operations['post__api_v2_admin_products__sku__promotions'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/admin/promotions/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** PATCH /api/v2/admin/promotions/{id} */
+    patch: operations['patch__api_v2_admin_promotions__id_'];
+    trace?: never;
+  };
+  '/api/v2/admin/promotions/{id}/deactivate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/v2/admin/promotions/{id}/deactivate */
+    post: operations['post__api_v2_admin_promotions__id__deactivate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/admin/promotions/{id}/restore': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/v2/admin/promotions/{id}/restore */
+    post: operations['post__api_v2_admin_promotions__id__restore'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v2/admin/reports': {
     parameters: {
       query?: never;
@@ -3665,6 +3734,9 @@ export interface operations {
             };
             subtotal_irr: number;
             discount_irr: number;
+            promotion_id: string | null;
+            promotion_discount_irr: number;
+            coupon_discount_irr: number;
             total_irr: number;
             revision: number;
             /** @constant */
@@ -5266,6 +5338,693 @@ export interface operations {
         };
         content: {
           'application/json': Record<string, never>;
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  get__api_v2_admin_products__sku__promotions: {
+    parameters: {
+      query?: never;
+      header: {
+        'X-CSRF-Token': string;
+      };
+      path: {
+        sku: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          request_id: string;
+          reason: string;
+          expected_revision: number;
+          evidence_ref?: string;
+          promo_price_irr: number;
+          /** Format: date-time */
+          starts_at?: string;
+          /** Format: date-time */
+          ends_at: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful operation */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json':
+            | {
+                id: string;
+                sku: string;
+                original_price_irr: number;
+                promo_price_irr: number;
+                discount_percent: number;
+                /** Format: date-time */
+                starts_at: string;
+                /** Format: date-time */
+                ends_at: string;
+                /** @enum {string} */
+                state: 'ENABLED' | 'DISABLED';
+                /** @enum {string} */
+                status: 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+                revision: number;
+                reason: string;
+                updated_by: string;
+                /** Format: date-time */
+                updated_at: string;
+              }
+            | {
+                promotions: {
+                  id: string;
+                  sku: string;
+                  original_price_irr: number;
+                  promo_price_irr: number;
+                  discount_percent: number;
+                  /** Format: date-time */
+                  starts_at: string;
+                  /** Format: date-time */
+                  ends_at: string;
+                  /** @enum {string} */
+                  state: 'ENABLED' | 'DISABLED';
+                  /** @enum {string} */
+                  status: 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+                  revision: number;
+                  reason: string;
+                  updated_by: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                }[];
+                history: {
+                  [key: string]: unknown;
+                }[];
+              };
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  post__api_v2_admin_products__sku__promotions: {
+    parameters: {
+      query?: never;
+      header: {
+        'X-CSRF-Token': string;
+      };
+      path: {
+        sku: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          request_id: string;
+          reason: string;
+          expected_revision: number;
+          evidence_ref?: string;
+          promo_price_irr: number;
+          /** Format: date-time */
+          starts_at?: string;
+          /** Format: date-time */
+          ends_at: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful operation */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json':
+            | {
+                id: string;
+                sku: string;
+                original_price_irr: number;
+                promo_price_irr: number;
+                discount_percent: number;
+                /** Format: date-time */
+                starts_at: string;
+                /** Format: date-time */
+                ends_at: string;
+                /** @enum {string} */
+                state: 'ENABLED' | 'DISABLED';
+                /** @enum {string} */
+                status: 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+                revision: number;
+                reason: string;
+                updated_by: string;
+                /** Format: date-time */
+                updated_at: string;
+              }
+            | {
+                promotions: {
+                  id: string;
+                  sku: string;
+                  original_price_irr: number;
+                  promo_price_irr: number;
+                  discount_percent: number;
+                  /** Format: date-time */
+                  starts_at: string;
+                  /** Format: date-time */
+                  ends_at: string;
+                  /** @enum {string} */
+                  state: 'ENABLED' | 'DISABLED';
+                  /** @enum {string} */
+                  status: 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+                  revision: number;
+                  reason: string;
+                  updated_by: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                }[];
+                history: {
+                  [key: string]: unknown;
+                }[];
+              };
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  patch__api_v2_admin_promotions__id_: {
+    parameters: {
+      query?: never;
+      header: {
+        'X-CSRF-Token': string;
+      };
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          request_id: string;
+          reason: string;
+          expected_revision: number;
+          evidence_ref?: string;
+          promo_price_irr?: number;
+          /** Format: date-time */
+          starts_at?: string;
+          /** Format: date-time */
+          ends_at?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful operation */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            id: string;
+            sku: string;
+            original_price_irr: number;
+            promo_price_irr: number;
+            discount_percent: number;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            /** @enum {string} */
+            state: 'ENABLED' | 'DISABLED';
+            /** @enum {string} */
+            status: 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+            revision: number;
+            reason: string;
+            updated_by: string;
+            /** Format: date-time */
+            updated_at: string;
+          };
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  post__api_v2_admin_promotions__id__deactivate: {
+    parameters: {
+      query?: never;
+      header: {
+        'X-CSRF-Token': string;
+      };
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          request_id: string;
+          reason: string;
+          expected_revision: number;
+          evidence_ref?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful operation */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            id: string;
+            sku: string;
+            original_price_irr: number;
+            promo_price_irr: number;
+            discount_percent: number;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            /** @enum {string} */
+            state: 'ENABLED' | 'DISABLED';
+            /** @enum {string} */
+            status: 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+            revision: number;
+            reason: string;
+            updated_by: string;
+            /** Format: date-time */
+            updated_at: string;
+          };
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  post__api_v2_admin_promotions__id__restore: {
+    parameters: {
+      query?: never;
+      header: {
+        'X-CSRF-Token': string;
+      };
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          request_id: string;
+          reason: string;
+          expected_revision: number;
+          evidence_ref?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful operation */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            id: string;
+            sku: string;
+            original_price_irr: number;
+            promo_price_irr: number;
+            discount_percent: number;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            /** @enum {string} */
+            state: 'ENABLED' | 'DISABLED';
+            /** @enum {string} */
+            status: 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+            revision: number;
+            reason: string;
+            updated_by: string;
+            /** Format: date-time */
+            updated_at: string;
+          };
         };
       };
       /** @description Structured error; no secrets or request bodies echoed */
@@ -8170,7 +8929,16 @@ export interface operations {
             currency: 'IRR';
             subtotal_irr: number;
             discount_irr: number;
+            promotion_discount_irr: number;
+            coupon_discount_irr: number;
             total_irr: number;
+            promotion: {
+              id: string;
+              price_irr: number;
+              discount_percent: number;
+              /** Format: date-time */
+              ends_at: string;
+            } | null;
             /** @constant */
             mode: 'simulated';
             pricing_revision: number;
@@ -8405,6 +9173,9 @@ export interface operations {
             };
             subtotal_irr: number;
             discount_irr: number;
+            promotion_id: string | null;
+            promotion_discount_irr: number;
+            coupon_discount_irr: number;
             total_irr: number;
             revision: number;
             /** @constant */
@@ -8537,6 +9308,9 @@ export interface operations {
             };
             subtotal_irr: number;
             discount_irr: number;
+            promotion_id: string | null;
+            promotion_discount_irr: number;
+            coupon_discount_irr: number;
             total_irr: number;
             revision: number;
             /** @constant */

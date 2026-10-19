@@ -1664,7 +1664,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 11 });
+    assert.deepEqual(await verifyMigrations(c), { total: 12 });
   } finally {
     await c.query("RESET ROLE");
     c.release();
@@ -4534,4 +4534,652 @@ test("An expired Admin MFA code cannot open a session", async () => {
     "OTP_INVALID",
   );
   assert.equal(r.headers.get("set-cookie"), null);
+});
+
+// ---- Product promotional pricing -------------------------------------------------------------
+type PromoView = {
+  id: string;
+  status: string;
+  state: string;
+  revision: number;
+  discount_percent: number;
+  original_price_irr: number;
+  promo_price_irr: number;
+};
+type CatalogRow = {
+  sku: string;
+  price_irr: number;
+  effective_price_irr: number;
+  promotion: null | {
+    id: string;
+    price_irr: number;
+    original_price_irr: number;
+    discount_percent: number;
+    ends_at: string;
+  };
+};
+const g1 = "YARIZAN-G1";
+async function listPrice() {
+  return Number(
+    (
+      await db.query(
+        "SELECT amount_irr FROM product_prices WHERE sku=$1 AND ended_at IS NULL",
+        [g1],
+      )
+    ).rows[0].amount_irr,
+  );
+}
+async function productRevision() {
+  return Number(
+    (await db.query("SELECT revision FROM products WHERE sku=$1", [g1])).rows[0]
+      .revision,
+  );
+}
+async function catalogG1() {
+  return (await ok<CatalogRow[]>("/products")).body.find((p) => p.sku === g1)!;
+}
+async function newPromotion(
+  price: number,
+  fromNow = 0,
+  forMs = 2 * 3600 * 1000,
+  who: Browser = admin,
+) {
+  const starts = fromNow
+    ? { starts_at: new Date(Date.now() + fromNow).toISOString() }
+    : {};
+  return request<PromoView & { error?: { code: string } }>(
+    `/admin/products/${g1}/promotions`,
+    {
+      ...mutation(await productRevision()),
+      promo_price_irr: price,
+      ...starts,
+      ends_at: new Date(Date.now() + fromNow + forMs).toISOString(),
+    },
+    who,
+  );
+}
+async function clearPromotions() {
+  await db.query(
+    "UPDATE product_promotions SET state='DISABLED' WHERE sku=$1",
+    [g1],
+  );
+}
+const percentOf = (original: number, promo: number) =>
+  Number(((BigInt(original) - BigInt(promo)) * 100n) / BigInt(original));
+
+test("Promotion lifecycle: exact percent, public catalog, quote, order snapshot, payment and no coupon stacking", async () => {
+  await db.query(
+    "UPDATE products SET publication_status='published',sale_enabled=true,trial_enabled=true,activation_enabled=true WHERE sku=$1",
+    [g1],
+  );
+  await clearPromotions();
+  const list = await listPrice();
+  const promo = Math.floor((list * 77) / 100 / 1000) * 1000;
+  const created = await newPromotion(promo);
+  assert.equal(created.status, 201);
+  assert.equal(created.body.status, "ACTIVE");
+  assert.equal(created.body.original_price_irr, list);
+  assert.equal(created.body.promo_price_irr, promo);
+  assert.equal(created.body.discount_percent, percentOf(list, promo));
+
+  // Public catalog: list price stays, the promotion is active, availability is independent.
+  const row = await catalogG1();
+  assert.equal(row.price_irr, list);
+  assert.equal(row.effective_price_irr, promo);
+  assert.equal(row.promotion?.discount_percent, percentOf(list, promo));
+  assert.equal(row.promotion?.original_price_irr, list);
+  // Grades that are not published never show a promotion.
+  for (const other of (await ok<CatalogRow[]>("/products")).body.filter(
+    (p) => p.sku !== g1,
+  ))
+    assert.equal(other.promotion, null);
+
+  // Quote and order use the server-computed promotional price; a coupon is refused, never dropped.
+  const e = await buyer();
+  const quote = (
+    await ok<{
+      total_irr: number;
+      subtotal_irr: number;
+      discount_irr: number;
+      promotion_discount_irr: number;
+      coupon_discount_irr: number;
+      promotion: { discount_percent: number } | null;
+    }>("/discounts/quote", { sku: g1 }, e.browser)
+  ).body;
+  assert.deepEqual(
+    [
+      quote.subtotal_irr,
+      quote.discount_irr,
+      quote.total_irr,
+      quote.promotion_discount_irr,
+      quote.coupon_discount_irr,
+    ],
+    [list, list - promo, promo, list - promo, 0],
+  );
+  assert.equal(quote.promotion?.discount_percent, percentOf(list, promo));
+  const d = await discountFixture();
+  await denied(
+    "/discounts/quote",
+    { sku: g1, coupon: d.body.code },
+    "COUPON_NOT_COMBINABLE_WITH_PROMOTION",
+    e.browser,
+  );
+  await denied(
+    "/orders",
+    { request_id: randomUUID(), sku: g1, coupon: d.body.code },
+    "COUPON_NOT_COMBINABLE_WITH_PROMOTION",
+    e.browser,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM orders WHERE customer_id=$1",
+        [e.customer_id],
+      )
+    ).rows[0].n,
+    0,
+    "a refused combination creates no order",
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM discount_reservations WHERE customer_id=$1",
+        [e.customer_id],
+      )
+    ).rows[0].n,
+    0,
+  );
+
+  const o = await saleOrder(e);
+  assert.equal(o.total_irr, promo);
+  assert.equal(o.discount_irr, list - promo);
+  const stored = (
+    await db.query(
+      "SELECT o.*,i.snapshot FROM orders o JOIN order_items i ON i.order_id=o.id WHERE o.id=$1",
+      [o.id],
+    )
+  ).rows[0];
+  assert.equal(stored.promotion_id, created.body.id);
+  assert.equal(Number(stored.subtotal_irr), list);
+  assert.equal(Number(stored.promotion_discount_irr), list - promo);
+  assert.equal(
+    Number(stored.discount_irr) - Number(stored.promotion_discount_irr),
+    0,
+  );
+  assert.equal(stored.snapshot.list_price_irr, list);
+  assert.equal(stored.snapshot.promotion.id, created.body.id);
+  assert.equal(stored.snapshot.promotion.price_irr, promo);
+  assert.ok(stored.snapshot.priced_at);
+  // The database itself refuses a coupon on a promoted order.
+  await assert.rejects(
+    db.query(
+      "INSERT INTO discount_reservations(id,code_id,order_id,customer_id,expires_at,state) VALUES($1,$2,$3,$4,now()+interval '15 minutes','RESERVED')",
+      [randomUUID(), d.code.id, o.id, e.customer_id],
+    ),
+    /cannot be combined with a coupon/,
+  );
+  // The promotion's economics cannot be edited underneath an active promotion.
+  await assert.rejects(
+    db.query(
+      "UPDATE product_promotions SET promo_price_irr=promo_price_irr-1000 WHERE id=$1",
+      [created.body.id],
+    ),
+    /economics are fixed/,
+  );
+
+  // Payment settles the promotional amount; the license follows only verified payment.
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM licenses l JOIN entitlements en ON en.id=l.entitlement_id WHERE en.customer_id=$1",
+        [e.customer_id],
+      )
+    ).rows[0].n,
+    0,
+    "no license before payment",
+  );
+  const pay = await salePayment(e, o);
+  const authority = (
+    await db.query("SELECT authority FROM payment_attempts WHERE id=$1", [
+      pay.attempt_id,
+    ])
+  ).rows[0].authority;
+  assert.equal(
+    Number(
+      (
+        await db.query("SELECT amount_irr FROM payment_attempts WHERE id=$1", [
+          pay.attempt_id,
+        ])
+      ).rows[0].amount_irr,
+    ),
+    promo,
+  );
+  await ok(`/payments/zarinpal/return?Authority=${authority}&Status=OK`);
+  await recoverCommerce();
+  await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+  await db.query("UPDATE commerce_jobs SET due_at=now() WHERE target_id=$1", [
+    pay.attempt_id,
+  ]);
+  await Promise.all(
+    Array.from({ length: 5 }, () => app.get(Payments).work(20)),
+  );
+  await recoverCommerce();
+  for (let n = 0; n < 3; n++)
+    await ok(`/payments/zarinpal/return?Authority=${authority}&Status=OK`);
+  await recoverCommerce();
+  const paid = (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser))
+    .body;
+  assert.equal(paid.state, "FULFILLED");
+  assert.equal(paid.total_irr, promo);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM order_fulfillments WHERE order_item_id=(SELECT id FROM order_items WHERE order_id=$1)",
+        [o.id],
+      )
+    ).rows[0].n,
+    1,
+  );
+
+  // Deactivating the promotion changes new quotes only: the paid order keeps its snapshot.
+  const op = await request<PromoView>(
+    `/admin/promotions/${created.body.id}/deactivate`,
+    { ...mutation(created.body.revision) },
+    admin,
+  );
+  assert.equal(op.status, 201);
+  assert.equal(op.body.status, "DISABLED");
+  assert.equal((await catalogG1()).promotion, null);
+  const after = (
+    await ok<{ total_irr: number }>(
+      "/discounts/quote",
+      { sku: g1 },
+      (await buyer()).browser,
+    )
+  ).body;
+  assert.equal(after.total_irr, list);
+  const reread = (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser))
+    .body;
+  assert.equal(reread.total_irr, promo);
+  // With no promotion a coupon works exactly as before and is recorded as a coupon discount.
+  const buyer2 = await buyer();
+  const couponOrder = await saleOrder(buyer2, d.body.code);
+  assert.equal(
+    Number(
+      (
+        await db.query(
+          "SELECT discount_irr-promotion_discount_irr AS coupon_discount_irr FROM orders WHERE id=$1",
+          [couponOrder.id],
+        )
+      ).rows[0].coupon_discount_irr,
+    ),
+    couponOrder.discount_irr,
+  );
+  assert.ok(couponOrder.discount_irr > 0);
+});
+
+test("Promotion schedule, expiry on database time, overlap, base-price rule and stale revisions", async () => {
+  await clearPromotions();
+  const list = await listPrice();
+  const promo = Math.floor((list * 80) / 100 / 1000) * 1000;
+
+  // Validation (server side, in Persian-facing error codes).
+  assert.equal(
+    (await newPromotion(list)).body.error?.code,
+    "PROMOTION_PRICE_NOT_LOWER",
+  );
+  assert.equal(
+    (await newPromotion(list + 1)).body.error?.code,
+    "PROMOTION_PRICE_NOT_LOWER",
+  );
+  assert.equal((await newPromotion(9999)).body.error?.code, "INVALID_REQUEST");
+  assert.equal(
+    (await newPromotion(promo + 0.5)).body.error?.code,
+    "INVALID_REQUEST",
+  );
+  const stale = await request<{ error: { code: string } }>(
+    `/admin/products/${g1}/promotions`,
+    {
+      ...mutation((await productRevision()) + 1),
+      promo_price_irr: promo,
+      ends_at: new Date(Date.now() + 3600000).toISOString(),
+    },
+    admin,
+  );
+  assert.equal(stale.body.error.code, "STALE_REVISION");
+  const past = await request<{ error: { code: string } }>(
+    `/admin/products/${g1}/promotions`,
+    {
+      ...mutation(await productRevision()),
+      promo_price_irr: promo,
+      starts_at: new Date(Date.now() - 3600000).toISOString(),
+      ends_at: new Date(Date.now() + 3600000).toISOString(),
+    },
+    admin,
+  );
+  assert.equal(past.body.error.code, "PROMOTION_START_IN_PAST");
+  const backwards = await request<{ error: { code: string } }>(
+    `/admin/products/${g1}/promotions`,
+    {
+      ...mutation(await productRevision()),
+      promo_price_irr: promo,
+      starts_at: new Date(Date.now() + 7200000).toISOString(),
+      ends_at: new Date(Date.now() + 3600000).toISOString(),
+    },
+    admin,
+  );
+  assert.equal(backwards.body.error.code, "PROMOTION_WINDOW_INVALID");
+
+  // Scheduled: visible to Admin, invisible to customers and quotes.
+  const scheduled = await newPromotion(promo, 3600000);
+  assert.equal(scheduled.status, 201);
+  assert.equal(scheduled.body.status, "SCHEDULED");
+  assert.equal((await catalogG1()).promotion, null);
+  const adminRow = (
+    await ok<{ items: { sku: string; promotion: PromoView | null }[] }>(
+      "/admin/products",
+      undefined,
+      admin,
+    )
+  ).body.items.find((p) => p.sku === g1)!;
+  assert.equal(adminRow.promotion?.status, "SCHEDULED");
+  assert.equal(
+    (
+      await ok<{ total_irr: number }>(
+        "/discounts/quote",
+        { sku: g1 },
+        (await buyer()).browser,
+      )
+    ).body.total_irr,
+    list,
+  );
+  // An overlapping enabled promotion is refused; a disjoint later one is allowed.
+  assert.equal(
+    (await newPromotion(promo + 1000, 3600000 + 600000)).body.error?.code,
+    "PROMOTION_OVERLAP",
+  );
+  const later = await newPromotion(promo + 1000, 3 * 3600000);
+  assert.equal(later.status, 201);
+  await request(
+    `/admin/promotions/${later.body.id}/deactivate`,
+    mutation(later.body.revision),
+    admin,
+  );
+
+  // The list price cannot move underneath a scheduled promotion; an unchanged price is fine.
+  const withRevision = async (price: number) => {
+    const body = {
+      ...mutation(await productRevision()),
+      price_irr: price,
+      publication_status: "published",
+      sale_enabled: true,
+      trial_enabled: true,
+      activation_enabled: true,
+    };
+    return request<{ error?: { code: string } }>(
+      `/admin/products/${g1}`,
+      body,
+      admin,
+      "PATCH",
+    );
+  };
+  assert.equal(
+    (await withRevision(list + 10000)).body.error?.code,
+    "PROMOTION_BASE_PRICE_CONFLICT",
+  );
+  assert.equal(await listPrice(), list);
+  assert.equal((await withRevision(list)).status < 300, true);
+
+  // Stale revisions are rejected; an update of a scheduled promotion bumps the revision and history.
+  const wrong = await request<{ error: { code: string } }>(
+    `/admin/promotions/${scheduled.body.id}`,
+    { ...mutation(scheduled.body.revision + 5), promo_price_irr: promo - 1000 },
+    admin,
+    "PATCH",
+  );
+  assert.equal(wrong.body.error.code, "STALE_REVISION");
+  const edited = await request<PromoView>(
+    `/admin/promotions/${scheduled.body.id}`,
+    { ...mutation(scheduled.body.revision), promo_price_irr: promo - 1000 },
+    admin,
+    "PATCH",
+  );
+  assert.equal(edited.status < 300, true);
+  assert.equal(edited.body.promo_price_irr, promo - 1000);
+  assert.equal(edited.body.revision, scheduled.body.revision + 1);
+  assert.equal(edited.body.discount_percent, percentOf(list, promo - 1000));
+
+  // Deactivate -> the list price may change -> restoring is refused while the base price differs.
+  await request(
+    `/admin/promotions/${scheduled.body.id}/deactivate`,
+    mutation(edited.body.revision),
+    admin,
+  );
+  assert.equal((await withRevision(list + 10000)).status < 300, true);
+  const blocked = await request<{ error: { code: string } }>(
+    `/admin/promotions/${scheduled.body.id}/restore`,
+    mutation(edited.body.revision + 1),
+    admin,
+  );
+  assert.equal(blocked.body.error.code, "PROMOTION_BASE_PRICE_CHANGED");
+  assert.equal((await withRevision(list)).status < 300, true);
+  const restored = await request<PromoView>(
+    `/admin/promotions/${scheduled.body.id}/restore`,
+    mutation(edited.body.revision + 1),
+    admin,
+  );
+  assert.equal(restored.body.status, "SCHEDULED");
+
+  // Time passes on the database clock: begin the window, then expire it. Nothing is edited by an Admin.
+  await db.query(
+    "UPDATE product_promotions SET starts_at=clock_timestamp()-interval '1 minute',ends_at=clock_timestamp()+interval '1 hour' WHERE id=$1",
+    [scheduled.body.id],
+  );
+  const activeNow = await catalogG1();
+  assert.equal(activeNow.promotion?.id, scheduled.body.id);
+  // An active promotion locks price and start; its end may move.
+  const locked = await request<{ error: { code: string } }>(
+    `/admin/promotions/${scheduled.body.id}`,
+    { ...mutation(restored.body.revision), promo_price_irr: promo - 2000 },
+    admin,
+    "PATCH",
+  );
+  assert.equal(locked.body.error.code, "PROMOTION_ACTIVE_LOCKED");
+  const e = await buyer();
+  const order = await saleOrder(e);
+  assert.equal(order.total_irr, promo - 1000);
+  await db.query(
+    "UPDATE product_promotions SET starts_at=clock_timestamp()-interval '2 hours',ends_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+    [scheduled.body.id],
+  );
+  assert.equal(
+    (await catalogG1()).promotion,
+    null,
+    "an expired promotion is never shown as active",
+  );
+  assert.equal(
+    (
+      await ok<{ total_irr: number }>(
+        "/discounts/quote",
+        { sku: g1 },
+        (await buyer()).browser,
+      )
+    ).body.total_irr,
+    list,
+  );
+  assert.equal(
+    (await ok<SaleOrder>(`/orders/${order.id}`, undefined, e.browser)).body
+      .total_irr,
+    promo - 1000,
+    "an order created before expiry keeps its authorized total",
+  );
+  const stampedPayment = await salePayment(e, order);
+  assert.equal(
+    Number(
+      (
+        await db.query("SELECT amount_irr FROM payment_attempts WHERE id=$1", [
+          stampedPayment.attempt_id,
+        ])
+      ).rows[0].amount_irr,
+    ),
+    promo - 1000,
+    "checkout after expiry still charges the order's authorized total",
+  );
+  const expired = await request<{ error: { code: string } }>(
+    `/admin/promotions/${scheduled.body.id}`,
+    {
+      ...mutation(restored.body.revision),
+      ends_at: new Date(Date.now() + 3600000).toISOString(),
+    },
+    admin,
+    "PATCH",
+  );
+  assert.equal(expired.body.error.code, "PROMOTION_EXPIRED");
+  const history = (
+    await ok<{ promotions: PromoView[]; history: { action: string }[] }>(
+      `/admin/products/${g1}/promotions`,
+      undefined,
+      admin,
+    )
+  ).body;
+  assert.ok(history.history.some((h) => h.action === "CREATED"));
+  assert.ok(history.history.some((h) => h.action === "DEACTIVATED"));
+  assert.ok(history.history.some((h) => h.action === "RESTORED"));
+  assert.ok(history.promotions.some((p) => p.status === "EXPIRED"));
+  await assert.rejects(
+    db.query("UPDATE product_promotion_events SET reason='x' WHERE true"),
+    /Immutable/,
+  );
+  await assert.rejects(
+    db.query("DELETE FROM product_promotions WHERE id=$1", [scheduled.body.id]),
+    /Immutable/,
+  );
+});
+
+test("Promotion authorization, idempotency and concurrent activation, deactivation and checkout", async () => {
+  await clearPromotions();
+  const list = await listPrice();
+  const promo = Math.floor((list * 90) / 100 / 1000) * 1000;
+  // Authorization: no session, a customer session and a role without products.manage cannot create.
+  const body = {
+    ...mutation(await productRevision()),
+    promo_price_irr: promo,
+    ends_at: new Date(Date.now() + 3600000).toISOString(),
+  };
+  assert.equal(
+    (await request(`/admin/products/${g1}/promotions`, body)).status,
+    401,
+  );
+  const support = await adminLogin("support");
+  const denial = await request<{ error: { code: string } }>(
+    `/admin/products/${g1}/promotions`,
+    body,
+    support,
+  );
+  assert.equal(denial.status, 403);
+  assert.equal(
+    (await request(`/admin/products/${g1}/promotions`, undefined, support))
+      .status,
+    403,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM product_promotions WHERE sku=$1 AND state='ENABLED'",
+        [g1],
+      )
+    ).rows[0].n,
+    0,
+  );
+
+  // Idempotent replay returns the same promotion; a changed body under the same id is a mismatch.
+  const first = await request<PromoView>(
+    `/admin/products/${g1}/promotions`,
+    body,
+    admin,
+  );
+  assert.equal(first.status, 201);
+  const replay = await request<PromoView>(
+    `/admin/products/${g1}/promotions`,
+    body,
+    admin,
+  );
+  assert.equal(replay.body.id, first.body.id);
+  const mismatch = await request<{ error: { code: string } }>(
+    `/admin/products/${g1}/promotions`,
+    { ...body, promo_price_irr: promo - 1000 },
+    admin,
+  );
+  assert.equal(mismatch.body.error.code, "IDEMPOTENCY_MISMATCH");
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM product_promotions WHERE sku=$1 AND state='ENABLED'",
+        [g1],
+      )
+    ).rows[0].n,
+    1,
+  );
+  // The audit trail names the Admin, the reason and the change.
+  const audits = (
+    await db.query(
+      "SELECT action,actor_type,metadata_redacted FROM audit_logs WHERE entity_id=$1 ORDER BY created_at",
+      [first.body.id],
+    )
+  ).rows;
+  assert.ok(
+    audits.some(
+      (a) => a.action === "promotion.created" && a.actor_type === "ADMIN",
+    ),
+  );
+  // A promotion does not enable selling, trials or activation by itself.
+  const catalogRow2 = (await ok<CatalogRow[]>("/products")).body.find(
+    (p) => p.sku === "YARIZAN-G2",
+  )!;
+  assert.equal(catalogRow2.promotion, null);
+
+  // Concurrent checkout racing a deactivation: every order is priced entirely by the promotion or
+  // entirely by the list price, never a mix, and never combined with a coupon.
+  const buyers = await Promise.all(Array.from({ length: 4 }, () => buyer()));
+  const results = await Promise.all([
+    request<PromoView>(
+      `/admin/promotions/${first.body.id}/deactivate`,
+      mutation(first.body.revision),
+      admin,
+    ),
+    ...buyers.map((b) =>
+      request<SaleOrder & { error?: { code: string } }>(
+        "/orders",
+        { request_id: randomUUID(), sku: g1 },
+        b.browser,
+      ),
+    ),
+  ]);
+  assert.equal(results[0].status, 201);
+  for (const r of results.slice(1)) {
+    assert.equal(r.status, 201);
+    const row = (
+      await db.query(
+        "SELECT subtotal_irr,discount_irr,total_irr,promotion_id,promotion_discount_irr,discount_irr-promotion_discount_irr AS coupon_discount_irr FROM orders WHERE id=$1",
+        [(r.body as SaleOrder).id],
+      )
+    ).rows[0];
+    const total = Number(row.total_irr);
+    assert.ok(total === list || total === promo, String(total));
+    assert.equal(row.promotion_id !== null, total === promo);
+    assert.equal(
+      Number(row.discount_irr),
+      Number(row.promotion_discount_irr) + Number(row.coupon_discount_irr),
+    );
+  }
+  // Two simultaneous creations of the same window: exactly one wins, the other reports an overlap.
+  const both = await Promise.all([
+    newPromotion(promo),
+    newPromotion(promo - 1000),
+  ]);
+  const codes = both
+    .map((r) => (r.status === 201 ? "created" : r.body.error?.code))
+    .sort();
+  assert.deepEqual(codes, ["PROMOTION_OVERLAP", "created"]);
+  await clearPromotions();
 });

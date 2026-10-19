@@ -9,6 +9,6 @@ REVOKE CREATE ON SCHEMA public FROM yarizan_runtime;
 GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA public TO yarizan_runtime;
 REVOKE ALL ON schema_migrations FROM yarizan_runtime;
 GRANT SELECT ON schema_migrations TO yarizan_runtime;
-REVOKE UPDATE ON audit_logs,license_decisions,trial_starts,activation_redemptions,customer_reset_events,license_recoveries,admin_operations,payment_events,device_enrollment_history FROM yarizan_runtime;
+REVOKE UPDATE ON audit_logs,license_decisions,trial_starts,activation_redemptions,customer_reset_events,license_recoveries,admin_operations,payment_events,device_enrollment_history,product_promotion_events FROM yarizan_runtime;
 GRANT DELETE ON discount_products TO yarizan_runtime;
 `;
