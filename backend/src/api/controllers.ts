@@ -24,6 +24,14 @@ import { Activation } from "../activation/activation";
 import { Notes, noteTypes } from "../admin/notes";
 import { Otp } from "../accounts/otp";
 import { Admin } from "../admin/admin";
+import {
+  Promotions,
+  promotionCreate,
+  promotionUpdate,
+  promotionDecision,
+  activePromotionSql,
+  statusSql,
+} from "../commerce/promotions";
 import { Audit, Actor } from "../audit/audit";
 import {
   challengeSchema,
@@ -71,20 +79,54 @@ export class HealthController {
 export class PublicController {
   constructor(private db: Database) {}
   @Get("products") async products() {
+    // The list price and, only while it is genuinely active on database time, the promotion.
+    // Promotions are never exposed for a product that is not published.
     return (
-      await this.db.query<{
-        sku: string;
-        grade: number;
-        price_irr: string;
-        revision: string;
-      }>(
-        `SELECT p.*,price.amount_irr price_irr FROM products p JOIN product_prices price ON price.sku=p.sku AND price.ended_at IS NULL WHERE publication_status<>'hidden' ORDER BY grade`,
+      await this.db.query<
+        {
+          sku: string;
+          price_irr: string;
+          revision: string;
+          promo_id: string | null;
+          promo_price_irr: string | null;
+          discount_percent: number | null;
+          promo_starts_at: Date | null;
+          promo_ends_at: Date | null;
+        } & Record<string, unknown>
+      >(
+        `SELECT p.*,price.amount_irr price_irr,promo.id promo_id,promo.promo_price_irr,promo.discount_percent,promo.starts_at promo_starts_at,promo.ends_at promo_ends_at
+        FROM products p JOIN product_prices price ON price.sku=p.sku AND price.ended_at IS NULL
+        LEFT JOIN LATERAL (SELECT * FROM product_promotions q WHERE p.publication_status='published' AND ${activePromotionSql.replace(/q\.sku=r\.sku/g, "q.sku=price.sku").replace(/r\.amount_irr/g, "price.amount_irr")} ORDER BY q.starts_at DESC LIMIT 1) promo ON true
+        WHERE publication_status<>'hidden' ORDER BY grade`,
       )
-    ).rows.map((r) => ({
-      ...r,
-      price_irr: Number(r.price_irr),
-      revision: Number(r.revision),
-    }));
+    ).rows.map((row) => {
+      const {
+        promo_id,
+        promo_price_irr,
+        discount_percent,
+        promo_starts_at,
+        promo_ends_at,
+        ...r
+      } = row;
+      return {
+        ...r,
+        price_irr: Number(r.price_irr),
+        revision: Number(r.revision),
+        effective_price_irr: promo_id
+          ? Number(promo_price_irr)
+          : Number(r.price_irr),
+        promotion: promo_id
+          ? {
+              id: promo_id,
+              price_irr: Number(promo_price_irr),
+              original_price_irr: Number(r.price_irr),
+              discount_percent: discount_percent,
+              starts_at: promo_starts_at,
+              ends_at: promo_ends_at,
+            }
+          : null,
+      };
+    });
   }
   @Get("products/:sku") async product(@Param("sku") id: string) {
     const p = (await this.products()).find((p) => p.sku === sku.parse(id));
@@ -610,6 +652,7 @@ export class AdminController {
     private otp: Otp,
     private db: Database,
     private security: Security,
+    private promotions: Promotions,
   ) {}
   @Get("auth/session") session(@Req() req: Request) {
     return this.db.transaction(async (c) => {
@@ -726,7 +769,7 @@ export class AdminController {
     return this.list(
       req,
       "products.manage",
-      `SELECT p.*,price.amount_irr::float8 price_irr,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM products p JOIN product_prices price ON price.sku=p.sku AND price.ended_at IS NULL LEFT JOIN entity_notes n ON n.entity_type='products' AND n.entity_id=p.sku WHERE ($4::text IS NULL OR $4::text IS NOT NULL) AND (p.sku ILIKE $3 OR p.title_fa ILIKE $3 OR n.note ILIKE $3) ORDER BY p.grade LIMIT $1 OFFSET $2`,
+      `SELECT p.*,price.amount_irr::float8 price_irr,CASE WHEN q.id IS NULL THEN NULL ELSE jsonb_build_object('id',q.id,'original_price_irr',q.original_price_irr::float8,'promo_price_irr',q.promo_price_irr::float8,'discount_percent',q.discount_percent,'starts_at',q.starts_at,'ends_at',q.ends_at,'state',q.state,'revision',q.revision::float8,'status',${statusSql}) END promotion,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM products p JOIN product_prices price ON price.sku=p.sku AND price.ended_at IS NULL LEFT JOIN LATERAL (SELECT * FROM product_promotions x WHERE x.sku=p.sku ORDER BY (x.state='ENABLED' AND x.ends_at>clock_timestamp()) DESC,(x.state='ENABLED') DESC,x.ends_at DESC LIMIT 1) q ON true LEFT JOIN entity_notes n ON n.entity_type='products' AND n.entity_id=p.sku WHERE ($4::text IS NULL OR $4::text IS NOT NULL) AND (p.sku ILIKE $3 OR p.title_fa ILIKE $3 OR n.note ILIKE $3) ORDER BY p.grade LIMIT $1 OFFSET $2`,
     );
   }
   @Post("customers/:id/reset") reset(
@@ -894,6 +937,71 @@ export class AdminController {
       b,
       { sku: sku.parse(id) },
       (c, a) => this.admin.products(c, id, b, b, a),
+    );
+  }
+  @Get("products/:sku/promotions") productPromotions(
+    @Param("sku") id: string,
+    @Req() req: Request,
+  ) {
+    return this.db.transaction(async (c) => {
+      await this.security.admin(req, "products.manage", c);
+      return this.promotions.list(c, sku.parse(id));
+    });
+  }
+  @Post("products/:sku/promotions") createPromotion(
+    @Param("sku") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = promotionCreate.parse(body);
+    return this.admin.operation(
+      req,
+      "products.manage",
+      b,
+      { sku: sku.parse(id) },
+      (c, a) => this.promotions.create(c, id, b, a),
+    );
+  }
+  @Patch("promotions/:id") updatePromotion(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = promotionUpdate.parse(body);
+    return this.admin.operation(
+      req,
+      "products.manage",
+      b,
+      { id: uuid.parse(id) },
+      (c, a) => this.promotions.update(c, id, b, a),
+    );
+  }
+  @Post("promotions/:id/deactivate") deactivatePromotion(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = promotionDecision.parse(body);
+    return this.admin.operation(
+      req,
+      "products.manage",
+      b,
+      { id: uuid.parse(id), action: "deactivate" },
+      (c, a) => this.promotions.deactivate(c, id, b, a),
+    );
+  }
+  @Post("promotions/:id/restore") restorePromotion(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = promotionDecision.parse(body);
+    return this.admin.operation(
+      req,
+      "products.manage",
+      b,
+      { id: uuid.parse(id), action: "restore" },
+      (c, a) => this.promotions.restore(c, id, b, a),
     );
   }
   @Get("audit") audit(@Req() req: Request) {

@@ -12,6 +12,7 @@ import { requireCondition } from "../common/errors";
 import { Mutation } from "../common/schemas";
 import { hash } from "../security/crypto";
 import { canonical } from "../signing/signing";
+import { Promotions } from "../commerce/promotions";
 
 @Injectable()
 export class Admin {
@@ -22,6 +23,7 @@ export class Admin {
     private activation: Activation,
     private accounts: Accounts,
     private audit: Audit,
+    private promotions: Promotions,
   ) {}
   async operation(
     req: Request,
@@ -415,6 +417,9 @@ export class Admin {
         changes.activation_enabled,
       ],
     );
+    // A scheduled or active promotion is priced against the current list price: refuse to move it
+    // underneath (deactivate or let the promotion end first), never silently change its economics.
+    await this.promotions.assertBasePriceFree(c, sku, changes.price_irr);
     // One instant closes the previous price and begins the next; no overlap/gap.
     await c.query(
       "UPDATE product_prices SET ended_at=transaction_timestamp() WHERE sku=$1 AND ended_at IS NULL",

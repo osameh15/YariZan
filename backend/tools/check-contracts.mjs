@@ -38,6 +38,7 @@ const login = z.strictObject({
   password: z.string().max(128),
 });
 const commerce = await import("../dist/src/commerce/contracts.js");
+const promotions = await import("../dist/src/commerce/promotions.js");
 const requests = {
   "/api/v2/discounts/quote": commerce.quoteInput,
   "/api/v2/orders": commerce.orderInput,
@@ -130,6 +131,10 @@ const requests = {
     trial_enabled: z.boolean(),
     activation_enabled: z.boolean(),
   }),
+  "/api/v2/admin/products/{sku}/promotions": promotions.promotionCreate,
+  "/api/v2/admin/promotions/{id}": promotions.promotionUpdate,
+  "/api/v2/admin/promotions/{id}/deactivate": promotions.promotionDecision,
+  "/api/v2/admin/promotions/{id}/restore": promotions.promotionDecision,
 };
 const envelope = (type) =>
   z.strictObject({
@@ -169,7 +174,32 @@ const otpReceipt = z.strictObject({
   expires_in: z.literal(180),
   retry_after: z.literal(60),
 });
+const promotionView = z.strictObject({
+  id: schemas.uuid,
+  sku: schemas.sku,
+  original_price_irr: commerce.money,
+  promo_price_irr: commerce.money,
+  discount_percent: z.number().int().min(1).max(99),
+  starts_at: z.iso.datetime(),
+  ends_at: z.iso.datetime(),
+  state: z.enum(["ENABLED", "DISABLED"]),
+  status: z.enum(["SCHEDULED", "ACTIVE", "EXPIRED", "DISABLED"]),
+  revision: z.number().int().positive(),
+  reason: z.string(),
+  updated_by: schemas.uuid,
+  updated_at: z.iso.datetime(),
+});
 const responses = {
+  "/api/v2/admin/products/{sku}/promotions": z.union([
+    promotionView,
+    z.strictObject({
+      promotions: z.array(promotionView),
+      history: z.array(z.record(z.string(), z.unknown())),
+    }),
+  ]),
+  "/api/v2/admin/promotions/{id}": promotionView,
+  "/api/v2/admin/promotions/{id}/deactivate": promotionView,
+  "/api/v2/admin/promotions/{id}/restore": promotionView,
   "/api/v2/commerce/capabilities": z.object({
     mode: z.enum(["disabled", "fake", "zarinpal"]),
     checkout_enabled: z.boolean(),

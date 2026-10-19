@@ -135,7 +135,7 @@ onBeforeUnmount(() => {
           <dd>{{ toman(order.subtotal_irr) }} تومان</dd>
         </div>
         <div>
-          <dt>تخفیف</dt>
+          <dt>{{ order.promotion_discount_irr > 0 ? 'تخفیف قیمت ویژه' : 'تخفیف' }}</dt>
           <dd>{{ toman(order.discount_irr) }} تومان</dd>
         </div>
         <div>

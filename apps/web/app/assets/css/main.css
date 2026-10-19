@@ -2066,3 +2066,96 @@ textarea[aria-invalid='true'] {
     gap: 8px;
   }
 }
+.price-block {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.price-block.has-promotion {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.price-block .price-was {
+  color: var(--muted);
+  font-size: 13px;
+}
+.price-block .price-was s {
+  text-decoration-thickness: 2px;
+  text-decoration-color: #a4432f;
+}
+.price-block.has-promotion .price {
+  color: #8a2f1c;
+  font-size: 1.25em;
+  font-weight: 700;
+}
+.price-block .discount-badge {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: #a4432f;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.price-block .promo-ends {
+  color: var(--muted);
+  font-size: 12px;
+}
+.price-block.detail .price {
+  font-size: 1.1em;
+}
+.promo-ends-row dd {
+  font-size: 12px;
+}
+.promotion-editor {
+  display: grid;
+  gap: 18px;
+  max-width: 720px;
+}
+.promotion-list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.promotion-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fffdf8;
+}
+.promotion-list li[data-status='ACTIVE'] {
+  border-color: var(--leaf);
+}
+.promotion-form fieldset {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  margin: 0;
+}
+.promotion-form legend {
+  font-weight: 700;
+  padding-inline: 6px;
+}
+.promotion-preview {
+  max-width: 340px;
+}
+.field-hint {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

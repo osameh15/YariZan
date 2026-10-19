@@ -7,6 +7,7 @@ import { Audit } from "./audit/audit";
 import { Orders } from "./commerce/orders";
 import { Gateway } from "./commerce/gateway";
 import { Payments } from "./commerce/payments";
+import { Promotions } from "./commerce/promotions";
 import { CommerceAdministration } from "./commerce/administration";
 import { CommerceController } from "./commerce/controller";
 import { Outbox } from "./outbox/outbox";
@@ -47,6 +48,7 @@ import {
     AuthFlows,
     PasswordHashing,
     Audit,
+    Promotions,
     Outbox,
     Signing,
     {
@@ -63,6 +65,7 @@ import {
     Security,
     PasswordHashing,
     Audit,
+    Promotions,
     Outbox,
     Signing,
   ],

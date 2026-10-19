@@ -91,6 +91,9 @@ export const orderView = z.object({
     .catchall(z.unknown()),
   subtotal_irr: money,
   discount_irr: money,
+  promotion_id: uuid.nullable(),
+  promotion_discount_irr: money,
+  coupon_discount_irr: money,
   total_irr: money,
   revision: z.number().int(),
   mode: z.literal("simulated"),
@@ -112,7 +115,17 @@ export const quoteView = z.strictObject({
   currency: z.literal("IRR"),
   subtotal_irr: money,
   discount_irr: money,
+  promotion_discount_irr: money,
+  coupon_discount_irr: money,
   total_irr: money,
+  promotion: z
+    .strictObject({
+      id: uuid,
+      price_irr: money,
+      discount_percent: z.number().int().min(1).max(99),
+      ends_at: z.iso.datetime(),
+    })
+    .nullable(),
   mode: z.literal("simulated"),
   pricing_revision: z.number().int(),
 });

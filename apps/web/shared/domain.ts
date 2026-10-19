@@ -10,6 +10,18 @@ export const productSchema = z.object({
   trial_enabled: z.boolean(),
   activation_enabled: z.boolean(),
   revision: z.number().int().positive(),
+  // The Backend decides which promotion is active (database time); absent for older responses.
+  effective_price_irr: z.number().int().nonnegative().safe().optional(),
+  promotion: z
+    .object({
+      price_irr: z.number().int().positive().safe(),
+      original_price_irr: z.number().int().positive().safe(),
+      discount_percent: z.number().int().min(1).max(99),
+      starts_at: z.string(),
+      ends_at: z.string(),
+    })
+    .nullable()
+    .optional(),
 });
 export type Product = z.infer<typeof productSchema>;
 export const gradeNames = ['اول', 'دوم', 'سوم', 'چهارم', 'پنجم', 'ششم'];
@@ -44,6 +56,22 @@ export function errorMessage(error: unknown) {
   return (
     (
       {
+        COUPON_NOT_COMBINABLE_WITH_PROMOTION:
+          'این پایه هم‌اکنون با قیمت ویژه عرضه می‌شود و کد تخفیف روی قیمت ویژه قابل استفاده نیست. کد را حذف کنید.',
+        PROMOTION_PRICE_NOT_LOWER: 'قیمت ویژه باید کمتر از قیمت اصلی باشد.',
+        PROMOTION_START_IN_PAST:
+          'زمان شروع نباید گذشته باشد. برای شروع فوری، زمان شروع را خالی بگذارید.',
+        PROMOTION_WINDOW_INVALID: 'پایان قیمت ویژه باید بعد از شروع و در آینده باشد.',
+        PROMOTION_OVERLAP: 'برای این پایه در همین بازه، قیمت ویژهٔ فعال دیگری وجود دارد.',
+        PROMOTION_ACTIVE_LOCKED:
+          'قیمت ویژهٔ فعال قابل ویرایش نیست؛ فقط زمان پایان تغییر می‌کند. برای قیمت تازه، آن را غیرفعال و قیمت ویژهٔ جدید ثبت کنید.',
+        PROMOTION_EXPIRED: 'مهلت این قیمت ویژه تمام شده است.',
+        PROMOTION_NOT_ENABLED: 'این قیمت ویژه اکنون فعال نیست.',
+        PROMOTION_NOT_DISABLED: 'این قیمت ویژه غیرفعال نیست.',
+        PROMOTION_BASE_PRICE_CHANGED:
+          'قیمت اصلی محصول از زمان ثبت این قیمت ویژه تغییر کرده است؛ قیمت ویژهٔ تازه ثبت کنید.',
+        PROMOTION_BASE_PRICE_CONFLICT:
+          'تا زمانی که قیمت ویژهٔ زمان‌بندی‌شده یا فعال وجود دارد، قیمت اصلی تغییر نمی‌کند. ابتدا قیمت ویژه را غیرفعال کنید.',
         COUPON_UNAVAILABLE: 'این کد برای سفارش شما قابل استفاده نیست. کد و شرایط آن را بررسی کنید.',
         ZERO_TOTAL_BLOCKED: 'پرداخت بدون مبلغ در این مرحله پشتیبانی نمی‌شود.',
         COMMERCE_UNAVAILABLE: 'خرید اینترنتی در این محیط فعال نیست. با پشتیبانی تماس بگیرید.',

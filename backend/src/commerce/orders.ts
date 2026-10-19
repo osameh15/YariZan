@@ -9,6 +9,7 @@ import { requireCondition } from "../common/errors";
 import { hash } from "../security/crypto";
 import { canonical } from "../signing/signing";
 import { Gateway } from "./gateway";
+import { Promotions, Pricing } from "./promotions";
 import { orderInput, quoteInput, discountAmount } from "./contracts";
 
 export interface OrderRow {
@@ -33,6 +34,7 @@ export class Orders {
     readonly security: Security,
     readonly audit: Audit,
     readonly gateway: Gateway,
+    readonly promotions: Promotions,
   ) {}
   async scope(c: PoolClient, u: CustomerContext) {
     const r = await c.query(
@@ -68,6 +70,9 @@ export class Orders {
       "PRODUCT_NOT_AVAILABLE",
       403,
     );
+    // List price and promotion are decided together on database time, with the promotion row
+    // share-locked so a concurrent deactivation waits for this transaction.
+    p.pricing = await this.promotions.pricing(c, sku, true);
     requireCondition(
       !(
         await c.query(
@@ -151,12 +156,21 @@ export class Orders {
     await this.security.rate("coupon-probe:" + u.id, 20, 300);
     return this.db.transaction(async (c) => {
       const p = await this.eligible(c, u, input.sku),
-        amount = Number(p.amount_irr);
+        pricing: Pricing = p.pricing,
+        amount = pricing.list_price_irr,
+        promoDiscount = pricing.promotion?.discount_irr ?? 0;
+      // A promotional price never stacks with a coupon: refuse the combination, never drop one silently.
+      requireCondition(
+        !(pricing.promotion && input.coupon),
+        "COUPON_NOT_COMBINABLE_WITH_PROMOTION",
+        422,
+      );
       const d = input.coupon
         ? await this.coupon(c, input.coupon, input.sku, u.id, amount)
         : undefined;
+      const couponDiscount = d?.discount ?? 0;
       requireCondition(
-        amount - (d?.discount ?? 0) >= 10000,
+        amount - promoDiscount - couponDiscount >= 10000,
         "ZERO_TOTAL_BLOCKED",
         422,
       );
@@ -165,8 +179,18 @@ export class Orders {
         title_fa: p.title_fa,
         currency: "IRR",
         subtotal_irr: amount,
-        discount_irr: d?.discount ?? 0,
-        total_irr: amount - (d?.discount ?? 0),
+        discount_irr: promoDiscount + couponDiscount,
+        promotion_discount_irr: promoDiscount,
+        coupon_discount_irr: couponDiscount,
+        total_irr: amount - promoDiscount - couponDiscount,
+        promotion: pricing.promotion
+          ? {
+              id: pricing.promotion.id,
+              price_irr: pricing.promotion.price_irr,
+              discount_percent: pricing.promotion.discount_percent,
+              ends_at: pricing.promotion.ends_at,
+            }
+          : null,
         mode: "simulated",
         pricing_revision: Number(p.revision),
       };
@@ -206,15 +230,23 @@ export class Orders {
       requireCondition(!open, "ORDER_ALREADY_OPEN", 409);
       const id = randomUUID(),
         item = randomUUID(),
-        amount = Number(p.amount_irr);
+        pricing: Pricing = p.pricing,
+        amount = pricing.list_price_irr,
+        promotion = pricing.promotion,
+        promoDiscount = promotion?.discount_irr ?? 0;
+      requireCondition(
+        !(promotion && input.coupon),
+        "COUPON_NOT_COMBINABLE_WITH_PROMOTION",
+        422,
+      );
       const d = input.coupon
         ? await this.coupon(c, input.coupon, input.sku, u.id, amount)
         : undefined;
-      const discount = d?.discount ?? 0,
+      const discount = promoDiscount + (d?.discount ?? 0),
         total = amount - discount;
       requireCondition(total >= 10000, "ZERO_TOTAL_BLOCKED", 422);
       await c.query(
-        "INSERT INTO orders(id,customer_id,request_id,subtotal_irr,discount_irr,total_irr,state,device_id,generation,sku,request_digest) VALUES($1,$2,$3,$4,$5,$6,'PENDING',$7,$8,$9,$10)",
+        "INSERT INTO orders(id,customer_id,request_id,subtotal_irr,discount_irr,total_irr,state,device_id,generation,sku,request_digest,promotion_id,promotion_discount_irr) VALUES($1,$2,$3,$4,$5,$6,'PENDING',$7,$8,$9,$10,$11,$12)",
         [
           id,
           u.id,
@@ -226,6 +258,8 @@ export class Orders {
           u.generation,
           p.sku,
           digest,
+          promotion?.id ?? null,
+          promoDiscount,
         ],
       );
       await c.query(
@@ -247,7 +281,21 @@ export class Orders {
                 ])
               ).rows[0].username,
             currency: "IRR",
-            price_id: p.price_id,
+            price_id: pricing.price_id,
+            list_price_irr: amount,
+            priced_at: pricing.priced_at,
+            promotion: promotion
+              ? {
+                  id: promotion.id,
+                  revision: promotion.revision,
+                  original_price_irr: promotion.original_price_irr,
+                  price_irr: promotion.price_irr,
+                  discount_irr: promotion.discount_irr,
+                  discount_percent: promotion.discount_percent,
+                  starts_at: promotion.starts_at,
+                  ends_at: promotion.ends_at,
+                }
+              : null,
             product_revision: Number(p.revision),
             coupon: input.coupon ?? null,
             code_revision: d ? Number(d.rule.revision) : null,
@@ -310,6 +358,10 @@ export class Orders {
       snapshot: r.snapshot,
       subtotal_irr: Number(r.subtotal_irr),
       discount_irr: Number(r.discount_irr),
+      promotion_id: r.promotion_id,
+      promotion_discount_irr: Number(r.promotion_discount_irr),
+      coupon_discount_irr:
+        Number(r.discount_irr) - Number(r.promotion_discount_irr),
       total_irr: Number(r.total_irr),
       revision: Number(r.revision),
       mode: "simulated",
