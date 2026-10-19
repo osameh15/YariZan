@@ -2,8 +2,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <FontFamily x:Key="ShabnamFont">/Resources/Fonts/Shabnam/#Shabnam, Tahoma, Segoe UI, Arial</FontFamily>
-    <FontFamily x:Key="ShabnamBoldFont">/Resources/Fonts/Shabnam/#Shabnam Bold, Tahoma, Segoe UI, Arial</FontFamily>
+    <FontFamily x:Key="ShabnamFont">pack://application:,,,/YariZan;component/Resources/Fonts/Shabnam/#Shabnam</FontFamily>
+    <FontFamily x:Key="ShabnamBoldFont">pack://application:,,,/YariZan;component/Resources/Fonts/Shabnam/#Shabnam</FontFamily>
 
     <Color x:Key="LeatherDark">#3B1F12</Color>
     <Color x:Key="Leather">#5C2E1B</Color>
@@ -41,6 +41,7 @@
 
     <Style x:Key="GoldButton" TargetType="Button">
         <Setter Property="FontFamily" Value="{StaticResource ShabnamBoldFont}" />
+        <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="FontSize" Value="18" />
         <Setter Property="Foreground" Value="{StaticResource LeatherDarkBrush}" />
         <Setter Property="Cursor" Value="Hand" />

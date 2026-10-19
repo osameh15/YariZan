@@ -1,4 +1,5 @@
 <UserControl x:Class="YariZan.App.Views.CoverPage"
+             NumberSubstitution.CultureSource="Override" NumberSubstitution.CultureOverride="fa-IR" NumberSubstitution.Substitution="NativeNational"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FlowDirection="RightToLeft"
@@ -60,7 +61,8 @@
             </Grid.InputBindings>
         </Grid>
 
-        <TextBlock Text="2026 © OAR NOVA GAMES STUDIO" FlowDirection="RightToLeft" FontFamily="Segoe UI" FontSize="12"
+        <TextBlock Text="2026 © OAR NOVA GAMES STUDIO" FlowDirection="LeftToRight" Language="en-US"
+                   NumberSubstitution.Substitution="European" FontFamily="Segoe UI" FontSize="12"
                    Foreground="{StaticResource GoldBrush}" Opacity="0.6"
                    HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,16" />
     </Grid>

@@ -7,7 +7,7 @@ namespace YariZan.App.Views;
 public partial class GameLoadingOverlay : UserControl
 {
     public GameLoadingOverlay() => InitializeComponent();
-    public string GameName { set => LoadingGameName.Text = value; }
+    public string GameName { set => LoadingGameName.Text = Services.PersianText.Digits(value); }
 
     private void VisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
     {

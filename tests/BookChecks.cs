@@ -39,11 +39,20 @@ internal static class BookChecks
     public static void Main(string[] args)
     {
         string PageTitle(int n) => $"صفحه {PersianPageNumber.FromNumber(n)} کتاب آموزشی";
-        var app = new Application();
+        var app = new YariZan.App.App();
+        Check(PersianText.Digits("0123456789 ٠١٢٣٤٥٦٧٨٩") == "۰۱۲۳۴۵۶۷۸۹ ۰۱۲۳۴۵۶۷۸۹", "all Latin and Arabic digits convert to Persian");
         app.Resources.MergedDictionaries.Add(new ResourceDictionary
         {
             Source = new Uri("/YariZan;component/Resources/Theme.xaml", UriKind.Relative)
         });
+        foreach (var weight in new[] { FontWeights.Normal, FontWeights.Bold })
+        {
+            var family = (FontFamily)app.FindResource("ShabnamFont");
+            Check(new Typeface(family, FontStyles.Normal, weight, FontStretches.Normal).TryGetGlyphTypeface(out var glyphs)
+                && glyphs.FontUri.ToString().Contains("Shabnam", StringComparison.OrdinalIgnoreCase)
+                && "۰۱۲۳۴۵۶۷۸۹".All(c => glyphs.CharacterToGlyphMap.ContainsKey(c)),
+                "embedded Shabnam resolves and contains all Persian digits: " + weight);
+        }
         foreach (int grade in Enumerable.Range(1, 6))
         {
             var cover = new CoverPage(grade);
@@ -60,6 +69,17 @@ internal static class BookChecks
         {
             Grade = 2, Name = PageTitle(i), ImageFile = i == 2 ? "broken.jpg" : "portrait.jpg"
         }).ToList() });
+        var addition = new GameEntry { Grade = 2, Name = "صفحه 1 کتاب آموزشی - جمع اعداد", ImageFile = "portrait.jpg" };
+        var subtraction = new GameEntry { Grade = 2, Name = "صفحه ۱ کتاب آموزشی - تفریق اعداد", ImageFile = "portrait.jpg" };
+        manifest.Grades[1].Games.AddRange(new[] { addition, subtraction,
+            new GameEntry { Grade = 2, Name = "صفحه 2 کتاب آموزشی - بازی دوم" } });
+        var groups = GamePage.Group(manifest.Grades[1].Games);
+        Check(groups.Count == 71 && groups[0].Games.Count == 3 && groups[1].Games.Count == 2,
+            "numeric and word titles group into one tile for pages with two or three games");
+        Check(GamePage.Group(new[] { addition, new GameEntry { Grade = 1, Name = addition.Name } }).Count == 2,
+            "different grades never share a page group");
+        foreach (var title in new[] { "صفحه 119 کتاب ریاضی - جمع اعداد", "صفحه ۱۱۹ کتاب ریاضی", "صفحه ١١٩ کتاب ریاضی", "صفحه صد و نوزده کتاب ریاضی- تفریق" })
+            Check(PersianPageNumber.TryGetNumber(title, out int number) && number == 119, "page parser: " + title);
         var page = new GamesBookPage(new GameLibrary(manifest));
         var window = new Window { Content = page, Width = 1200, Height = 780, ShowInTaskbar = false };
         window.Show();
@@ -71,6 +91,9 @@ internal static class BookChecks
         var right = Find<UniformGrid>("RightSide");
         var left = Find<UniformGrid>("LeftSide");
         var input = Find<TextBox>("PageNumber");
+        Check(NumberSubstitution.GetSubstitution(input) == NumberSubstitutionMethod.NativeNational
+            && NumberSubstitution.GetCultureOverride(input).Name == "fa-IR",
+            "Persian digit shaping also applies to editable and LTR fields");
         Image ImageAt(int i) => (Image)((Border)((Grid)((Button)right.Children[i]).Content).Children[0]).Child;
         Pump(() => ImageAt(0).Source is not null);
         Check(Find<TextBlock>("GradeTitle").Text == "دبستانی ها- دوم ابتدایی", "grade-specific Persian title");
@@ -81,6 +104,43 @@ internal static class BookChecks
         Check(orderedPages.SequenceEqual(new[] { 3, 4, 30, 100, 101, 115 }.Select(PageTitle)),
             "Persian word titles sort by textbook page number");
         Check(!Find<Button>("PreviousButton").IsEnabled && Find<Button>("NextButton").IsEnabled, "first-page boundaries");
+        GameEntry? launched = null;
+        page.GameLaunchRequested += (_, game) => launched = game;
+        ((Button)right.Children[0]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var choices = Find<StackPanel>("GameChoices");
+        Check(launched is null && choices.Children.Count == 3
+            && Find<ScrollViewer>("GameChoiceScroll").Visibility == Visibility.Visible
+            && !Find<Grid>("BookContent").IsEnabled, "multi-game tile opens selector without launching");
+        Check(Find<TextBlock>("InfoTitle").Text == "صفحه ۱ کتاب آموزشی", "selector title uses Persian digits");
+        var additionChoice = choices.Children.OfType<Button>().Single(b => ((TextBlock)b.Content).Text == "جمع اعداد");
+        Check(additionChoice.BorderThickness.Left == 2, "choices have bordered boxes");
+        SavePreview(page, Path.Combine(Path.GetDirectoryName(args[1])!, "game-choice-preview.png"));
+        additionChoice.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(ReferenceEquals(launched, addition) && Find<Grid>("InfoOverlay").Visibility == Visibility.Collapsed
+            && Find<Grid>("BookContent").IsEnabled, "choice launches the exact selected executable and closes modal");
+        launched = null;
+        ((Button)right.Children[0]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Invoke("HideInfo");
+        Check(launched is null && Find<Grid>("BookContent").IsEnabled, "cancel selector launches nothing");
+        ((Button)right.Children[1]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(choices.Children.Count == 2, "two-game page offers both games");
+        Invoke("About_Click", page, new RoutedEventArgs());
+        Check(Find<ScrollViewer>("GameChoiceScroll").Visibility == Visibility.Collapsed
+            && Find<ScrollViewer>("InfoScroll").Visibility == Visibility.Visible, "about hides stale game choices");
+        Invoke("HideInfo");
+        var firstTileGrid = (Grid)((Button)right.Children[0]).Content;
+        var detailsButton = ((Grid)firstTileGrid.Children[1]).Children.OfType<Button>().Single();
+        detailsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        choices.Children.OfType<Button>().Single(b => ((TextBlock)b.Content).Text == "جمع اعداد")
+            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(Find<TextBlock>("InfoTitle").Text == PersianText.Digits(addition.Name)
+            && Find<Button>("InfoLaunchButton").Visibility == Visibility.Visible
+            && Find<ScrollViewer>("GameChoiceScroll").Visibility == Visibility.Collapsed,
+            "details selector shows selected game's instructions");
+        Invoke("InfoLaunch_Click", page, new RoutedEventArgs());
+        Check(ReferenceEquals(launched, addition), "launch from selected details uses the selected game");
+        ((Button)right.Children[2]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(launched?.Name == PageTitle(3), "single-game page still launches directly");
         var firstImage = ImageAt(0).Source;
         Check(firstImage.IsFrozen && ((BitmapSource)firstImage).PixelHeight <= 360, "bounded frozen thumbnail");
         Pump(() => ImageAt(2).Source is not null);
@@ -91,6 +151,7 @@ internal static class BookChecks
             Invoke("JumpToPage");
             Pump(() => !Turning());
             Check(Index() == 5, "jump accepts " + digits);
+            Check(input.Text == "۶", "page input displays Persian digits after navigation");
             Check(!Find<Button>("NextButton").IsEnabled && left.Children[5] is Border, "last page and partial spread");
             Invoke("NavigateTo", 0);
             Pump(() => !Turning());
@@ -137,6 +198,8 @@ internal static class BookChecks
         window.Content = loading;
         Check(((Image)loading.FindName("LoadingLogo")).Source is not null, "loading overlay logo loads");
         Check(((TextBlock)loading.FindName("LoadingGameName")).Text == PageTitle(3), "loading overlay identifies the selected game");
+        loading.GameName = "صفحه 120 کتاب ریاضی - بازی 2";
+        Check(((TextBlock)loading.FindName("LoadingGameName")).Text == "صفحه ۱۲۰ کتاب ریاضی - بازی ۲", "loading title uses Persian digits");
         SavePreview(loading, Path.Combine(Path.GetDirectoryName(args[1])!, "loading-preview.png"));
         window.Close();
         Console.WriteLine($"{_checks} book checks passed. Preview: {args[1]}");

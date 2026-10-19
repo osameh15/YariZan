@@ -15,6 +15,7 @@ const publicPages = [
   '/products/grade-1',
   '/products/grade-4',
   '/support',
+  '/download',
   '/legal',
   '/legal/privacy',
   '/legal/terms',

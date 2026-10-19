@@ -1,4 +1,5 @@
 <UserControl x:Class="YariZan.App.Views.GameLoadingOverlay"
+             NumberSubstitution.CultureSource="Override" NumberSubstitution.CultureOverride="fa-IR" NumberSubstitution.Substitution="NativeNational"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FlowDirection="RightToLeft" FontFamily="{DynamicResource ShabnamFont}"

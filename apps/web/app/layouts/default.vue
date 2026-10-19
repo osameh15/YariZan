@@ -32,6 +32,7 @@ watch(
       <nav class="desktop-nav" aria-label="منوی اصلی">
         <NuxtLink to="/">خانه</NuxtLink><NuxtLink to="/products">دنیای پایه‌ها</NuxtLink
         ><NuxtLink v-if="!publicOnly" to="/connect">اتصال برنامه</NuxtLink
+        ><NuxtLink to="/download">دانلود برنامه</NuxtLink
         ><NuxtLink to="/support">همراه شما</NuxtLink>
       </nav>
       <NuxtLink v-if="!publicOnly" class="button secondary desktop-login" to="/account"
@@ -54,6 +55,7 @@ watch(
         ><template v-if="!publicOnly"
           ><NuxtLink to="/connect">اتصال برنامه</NuxtLink
           ><NuxtLink to="/account">حساب من</NuxtLink></template
+        ><NuxtLink to="/download">دانلود برنامه</NuxtLink
         ><NuxtLink to="/support">پشتیبانی</NuxtLink>
       </nav></BaseDialog
     >
@@ -79,6 +81,7 @@ watch(
         <nav aria-label="پیوندهای پایانی">
           <NuxtLink to="/products">محصولات</NuxtLink
           ><NuxtLink v-if="!publicOnly" to="/connect">اتصال امن برنامه</NuxtLink
+          ><NuxtLink to="/download">دریافت برای ویندوز</NuxtLink
           ><NuxtLink to="/support">پرسش‌ها و پشتیبانی</NuxtLink
           ><NuxtLink to="/legal">قوانین و حریم خصوصی</NuxtLink
           ><NuxtLink v-if="!publicOnly" to="/login">ورود به حساب</NuxtLink>
