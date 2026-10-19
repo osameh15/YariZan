@@ -41,9 +41,9 @@ Back up all three securely. Changing the signing pair invalidates serials/grants
 Place games directly in grade folders `1` through `6`:
 
 ```text
-miniApps/1/صفحه سوم کتاب ریاضی.exe
-miniApps/1/صفحه سوم کتاب ریاضی.jpg
-miniApps/1/صفحه سوم کتاب ریاضی.txt
+miniApps/1/صفحه 3 کتاب ریاضی.exe
+miniApps/1/صفحه 3 کتاب ریاضی.jpg
+miniApps/1/صفحه 3 کتاب ریاضی.txt
 ```
 
 Use matching stems, PNG/JPG thumbnails, and UTF-8 descriptions. Images/descriptions are optional in the packer but provide complete tiles. Extract archives locally; nested directories and archives are not packed. Names sort naturally: `page3`, `page4`, `page115`.
