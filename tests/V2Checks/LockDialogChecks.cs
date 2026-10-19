@@ -54,6 +54,9 @@ internal static partial class Program
         var host = new Window { Content = page, Width = 1216, Height = 779, ShowInTaskbar = false, Left = -32000, Top = -32000 };
         host.Show(); host.Activate(); Pump(() => access.State == DesktopAccessState.TrialAvailable);
         T C<T>(string name) where T : FrameworkElement => (T)page.FindName(name);
+        foreach (string field in new[] { "HwidText", "ActivationCodeInput", "PairingIdText", "PairingCodeText", "PreparedMessageText" })
+            Check(NumberSubstitution.GetSubstitution(C<FrameworkElement>(field)) == NumberSubstitutionMethod.European,
+                "English digits retained for identity/code field: " + field);
         void Click(string name) => C<Button>(name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         void KeyPress(Key key, UIElement target) => target.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,
             PresentationSource.FromVisual(host), Environment.TickCount, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent });

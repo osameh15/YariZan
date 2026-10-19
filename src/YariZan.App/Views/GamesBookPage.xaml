@@ -1,4 +1,5 @@
 <UserControl x:Class="YariZan.App.Views.GamesBookPage"
+             NumberSubstitution.CultureSource="Override" NumberSubstitution.CultureOverride="fa-IR" NumberSubstitution.Substitution="NativeNational"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FlowDirection="RightToLeft"
@@ -163,6 +164,7 @@
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <TextBlock Text="صفحهٔ" FontSize="16" Foreground="{StaticResource GoldBrush}" VerticalAlignment="Center" Margin="6,0" />
                         <TextBox x:Name="PageNumber" Width="54" MaxLength="6" FontSize="16" TextAlignment="Center"
+                                 FontFamily="{DynamicResource ShabnamFont}"
                                  VerticalContentAlignment="Center" Padding="4" FlowDirection="LeftToRight"
                                  ToolTip="شمارهٔ صفحه را وارد کنید و Enter بزنید" KeyDown="PageNumber_KeyDown"
                                  AutomationProperties.Name="شمارهٔ صفحه" />
@@ -201,6 +203,11 @@
                         <ScrollViewer x:Name="InfoScroll" Grid.Row="2" MaxHeight="320" VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly" Margin="0,16,0,0">
                             <TextBlock x:Name="InfoBody" FontSize="18" Foreground="{StaticResource InkBrush}"
                                        TextWrapping="Wrap" TextAlignment="Justify" LineHeight="32" />
+                        </ScrollViewer>
+
+                        <ScrollViewer x:Name="GameChoiceScroll" Grid.Row="2" Visibility="Collapsed" MaxHeight="320"
+                                      VerticalScrollBarVisibility="Auto" Margin="0,16,0,0" MinWidth="360">
+                            <StackPanel x:Name="GameChoices" />
                         </ScrollViewer>
 
                         <StackPanel x:Name="ContactPanel" Grid.Row="2" Visibility="Collapsed" Margin="0,16,0,0" MinWidth="420">

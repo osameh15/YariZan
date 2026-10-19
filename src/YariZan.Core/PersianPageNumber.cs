@@ -13,7 +13,14 @@ public static class PersianPageNumber
     {
         var match = System.Text.RegularExpressions.Regex.Match(title, @"^صفحه (.+?) کتاب(?: .+)?$");
         page = 0;
-        return match.Success && PageNumbers.TryGetValue(match.Groups[1].Value, out page);
+        if (!match.Success) return false;
+        var number = new string(match.Groups[1].Value.Select(c =>
+            c >= '۰' && c <= '۹' ? (char)('0' + c - '۰') :
+            c >= '٠' && c <= '٩' ? (char)('0' + c - '٠') : c).ToArray());
+        return (int.TryParse(number, out page) && page is >= 1 and <= 999)
+            || PageNumbers.TryGetValue(number, out page)
+            || (number == "هشتاد و یک" && (page = 81) == 81)
+            || (number == "صد و نوزده" && (page = 119) == 119);
     }
 
     public static string FromNumber(int page)

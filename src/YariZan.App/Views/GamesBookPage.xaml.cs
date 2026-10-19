@@ -18,9 +18,10 @@ public partial class GamesBookPage : UserControl
     private const int TilesPerSpread = TilesPerPage * 2;
 
     private readonly IReadOnlyList<GameEntry> _games;
+    private readonly IReadOnlyList<GamePage> _pages;
     private readonly ThumbnailCache _thumbnails = new();
     private bool _turning;
-    private int TotalSpreads => Math.Max(1, (_games.Count + TilesPerSpread - 1) / TilesPerSpread);
+    private int TotalSpreads => Math.Max(1, (_pages.Count + TilesPerSpread - 1) / TilesPerSpread);
     private int _spreadIndex;
     private GameEntry? _infoGame;
     private IInputElement? _modalFocus;
@@ -50,6 +51,7 @@ public partial class GamesBookPage : UserControl
     public GamesBookPage(GameLibrary library)
     {
         _games = library.GamesFor(library.Manifest.SelectedGrade);
+        _pages = GamePage.Group(_games);
         InitializeComponent();
         GradeTitle.Text = $"دبستانی ها- {AppBranding.GradeName(library.Manifest.SelectedGrade)} ابتدایی";
         Render();
@@ -60,7 +62,7 @@ public partial class GamesBookPage : UserControl
         RightSide.Children.Clear();
         LeftSide.Children.Clear();
 
-        var games = _games;
+        var games = _pages;
         int totalSpreads = TotalSpreads;
         if (_spreadIndex >= totalSpreads) _spreadIndex = totalSpreads - 1;
         if (_spreadIndex < 0) _spreadIndex = 0;
@@ -75,7 +77,7 @@ public partial class GamesBookPage : UserControl
         UpdateNavigation();
     }
 
-    private void FillPage(UniformGrid host, IReadOnlyList<GameEntry> games, int start, int count)
+    private void FillPage(UniformGrid host, IReadOnlyList<GamePage> games, int start, int count)
     {
         for (int i = 0; i < count; i++)
         {
@@ -84,8 +86,9 @@ public partial class GamesBookPage : UserControl
         }
     }
 
-    private FrameworkElement MakeTile(GameEntry e)
+    private FrameworkElement MakeTile(GamePage page)
     {
+        var e = page.Preview;
         var btn = new Button
         {
             Style = (Style)FindResource("GameTile"),
@@ -121,13 +124,13 @@ public partial class GamesBookPage : UserControl
             ToolTip = "جزئیات",
             VerticalAlignment = VerticalAlignment.Center,
         };
-        info.Click += (s, ev) => { ev.Handled = true; ShowInfo(e); };
+        info.Click += (s, ev) => { ev.Handled = true; OpenPage(page, true); };
         Grid.SetColumn(info, 0);
 
         var nameText = new TextBlock
         {
-            Text = e.Name,
-            ToolTip = e.Name,
+            Text = PersianText.Digits(page.Name),
+            ToolTip = PersianText.Digits(page.Games.Count > 1 ? $"{page.Name} — {page.Games.Count} بازی" : page.Name),
             TextWrapping = TextWrapping.Wrap,
             TextAlignment = TextAlignment.Center,
             MaxHeight = 56,
@@ -149,8 +152,45 @@ public partial class GamesBookPage : UserControl
         grid.Children.Add(bottom);
         btn.Content = grid;
 
-        btn.Click += (_, _) => GameLaunchRequested?.Invoke(this, e);
+        btn.Click += (_, _) => OpenPage(page);
         return btn;
+    }
+
+    private void OpenPage(GamePage page, bool details = false)
+    {
+        if (page.Games.Count == 1)
+        {
+            if (details) ShowInfo(page.Preview);
+            else GameLaunchRequested?.Invoke(this, page.Preview);
+            return;
+        }
+        _infoGame = null;
+        InfoTitle.Text = PersianText.Digits(page.Name);
+        InfoScroll.Visibility = ContactPanel.Visibility = InfoLaunchButton.Visibility = Visibility.Collapsed;
+        GameChoices.Children.Clear();
+        foreach (var game in page.Games)
+        {
+            var button = new Button
+            {
+                Style = (Style)FindResource("GoldButton"),
+                Content = new TextBlock { Text = PersianText.Digits(page.ChoiceName(game)), TextWrapping = TextWrapping.Wrap,
+                    TextAlignment = TextAlignment.Center },
+                Margin = new Thickness(0, 6, 0, 6), Padding = new Thickness(18, 14, 18, 14),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                BorderBrush = (Brush)FindResource("LeatherDarkBrush"), BorderThickness = new Thickness(2),
+            };
+            System.Windows.Automation.AutomationProperties.SetName(button, PersianText.Digits(page.ChoiceName(game)));
+            button.Click += (_, _) =>
+            {
+                HideInfo();
+                if (details) ShowInfo(game);
+                else GameLaunchRequested?.Invoke(this, game);
+            };
+            GameChoices.Children.Add(button);
+        }
+        GameChoiceScroll.Visibility = Visibility.Visible;
+        ShowModal();
+        ((Button)GameChoices.Children[0]).Focus();
     }
 
     private static FrameworkElement MakePlaceholder() => new Border
@@ -170,13 +210,14 @@ public partial class GamesBookPage : UserControl
 
     private void ShowInfo(GameEntry e)
     {
+        GameChoiceScroll.Visibility = Visibility.Collapsed;
         ContactPanel.Visibility = Visibility.Collapsed;
         InfoScroll.Visibility = Visibility.Visible;
         _infoGame = e;
-        InfoTitle.Text = e.Name;
+        InfoTitle.Text = PersianText.Digits(e.Name);
         InfoBody.Text = string.IsNullOrWhiteSpace(e.Description)
             ? "توضیحاتی برای این بازی ثبت نشده است."
-            : e.Description;
+            : PersianText.Digits(e.Description);
         InfoLaunchButton.Visibility = Visibility.Visible;
         InfoScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         ShowModal();
@@ -184,6 +225,7 @@ public partial class GamesBookPage : UserControl
 
     private void About_Click(object sender, RoutedEventArgs e)
     {
+        GameChoiceScroll.Visibility = Visibility.Collapsed;
         ContactPanel.Visibility = Visibility.Collapsed;
         InfoScroll.Visibility = Visibility.Visible;
         _infoGame = null;
@@ -196,6 +238,7 @@ public partial class GamesBookPage : UserControl
 
     private void Contact_Click(object sender, RoutedEventArgs e)
     {
+        GameChoiceScroll.Visibility = Visibility.Collapsed;
         _infoGame = null;
         InfoTitle.Text = "ارتباط با ما";
         InfoScroll.Visibility = InfoLaunchButton.Visibility = Visibility.Collapsed;
@@ -242,6 +285,7 @@ public partial class GamesBookPage : UserControl
     {
         _infoGame = null;
         InfoOverlay.Visibility = Visibility.Collapsed;
+        GameChoiceScroll.Visibility = Visibility.Collapsed;
         BookContent.IsEnabled = true;
         if (_modalFocus is not null) Keyboard.Focus(_modalFocus);
     }
@@ -285,8 +329,8 @@ public partial class GamesBookPage : UserControl
         UpdateNavigation();
         SpreadHost.IsHitTestVisible = false;
         // Start background decoding before the fold reaches the spine.
-        foreach (var game in _games.Skip(index * TilesPerSpread).Take(TilesPerSpread))
-            _ = _thumbnails.GetAsync(game.ImageFile);
+        foreach (var page in _pages.Skip(index * TilesPerSpread).Take(TilesPerSpread))
+            _ = _thumbnails.GetAsync(page.Preview.ImageFile);
         var target = direction > 0 ? LeftSide : RightSide;
         // WPF mirrors transform origins under RTL: these origins sit at the book spine.
         target.RenderTransformOrigin = new Point(direction > 0 ? 0 : 1, 0.5);
@@ -342,6 +386,7 @@ public partial class GamesBookPage : UserControl
         {
             PageNumber.ToolTip = "شمارهٔ صفحه را وارد کنید و Enter بزنید";
             NavigateTo(page - 1);
+            PageNumber.Text = ToPersianDigits(page.ToString());
         }
         else
         {
@@ -353,11 +398,5 @@ public partial class GamesBookPage : UserControl
     }
 
     private static string ToPersianDigits(string s)
-    {
-        var map = new[] { '۰','۱','۲','۳','۴','۵','۶','۷','۸','۹' };
-        var arr = s.ToCharArray();
-        for (int i = 0; i < arr.Length; i++)
-            if (arr[i] >= '0' && arr[i] <= '9') arr[i] = map[arr[i] - '0'];
-        return new string(arr);
-    }
+        => PersianText.Digits(s);
 }
