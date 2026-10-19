@@ -15,6 +15,7 @@ const publicPages = [
   '/products/grade-1',
   '/products/grade-4',
   '/support',
+  '/download',
   '/legal',
   '/legal/privacy',
   '/legal/terms',
@@ -322,4 +323,28 @@ test('first deployment is noindex: robots.txt disallows all and every page sends
 test('no request ever reached the API port', async ({ request }) => {
   const report = await (await request.get('http://127.0.0.1:3101/tripwire')).json();
   expect(report).toEqual({ hits: 0, paths: [] });
+});
+
+test('download page is honest about availability and never links to GitHub or an installer', async ({
+  page,
+}) => {
+  const response = await page.goto('/download');
+  expect(response?.status()).toBe(200);
+  await expect(page.locator('h1')).toContainText('دریافت یاریزان برای ویندوز');
+  await expect(page.getByTestId('download-unavailable')).toBeVisible();
+  await expect(page.getByTestId('download-available')).toHaveCount(0);
+  await expect(page.getByTestId('download-history-empty')).toBeVisible();
+  const hrefs = await page
+    .locator('a[href]')
+    .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));
+  for (const href of hrefs) {
+    expect(href, 'no GitHub link').not.toMatch(/github/i);
+    expect(href, 'no installer link before approval').not.toMatch(/\/downloads\/windows\//);
+    expect(href, 'no direct installer file').not.toMatch(/\.(exe|msi|zip)(?:$|\?)/i);
+  }
+  const heading = await page.locator('h1').first().innerText();
+  expect(heading).not.toMatch(/\d/);
+  // The mirror path is served by the file server, never by Nuxt.
+  const mirror = await page.request.get('/downloads/windows/latest', { maxRedirects: 0 });
+  expect(mirror.status()).toBe(404);
 });

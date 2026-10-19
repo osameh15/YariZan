@@ -38,6 +38,7 @@ export const brochurePages = [
   /^\/products$/,
   /^\/products\/grade-[1-6]$/,
   /^\/support$/,
+  /^\/download$/,
   /^\/legal$/,
   /^\/legal\/(?:privacy|terms|refund|delivery|disputes|merchant-info)$/,
 ];

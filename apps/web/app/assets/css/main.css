@@ -1946,3 +1946,42 @@ textarea[aria-invalid='true'] {
   padding: 0;
   list-style: none;
 }
+
+.download-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px 24px;
+  margin: 0 0 18px;
+}
+.download-facts dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.download-facts dd {
+  margin: 0;
+  font-weight: 700;
+}
+.download-facts .download-hash {
+  grid-column: 1 / -1;
+}
+.download-facts .mono {
+  word-break: break-all;
+  font-size: 12px;
+}
+.support-grid > .panel {
+  min-width: 0;
+}
+.code-block {
+  max-width: 100%;
+  direction: ltr;
+  text-align: left;
+  overflow-x: auto;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #f5efdf;
+  font-family: monospace;
+  font-size: 13px;
+}
+.release-history {
+  padding-inline-start: 18px;
+}
