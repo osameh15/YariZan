@@ -136,16 +136,64 @@ test("every pattern is one-argument and stays unconfirmed until the exact text i
   ]) {
     assert.equal(t!.variables.length, 1, t!.bodyId);
     assert.equal(t!.textConfirmed, false, t!.bodyId);
-    // Known transcriptions carry exactly one {0}; the two new patterns are not transcribed yet.
-    if (t!.providerText)
-      assert.equal(t!.providerText.split("{0}").length - 1, 1, t!.bodyId);
+    // Every pattern carries exactly one {0} and a recorded transcription.
+    assert.equal(t!.providerText.split("{0}").length - 1, 1, t!.bodyId);
+    assert.ok(t!.providerText.startsWith("یاریزان: "), t!.bodyId);
   }
-  for (const t of [
-    OTP_TEMPLATES.CLAIM,
-    OTP_TEMPLATES.LOGIN,
-    OTP_TEMPLATES.RESET,
-  ])
-    assert.match(t!.providerText, /۳ دقیقه/);
+  // Every OTP pattern promises exactly the backend lifetime (three minutes = 180 seconds).
+  for (const t of Object.values(OTP_TEMPLATES)) {
+    assert.match(t!.providerText, /۳ دقیقه/, t!.bodyId);
+    assert.equal(t!.providerValiditySeconds, OTP_VALIDITY_SECONDS, t!.bodyId);
+  }
+});
+
+test("owner attestation is recorded as such and can never silently become a live confirmation", () => {
+  const all = [
+    ...new Set([
+      ...Object.values(OTP_TEMPLATES),
+      ...Object.values(NOTICE_TEMPLATES),
+    ]),
+  ];
+  assert.equal(all.length, 7, "seven distinct patterns");
+  for (const t of all) {
+    // A direct panel verification is the only thing that may confirm text for live sending.
+    assert.equal(t!.verification, "OWNER_ATTESTED", t!.bodyId);
+    if (t!.textConfirmed)
+      assert.equal(t!.verification, "PANEL_VERIFIED", t!.bodyId);
+  }
+});
+
+test("the seven approved Body IDs, purposes and exact transcriptions are registered", () => {
+  const exact: [string, string][] = [
+    [
+      "562281",
+      "یاریزان: کد تایید ورود به پنل مدیریت شما: {0} اعتبار: ۳ دقیقه. این کد محرمانه است و نباید در اختیار دیگران قرار بگیرد.",
+    ],
+    [
+      "562280",
+      "یاریزان: کد تایید تغییر رمز عبور شما: {0} اعتبار: ۳ دقیقه. این کد را در اختیار دیگران قرار ندهید.",
+    ],
+    [
+      "559424",
+      "یاریزان: کد تایید شماره موبایل شما: {0} اعتبار کد: ۳ دقیقه این کد محرمانه است.",
+    ],
+    [
+      "559422",
+      "یاریزان: کد ورود شما: {0} اعتبار کد: ۳ دقیقه این کد را در اختیار دیگران قرار ندهید.",
+    ],
+    [
+      "559372",
+      "یاریزان: کد بازیابی رمز عبور شما: {0} است. اعتبار: ۳ دقیقه. این کد را در اختیار دیگران قرار ندهید.",
+    ],
+  ];
+  const byId = new Map(
+    [...Object.values(OTP_TEMPLATES), ...Object.values(NOTICE_TEMPLATES)].map(
+      (t) => [t!.bodyId, t!.providerText],
+    ),
+  );
+  for (const [id, text] of exact) assert.equal(byId.get(id), text, id);
+  assert.match(byId.get("559421")!, /تاریخ \{0\} تغییر کرد/);
+  assert.match(byId.get("559397")!, /سفارش شماره \{0\} با موفقیت پرداخت شد/);
 });
 
 test("pending templates cannot be rendered for live sending", () => {
@@ -170,6 +218,7 @@ test("invalid Body IDs and missing templates fail closed", () => {
         renderSms(
           {
             bodyId,
+            verification: "PANEL_VERIFIED" as const,
             variables: ["code"],
             providerText: "",
             textConfirmed: true,

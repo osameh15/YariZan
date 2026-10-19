@@ -3,10 +3,12 @@ import { ApiError } from "../common/errors";
 /**
  * Purpose-aware MeliPayamak pattern registry.
  *
- * Body IDs come from the owner's MeliPayamak panel. The panel confirmed the ID and purpose of
- * each pattern; the pattern text (variable count and order) has not been verified against the
- * panel. Every entry therefore carries `textConfirmed: false`, and the live provider refuses to
- * send an unconfirmed template. Flip a flag only in a reviewed change that cites the panel text.
+ * Body IDs and texts come from the owner's MeliPayamak panel screenshot, and the owner has since
+ * attested that all seven patterns are approved by the provider. That attestation is recorded as
+ * `verification: "OWNER_ATTESTED"`; it is not a fresh check of the live panel. Every entry keeps
+ * `textConfirmed: false`, and the live provider refuses to send an unconfirmed template. A flag may
+ * only become true together with `verification: "PANEL_VERIFIED"`, in a reviewed change that cites
+ * a direct panel check showing that neither the Body ID nor the wording changed.
  */
 export type OtpPurpose =
   | "CLAIM"
@@ -22,8 +24,11 @@ export type SmsEvent = OtpPurpose | NoticeEvent;
 /** Authoritative OTP lifetime. Provider OTP texts must state the same (three minutes). */
 export const OTP_VALIDITY_SECONDS = 180;
 
+export type TemplateVerification = "OWNER_ATTESTED" | "PANEL_VERIFIED";
 export interface SmsTemplate {
   bodyId: string;
+  /** Who vouches for the text: the owner's attestation, or a direct panel check. */
+  verification: TemplateVerification;
   /** Ordered pattern variables; the provider joins them with ";". */
   variables: readonly string[];
   /** Owner transcription of the panel text, kept as review evidence. */
@@ -34,10 +39,12 @@ export interface SmsTemplate {
   textConfirmed: boolean;
 }
 
-// Provider texts below are the owner's earlier transcription with the validity changed to three
-// minutes as the owner stated; the exact approved wording still has to be checked in the panel.
+// Provider texts below are the owner's transcriptions of the panel screenshot (three-minute
+// validity for every OTP pattern). They are evidence for review, not proof that the live panel
+// still shows the same text.
 export const MOBILE_VERIFICATION: SmsTemplate = {
   bodyId: "559424",
+  verification: "OWNER_ATTESTED",
   variables: ["code"],
   providerText:
     "یاریزان: کد تایید شماره موبایل شما: {0} اعتبار کد: ۳ دقیقه این کد محرمانه است.",
@@ -46,6 +53,7 @@ export const MOBILE_VERIFICATION: SmsTemplate = {
 };
 export const ACCOUNT_LOGIN: SmsTemplate = {
   bodyId: "559422",
+  verification: "OWNER_ATTESTED",
   variables: ["code"],
   providerText:
     "یاریزان: کد ورود شما: {0} اعتبار کد: ۳ دقیقه این کد را در اختیار دیگران قرار ندهید.",
@@ -54,6 +62,7 @@ export const ACCOUNT_LOGIN: SmsTemplate = {
 };
 export const PASSWORD_RECOVERY: SmsTemplate = {
   bodyId: "559372",
+  verification: "OWNER_ATTESTED",
   variables: ["code"],
   providerText:
     "یاریزان: کد بازیابی رمز عبور شما: {0} است. اعتبار: ۳ دقیقه. این کد را در اختیار دیگران قرار ندهید.",
@@ -62,20 +71,25 @@ export const PASSWORD_RECOVERY: SmsTemplate = {
 };
 export const ADMIN_MFA: SmsTemplate = {
   bodyId: "562281",
+  verification: "OWNER_ATTESTED",
   variables: ["code"],
-  providerText: "", // Text not transcribed yet; the owner states one {0} and three-minute validity.
+  providerText:
+    "یاریزان: کد تایید ورود به پنل مدیریت شما: {0} اعتبار: ۳ دقیقه. این کد محرمانه است و نباید در اختیار دیگران قرار بگیرد.",
   providerValiditySeconds: OTP_VALIDITY_SECONDS,
   textConfirmed: false,
 };
 export const PASSWORD_CHANGE_VERIFICATION: SmsTemplate = {
   bodyId: "562280",
+  verification: "OWNER_ATTESTED",
   variables: ["code"],
-  providerText: "", // Text not transcribed yet; the owner states one {0} and three-minute validity.
+  providerText:
+    "یاریزان: کد تایید تغییر رمز عبور شما: {0} اعتبار: ۳ دقیقه. این کد را در اختیار دیگران قرار ندهید.",
   providerValiditySeconds: OTP_VALIDITY_SECONDS,
   textConfirmed: false,
 };
 export const PASSWORD_CHANGE_NOTICE: SmsTemplate = {
   bodyId: "559421",
+  verification: "OWNER_ATTESTED",
   variables: ["date"],
   providerText:
     "یاریزان: رمز عبور حساب شما در تاریخ {0} تغییر کرد. اگر این تغییر توسط شما انجام نشده است، با پشتیبانی یاریزان تماس بگیرید.",
@@ -83,6 +97,7 @@ export const PASSWORD_CHANGE_NOTICE: SmsTemplate = {
 };
 export const PURCHASE_NOTICE: SmsTemplate = {
   bodyId: "559397",
+  verification: "OWNER_ATTESTED",
   variables: ["order"],
   providerText:
     "یاریزان: سفارش شماره {0} با موفقیت پرداخت شد. برای مشاهده و فعال‌سازی محصول به حساب کاربری خود مراجعه کنید.",
