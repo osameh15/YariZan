@@ -111,7 +111,7 @@ test('public pages render in Persian RTL with no API, console errors or broken l
     expect(response?.status(), url).toBe(200);
     await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await expect(page.getByRole('note')).toContainText(
+    await expect(page.locator('.brochure-notice[role="note"]')).toContainText(
       storefront ? 'قیمت‌ها رسمی و به تومان است' : 'مرحلهٔ معرفی',
     );
     const hrefs = await page
