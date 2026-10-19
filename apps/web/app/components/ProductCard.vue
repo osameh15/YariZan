@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { PublicProduct } from '#shared/catalog-snapshot';
-import { gradeNames, toman, availability } from '#shared/domain';
+import { gradeNames, availability } from '#shared/domain';
+import PriceBlock from './PriceBlock.vue';
 // publicOnly: rendered by the public storefront/brochure, where nothing can be bought yet.
 defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
 </script>
@@ -32,10 +33,10 @@ defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
       </h3>
       <p>یک دنیای مستقل، برای یک پایهٔ تازه.</p>
       <div class="card-bottom">
-        <span v-if="product.price_irr === null" class="price"
-          ><small>قیمت هنگام آغاز فروش اعلام می‌شود</small></span
-        ><span v-else class="price">{{ toman(product.price_irr) }} <small>تومان</small></span
-        ><NuxtLink
+        <PriceBlock
+          :list="product.price_irr"
+          :promotion="product.publication_status === 'coming_soon' ? null : product.promotion"
+        /><NuxtLink
           class="round-link"
           :to="`/products/grade-${product.grade}`"
           :aria-label="`آشنایی با پایهٔ ${gradeNames[product.grade - 1]}`"

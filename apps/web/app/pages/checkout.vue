@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { persianDigits } from '#shared/digits';
 import { errorMessage, toman } from '#shared/domain';
+import { endsLabel } from '#shared/promotion';
 import type { ApiResult } from '#shared/api';
 const api = useApi(),
   route = useRoute(),
@@ -112,11 +113,14 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
             <h2 id="coupon-title">کد تخفیف دارید؟</h2>
             <span class="muted">اختیاری</span>
           </header>
+          <p v-if="quote?.promotion" class="notice" role="status" data-testid="promotion-no-coupon">
+            این پایه با قیمت ویژه عرضه می‌شود؛ کد تخفیف روی قیمت ویژه قابل استفاده نیست.
+          </p>
           <FormShell class="coupon-form" @submit="load">
             <label
               >کد تخفیف<input
                 v-model="coupon"
-                :disabled="creating"
+                :disabled="creating || !!quote?.promotion"
                 dir="ltr"
                 maxlength="64"
                 pattern="[A-Za-z0-9_-]*"
@@ -124,7 +128,7 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
                 autocomplete="off"
                 placeholder="YARIZAN"
             /></label>
-            <button class="button secondary" :disabled="busy">
+            <button class="button secondary" :disabled="busy || !!quote?.promotion">
               {{ busy ? 'در حال بررسی…' : 'بررسی کد تخفیف' }}
             </button>
           </FormShell>
@@ -174,12 +178,28 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
         <template v-if="quote">
           <dl class="commerce-totals">
             <div>
-              <dt>قیمت پایه</dt>
-              <dd>{{ toman(quote.subtotal_irr) }} تومان</dd>
+              <dt>{{ quote.promotion ? 'قیمت اصلی' : 'قیمت پایه' }}</dt>
+              <dd>
+                <s v-if="quote.promotion">{{ toman(quote.subtotal_irr) }} تومان</s
+                ><template v-else>{{ toman(quote.subtotal_irr) }} تومان</template>
+              </dd>
             </div>
-            <div :class="{ 'discount-applied': quote.discount_irr > 0 }">
-              <dt>تخفیف</dt>
+            <div
+              :class="{ 'discount-applied': quote.discount_irr > 0 }"
+              :data-testid="quote.promotion ? 'promotion-discount' : undefined"
+            >
+              <dt>
+                {{
+                  quote.promotion
+                    ? 'تخفیف قیمت ویژه (' + persianDigits(quote.promotion.discount_percent) + '٪)'
+                    : 'تخفیف'
+                }}
+              </dt>
               <dd>{{ toman(quote.discount_irr) }} تومان</dd>
+            </div>
+            <div v-if="quote.promotion" class="promo-ends-row">
+              <dt>پایان قیمت ویژه</dt>
+              <dd>{{ endsLabel(quote.promotion.ends_at) }}</dd>
             </div>
             <div class="payable-total">
               <dt>مبلغ قابل پرداخت</dt>

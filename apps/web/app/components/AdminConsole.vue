@@ -5,6 +5,18 @@ import type { ApiPath } from '#shared/api';
 type Row = Record<string, unknown>;
 let alive = true;
 const noticeSuccess = ref(false);
+const promoOpen = ref(false),
+  promoRow = ref<Record<string, unknown>>({});
+function openPromotions(row: Record<string, unknown>) {
+  promoRow.value = row;
+  promoOpen.value = true;
+}
+const promotionStatus: Record<string, string> = {
+  SCHEDULED: 'قیمت ویژه زمان‌بندی‌شده',
+  ACTIVE: 'قیمت ویژه فعال',
+  EXPIRED: 'قیمت ویژهٔ پایان‌یافته',
+  DISABLED: 'قیمت ویژهٔ غیرفعال',
+};
 const notesOpen = ref(false),
   noteRow = ref<Record<string, unknown>>({}),
   noteText = ref(''),
@@ -464,7 +476,17 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                 <td>
                   <template v-if="section === 'products'"
                     ><b>{{ toman(Number(row.price_irr)) }} تومان</b
-                    ><small>{{ state(row.publication_status) }}</small></template
+                    ><small>{{ state(row.publication_status) }}</small
+                    ><small
+                      v-if="row.promotion"
+                      :data-testid="
+                        'row-promotion-' + String((row.promotion as Row).status).toLowerCase()
+                      "
+                      >{{ promotionStatus[String((row.promotion as Row).status)] }}:
+                      {{ toman(Number((row.promotion as Row).promo_price_irr)) }} تومان ({{
+                        persianDigits((row.promotion as Row).discount_percent)
+                      }}٪)</small
+                    ></template
                   ><template v-else-if="section === 'audit'"
                     ><b dir="ltr">{{ row.action }}</b
                     ><small>{{ row.actor_type }}</small></template
@@ -542,6 +564,13 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                       @click="open('product', row)"
                     >
                       ویرایش محصول</button
+                    ><button
+                      v-if="section === 'products' && allowed('products.manage')"
+                      class="button secondary"
+                      data-testid="open-promotions"
+                      @click="openPromotions(row)"
+                    >
+                      قیمت ویژه و تخفیف محصول</button
                     ><template v-if="section === 'customers' && row.state === 'ACTIVE'"
                       ><button
                         v-if="allowed('customers.reset')"
@@ -642,7 +671,18 @@ const navigationGroups: { title: string; ids: string[] }[] = [
         </div></template
       >
     </div>
-    <BaseDialog v-model="notesOpen" title="یادداشت داخلی"
+    <BaseDialog v-model="promoOpen" title="قیمت ویژه و تخفیف محصول"
+      ><PromotionEditor
+        v-if="promoOpen"
+        :key="String(promoRow.sku)"
+        :sku="String(promoRow.sku)"
+        :title="String(promoRow.title_fa)"
+        :grade="Number(promoRow.grade)"
+        :list-price-irr="Number(promoRow.price_irr)"
+        :product-revision="Number(promoRow.revision)"
+        :published="promoRow.publication_status === 'published'"
+        @changed="load" /></BaseDialog
+    ><BaseDialog v-model="notesOpen" title="یادداشت داخلی"
       ><FormShell @submit="saveNote"
         ><p class="mono" dir="ltr">{{ noteId(noteRow) }}</p>
         <p class="muted">

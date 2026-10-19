@@ -30,6 +30,11 @@ export const browserRoutes = [
   ['GET', /^admin\/auth\/session$/],
   ['GET', /^admin\/(?:customers|devices|licenses|trials|activation-codes|products|audit|reports)$/],
   ['PATCH', /^admin\/products\/YARIZAN-G[1-6]$/],
+  // Product promotions: list and create per product, update and deactivate/restore by id.
+  ['GET', /^admin\/products\/YARIZAN-G[1-6]\/promotions$/],
+  ['POST', /^admin\/products\/YARIZAN-G[1-6]\/promotions$/],
+  ['PATCH', /^admin\/promotions\/[0-9a-f-]{36}$/],
+  ['POST', /^admin\/promotions\/[0-9a-f-]{36}\/(?:deactivate|restore)$/],
   [
     'POST',
     /^admin\/(?:customers\/[0-9a-f-]{36}\/(?:reset|password-reset)|devices\/[0-9a-f-]{36}\/products\/YARIZAN-G[1-6]\/(?:block|unblock)|trials\/[0-9a-f-]{36}\/YARIZAN-G[1-6]\/reset|licenses(?:\/issue|\/[0-9a-f-]{36}\/(?:revoke|reissue))|activation-codes(?:\/[0-9a-f-]{36}\/cancel)?)$/,

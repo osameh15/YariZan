@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ApiResult } from '#shared/api';
-import { gradeNames, toman, availability } from '#shared/domain';
+import { gradeNames, availability } from '#shared/domain';
+import PriceBlock from '~/components/PriceBlock.vue';
 const route = useRoute(),
   match = /^(?:grade-|yarizan-g)([1-6])$/.exec(String(route.params.slug));
 if (!match) throw createError({ statusCode: 404, statusMessage: 'محصول پیدا نشد' });
@@ -50,10 +51,13 @@ const commerce = publicOnly.value
             همراهی فارسی برای تجربه‌های آموزشی کودک، در برنامهٔ ویندوز یاریزان. جزئیات محتوای هر
             نسخه هنگام عرضه اعلام می‌شود.
           </p>
-          <div v-if="product.price_irr === null" class="detail-price">
-            <small>قیمت هنگام آغاز فروش اعلام می‌شود</small>
+          <div class="detail-price">
+            <PriceBlock
+              :list="product.price_irr"
+              :promotion="product.publication_status === 'coming_soon' ? null : product.promotion"
+              detail
+            />
           </div>
-          <div v-else class="detail-price">{{ toman(product.price_irr) }} <small>تومان</small></div>
           <p v-if="product.publication_status === 'coming_soon'" class="notice">
             این پایه هنوز عرضه نشده است. فروش و فعال‌سازی آن در دسترس نیست.
           </p>
