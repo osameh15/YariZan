@@ -26,6 +26,7 @@ import { Licenses } from "./licenses/licenses";
 import { Activation } from "./activation/activation";
 import { Notes } from "./admin/notes";
 import { Admin } from "./admin/admin";
+import { AdminEnrollment } from "./admin/enrollment";
 import {
   AccountsController,
   AdminController,
@@ -91,8 +92,8 @@ class ActivationModule {}
 class DesktopModule {}
 @Module({
   imports: [LicensesModule, ActivationModule, AccountsModule],
-  providers: [Admin, Notes],
-  exports: [Admin],
+  providers: [Admin, Notes, AdminEnrollment],
+  exports: [Admin, AdminEnrollment],
   controllers: [AdminController],
 })
 class AdminModule {}
