@@ -1,0 +1,88 @@
+# Isolated MeliPayamak Admin SMS MFA test stack. Local workstation only; never deployed.
+#
+#   harness --(internal network)--> relay:443 --(egress network)--> console.melipayamak.com:443
+#   harness --(internal network)--> db:5432      (disposable, in-memory data, destroyed afterwards)
+#
+# - No published ports. The harness serves its own API only on 127.0.0.1 inside its container.
+# - The only container that can leave the host is the relay, and it forwards one hostname on 443.
+# - The harness and the database are on an `internal` network: no route to the internet at all.
+# - Throw-away keys are generated inside the harness; no production secret is involved.
+# - The API token and the two recipient numbers are typed into the harness terminal (hidden), live in
+#   memory only, and never appear in this file, the environment, an argument, a log or the evidence.
+# Run (see README.md):  docker compose -f tools/sms-test/compose.yaml run --rm harness
+name: yarizan-sms-test
+
+services:
+  db:
+    image: public.ecr.aws/docker/library/postgres:17-alpine
+    environment:
+      POSTGRES_USER: yarizan
+      POSTGRES_PASSWORD: disposable-local-only
+      POSTGRES_DB: yarizan_sms_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yarizan -d yarizan_sms_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    mem_limit: 256m
+    networks: [internal]
+
+  relay:
+    image: public.ecr.aws/docker/library/nginx:1.28-alpine@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236
+    read_only: true
+    user: "101:101"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    entrypoint: ["nginx", "-g", "daemon off;", "-c", "/etc/nginx/relay.conf"]
+    volumes:
+      - ./relay.conf:/etc/nginx/relay.conf:ro
+    tmpfs:
+      - /tmp:size=4m,uid=101,gid=101,mode=0700
+      - /var/cache/nginx:size=4m,uid=101,gid=101,mode=0700
+    mem_limit: 64m
+    pids_limit: 32
+    networks:
+      internal:
+        ipv4_address: 172.30.85.2
+      egress: {}
+
+  harness:
+    build:
+      context: ../../backend
+      target: development
+    depends_on:
+      db: { condition: service_healthy }
+      relay: { condition: service_started }
+    entrypoint: ["node", "/harness/harness.mjs"]
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      DATABASE_URL: postgresql://yarizan:disposable-local-only@db:5432/yarizan_sms_test
+      EVIDENCE_DIR: /evidence
+      BACKEND_ROOT: /app
+    extra_hosts:
+      - "console.melipayamak.com:172.30.85.2"
+    volumes:
+      - ./harness.mjs:/harness/harness.mjs:ro
+      - ./evidence:/evidence
+    tmpfs:
+      - /tmp:size=16m,uid=1000,gid=1000,mode=0700
+      - /app/.local:size=8m,uid=1000,gid=1000,mode=0700
+    mem_limit: 512m
+    networks: [internal]
+
+networks:
+  internal:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.85.0/28
+  egress: {}
