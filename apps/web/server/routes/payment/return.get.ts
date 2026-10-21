@@ -1,13 +1,11 @@
 import { defineEventHandler, getQuery, sendRedirect, setHeader, createError } from 'h3';
 import { backendBase } from '#shared/proxy-policy';
+import { paymentReturnAuthority } from '#shared/payment-return';
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store');
   const q = getQuery(event),
     config = useRuntimeConfig(event);
-  if (
-    typeof q.Authority !== 'string' ||
-    !/^(?:FAKE-[0-9a-f-]{36}|A[A-Za-z0-9]{32})$/.test(q.Authority)
-  )
+  if (typeof q.Authority !== 'string' || !paymentReturnAuthority.test(q.Authority))
     throw createError({ statusCode: 400 });
   const target = new URL('payments/zarinpal/return', backendBase(config.apiBase));
   target.searchParams.set('Authority', q.Authority);

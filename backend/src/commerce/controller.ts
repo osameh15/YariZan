@@ -9,6 +9,7 @@ import {
   Req,
 } from "@nestjs/common";
 import { Request } from "express";
+import { PAYMENT_RETURN_AUTHORITY } from "./gateway";
 import { z } from "zod";
 import { Orders } from "./orders";
 import { Payments } from "./payments";
@@ -118,9 +119,7 @@ export class CommerceController {
     );
     const q = z
       .object({
-        Authority: z
-          .string()
-          .regex(/^(?:FAKE-[0-9a-f-]{36}|[AS][A-Za-z0-9]{32,40})$/),
+        Authority: z.string().regex(PAYMENT_RETURN_AUTHORITY),
         Status: z.string().max(20).optional(),
       })
       .parse(query);

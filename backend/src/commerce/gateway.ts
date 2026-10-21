@@ -9,6 +9,11 @@ import { z } from "zod";
 export const ZARINPAL_AUTHORITY = /^A[A-Za-z0-9]{32,40}$/;
 // The official sandbox issues authorities that start with "S" instead of "A".
 export const ZARINPAL_SANDBOX_AUTHORITY = /^S[A-Za-z0-9]{32,40}$/;
+// The browser return route accepts exactly the authorities a provider environment can issue (fake test
+// authority, production "A...", sandbox "S..."), strictly alphanumeric so nothing can alter a URL. The
+// web return handler (apps/web/shared/payment-return.ts) must stay identical; a unit test compares them.
+export const PAYMENT_RETURN_AUTHORITY =
+  /^(?:FAKE-[0-9a-f-]{36}|[AS][A-Za-z0-9]{32,40})$/;
 export type ZarinPalEnvironment = "production" | "sandbox";
 const ZARINPAL_HOSTS: Record<ZarinPalEnvironment, string> = {
   production: "https://payment.zarinpal.com",
