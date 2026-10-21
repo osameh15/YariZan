@@ -5196,6 +5196,8 @@ type SandboxPayment = {
   merchant: string;
   verifiedOnce: boolean;
   preVerified: boolean;
+  /** Unique per payment: a provider never reuses a reference across payments. */
+  ref: number;
 };
 async function sandboxServer() {
   const { createServer } = await import("node:http");
@@ -5230,6 +5232,7 @@ async function sandboxServer() {
           merchant: String(body.merchant_id),
           verifiedOnce: false,
           preVerified: false,
+          ref: 700000 + payments.size,
         });
         return reply(200, {
           data: {
@@ -5258,7 +5261,7 @@ async function sandboxServer() {
           data: {
             code: already ? 101 : 100,
             message: already ? "Verified" : "Paid",
-            ref_id: 700000 + payments.size,
+            ref_id: p.ref,
             card_pan: "603799******9999",
             fee: 0,
           },
@@ -5289,9 +5292,27 @@ async function sandboxServer() {
 // Worker passes race with CI timing: keep recovering until the order settles (bounded).
 async function settle(e: Awaited<ReturnType<typeof buyer>>, id: string) {
   let order = (await ok<SaleOrder>(`/orders/${id}`, undefined, e.browser)).body;
-  for (let n = 0; n < 8 && order.state !== "FULFILLED"; n++) {
+  for (let n = 0; n < 25 && order.state !== "FULFILLED"; n++) {
     await recoverCommerce();
+    await new Promise((resolve) => setTimeout(resolve, 150));
     order = (await ok<SaleOrder>(`/orders/${id}`, undefined, e.browser)).body;
+  }
+  if (order.state !== "FULFILLED") {
+    // Diagnostics for a stuck order: job states and the exception code (no secrets involved).
+    const jobs = (
+      await db.query(
+        "SELECT kind,state,attempts,last_error,lease_until>now() AS leased,due_at<=now() AS due FROM commerce_jobs WHERE order_id=$1 ORDER BY created_at",
+        [id],
+      )
+    ).rows;
+    assert.fail(
+      "order did not settle: " +
+        JSON.stringify({
+          state: order.state,
+          exception: order.exception_code,
+          jobs,
+        }),
+    );
   }
   return order;
 }
