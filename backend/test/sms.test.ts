@@ -207,13 +207,13 @@ test("Shared API: a transport error carrying the URL never leaks the token, numb
     assert.equal(everything.includes(secret), false, secret);
 });
 
-test("Shared API: pending (unconfirmed) templates never reach the network", async () => {
+test("Shared API: pending (unconfirmed) templates never reach the network; verified Admin MFA does", async () => {
   let calls = 0;
   const p = new MeliPayamakSharedProvider(TOKEN, async () => {
     calls++;
     return accepted();
   });
-  for (const purpose of ["LOGIN", "ADMIN", "PASSWORD", "RESET"] as const)
+  for (const purpose of ["LOGIN", "PASSWORD", "RESET"] as const)
     await assert.rejects(p.send({ ...message, purpose }), unavailable);
   await assert.rejects(
     p.notify({
@@ -224,6 +224,8 @@ test("Shared API: pending (unconfirmed) templates never reach the network", asyn
     unavailable,
   );
   assert.equal(calls, 0);
+  await p.send({ ...message, purpose: "ADMIN" });
+  assert.equal(calls, 1);
 });
 
 test("Shared API: an invalid token is refused at construction, before any request", () => {

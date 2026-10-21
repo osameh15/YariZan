@@ -1,0 +1,95 @@
+{
+  "harness": "yarizan-admin-sms-mfa-v1",
+  "mode": "live",
+  "started_at": "2026-10-21T20:35:52.223Z",
+  "pattern_body_id": 562281,
+  "owner_panel_check": {
+    "confirmed": true,
+    "at": "2026-10-21T20:35:56.138Z"
+  },
+  "provider": {
+    "calls": 2,
+    "responses": [
+      {
+        "http_status": 200,
+        "status_value": "عملیات موفق",
+        "status_type": "string",
+        "recId_type": "number",
+        "recId_digits": 19,
+        "keys": [
+          "recId",
+          "status"
+        ]
+      },
+      {
+        "http_status": 200,
+        "status_value": "عملیات موفق",
+        "status_type": "string",
+        "recId_type": "number",
+        "recId_digits": 19,
+        "keys": [
+          "recId",
+          "status"
+        ]
+      }
+    ],
+    "reachable": true
+  },
+  "recipients": {
+    "A": {
+      "sends": 1,
+      "request_status": 201,
+      "expires_in": 180,
+      "provider_accepted": true,
+      "sessions_before_proof": 0,
+      "second_request": {
+        "status": 429,
+        "error": "RATE_LIMITED"
+      },
+      "sends_after_second_request": 1,
+      "wrong_code": {
+        "status": 401,
+        "error": "OTP_INVALID"
+      },
+      "sessions_after_wrong_code": 0,
+      "handset_received": true,
+      "seconds_from_request_to_code": 17,
+      "right_code": {
+        "status": 201,
+        "session_cookie_set": true
+      },
+      "sessions_after_right_code": 1,
+      "replay": {
+        "status": 401,
+        "error": "OTP_INVALID"
+      },
+      "sessions_after_replay": 1
+    },
+    "B": {
+      "sends": 1,
+      "request_status": 201,
+      "expires_in": 180,
+      "provider_accepted": true,
+      "lifetime_seconds": 180,
+      "handset_received": true,
+      "late_code": {
+        "status": 401,
+        "error": "OTP_INVALID"
+      },
+      "sessions_total": 1
+    }
+  },
+  "summary": {
+    "total_chargeable_sends": 2,
+    "provider_calls": 2,
+    "admin_mfa_success": true,
+    "wrong_code_rejected": true,
+    "replay_rejected": true,
+    "throttled_without_send": true,
+    "expiry_rejected": true,
+    "lifetime_exactly_180": true,
+    "no_session_before_proof": true,
+    "all_checks_passed": true
+  },
+  "finished_at": "2026-10-21T20:39:43.281Z"
+}

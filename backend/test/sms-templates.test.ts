@@ -129,13 +129,17 @@ test("a template promising another lifetime is never production-ready", () => {
   );
 });
 
-test("every pattern is one-argument and stays unconfirmed until the exact text is verified", () => {
+test("every pattern is one-argument; only a directly panel-verified pattern is confirmed for live sending", () => {
   for (const t of [
     ...Object.values(OTP_TEMPLATES),
     ...Object.values(NOTICE_TEMPLATES),
   ]) {
     assert.equal(t!.variables.length, 1, t!.bodyId);
-    assert.equal(t!.textConfirmed, false, t!.bodyId);
+    assert.equal(
+      t!.textConfirmed,
+      t!.bodyId === "562281",
+      t!.bodyId + ": only Admin MFA has a direct panel verification so far",
+    );
     // Every pattern carries exactly one {0} and a recorded transcription.
     assert.equal(t!.providerText.split("{0}").length - 1, 1, t!.bodyId);
     assert.ok(t!.providerText.startsWith("یاریزان: "), t!.bodyId);
@@ -157,7 +161,11 @@ test("owner attestation is recorded as such and can never silently become a live
   assert.equal(all.length, 7, "seven distinct patterns");
   for (const t of all) {
     // A direct panel verification is the only thing that may confirm text for live sending.
-    assert.equal(t!.verification, "OWNER_ATTESTED", t!.bodyId);
+    assert.equal(
+      t!.verification,
+      t!.bodyId === "562281" ? "PANEL_VERIFIED" : "OWNER_ATTESTED",
+      t!.bodyId,
+    );
     if (t!.textConfirmed)
       assert.equal(t!.verification, "PANEL_VERIFIED", t!.bodyId);
   }
@@ -196,9 +204,13 @@ test("the seven approved Body IDs, purposes and exact transcriptions are registe
   assert.match(byId.get("559397")!, /سفارش شماره \{0\} با موفقیت پرداخت شد/);
 });
 
-test("pending templates cannot be rendered for live sending", () => {
-  for (const p of ["CLAIM", "LOGIN", "RESET", "PASSWORD", "ADMIN"] as const)
+test("pending templates cannot be rendered for live sending; the verified Admin MFA can", () => {
+  for (const p of ["CLAIM", "LOGIN", "RESET", "PASSWORD"] as const)
     assert.throws(() => renderOtp(p, "123456", strict), unavailable, p);
+  assert.deepEqual(renderOtp("ADMIN", "123456", strict), {
+    bodyId: 562281,
+    args: ["123456"],
+  });
   for (const t of Object.values(NOTICE_TEMPLATES))
     assert.throws(
       () =>
