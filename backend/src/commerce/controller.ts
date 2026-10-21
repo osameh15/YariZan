@@ -120,7 +120,7 @@ export class CommerceController {
       .object({
         Authority: z
           .string()
-          .regex(/^(?:FAKE-[0-9a-f-]{36}|A[A-Za-z0-9]{32,40})$/),
+          .regex(/^(?:FAKE-[0-9a-f-]{36}|[AS][A-Za-z0-9]{32,40})$/),
         Status: z.string().max(20).optional(),
       })
       .parse(query);

@@ -40,9 +40,27 @@ export interface PaymentGateway {
   ): Promise<{ authority: string; redirect_url: string }>;
   verify(request: PaymentRequest): Promise<PaymentResult>;
   query(request: PaymentRequest): Promise<PaymentResult>;
+  /**
+   * Whether a freshly created authority and redirect are exactly what this provider issues. The
+   * caller refuses (and records an ambiguous creation) otherwise, so a malformed or foreign redirect
+   * can never reach a customer. A provider without this check is refused.
+   */
+  acceptCreated(
+    created: { authority: string; redirect_url: string },
+    orderId: string,
+  ): boolean;
 }
 export class FakeZarinPal implements PaymentGateway {
   constructor(private db: Database) {}
+  acceptCreated(
+    created: { authority: string; redirect_url: string },
+    orderId: string,
+  ) {
+    return (
+      /^FAKE-[0-9a-f-]{36}$/.test(created.authority) &&
+      created.redirect_url === "/payment/simulate?order=" + orderId
+    );
+  }
   async create(r: PaymentRequest) {
     const authority = "FAKE-" + r.attempt_id;
     await this.db.query(
@@ -107,6 +125,12 @@ export class ZarinPalAdapter implements PaymentGateway {
   }
   private get host() {
     return ZARINPAL_HOSTS[this.environment];
+  }
+  acceptCreated(created: { authority: string; redirect_url: string }) {
+    return (
+      this.authorityPattern.test(created.authority) &&
+      created.redirect_url === this.host + "/pg/StartPay/" + created.authority
+    );
   }
   private get authorityPattern() {
     return this.environment === "sandbox"
