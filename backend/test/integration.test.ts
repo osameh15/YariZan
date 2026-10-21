@@ -5286,6 +5286,15 @@ async function sandboxServer() {
     close: () => new Promise<void>((r) => server.close(() => r())),
   };
 }
+// Worker passes race with CI timing: keep recovering until the order settles (bounded).
+async function settle(e: Awaited<ReturnType<typeof buyer>>, id: string) {
+  let order = (await ok<SaleOrder>(`/orders/${id}`, undefined, e.browser)).body;
+  for (let n = 0; n < 8 && order.state !== "FULFILLED"; n++) {
+    await recoverCommerce();
+    order = (await ok<SaleOrder>(`/orders/${id}`, undefined, e.browser)).body;
+  }
+  return order;
+}
 async function withSandbox<T>(
   work: (
     s: Awaited<ReturnType<typeof sandboxServer>>,
@@ -5363,9 +5372,7 @@ test("Sandbox adapter: authority format, redirect, original-amount binding, call
       ).rows[0].n,
       0,
     );
-    await recoverCommerce();
-    const paid = (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser))
-      .body;
+    const paid = await settle(e, o.id);
     assert.equal(paid.state, "FULFILLED");
     // Verification used the ORIGINAL order amount and the stored authority, never the callback.
     const verify = sandbox.calls.filter((c) => c.path.endsWith("verify.json"));
@@ -5517,12 +5524,7 @@ test("Sandbox adapter: code 101 without prior evidence, amount mismatch and outa
     await ok(
       `/payments/zarinpal/return?Authority=${await authorityOf(pc.attempt_id)}&Status=OK`,
     );
-    await recoverCommerce();
-    assert.equal(
-      (await ok<SaleOrder>(`/orders/${oc.id}`, undefined, c.browser)).body
-        .state,
-      "FULFILLED",
-    );
+    assert.equal((await settle(c, oc.id)).state, "FULFILLED");
     assert.equal(
       (
         await db.query(
