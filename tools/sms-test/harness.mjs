@@ -116,9 +116,13 @@ const evidence = {
   recipients: {},
   summary: {},
 };
+// The provider's status text (Persian or English words) is not secret and is exactly what is needed to
+// understand a rejection; digits runs long enough to be a number or code are masked.
 const safeStatus = (value) =>
-  typeof value === "string" && /^[A-Za-z0-9 _.\-]{1,64}$/.test(value)
-    ? value
+  typeof value === "string" &&
+  value.length <= 120 &&
+  /^[\p{L}\p{N} _.:,;()\-]+$/u.test(value)
+    ? value.replace(/[0-9]{6,}/g, "[digits]")
     : "[non-simple value]";
 // Records only the SHAPE of a provider response, then hands the untouched response on.
 function recordingTransport(real) {
@@ -135,6 +139,14 @@ function recordingTransport(real) {
       /* non-JSON answer: recorded as such below */
     }
     const rec = body?.recId;
+    if (!fakeCi)
+      say(
+        `Provider answered HTTP ${response.status}` +
+          (body?.status === undefined
+            ? ""
+            : `, status: ${safeStatus(body.status)}`) +
+          (rec === undefined ? ", no recId" : ", recId received"),
+      );
     evidence.provider.responses.push({
       http_status: response.status,
       status_value:
@@ -222,6 +234,12 @@ async function waitDelivered(challengeId) {
       ])
     ).rows[0];
     if (row?.delivered) return true;
+    // A provider refusal is audited at once: stop waiting instead of idling for the full minute.
+    const failed = await db.query(
+      "SELECT 1 FROM audit_logs WHERE action='otp.delivery_unavailable' AND entity_id=$1",
+      [challengeId],
+    );
+    if (failed.rowCount) return false;
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
@@ -302,12 +320,12 @@ try {
   resultA.provider_accepted = delivered;
   resultA.sends = sent;
   resultA.sessions_before_proof = await sessions();
-  if (!fakeCi) {
-    say(
-      delivered
-        ? "The provider accepted request A."
-        : "The provider did NOT accept request A.",
+  if (!fakeCi && !delivered)
+    throw new Error(
+      "The provider did not accept request A (see the provider line above). Nothing more was sent.",
     );
+  if (!fakeCi) {
+    say("The provider accepted request A.");
     resultA.handset_received = await yes(
       "Did recipient A's handset receive the SMS?",
     );
@@ -360,6 +378,10 @@ try {
   if (loginB.status !== 201)
     throw new Error("Admin login request B failed: " + loginB.status);
   resultB.provider_accepted = await waitDelivered(loginB.body.challenge_id);
+  if (!fakeCi && !resultB.provider_accepted)
+    throw new Error(
+      "The provider did not accept request B (see the provider line above). Nothing more was sent.",
+    );
   resultB.sends = sent - resultA.sends_after_second_request;
   resultB.lifetime_seconds = Number(
     (
