@@ -53,7 +53,7 @@ Tests: unit tests for 100, 101, other codes and transport failure; integration t
 | Callback query parameter names (`Authority`, `Status`) | Assumed from the SDK | used only to schedule a verify; confirm in a sandbox or activation test |
 | Provider error codes other than 100 and 101 | **Unmapped** | all treated as `UNKNOWN`; no behaviour depends on them |
 | Inquiry endpoint status vocabulary | **Unresolved** | inquiry exists in the official docs; its status values are not mapped, so inquiry is never used |
-| Sandbox | Adapter supports it, not exercised | the adapter takes an explicit `sandbox` environment (`sandbox.zarinpal.com`, authorities start with `S`, tested offline). No sandbox request has been made; CI uses deterministic mocks |
+| Sandbox | Exercised against a local fake sandbox server | the real adapter, in `sandbox` mode, runs through `Payments` against a local HTTP server that mimics the documented request and verify contract (section 7). No request reached `sandbox.zarinpal.com` and no real money is involved; official sandbox behaviour is still unvalidated until a merchant-capable sandbox run |
 | Refunds and reversals | **Unresolved** | no refund method exists in the adapter; refund needs a reviewed API contract or panel process and explicit order states |
 | Settlement timing and fees | **Unresolved** | merchant-specific; needs the activated account and finance sign-off |
 | Reconciliation | Partial | Admin reconcile route and exceptions exist; no scheduled provider-side reconciliation |
@@ -75,3 +75,21 @@ The public documentation MCP (`https://www.zarinpal.com/docs/mcp`, tools `list_d
 Connection note: Claude Code's MCP client failed with `ECONNRESET` because the workstation HTTP proxy cannot reach `zarinpal.com`; direct requests work (`--noproxy '*'`). This is a workstation setting, not a provider outage. The MCP is documentation-only and must never receive a merchant or access token.
 
 Not consumed: `ZARINPAL_ACCESS_TOKEN`. The documented v4 REST contract used here needs only the merchant ID, so no code reads an access token. Do not keep a credential on the server that nothing uses.
+
+## 7. Adapter and settlement against a local sandbox-shaped server
+
+`PaymentGateway` gains `acceptCreated(created, orderId)`: a provider says exactly which authority and redirect it issues, and `Payments` refuses anything else (fail closed, ambiguous creation). `FakeZarinPal` keeps its `FAKE-` rule; `ZarinPalAdapter` accepts only an authority matching its environment (`A...` production, `S...` sandbox) and the redirect `https://<host>/pg/StartPay/<authority>`. The browser return route now accepts `A` and `S` authorities (still strictly alphanumeric, so nothing can alter a URL).
+
+Integration tests (`backend/test/integration.test.ts`, "Sandbox adapter"; a local HTTP server stands in for the sandbox and the adapter transport rewrites the host to loopback):
+
+| Behaviour | Evidence |
+|---|---|
+| Request contract | exactly the documented fields, IRR, amount equal to the server-computed order total, no client price field |
+| Sandbox authority and redirect | authority matches `^S...`, redirect is the sandbox StartPay URL; `A...`, foreign hosts and the production host are refused |
+| Original-amount binding | every verify call carries the order's stored total and stored authority, never a callback value |
+| Callback | a browser return only schedules verification; no entitlement before verification; an unknown authority is `NOT_FOUND` |
+| Codes 100 and 101 | first verify 100 settles once; duplicate callbacks and workers grant nothing more; 101 with no prior unanswered call is `ALREADY_VERIFIED_UNPROVEN` and captures nothing |
+| Amount mismatch | the provider refusal leaves the attempt unknown and the order pending |
+| Outage and timeout | HTTP 503 answers stay pending; the retry settles exactly once, one fulfillment, one entitlement |
+
+Still unvalidated against the real sandbox: callback query parameter names, non-100/101 code vocabulary, inquiry and refund methods, merchant activation behaviour. `COMMERCE_MODE=zarinpal` remains refused at startup.

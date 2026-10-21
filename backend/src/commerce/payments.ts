@@ -165,8 +165,7 @@ export class Payments
       try {
         const created = await this.orders.gateway.provider.create(attempt);
         requireCondition(
-          /^FAKE-[0-9a-f-]{36}$/.test(created.authority) &&
-            created.redirect_url === "/payment/simulate?order=" + id,
+          this.orders.gateway.provider.acceptCreated(created, id),
           "GATEWAY_REDIRECT_REJECTED",
           503,
         );

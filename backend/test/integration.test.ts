@@ -3917,6 +3917,7 @@ test("Ambiguous create never retries charge creation; durable fake inquiry recov
     },
     query: (r) => prior.query(r),
     verify: (r) => prior.verify(r),
+    acceptCreated: (created, orderId) => prior.acceptCreated(created, orderId),
   };
   const request_id = randomUUID();
   try {
@@ -4342,6 +4343,8 @@ async function scriptedVerification(
   let queue: PaymentResult[] | undefined;
   gateway.provider = {
     create: (r) => original.create(r),
+    acceptCreated: (created, orderId) =>
+      original.acceptCreated(created, orderId),
     verify: (r) => gateway.provider.query(r),
     query: async (r) => {
       queue ??= script(r);
@@ -5182,4 +5185,352 @@ test("Promotion authorization, idempotency and concurrent activation, deactivati
     .sort();
   assert.deepEqual(codes, ["PROMOTION_OVERLAP", "created"]);
   await clearPromotions();
+});
+
+// ---- ZarinPal sandbox contract through the REAL adapter against a local fake sandbox server -------
+// The server mimics the documented v4 request/verify contract (sandbox authorities start with "S",
+// verify answers 100 first and 101 afterwards, an amount that differs from the original is refused).
+// It never contacts the internet; the adapter's transport rewrites the sandbox host to loopback.
+type SandboxPayment = {
+  amount: number;
+  merchant: string;
+  verifiedOnce: boolean;
+  preVerified: boolean;
+};
+async function sandboxServer() {
+  const { createServer } = await import("node:http");
+  const payments = new Map<string, SandboxPayment>();
+  const calls: { path: string; body: Record<string, unknown> }[] = [];
+  const behavior = {
+    verifyFailures: 0,
+    verifyAmountOverride: null as number | null,
+  };
+  const server = createServer((req, res) => {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    req.on("end", () => {
+      const body = JSON.parse(raw || "{}") as Record<string, unknown>;
+      const path = String(req.url);
+      calls.push({ path, body });
+      const reply = (status: number, json: unknown) => {
+        res.writeHead(status, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(json));
+      };
+      if (path === "/pg/v4/payment/request.json") {
+        if (
+          !/^[0-9a-f-]{36}$/.test(String(body.merchant_id)) ||
+          body.currency !== "IRR" ||
+          !Number.isInteger(body.amount) ||
+          Number(body.amount) < 10000
+        )
+          return reply(200, { data: [], errors: { code: -9 } });
+        const authority = "S" + randomBytes(18).toString("hex").slice(0, 35);
+        payments.set(authority, {
+          amount: Number(body.amount),
+          merchant: String(body.merchant_id),
+          verifiedOnce: false,
+          preVerified: false,
+        });
+        return reply(200, {
+          data: {
+            code: 100,
+            message: "Success",
+            authority,
+            fee_type: "Merchant",
+            fee: 0,
+          },
+          errors: [],
+        });
+      }
+      if (path === "/pg/v4/payment/verify.json") {
+        if (behavior.verifyFailures > 0) {
+          behavior.verifyFailures--;
+          return reply(503, { errors: { code: -999 } });
+        }
+        const p = payments.get(String(body.authority));
+        if (!p) return reply(200, { data: [], errors: { code: -54 } });
+        const amount = behavior.verifyAmountOverride ?? Number(body.amount);
+        if (amount !== p.amount || body.merchant_id !== p.merchant)
+          return reply(200, { data: [], errors: { code: -50 } });
+        const already = p.verifiedOnce || p.preVerified;
+        p.verifiedOnce = true;
+        return reply(200, {
+          data: {
+            code: already ? 101 : 100,
+            message: already ? "Verified" : "Paid",
+            ref_id: 700000 + payments.size,
+            card_pan: "603799******9999",
+            fee: 0,
+          },
+          errors: [],
+        });
+      }
+      return reply(404, {});
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+  const port = (server.address() as { port: number }).port;
+  const transport: typeof fetch = (url, init) =>
+    fetch(
+      String(url).replace(
+        "https://sandbox.zarinpal.com",
+        `http://127.0.0.1:${port}`,
+      ),
+      init,
+    );
+  return {
+    payments,
+    calls,
+    behavior,
+    transport,
+    close: () => new Promise<void>((r) => server.close(() => r())),
+  };
+}
+async function withSandbox<T>(
+  work: (
+    s: Awaited<ReturnType<typeof sandboxServer>>,
+    authorityOf: (attempt: string) => Promise<string>,
+  ) => Promise<T>,
+) {
+  const { ZarinPalAdapter } = await import("../src/commerce/gateway");
+  const gateway = app.get(Gateway);
+  const original = gateway.provider;
+  const sandbox = await sandboxServer();
+  gateway.provider = new ZarinPalAdapter(
+    "00000000-0000-4000-8000-0000000000aa",
+    "https://yarizan.example.invalid/payment/return",
+    sandbox.transport,
+    "sandbox",
+  );
+  try {
+    return await work(sandbox, async (attempt) =>
+      String(
+        (
+          await db.query("SELECT authority FROM payment_attempts WHERE id=$1", [
+            attempt,
+          ])
+        ).rows[0].authority,
+      ),
+    );
+  } finally {
+    gateway.provider = original;
+    await sandbox.close();
+  }
+}
+
+test("Sandbox adapter: authority format, redirect, original-amount binding, callback, verify 100 and fulfillment exactly once", async () => {
+  await withSandbox(async (sandbox, authorityOf) => {
+    const e = await buyer(),
+      o = await saleOrder(e),
+      p = await salePayment(e, o);
+    const authority = await authorityOf(p.attempt_id);
+    assert.match(
+      authority,
+      /^S[A-Za-z0-9]{34,40}$/,
+      "sandbox authorities start with S",
+    );
+    assert.equal(
+      p.redirect_url,
+      `https://sandbox.zarinpal.com/pg/StartPay/${authority}`,
+    );
+    const create = sandbox.calls.find((c) => c.path.endsWith("request.json"))!;
+    assert.equal(
+      create.body.amount,
+      o.total_irr,
+      "the amount is the server-computed order total",
+    );
+    assert.equal(create.body.currency, "IRR");
+    assert.ok(!("price" in create.body) && !("total" in create.body));
+    assert.equal(
+      Number(
+        (
+          await db.query(
+            "SELECT amount_irr FROM payment_attempts WHERE id=$1",
+            [p.attempt_id],
+          )
+        ).rows[0].amount_irr,
+      ),
+      o.total_irr,
+    );
+    // No entitlement before verification, whatever the browser says.
+    await ok(`/payments/zarinpal/return?Authority=${authority}&Status=OK`);
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*)::int n FROM order_fulfillments WHERE order_item_id=(SELECT id FROM order_items WHERE order_id=$1)",
+          [o.id],
+        )
+      ).rows[0].n,
+      0,
+    );
+    await recoverCommerce();
+    const paid = (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser))
+      .body;
+    assert.equal(paid.state, "FULFILLED");
+    // Verification used the ORIGINAL order amount and the stored authority, never the callback.
+    const verify = sandbox.calls.filter((c) => c.path.endsWith("verify.json"));
+    assert.ok(verify.length >= 1);
+    for (const v of verify) {
+      assert.equal(v.body.amount, o.total_irr);
+      assert.equal(v.body.authority, authority);
+    }
+    // Duplicate callbacks and extra worker passes grant nothing more.
+    for (let n = 0; n < 3; n++)
+      await ok(`/payments/zarinpal/return?Authority=${authority}&Status=OK`);
+    await recoverCommerce();
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*)::int n FROM order_fulfillments WHERE order_item_id=(SELECT id FROM order_items WHERE order_id=$1)",
+          [o.id],
+        )
+      ).rows[0].n,
+      1,
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*)::int n FROM entitlements WHERE customer_id=$1",
+          [e.customer_id],
+        )
+      ).rows[0].n,
+      1,
+    );
+    // A second provider verify (code 101) after capture leaves the single capture untouched.
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*)::int n FROM payment_attempts WHERE order_id=$1 AND state='VERIFIED'",
+          [o.id],
+        )
+      ).rows[0].n,
+      1,
+    );
+  });
+});
+
+test("Sandbox adapter: unknown authority, foreign hosts and production-style authorities never reach a customer", async () => {
+  await withSandbox(async (sandbox) => {
+    // The callback names an authority the server never issued.
+    await denied(
+      "/payments/zarinpal/return?Authority=S" + "0".repeat(35) + "&Status=OK",
+      undefined,
+      "NOT_FOUND",
+    );
+    // A provider answer with a production-style authority or a foreign redirect is refused.
+    const { ZarinPalAdapter } = await import("../src/commerce/gateway");
+    const adapter = new ZarinPalAdapter(
+      "00000000-0000-4000-8000-0000000000aa",
+      "https://yarizan.example.invalid/payment/return",
+      sandbox.transport,
+      "sandbox",
+    );
+    assert.equal(
+      adapter.acceptCreated({
+        authority: "S" + "a".repeat(35),
+        redirect_url:
+          "https://sandbox.zarinpal.com/pg/StartPay/S" + "a".repeat(35),
+      }),
+      true,
+    );
+    assert.equal(
+      adapter.acceptCreated({
+        authority: "A" + "a".repeat(35),
+        redirect_url:
+          "https://sandbox.zarinpal.com/pg/StartPay/A" + "a".repeat(35),
+      }),
+      false,
+    );
+    assert.equal(
+      adapter.acceptCreated({
+        authority: "S" + "a".repeat(35),
+        redirect_url: "https://evil.example/pg/StartPay/S" + "a".repeat(35),
+      }),
+      false,
+    );
+    assert.equal(
+      adapter.acceptCreated({
+        authority: "S" + "a".repeat(35),
+        redirect_url:
+          "https://payment.zarinpal.com/pg/StartPay/S" + "a".repeat(35),
+      }),
+      false,
+    );
+  });
+});
+
+test("Sandbox adapter: code 101 without prior evidence, amount mismatch and outages never capture; recovery settles once", async () => {
+  await withSandbox(async (sandbox, authorityOf) => {
+    // (a) The provider already reports 101 on the first call: not proof this server captured it.
+    const a = await buyer(),
+      oa = await saleOrder(a),
+      pa = await salePayment(a, oa);
+    sandbox.payments.get(await authorityOf(pa.attempt_id))!.preVerified = true;
+    await runVerify(pa.attempt_id);
+    const unproven = (
+      await db.query("SELECT state,exception_code FROM orders WHERE id=$1", [
+        oa.id,
+      ])
+    ).rows[0];
+    assert.equal(unproven.state, "PENDING");
+    assert.equal(unproven.exception_code, "ALREADY_VERIFIED_UNPROVEN");
+
+    // (b) An amount that differs from the original is refused by the provider: unknown, no capture.
+    const b = await buyer(),
+      ob = await saleOrder(b),
+      pb = await salePayment(b, ob);
+    sandbox.behavior.verifyAmountOverride = ob.total_irr - 10000;
+    await runVerify(pb.attempt_id);
+    assert.equal(
+      (await db.query("SELECT state FROM orders WHERE id=$1", [ob.id])).rows[0]
+        .state,
+      "PENDING",
+    );
+    assert.notEqual(
+      (
+        await db.query("SELECT state FROM payment_attempts WHERE id=$1", [
+          pb.attempt_id,
+        ])
+      ).rows[0].state,
+      "VERIFIED",
+    );
+    sandbox.behavior.verifyAmountOverride = null;
+
+    // (c) Outages and timeouts stay pending; the retry settles exactly once.
+    const c = await buyer(),
+      oc = await saleOrder(c),
+      pc = await salePayment(c, oc);
+    sandbox.behavior.verifyFailures = 2;
+    await runVerify(pc.attempt_id);
+    assert.equal(
+      (await db.query("SELECT state FROM orders WHERE id=$1", [oc.id])).rows[0]
+        .state,
+      "PENDING",
+      "an outage never creates a paid order",
+    );
+    await runVerify(pc.attempt_id);
+    assert.equal(
+      (await db.query("SELECT state FROM orders WHERE id=$1", [oc.id])).rows[0]
+        .state,
+      "PENDING",
+    );
+    await ok(
+      `/payments/zarinpal/return?Authority=${await authorityOf(pc.attempt_id)}&Status=OK`,
+    );
+    await recoverCommerce();
+    assert.equal(
+      (await ok<SaleOrder>(`/orders/${oc.id}`, undefined, c.browser)).body
+        .state,
+      "FULFILLED",
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*)::int n FROM order_fulfillments WHERE order_item_id=(SELECT id FROM order_items WHERE order_id=$1)",
+          [oc.id],
+        )
+      ).rows[0].n,
+      1,
+    );
+  });
 });
