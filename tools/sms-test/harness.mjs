@@ -81,20 +81,29 @@ function terminal() {
   rl._writeToOutput = (text) => original.call(rl, muted ? "" : text);
   return rl;
 }
+const say = (text) => process.stdout.write(text + "\n");
 const ask = (question, hidden = false) =>
   new Promise((resolve) => {
     const r = terminal();
-    process.stdout.write(question);
-    muted = hidden;
-    r.question("", (answer) => {
+    // The question goes through readline itself so it stays on screen; only the typed answer is muted.
+    r.question(question, (answer) => {
       muted = false;
       if (hidden) process.stdout.write("\n");
       resolve(answer.trim());
     });
+    muted = hidden;
   });
-const yes = async (question) =>
-  /^(y|yes)$/i.test(await ask(question + " [y/N] "));
-const say = (text) => process.stdout.write(text + "\n");
+// Only a literal "y" or "yes" confirms. Anything else is a refusal and nothing is sent.
+const yes = async (question) => {
+  for (;;) {
+    const answer = (
+      await ask(question + " Type y or n, then Enter: ")
+    ).toLowerCase();
+    if (["y", "yes"].includes(answer)) return true;
+    if (["n", "no", ""].includes(answer)) return false;
+    say("Please type y or n.");
+  }
+};
 
 // ---- evidence (redacted): no token, no phone number, no code ------------------------------------
 const evidence = {
