@@ -53,7 +53,7 @@ Tests: unit tests for 100, 101, other codes and transport failure; integration t
 | Callback query parameter names (`Authority`, `Status`) | Assumed from the SDK | used only to schedule a verify; confirm in a sandbox or activation test |
 | Provider error codes other than 100 and 101 | **Unmapped** | all treated as `UNKNOWN`; no behaviour depends on them |
 | Inquiry endpoint status vocabulary | **Unresolved** | inquiry exists in the official docs; its status values are not mapped, so inquiry is never used |
-| Sandbox | Exercised against a local fake sandbox server | the real adapter, in `sandbox` mode, runs through `Payments` against a local HTTP server that mimics the documented request and verify contract (section 7). No request reached `sandbox.zarinpal.com` and no real money is involved; official sandbox behaviour is still unvalidated until a merchant-capable sandbox run |
+| Sandbox | **Real official sandbox round trip done (2026-10-21)**, plus local fake server tests | the real adapter, in `sandbox` mode, runs through `Payments` against a local HTTP server that mimics the documented request and verify contract (section 7). No request reached `sandbox.zarinpal.com` and no real money is involved; official sandbox behaviour is still unvalidated until a merchant-capable sandbox run |
 | Refunds and reversals | **Unresolved** | no refund method exists in the adapter; refund needs a reviewed API contract or panel process and explicit order states |
 | Settlement timing and fees | **Unresolved** | merchant-specific; needs the activated account and finance sign-off |
 | Reconciliation | Partial | Admin reconcile route and exceptions exist; no scheduled provider-side reconciliation |
@@ -120,3 +120,26 @@ Each row is evidence for one question only. A passing row never implies the next
 2. Ask ZarinPal support, in writing, whether API-created StartPay links must use `pay.yarizan.oarnova.games`, and the exact form (host, path, sandbox variant).
 3. Build the dedicated payment egress (not the SMS relay), then re-verify its public address and the allowlist from that path.
 
+## 9. Real ZarinPal sandbox round trip (2026-10-21)
+
+Run on the owner's workstation against `https://sandbox.zarinpal.com` (not a mock): local full stack, `COMMERCE_MODE=zarinpal_sandbox`, a random UUID sandbox merchant ID, the labelled Grade 1 test price, callback `http://localhost:3200/payment/return`. No real money, no live merchant, no production gate touched.
+
+| Step | Observed |
+|---|---|
+| Request | HTTP 200, `code 100`, authority of the form `S` plus 35 characters, fee 3000. The sandbox **accepts an `http://localhost` callback**, so no callback bridge is needed for local sandbox tests |
+| Amount | customer-facing 100,000 IRR (10,000 Toman, labelled test price); order subtotal, discount 0, total, payment attempt, the request and the verify request all 100,000 IRR; the official 12,990,000 IRR price and history untouched |
+| Redirect | the app opened `https://sandbox.zarinpal.com/pg/StartPay/<authority>`; the owner completed the sandbox payment in the browser and returned to the local callback |
+| Server-side verification | the worker verified with the stored authority and the original amount: attempt `VERIFIED`, `provider_config zarinpal-sandbox-v1`, provider reference recorded, no exception |
+| Settlement | order `PAID` then `FULFILLED` exactly once: one fulfillment, one entitlement, one purchase notice job |
+| Duplicate callbacks | three more browser returns (`303` each) left the single capture, fulfillment and state unchanged |
+
+Provider semantics now confirmed by direct sandbox calls (previously assumed):
+
+| Call | Real answer |
+|---|---|
+| verify again with the original amount | `code 101`, "Verified", same `ref_id` (so 101 does mean "already verified", as the Backend policy assumes) |
+| verify with a different amount | `errors.code -50`, "Session is not valid, amounts values is not the same." (`data` is empty, so the adapter reports an unanswered unknown and never captures) |
+| verify an unknown authority | `errors.code -54`, "Invalid authority." |
+| verify with a different merchant ID | **the sandbox still answered 101**: it does not bind the merchant ID. Merchant binding is therefore not testable in the sandbox; the Backend's own stored-merchant comparison stays authoritative |
+
+Not yet exercised against the real sandbox: a cancelled payment (`Status=NOK`), an expired authority, and provider timeouts (covered only by local fake-server tests). Real-money payment and production activation remain blocked on merchant activation, the Backend production gates and a separate recorded go/no-go.
