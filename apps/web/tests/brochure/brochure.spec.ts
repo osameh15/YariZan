@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { stubEnamadSeal } from '../support/third-party';
 
 // Acceptance for the public-only builds (brochure and storefront). The server runs without
 // Backend, PostgreSQL, SMS, payment or signing configuration; see playwright.brochure.config.ts
@@ -88,6 +89,11 @@ const bypasses = [
   '/_payload.json',
   '/healthz/',
 ];
+
+// Third-party seal requests are answered locally so these tests never depend on that host.
+test.beforeEach(async ({ page }) => {
+  await stubEnamadSeal(page);
+});
 
 function watchConsole(page: Page) {
   const problems: string[] = [];

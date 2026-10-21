@@ -2,12 +2,14 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
+import { enamadSealUrl, stubEnamadSeal } from '../support/third-party';
 const images = path.resolve('.local/screenshots/phase4-premium');
 
 test('Premium public layouts: RTL, five widths, keyboard navigation and accessible states', async ({
   page,
 }) => {
   const errors: string[] = [];
+  const sealRequests = await stubEnamadSeal(page);
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
     if (message.type() === 'error' || /hydration.*mismatch/i.test(message.text()))
@@ -71,4 +73,7 @@ test('Premium public layouts: RTL, five widths, keyboard navigation and accessib
   expect(
     errors.filter((error) => !error.includes('404 (Page not found: /not-a-yarizan-page)')),
   ).toEqual([]);
+  // The real integration is preserved: the footer requested exactly the production seal URL.
+  expect(sealRequests.length).toBeGreaterThan(0);
+  for (const url of sealRequests) expect(url).toMatch(enamadSealUrl);
 });
