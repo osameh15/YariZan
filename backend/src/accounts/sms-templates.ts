@@ -71,12 +71,15 @@ export const PASSWORD_RECOVERY: SmsTemplate = {
 };
 export const ADMIN_MFA: SmsTemplate = {
   bodyId: "562281",
-  verification: "OWNER_ATTESTED",
+  // Directly verified: the owner compared the Body ID and wording in the provider panel immediately
+  // before the isolated live test of 2026-10-21, and the real send and handset delivery succeeded
+  // (docs/evidence/sms-admin-mfa-live-2026-10-21.json).
+  verification: "PANEL_VERIFIED",
   variables: ["code"],
   providerText:
     "یاریزان: کد تایید ورود به پنل مدیریت شما: {0} اعتبار: ۳ دقیقه. این کد محرمانه است و نباید در اختیار دیگران قرار بگیرد.",
   providerValiditySeconds: OTP_VALIDITY_SECONDS,
-  textConfirmed: false,
+  textConfirmed: true,
 };
 export const PASSWORD_CHANGE_VERIFICATION: SmsTemplate = {
   bodyId: "562280",
