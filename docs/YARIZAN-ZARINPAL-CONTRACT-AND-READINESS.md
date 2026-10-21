@@ -143,3 +143,26 @@ Provider semantics now confirmed by direct sandbox calls (previously assumed):
 | verify with a different merchant ID | **the sandbox still answered 101**: it does not bind the merchant ID. Merchant binding is therefore not testable in the sandbox; the Backend's own stored-merchant comparison stays authoritative |
 
 Not yet exercised against the real sandbox: a cancelled payment (`Status=NOK`), an expired authority, and provider timeouts (covered only by local fake-server tests). Real-money payment and production activation remain blocked on merchant activation, the Backend production gates and a separate recorded go/no-go.
+
+### 9.1 Cancelled payment and the sandbox page (2026-10-22, real sandbox)
+
+A second Grade 1 test order (100,000 IRR) was taken to `https://sandbox.zarinpal.com/pg/StartPay/S...` and cancelled with the page's own «انصراف» button (no card data, no security code entered).
+
+| Observation | Result |
+|---|---|
+| Sandbox page | shows the merchant «زرین‌پال», "100,000 ریال, equivalent to ten thousand Toman", a 10-minute timer, a card form with a security-code image and a dynamic-password step. The security code is a CAPTCHA: automation does not solve it, so a successful sandbox payment needs a person (the owner completed the first one) |
+| Cancel | the sandbox returned the browser to `http://localhost:3200/payment/return?Authority=S...&Status=NOK`, which redirected to `/payment/result` |
+| Provider answer after cancel | `verify` answers `errors.code -51`, "Session is not valid, session is not active paid try." with empty `data` |
+| Our state | order `PENDING`, attempt `UNKNOWN`, no provider reference, no exception, no fulfillment, no entitlement; the page tells the customer the result is not final and not to pay again; the VERIFY job keeps retrying |
+| Policy | fail closed: any answer that is not 100 or 101 never settles. `-51` is also what an unpaid authority answers before the customer pays, so it is not treated as a terminal failure; a cancelled or abandoned attempt waits for expiry and reconciliation. A possible refinement (decided separately): treat `Status=NOK` plus `-51` as a customer cancellation after a defined window |
+
+### 9.2 Workstation network diagnosis (2026-10-21)
+
+| Check | Result |
+|---|---|
+| Cause of the failures | a foreign exit (`singbox_tun`, public address in DE) was active: ZarinPal hosts and the Iranian eNamad seal failed the TLS handshake (`schannel: failed to receive handshake`) with `--noproxy '*'`, while documentation and the sandbox worked as soon as the tunnel was off |
+| Proxy variables | `HTTP_PROXY` and `HTTPS_PROXY` point at `127.0.0.1:10808`; requests through it succeeded or failed with the tunnel state, direct requests with the tunnel off succeed. Windows system proxy was off |
+| DNS | normal; the failures were TLS handshake resets, not name resolution |
+| TLS validation | never disabled. Certificates validated on every successful call |
+| Remedy | disconnect the tunnel for ZarinPal sandbox tests, or route only `*.zarinpal.com` and `trustseal.enamad.ir` directly. The Claude Code MCP client reads `NO_PROXY` from `.claude/settings.local.json` (ignored by Git) in new sessions. No global network setting was changed |
+
