@@ -53,10 +53,11 @@ export class FakeSmsProvider implements SmsProvider {
  * host and a validated token, is never logged, and no error produced here carries the URL, the
  * token, the phone number or the code (every failure is the generic SMS_UNAVAILABLE).
  *
- * Response semantics are NOT yet confirmed against provider documentation or a controlled test:
- * a send is accepted only for HTTP 200 with a JSON `recId` that is a positive integer (string
- * or number) and, when present, a `status` string without a failure marker. The first controlled
- * live test must record the real `status` vocabulary and tighten this check.
+ * Response semantics, confirmed by the isolated live test of 2026-10-21: success is HTTP 200 with a
+ * JSON body `{"recId": <19-digit number>, "status": "عملیات موفق"}` ("operation successful"); a wrong
+ * console key is HTTP 400 with `{"status": "کلید کنسول معتبر نیست"}` and no `recId`. A send is accepted
+ * only for HTTP 200 with a `recId` that is a positive integer (string or number) and, when present, a
+ * `status` string without a failure marker. HTTP 200 alone is never acceptance.
  */
 export const MELIPAYAMAK_HOST = "console.melipayamak.com";
 export const MELIPAYAMAK_TOKEN_PATTERN = /^[A-Za-z0-9._~-]{8,256}$/;

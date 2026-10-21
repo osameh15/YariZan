@@ -82,6 +82,12 @@ function terminal() {
   return rl;
 }
 const say = (text) => process.stdout.write(text + "\n");
+// Codes may be typed with Persian or Arabic digits or spaces; the API needs six Latin digits.
+const normalizeCode = (value) =>
+  value
+    .replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 0x06f0))
+    .replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660))
+    .replace(/[\s\-]/g, "");
 const ask = (question, hidden = false) =>
   new Promise((resolve) => {
     const r = terminal();
@@ -335,6 +341,24 @@ try {
   resultA.provider_accepted = delivered;
   resultA.sends = sent;
   resultA.sessions_before_proof = await sessions();
+  const issuedAt = Date.now();
+  // Throttling is proven while the 60-second cooldown is certainly still running, and the wrong code
+  // is tried at once, so neither depends on how long the operator takes to read the phone.
+  const again = await post("/admin/auth/login", {
+    username: a.username,
+    password: a.secret,
+  });
+  resultA.second_request = {
+    status: again.status,
+    error: again.body?.error?.code,
+  };
+  resultA.sends_after_second_request = sent;
+  const bad = await post("/admin/auth/sms/verify", {
+    challenge_id: loginA.body.challenge_id,
+    code: "000000",
+  });
+  resultA.wrong_code = { status: bad.status, error: bad.body?.error?.code };
+  resultA.sessions_after_wrong_code = await sessions();
   if (!fakeCi && !delivered)
     throw new Error(
       "The provider did not accept request A (see the provider line above). Nothing more was sent.",
@@ -345,16 +369,16 @@ try {
       "Did recipient A's handset receive the SMS?",
     );
   } else resultA.handset_received = "not-applicable-fake-ci";
+  if (!fakeCi)
+    say(
+      `Enter the code now: it is valid for ${Math.max(0, 180 - Math.round((Date.now() - issuedAt) / 1000))} more seconds.`,
+    );
   const codeA = fakeCi
     ? await fakeCode(loginA.body.challenge_id)
-    : await ask("Enter the code received on A (hidden): ", true);
-  const wrong = /^0+$/.test(codeA) ? "111111" : "000000";
-  const bad = await post("/admin/auth/sms/verify", {
-    challenge_id: loginA.body.challenge_id,
-    code: wrong,
-  });
-  resultA.wrong_code = { status: bad.status, error: bad.body?.error?.code };
-  resultA.sessions_after_wrong_code = await sessions();
+    : normalizeCode(await ask("Enter the code received on A (hidden): ", true));
+  resultA.seconds_from_request_to_code = Math.round(
+    (Date.now() - issuedAt) / 1000,
+  );
   const good = await post("/admin/auth/sms/verify", {
     challenge_id: loginA.body.challenge_id,
     code: codeA,
@@ -370,15 +394,6 @@ try {
   });
   resultA.replay = { status: replay.status, error: replay.body?.error?.code };
   resultA.sessions_after_replay = await sessions();
-  const again = await post("/admin/auth/login", {
-    username: a.username,
-    password: a.secret,
-  });
-  resultA.second_request = {
-    status: again.status,
-    error: again.body?.error?.code,
-  };
-  resultA.sends_after_second_request = sent;
 
   // ---------- recipient B: real code that is allowed to expire ----------
   const b = await syntheticAdmin("b", recipientB);
@@ -440,7 +455,12 @@ try {
   if (!fakeCi) process.stdout.write("\n");
   const codeB = fakeCi
     ? await fakeCode(loginB.body.challenge_id)
-    : await ask("Now enter the (expired) code received on B (hidden): ", true);
+    : normalizeCode(
+        await ask(
+          "Now enter the (expired) code received on B (hidden): ",
+          true,
+        ),
+      );
   const late = await post("/admin/auth/sms/verify", {
     challenge_id: loginB.body.challenge_id,
     code: codeB,

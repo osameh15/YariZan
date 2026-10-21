@@ -311,3 +311,29 @@ test("Live SMS needs the API token and the explicit live flag; fake cannot open 
     /PRODUCTION_GATE_CLOSED/,
   );
 });
+
+// Real provider answers recorded by the isolated live test on 2026-10-21 (redacted evidence).
+test("Real MeliPayamak answers: success is HTTP 200 with a 19-digit numeric recId and 'عملیات موفق'; a wrong key is HTTP 400", async () => {
+  const real = (status: number, body: string): typeof fetch =>
+    (async () => new Response(body, { status })) as typeof fetch;
+  const send = (transport: typeof fetch) => provider(transport).send(message);
+  // A 19-digit recId arrives as a JSON number beyond the safe-integer range; it is still accepted.
+  await send(real(200, '{"recId":1234567890123456789,"status":"عملیات موفق"}'));
+  await send(
+    real(200, '{"recId":"1234567890123456789","status":"عملیات موفق"}'),
+  );
+  for (const [status, body] of [
+    [400, '{"status":"کلید کنسول معتبر نیست"}'],
+    [200, '{"status":"عملیات موفق"}'],
+    [200, '{"recId":0,"status":"عملیات موفق"}'],
+    [200, '{"recId":-5,"status":"عملیات موفق"}'],
+    [200, '{"recId":1,"status":"Failed to send"}'],
+    [500, '{"recId":123,"status":"عملیات موفق"}'],
+    [200, "not json"],
+  ] as const)
+    await assert.rejects(
+      () => send(real(status, body)),
+      (e: unknown) => (e as { code?: string }).code === "SMS_UNAVAILABLE",
+      `${status} ${body}`,
+    );
+});
