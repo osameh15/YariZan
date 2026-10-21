@@ -12,6 +12,8 @@ export const productSchema = z.object({
   revision: z.number().int().positive(),
   // The Backend decides which promotion is active (database time); absent for older responses.
   effective_price_irr: z.number().int().nonnegative().safe().optional(),
+  // Local acceptance only: this price is a clearly labelled test price, never the official one.
+  test_price: z.boolean().optional(),
   promotion: z
     .object({
       price_irr: z.number().int().positive().safe(),

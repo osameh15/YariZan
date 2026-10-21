@@ -27,6 +27,12 @@ services:
       NODE_ENV: development
       COMMERCE_MODE: ${COMMERCE_MODE:-disabled}
       PURCHASE_SMS_TEMPLATE: ${PURCHASE_SMS_TEMPLATE:-purchase-confirmation-unconfigured}
+      # Local sandbox integration only (COMMERCE_MODE=zarinpal_sandbox): the OFFICIAL ZarinPal sandbox,
+      # no real money. Use a random UUID as the sandbox merchant ID, never a live merchant ID.
+      ZARINPAL_MERCHANT_ID: ${ZARINPAL_MERCHANT_ID:-}
+      ZARINPAL_CALLBACK_URL: ${ZARINPAL_CALLBACK_URL:-}
+      # Local acceptance only: clearly labelled Grade 1 test price (integer IRR), refused outside development.
+      LOCAL_TEST_PRICE_G1_IRR: ${LOCAL_TEST_PRICE_G1_IRR:-}
       SMS_PROVIDER: ${SMS_PROVIDER:-disabled}
       MOBILE_ENCRYPTION_KEY: ${MOBILE_ENCRYPTION_KEY:-}
       OTP_HMAC_KEY: ${OTP_HMAC_KEY:-}

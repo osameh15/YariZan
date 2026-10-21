@@ -7333,10 +7333,12 @@ export interface operations {
         content: {
           'application/json': {
             /** @enum {string} */
-            mode: 'disabled' | 'fake' | 'zarinpal';
+            mode: 'disabled' | 'fake' | 'zarinpal_sandbox' | 'zarinpal';
             checkout_enabled: boolean;
             /** @constant */
             real_payments_enabled: false;
+            sandbox: boolean;
+            test_price_irr: number | null;
             /** @constant */
             currency: 'IRR';
           };
@@ -8932,6 +8934,7 @@ export interface operations {
             promotion_discount_irr: number;
             coupon_discount_irr: number;
             total_irr: number;
+            test_price: boolean;
             promotion: {
               id: string;
               price_irr: number;

@@ -59,13 +59,15 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
     "OTP_HMAC_KEY",
     "MELIPAYAMAK_API_TOKEN",
     "ZARINPAL_MERCHANT_ID",
+    "ZARINPAL_CALLBACK_URL",
+    "LOCAL_TEST_PRICE_G1_IRR",
     "SMS_FAKE_OUTBOX",
   ])
     if (runtimeEnv[name] === "") delete runtimeEnv[name];
   const parsed = z
     .object({
       COMMERCE_MODE: z
-        .enum(["disabled", "fake", "zarinpal"])
+        .enum(["disabled", "fake", "zarinpal_sandbox", "zarinpal"])
         .default("disabled"),
       PURCHASE_SMS_TEMPLATE: z
         .string()
@@ -95,6 +97,15 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
       // Private payment identity. Validated for shape only; COMMERCE_MODE=zarinpal stays refused
       // until the payment go/no-go gate is recorded, so nothing consumes it at runtime yet.
       ZARINPAL_MERCHANT_ID: z.uuid().optional(),
+      // Local sandbox only: where the official ZarinPal sandbox returns the browser.
+      ZARINPAL_CALLBACK_URL: z.url().optional(),
+      // Local acceptance only: a clearly labelled test price for Grade 1 (integer IRR).
+      LOCAL_TEST_PRICE_G1_IRR: z.coerce
+        .number()
+        .int()
+        .min(10000)
+        .max(100000000)
+        .optional(),
       SMS_ALLOW_LIVE: z.enum(["true", "false"]).default("false"),
       SMS_FAKE_OUTBOX: z.string().optional(),
       MFA_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/),
@@ -113,6 +124,35 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
     );
   if (parsed.data.COMMERCE_MODE === "zarinpal")
     throw new ConfigurationError("ZARINPAL_LIVE_GATE_CLOSED");
+  // The local sandbox integration: the official ZarinPal sandbox host only, never a live merchant.
+  // Production never reaches this point (the gate above refuses it); this check also refuses any
+  // other environment so the mode has no possible production fallback.
+  if (parsed.data.COMMERCE_MODE === "zarinpal_sandbox") {
+    if (!["development", "test"].includes(parsed.data.NODE_ENV))
+      throw new ConfigurationError("ZARINPAL_SANDBOX_LOCAL_ONLY");
+    if (!parsed.data.ZARINPAL_MERCHANT_ID || !parsed.data.ZARINPAL_CALLBACK_URL)
+      throw new ConfigurationError("ZARINPAL_SANDBOX_CONFIGURATION_REQUIRED");
+    const callback = new URL(parsed.data.ZARINPAL_CALLBACK_URL);
+    const loopback = ["localhost", "127.0.0.1"].includes(callback.hostname);
+    if (
+      !(
+        callback.protocol === "https:" ||
+        (callback.protocol === "http:" && loopback)
+      ) ||
+      callback.username ||
+      callback.password ||
+      callback.search ||
+      callback.hash ||
+      callback.pathname !== "/payment/return"
+    )
+      throw new ConfigurationError("ZARINPAL_CALLBACK_URL_INVALID");
+  }
+  if (
+    parsed.data.LOCAL_TEST_PRICE_G1_IRR !== undefined &&
+    (!["development", "test"].includes(parsed.data.NODE_ENV) ||
+      !["fake", "zarinpal_sandbox"].includes(parsed.data.COMMERCE_MODE))
+  )
+    throw new ConfigurationError("LOCAL_TEST_PRICE_REFUSED");
   if (parsed.data.SMS_PROVIDER !== "disabled") {
     if (!parsed.data.MOBILE_ENCRYPTION_KEY || !parsed.data.OTP_HMAC_KEY)
       throw new ConfigurationError("SMS_SECRETS_REQUIRED");

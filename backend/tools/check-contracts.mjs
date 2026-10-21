@@ -201,9 +201,11 @@ const responses = {
   "/api/v2/admin/promotions/{id}/deactivate": promotionView,
   "/api/v2/admin/promotions/{id}/restore": promotionView,
   "/api/v2/commerce/capabilities": z.object({
-    mode: z.enum(["disabled", "fake", "zarinpal"]),
+    mode: z.enum(["disabled", "fake", "zarinpal_sandbox", "zarinpal"]),
     checkout_enabled: z.boolean(),
     real_payments_enabled: z.literal(false),
+    sandbox: z.boolean(),
+    test_price_irr: commerce.money.nullable(),
     currency: z.literal("IRR"),
   }),
   "/api/v2/discounts/quote": commerce.quoteView,

@@ -6,7 +6,12 @@ import { endsLabel, type PromotionView } from '#shared/promotion';
 // reviewed storefront list at render time, decides that): this component never infers a discount
 // from the browser clock, and an absent promotion shows the regular price only. Availability is
 // shown elsewhere; a discount never implies that a product can be bought.
-defineProps<{ list: number | null; promotion?: PromotionView | null; detail?: boolean }>();
+defineProps<{
+  list: number | null;
+  promotion?: PromotionView | null;
+  detail?: boolean;
+  testPrice?: boolean;
+}>();
 </script>
 <template>
   <span
@@ -26,6 +31,9 @@ defineProps<{ list: number | null; promotion?: PromotionView | null; detail?: bo
       ><span class="discount-badge">{{ persianDigits(promotion.discount_percent) }}٪ تخفیف</span
       ><small class="promo-ends">{{ endsLabel(promotion.ends_at) }}</small></template
     >
-    <span v-else class="price">{{ toman(list) }} <small>تومان</small></span>
+    <span v-else class="price">{{ toman(list) }} <small>تومان</small></span
+    ><span v-if="testPrice && list !== null" class="test-price-badge" data-testid="test-price"
+      >قیمت آزمایشی محلی، نه قیمت رسمی</span
+    >
   </span>
 </template>

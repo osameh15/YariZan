@@ -253,3 +253,21 @@ describe('browser proxy allowlist for the promotion routes', () => {
       expect(allowedBrowserRoute(method, path), method + ' ' + path).toBe(false);
   });
 });
+
+describe('local test price label', () => {
+  it('is shown only when flagged and never hides the price', () => {
+    const labelled = mount(PriceBlock, { props: { list: 100000, testPrice: true } });
+    expect(labelled.find('[data-testid="test-price"]').text()).toContain('قیمت آزمایشی');
+    expect(labelled.find('.price').text()).toContain('۱۰٬۰۰۰');
+    expect(
+      mount(PriceBlock, { props: { list: 100000 } })
+        .find('[data-testid="test-price"]')
+        .exists(),
+    ).toBe(false);
+    expect(
+      mount(PriceBlock, { props: { list: null, testPrice: true } })
+        .find('[data-testid="test-price"]')
+        .exists(),
+    ).toBe(false);
+  });
+});

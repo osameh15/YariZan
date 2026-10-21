@@ -30,7 +30,12 @@ export class Payments
     private licenses: Licenses,
   ) {}
   onApplicationBootstrap() {
-    if (this.orders.security.config.COMMERCE_MODE !== "fake") return;
+    if (
+      !["fake", "zarinpal_sandbox"].includes(
+        this.orders.security.config.COMMERCE_MODE,
+      )
+    )
+      return;
     this.timer = setInterval(() => {
       if (!this.active)
         this.active = this.work(4)
@@ -140,8 +145,14 @@ export class Payments
       );
       const attempt = randomUUID();
       await c.query(
-        "INSERT INTO payment_attempts(id,order_id,amount_irr,provider,state,request_id,provider_config) VALUES($1,$2,$3,'zarinpal','CREATED',$4,'fake-v1')",
-        [attempt, id, order.total_irr, requestId],
+        "INSERT INTO payment_attempts(id,order_id,amount_irr,provider,state,request_id,provider_config) VALUES($1,$2,$3,'zarinpal','CREATED',$4,$5)",
+        [
+          attempt,
+          id,
+          order.total_irr,
+          requestId,
+          this.orders.gateway.provider.providerConfig,
+        ],
       );
       await c.query(
         "INSERT INTO payment_transitions(id,attempt_id,next_state,reason,correlation_id) VALUES($1,$2,'CREATED','admission',$3)",
@@ -231,6 +242,12 @@ export class Payments
     actor: Actor,
   ) {
     this.orders.gateway.available();
+    // The browser simulator only ever drives the in-database fake provider.
+    requireCondition(
+      this.orders.gateway.simulated,
+      "SIMULATION_UNAVAILABLE",
+      409,
+    );
     return this.orders.db.transaction(async (c) => {
       await this.orders.scope(c, u);
       const o = await this.orderLock(c, id);

@@ -45,8 +45,15 @@ export class CommerceController {
   @Get("commerce/capabilities") capabilities() {
     return {
       mode: this.orders.security.config.COMMERCE_MODE,
-      checkout_enabled: this.orders.security.config.COMMERCE_MODE === "fake",
+      checkout_enabled: ["fake", "zarinpal_sandbox"].includes(
+        this.orders.security.config.COMMERCE_MODE,
+      ),
       real_payments_enabled: false,
+      // True only for the explicit local sandbox mode (the official ZarinPal sandbox, no real money).
+      sandbox: this.orders.security.config.COMMERCE_MODE === "zarinpal_sandbox",
+      // Present only while the local acceptance test price is configured.
+      test_price_irr:
+        this.orders.security.config.LOCAL_TEST_PRICE_G1_IRR ?? null,
       currency: "IRR",
     };
   }

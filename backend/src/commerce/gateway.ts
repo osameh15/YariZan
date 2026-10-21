@@ -40,6 +40,8 @@ export type PaymentResult = {
   answered?: boolean;
 };
 export interface PaymentGateway {
+  /** Identifies the provider contract stored on every payment attempt. */
+  readonly providerConfig: string;
   create(
     request: PaymentRequest,
   ): Promise<{ authority: string; redirect_url: string }>;
@@ -56,6 +58,7 @@ export interface PaymentGateway {
   ): boolean;
 }
 export class FakeZarinPal implements PaymentGateway {
+  readonly providerConfig = "fake-v1";
   constructor(private db: Database) {}
   acceptCreated(
     created: { authority: string; redirect_url: string },
@@ -111,6 +114,11 @@ export class FakeZarinPal implements PaymentGateway {
 // Runtime selection never constructs this adapter. Only injected offline transports are
 // authorized until merchant/currency/return-host acceptance and a separate gate review.
 export class ZarinPalAdapter implements PaymentGateway {
+  get providerConfig() {
+    return this.environment === "sandbox"
+      ? "zarinpal-sandbox-v1"
+      : "zarinpal-v4";
+  }
   constructor(
     private merchant: string,
     private callback: string,
@@ -119,8 +127,12 @@ export class ZarinPalAdapter implements PaymentGateway {
   ) {
     z.uuid().parse(merchant);
     const u = new URL(callback);
+    // The local sandbox may return to a loopback http URL; nothing else may be plain http.
     requireCondition(
-      u.protocol === "https:" &&
+      (u.protocol === "https:" ||
+        (environment === "sandbox" &&
+          u.protocol === "http:" &&
+          ["localhost", "127.0.0.1"].includes(u.hostname))) &&
         !u.username &&
         !u.password &&
         !u.search &&
@@ -257,13 +269,31 @@ export class Gateway {
     private security: Security,
   ) {
     this.fake = new FakeZarinPal(db);
-    this.provider = this.fake;
+    const c = security.config;
+    // Only the explicit local sandbox mode ever builds the real adapter, and only for the
+    // sandbox host. `zarinpal` (live) is refused at startup and never reaches this class.
+    this.provider =
+      c.COMMERCE_MODE === "zarinpal_sandbox"
+        ? new ZarinPalAdapter(
+            c.ZARINPAL_MERCHANT_ID!,
+            c.ZARINPAL_CALLBACK_URL!,
+            fetch,
+            "sandbox",
+          )
+        : this.fake;
   }
   available() {
     requireCondition(
-      this.security.config.COMMERCE_MODE === "fake",
+      ["fake", "zarinpal_sandbox"].includes(this.security.config.COMMERCE_MODE),
       "COMMERCE_UNAVAILABLE",
       503,
+    );
+  }
+  /** The browser simulator exists only for the in-database fake provider. */
+  get simulated() {
+    return (
+      this.security.config.COMMERCE_MODE === "fake" &&
+      !(this.provider instanceof ZarinPalAdapter)
     );
   }
 }

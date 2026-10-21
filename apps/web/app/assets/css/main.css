@@ -2159,3 +2159,13 @@ textarea[aria-invalid='true'] {
   align-items: center;
   gap: 8px;
 }
+.test-price-badge {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  border: 1px dashed #8a2f1c;
+  color: #8a2f1c;
+  background: #fff4ee;
+  font-size: 12px;
+  font-weight: 700;
+}

@@ -176,6 +176,9 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
         <p class="eyebrow">شفاف، پیش از ادامه</p>
         <h2 id="summary-title">خلاصهٔ سفارش</h2>
         <template v-if="quote">
+          <p v-if="quote.test_price" class="notice" role="status" data-testid="test-price-notice">
+            قیمت آزمایشی محلی: این مبلغ فقط برای آزمون این محیط است و قیمت رسمی نیست.
+          </p>
           <dl class="commerce-totals">
             <div>
               <dt>{{ quote.promotion ? 'قیمت اصلی' : 'قیمت پایه' }}</dt>

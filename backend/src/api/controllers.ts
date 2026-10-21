@@ -77,7 +77,10 @@ export class HealthController {
 }
 @Controller("api/v2")
 export class PublicController {
-  constructor(private db: Database) {}
+  constructor(
+    private db: Database,
+    private security: Security,
+  ) {}
   @Get("products") async products() {
     // The list price and, only while it is genuinely active on database time, the promotion.
     // Promotions are never exposed for a product that is not published.
@@ -108,6 +111,20 @@ export class PublicController {
         promo_ends_at,
         ...r
       } = row;
+      // Local acceptance only: Grade 1 shows the configured test price, labelled as such.
+      const test =
+        r.sku === "YARIZAN-G1"
+          ? this.security.config.LOCAL_TEST_PRICE_G1_IRR
+          : undefined;
+      if (test !== undefined)
+        return {
+          ...r,
+          price_irr: test,
+          revision: Number(r.revision),
+          effective_price_irr: test,
+          test_price: true,
+          promotion: null,
+        };
       return {
         ...r,
         price_irr: Number(r.price_irr),
@@ -115,6 +132,7 @@ export class PublicController {
         effective_price_irr: promo_id
           ? Number(promo_price_irr)
           : Number(r.price_irr),
+        test_price: false,
         promotion: promo_id
           ? {
               id: promo_id,

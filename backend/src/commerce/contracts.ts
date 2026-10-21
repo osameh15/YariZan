@@ -118,6 +118,7 @@ export const quoteView = z.strictObject({
   promotion_discount_irr: money,
   coupon_discount_irr: money,
   total_irr: money,
+  test_price: z.boolean(),
   promotion: z
     .strictObject({
       id: uuid,
