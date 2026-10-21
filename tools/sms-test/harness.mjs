@@ -271,14 +271,29 @@ try {
     };
     if (!panel) throw new Error("Panel check not confirmed; nothing was sent.");
     const token = await ask("MeliPayamak console API token (hidden): ", true);
-    recipientA = await ask("Recipient A mobile (hidden): ", true);
-    recipientB = await ask("Recipient B mobile (hidden): ", true);
-    if (
-      !/^[0-9]{11}$/.test(recipientA) ||
-      !/^[0-9]{11}$/.test(recipientB) ||
-      recipientA === recipientB
-    )
-      throw new Error("Two different 11-digit mobile numbers are required.");
+    // Accepts Persian/Arabic digits, spaces, dashes, +98 and 0098; asks again instead of aborting.
+    const mobile = async (label) => {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        let v = (await ask(`${label} mobile, 09xxxxxxxxx (hidden): `, true))
+          .replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 0x06f0))
+          .replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660))
+          .replace(/[\s\-()]/g, "");
+        if (v.startsWith("+98")) v = "0" + v.slice(3);
+        else if (v.startsWith("0098")) v = "0" + v.slice(4);
+        else if (/^9[0-9]{9}$/.test(v)) v = "0" + v;
+        if (/^09[0-9]{9}$/.test(v)) return v;
+        say(
+          `That is not a valid Iranian mobile number (${v.length} characters after cleaning). Try again.`,
+        );
+      }
+      throw new Error("No valid mobile number was entered; nothing was sent.");
+    };
+    recipientA = await mobile("Recipient A");
+    for (;;) {
+      recipientB = await mobile("Recipient B");
+      if (recipientB !== recipientA) break;
+      say("Recipient B must be a different number from A. Try again.");
+    }
     // Test-only: the registry keeps textConfirmed=false until a reviewed change records this panel check.
     sms.provider = new MeliPayamakSharedProvider(
       token,
