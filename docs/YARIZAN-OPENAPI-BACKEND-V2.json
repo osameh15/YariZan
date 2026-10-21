@@ -9493,6 +9493,7 @@
                       "enum": [
                         "disabled",
                         "fake",
+                        "zarinpal_sandbox",
                         "zarinpal"
                       ]
                     },
@@ -9503,6 +9504,21 @@
                       "type": "boolean",
                       "const": false
                     },
+                    "sandbox": {
+                      "type": "boolean"
+                    },
+                    "test_price_irr": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "currency": {
                       "type": "string",
                       "const": "IRR"
@@ -9512,6 +9528,8 @@
                     "mode",
                     "checkout_enabled",
                     "real_payments_enabled",
+                    "sandbox",
+                    "test_price_irr",
                     "currency"
                   ]
                 }
@@ -12020,6 +12038,9 @@
                       "minimum": 0,
                       "maximum": 9007199254740991
                     },
+                    "test_price": {
+                      "type": "boolean"
+                    },
                     "promotion": {
                       "anyOf": [
                         {
@@ -12077,6 +12098,7 @@
                     "promotion_discount_irr",
                     "coupon_discount_irr",
                     "total_irr",
+                    "test_price",
                     "promotion",
                     "mode",
                     "pricing_revision"

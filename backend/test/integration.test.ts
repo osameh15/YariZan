@@ -3910,6 +3910,7 @@ test("Ambiguous create never retries charge creation; durable fake inquiry recov
     prior = gateway.provider;
   let creates = 0;
   gateway.provider = {
+    providerConfig: prior.providerConfig,
     create: async (r) => {
       creates++;
       await prior.create(r);
@@ -4342,6 +4343,7 @@ async function scriptedVerification(
   let calls = 0;
   let queue: PaymentResult[] | undefined;
   gateway.provider = {
+    providerConfig: original.providerConfig,
     create: (r) => original.create(r),
     acceptCreated: (created, orderId) =>
       original.acceptCreated(created, orderId),
@@ -5554,6 +5556,162 @@ test("Sandbox adapter: code 101 without prior evidence, amount mismatch and outa
         )
       ).rows[0].n,
       1,
+    );
+  });
+});
+
+test("Local test price: Grade 1 checks out at exactly 100000 IRR in the quote, snapshot, payment and settlement, clearly labelled", async () => {
+  const config = security.config as { LOCAL_TEST_PRICE_G1_IRR?: number };
+  await db.query(
+    "UPDATE products SET publication_status='published',sale_enabled=true,trial_enabled=true,activation_enabled=true WHERE sku='YARIZAN-G1'",
+  );
+  await clearPromotions();
+  const official = await listPrice();
+  config.LOCAL_TEST_PRICE_G1_IRR = 100000;
+  try {
+    const caps = (
+      await ok<{
+        test_price_irr: number | null;
+        sandbox: boolean;
+        real_payments_enabled: boolean;
+      }>("/commerce/capabilities")
+    ).body;
+    assert.equal(caps.test_price_irr, 100000);
+    assert.equal(caps.real_payments_enabled, false);
+    const g1Public = (
+      await ok<
+        {
+          sku: string;
+          price_irr: number;
+          test_price: boolean;
+          promotion: unknown;
+        }[]
+      >("/products")
+    ).body.find((p) => p.sku === g1)!;
+    assert.deepEqual(
+      [g1Public.price_irr, g1Public.test_price, g1Public.promotion],
+      [100000, true, null],
+    );
+    const g2Public = (
+      await ok<{ sku: string; price_irr: number; test_price: boolean }[]>(
+        "/products",
+      )
+    ).body.find((p) => p.sku === "YARIZAN-G2")!;
+    const g2Db = Number(
+      (
+        await db.query(
+          "SELECT amount_irr FROM product_prices WHERE sku='YARIZAN-G2' AND ended_at IS NULL",
+        )
+      ).rows[0].amount_irr,
+    );
+    assert.deepEqual(
+      [g2Public.price_irr, g2Public.test_price],
+      [g2Db, false],
+      "only Grade 1 is affected",
+    );
+    const e = await buyer();
+    const quote = (
+      await ok<{
+        subtotal_irr: number;
+        total_irr: number;
+        discount_irr: number;
+        test_price: boolean;
+      }>("/discounts/quote", { sku: g1 }, e.browser)
+    ).body;
+    assert.deepEqual(
+      [
+        quote.subtotal_irr,
+        quote.discount_irr,
+        quote.total_irr,
+        quote.test_price,
+      ],
+      [100000, 0, 100000, true],
+    );
+    const o = await saleOrder(e);
+    assert.equal(o.total_irr, 100000);
+    const row = (
+      await db.query(
+        "SELECT o.subtotal_irr::text s,o.total_irr::text t,o.discount_irr::text d,o.promotion_id,i.snapshot FROM orders o JOIN order_items i ON i.order_id=o.id WHERE o.id=$1",
+        [o.id],
+      )
+    ).rows[0];
+    assert.deepEqual(
+      [row.s, row.t, row.d, row.promotion_id],
+      ["100000", "100000", "0", null],
+    );
+    assert.equal(row.snapshot.test_price, true);
+    assert.equal(row.snapshot.list_price_irr, 100000);
+    const p = await salePayment(e, o);
+    assert.equal(
+      Number(
+        (
+          await db.query(
+            "SELECT amount_irr FROM payment_attempts WHERE id=$1",
+            [p.attempt_id],
+          )
+        ).rows[0].amount_irr,
+      ),
+      100000,
+    );
+    await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+    await db.query("UPDATE commerce_jobs SET due_at=now() WHERE target_id=$1", [
+      p.attempt_id,
+    ]);
+    const paid = await settle(e, o.id);
+    assert.equal(paid.state, "FULFILLED");
+    assert.equal(paid.total_irr, 100000);
+    // The official price is untouched and a normal configuration shows it again.
+    assert.equal(await listPrice(), official);
+  } finally {
+    delete config.LOCAL_TEST_PRICE_G1_IRR;
+  }
+  const after = (
+    await ok<{ sku: string; price_irr: number; test_price: boolean }[]>(
+      "/products",
+    )
+  ).body.find((p) => p.sku === g1)!;
+  assert.deepEqual([after.price_irr, after.test_price], [official, false]);
+  assert.equal(
+    (
+      await ok<{ total_irr: number; test_price: boolean }>(
+        "/discounts/quote",
+        { sku: g1 },
+        (await buyer()).browser,
+      )
+    ).body.test_price,
+    false,
+  );
+});
+
+test("The browser payment simulator is unavailable while the real provider adapter is active", async () => {
+  await withSandbox(async (sandbox, authorityOf) => {
+    const e = await buyer(),
+      o = await saleOrder(e),
+      p = await salePayment(e, o);
+    assert.match(await authorityOf(p.attempt_id), /^S/);
+    await denied(
+      `/orders/${o.id}/simulate`,
+      { outcome: "SUCCESS" },
+      "SIMULATION_UNAVAILABLE",
+      e.browser,
+    );
+    assert.equal(
+      (await db.query("SELECT state FROM orders WHERE id=$1", [o.id])).rows[0]
+        .state,
+      "PENDING",
+    );
+    assert.equal(
+      sandbox.calls.filter((c) => c.path.endsWith("verify.json")).length,
+      0,
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT provider_config FROM payment_attempts WHERE id=$1",
+          [p.attempt_id],
+        )
+      ).rows[0].provider_config,
+      "zarinpal-sandbox-v1",
     );
   });
 });

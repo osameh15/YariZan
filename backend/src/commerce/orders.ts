@@ -182,6 +182,7 @@ export class Orders {
         discount_irr: promoDiscount + couponDiscount,
         promotion_discount_irr: promoDiscount,
         coupon_discount_irr: couponDiscount,
+        test_price: pricing.test_price === true,
         total_irr: amount - promoDiscount - couponDiscount,
         promotion: pricing.promotion
           ? {
@@ -283,6 +284,7 @@ export class Orders {
             currency: "IRR",
             price_id: pricing.price_id,
             list_price_irr: amount,
+            test_price: pricing.test_price === true,
             priced_at: pricing.priced_at,
             promotion: promotion
               ? {

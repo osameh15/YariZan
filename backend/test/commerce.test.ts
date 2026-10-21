@@ -331,3 +331,147 @@ test("ZARINPAL_MERCHANT_ID is optional, UUID-shaped and never echoed in errors",
     (error: Error) => !error.message.includes("SECRETMARK"),
   );
 });
+
+test("Local sandbox mode and the test price are configuration-gated and can never reach production", () => {
+  const base = {
+    NODE_ENV: "development",
+    DATABASE_URL: "postgresql://u:p@127.0.0.1:5432/d",
+    CODE_HMAC_KEY: "a".repeat(64),
+    TOKEN_HMAC_KEY: "b".repeat(64),
+    MFA_ENCRYPTION_KEY: "c".repeat(64),
+  } as NodeJS.ProcessEnv;
+  const sandbox = {
+    ...base,
+    COMMERCE_MODE: "zarinpal_sandbox",
+    ZARINPAL_MERCHANT_ID: "00000000-0000-4000-8000-0000000000aa",
+    ZARINPAL_CALLBACK_URL: "http://localhost:3200/payment/return",
+  };
+  assert.doesNotThrow(() => configuration(sandbox));
+  assert.doesNotThrow(() =>
+    configuration({
+      ...sandbox,
+      ZARINPAL_CALLBACK_URL: "https://yarizan.example.invalid/payment/return",
+    }),
+  );
+  // Required settings, URL shape and plain-http loopback only.
+  assert.throws(
+    () => configuration({ ...sandbox, ZARINPAL_MERCHANT_ID: "" }),
+    /SANDBOX_CONFIGURATION_REQUIRED/,
+  );
+  assert.throws(
+    () => configuration({ ...sandbox, ZARINPAL_CALLBACK_URL: "" }),
+    /SANDBOX_CONFIGURATION_REQUIRED/,
+  );
+  for (const url of [
+    "http://example.com/payment/return",
+    "http://192.168.1.2:3200/payment/return",
+    "ftp://localhost/payment/return",
+    "http://localhost:3200/payment/return?x=1",
+    "http://localhost:3200/payment/return#x",
+    "http://user:pw@localhost:3200/payment/return",
+    "http://localhost:3200/other",
+    "http://localhost:3200/payment/return/",
+  ])
+    assert.throws(
+      () => configuration({ ...sandbox, ZARINPAL_CALLBACK_URL: url }),
+      /CALLBACK_URL_INVALID/,
+      url,
+    );
+  // Production is refused by the closed gates before any payment mode matters, and the mode itself
+  // is also refused outside development and test.
+  assert.throws(
+    () => configuration({ ...sandbox, NODE_ENV: "production" }),
+    /PRODUCTION_GATE_CLOSED/,
+  );
+  assert.throws(
+    () => configuration({ ...base, COMMERCE_MODE: "zarinpal" }),
+    /ZARINPAL_LIVE_GATE_CLOSED/,
+  );
+  // The test price: integer IRR, only with a local commerce mode, never otherwise.
+  const priced = {
+    ...base,
+    COMMERCE_MODE: "fake",
+    LOCAL_TEST_PRICE_G1_IRR: "100000",
+  };
+  assert.equal(configuration(priced).LOCAL_TEST_PRICE_G1_IRR, 100000);
+  assert.equal(
+    configuration({ ...sandbox, LOCAL_TEST_PRICE_G1_IRR: "100000" })
+      .LOCAL_TEST_PRICE_G1_IRR,
+    100000,
+  );
+  assert.throws(
+    () => configuration({ ...base, LOCAL_TEST_PRICE_G1_IRR: "100000" }),
+    /LOCAL_TEST_PRICE_REFUSED/,
+  );
+  assert.throws(
+    () => configuration({ ...priced, NODE_ENV: "production" }),
+    /PRODUCTION_GATE_CLOSED/,
+  );
+  for (const value of ["9999", "100000.5", "-1", "abc", "100000001"])
+    assert.throws(
+      () => configuration({ ...priced, LOCAL_TEST_PRICE_G1_IRR: value }),
+      /CONFIGURATION_INVALID/,
+      value,
+    );
+  assert.equal(
+    configuration({
+      ...base,
+      COMMERCE_MODE: "fake",
+      LOCAL_TEST_PRICE_G1_IRR: "",
+    }).LOCAL_TEST_PRICE_G1_IRR,
+    undefined,
+  );
+});
+test("The sandbox adapter may return to a loopback http URL; the production adapter never may", () => {
+  const merchant = "00000000-0000-4000-8000-0000000000aa";
+  const transport = (async () => new Response("{}")) as typeof fetch;
+  assert.doesNotThrow(
+    () =>
+      new ZarinPalAdapter(
+        merchant,
+        "http://localhost:3200/payment/return",
+        transport,
+        "sandbox",
+      ),
+  );
+  assert.doesNotThrow(
+    () =>
+      new ZarinPalAdapter(
+        merchant,
+        "http://127.0.0.1:3200/payment/return",
+        transport,
+        "sandbox",
+      ),
+  );
+  assert.throws(
+    () =>
+      new ZarinPalAdapter(
+        merchant,
+        "http://localhost:3200/payment/return",
+        transport,
+      ),
+  );
+  assert.throws(
+    () =>
+      new ZarinPalAdapter(
+        merchant,
+        "http://example.com/payment/return",
+        transport,
+        "sandbox",
+      ),
+  );
+  assert.equal(
+    new ZarinPalAdapter(
+      merchant,
+      "https://x.invalid/payment/return",
+      transport,
+      "sandbox",
+    ).providerConfig,
+    "zarinpal-sandbox-v1",
+  );
+  assert.equal(
+    new ZarinPalAdapter(merchant, "https://x.invalid/payment/return", transport)
+      .providerConfig,
+    "zarinpal-v4",
+  );
+});

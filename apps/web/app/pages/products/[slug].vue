@@ -54,6 +54,7 @@ const commerce = publicOnly.value
           <div class="detail-price">
             <PriceBlock
               :list="product.price_irr"
+              :test-price="product.test_price"
               :promotion="product.publication_status === 'coming_soon' ? null : product.promotion"
               detail
             />

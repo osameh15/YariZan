@@ -3,6 +3,7 @@ import { persianDigits } from '#shared/digits';
 import { errorMessage, toman } from '#shared/domain';
 import { commerceState } from '#shared/commerce';
 import type { ApiResult } from '#shared/api';
+import { sandboxStartPay } from '#shared/payment-return';
 const props = defineProps<{ id: string }>(),
   api = useApi(),
   order = ref<ApiResult<'/api/v2/orders/{id}', 'get'>>(),
@@ -11,7 +12,19 @@ const props = defineProps<{ id: string }>(),
   requestId = ref(''),
   refund = ref(''),
   noticeSuccess = ref(false),
-  copied = ref(false);
+  copied = ref(false),
+  capabilities = ref<ApiResult<'/api/v2/commerce/capabilities', 'get'> | null>(null);
+const sandbox = computed(() => !!capabilities.value?.sandbox);
+// A payment page we may open: only the official sandbox StartPay with a sandbox authority.
+const gatewayUrl = computed(
+  () =>
+    order.value?.payments.find(
+      (p) => p.state === 'PENDING' && sandboxStartPay.test(p.redirect_url ?? ''),
+    )?.redirect_url ?? '',
+);
+const testPrice = computed(
+  () => (order.value?.snapshot as { test_price?: boolean } | undefined)?.test_price === true,
+);
 const statusTone = computed(() => {
   if (!order.value) return 'pending';
   if (order.value.exception_code) return 'review';
@@ -67,6 +80,8 @@ async function pay() {
       { id: props.id },
     );
     if (p.redirect_url === '/payment/simulate?order=' + props.id) await navigateTo(p.redirect_url);
+    else if (sandboxStartPay.test(p.redirect_url ?? ''))
+      await navigateTo(p.redirect_url!, { external: true });
     else await load();
   } catch (e) {
     message.value = errorMessage(e);
@@ -91,7 +106,14 @@ async function requestRefund() {
     busy.value = false;
   }
 }
-onMounted(load);
+onMounted(async () => {
+  try {
+    capabilities.value = await api.get('/api/v2/commerce/capabilities');
+  } catch {
+    capabilities.value = null;
+  }
+  await load();
+});
 onBeforeUnmount(() => {
   alive = false;
   clearTimeout(timer);
@@ -102,9 +124,18 @@ onBeforeUnmount(() => {
     <NuxtLink class="text-link" to="/account/orders">بازگشت به سفارش‌ها</NuxtLink>
     <h1>وضعیت سفارش شما</h1>
     <ApiNotice
+      v-if="sandbox"
+      kind="info"
+      message="محیط آزمایشی رسمی زرین‌پال (سندباکس)؛ هیچ مبلغ واقعی دریافت نمی‌شود."
+    /><ApiNotice
+      v-else
       kind="info"
       message="پرداخت آزمایشی است؛ هیچ مبلغ واقعی از شما دریافت نمی‌شود."
-    /><ApiNotice :message="message" :kind="noticeSuccess ? 'success' : 'error'" />
+    />
+    <p v-if="testPrice" class="notice" data-testid="order-test-price">
+      این سفارش با قیمت آزمایشی محلی ثبت شده است و قیمت رسمی نیست.
+    </p>
+    <ApiNotice :message="message" :kind="noticeSuccess ? 'success' : 'error'" />
     <div v-if="order" class="panel order-receipt" :data-tone="statusTone">
       <div class="order-status-symbol" aria-hidden="true">
         {{
@@ -161,7 +192,9 @@ onBeforeUnmount(() => {
           :disabled="busy"
           @click="pay"
         >
-          ادامه در شبیه‌ساز پرداخت</button
+          {{ sandbox ? 'ادامه در درگاه آزمایشی زرین‌پال' : 'ادامه در شبیه‌ساز پرداخت' }}</button
+        ><a v-if="gatewayUrl" class="button primary" :href="gatewayUrl" data-testid="gateway-link"
+          >ادامهٔ پرداخت در درگاه آزمایشی</a
         ><NuxtLink
           v-if="
             order.payments.some(

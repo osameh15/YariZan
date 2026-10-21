@@ -5,6 +5,7 @@ import { z } from "zod";
 import { Audit, Actor } from "../audit/audit";
 import { requireCondition } from "../common/errors";
 import { mutationSchema } from "../common/schemas";
+import { Security } from "../security/security";
 
 /**
  * Product promotional pricing.
@@ -77,6 +78,8 @@ export interface Pricing {
   promotion: ActivePromotion | null;
   effective_price_irr: number;
   priced_at: Date;
+  /** True only for the local acceptance test price (never in a release). */
+  test_price?: boolean;
 }
 // Exact integer percentage (whole percent, rounded down) from two integer prices. The database
 // column is generated from the same formula; this mirrors it for validation and previews.
@@ -91,7 +94,10 @@ export const activePromotionSql = `q.sku=r.sku AND q.state='ENABLED' AND q.origi
 
 @Injectable()
 export class Promotions {
-  constructor(private audit: Audit) {}
+  constructor(
+    private audit: Audit,
+    private security: Security,
+  ) {}
 
   /** Current list price and the active promotion, decided in one statement on database time. */
   async pricing(c: PoolClient, sku: string, lock = false): Promise<Pricing> {
@@ -105,6 +111,20 @@ export class Promotions {
       )
     ).rows[0];
     requireCondition(row, "PRODUCT_NOT_AVAILABLE", 403);
+    // Local acceptance only (config refuses it outside development/test): Grade 1 is priced at the
+    // configured test amount, no promotion applies, and everything downstream (quote, order snapshot,
+    // payment, verification) uses that one amount and is labelled as a test price.
+    const testPrice = this.security.config.LOCAL_TEST_PRICE_G1_IRR;
+    if (testPrice !== undefined && sku === "YARIZAN-G1")
+      return {
+        sku,
+        price_id: row.price_id,
+        list_price_irr: testPrice,
+        promotion: null,
+        effective_price_irr: testPrice,
+        priced_at: row.priced_at,
+        test_price: true,
+      };
     const list = Number(row.amount_irr);
     const promotion: ActivePromotion | null = row.promo_id
       ? {

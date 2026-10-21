@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { paymentReturnAuthority } from '../../shared/payment-return';
+import { paymentReturnAuthority, sandboxStartPay } from '../../shared/payment-return';
 import { PAYMENT_RETURN_AUTHORITY } from '../../../../backend/src/commerce/gateway';
 
 // The web return handler must neither reject an authority the Backend adapter can issue (a real
@@ -42,5 +42,27 @@ describe('payment return authority pattern', () => {
     ];
     for (const value of bad)
       expect(paymentReturnAuthority.test(value), JSON.stringify(value)).toBe(false);
+  });
+});
+
+describe('the only external payment destination', () => {
+  it('is the official sandbox StartPay page with a sandbox authority', () => {
+    expect(
+      sandboxStartPay.test('https://sandbox.zarinpal.com/pg/StartPay/S' + '0'.repeat(35)),
+    ).toBe(true);
+    for (const bad of [
+      'https://payment.zarinpal.com/pg/StartPay/A' + '0'.repeat(35),
+      'https://payment.zarinpal.com/pg/StartPay/S' + '0'.repeat(35),
+      'http://sandbox.zarinpal.com/pg/StartPay/S' + '0'.repeat(35),
+      'https://sandbox.zarinpal.com.evil.example/pg/StartPay/S' + '0'.repeat(35),
+      'https://evil.example/https://sandbox.zarinpal.com/pg/StartPay/S' + '0'.repeat(35),
+      'https://sandbox.zarinpal.com/pg/StartPay/A' + '0'.repeat(35),
+      'https://sandbox.zarinpal.com/pg/StartPay/S' + '0'.repeat(35) + '?x=1',
+      'https://sandbox.zarinpal.com/pg/StartPay/S' + '0'.repeat(35) + '/x',
+      'https://pay.yarizan.oarnova.games/pg/StartPay/S' + '0'.repeat(35),
+      '/payment/simulate?order=x',
+      '',
+    ])
+      expect(sandboxStartPay.test(bad), bad).toBe(false);
   });
 });
