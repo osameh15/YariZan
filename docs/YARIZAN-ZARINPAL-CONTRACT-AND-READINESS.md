@@ -93,3 +93,30 @@ Integration tests (`backend/test/integration.test.ts`, "Sandbox adapter"; a loca
 | Outage and timeout | HTTP 503 answers stay pending; the retry settles exactly once, one fulfillment, one entitlement |
 
 Still unvalidated against the real sandbox: callback query parameter names, non-100/101 code vocabulary, inquiry and refund methods, merchant activation behaviour. `COMMERCE_MODE=zarinpal` remains refused at startup.
+
+## 8. Payment hostname, DNS, TLS, egress, callback and activation (evidence, 2026-10-21)
+
+Each row is evidence for one question only. A passing row never implies the next.
+
+| Item | State | Evidence or blocker |
+|---|---|---|
+| Custom payment hostname registered | Owner-reported | `pay.yarizan.oarnova.games`, CNAME to `zpc.zarinpal.com`, merchant IP restriction enabled |
+| Authoritative zone | **Verified** | `oarnova.games` is served by `lake.parspack.net` and `fish.parspack.net` (Pars Pack). There is no delegation of `yarizan.oarnova.games`, so the record host is `pay.yarizan` in the `oarnova.games` zone |
+| DNS record | **Verified** | both authoritative servers answer `pay.yarizan.oarnova.games CNAME zpc.zarinpal.com` (TTL 300); 8.8.8.8 and 1.1.1.1 return the same alias, resolving to `45.89.138.240`. The record already existed; this change did not create or alter DNS |
+| Not routed through the CDN, Traefik or the VPS | **Verified** | `yarizan.oarnova.games` resolves to `185.239.1.100` (CDN); the payment host resolves to ZarinPal's `45.89.138.240`. No infrastructure config references the payment host |
+| TLS on the payment host | **Verified** | served by ZarinPal: Let's Encrypt certificate for `pay.yarizan.oarnova.games` only, valid 2026-10-19 to 2027-01-17, verification result 0, HTTP 200 |
+| ZarinPal domain confirmation status | **Unverified (owner)** | shown only in the merchant dashboard; this change cannot read it. DNS and TLS being healthy is necessary, not proof that the dashboard shows "confirmed" |
+| Meaning of the custom hostname for the API | **Unresolved** | the official documentation corpus (documentation MCP, 2026-10-21) contains no custom-domain page. Observed: the custom host serves ZarinPal's web app and a `405` on the API path, and the API host `payment.zarinpal.com` still answers. Whether API-generated StartPay redirects should use the custom host is not documented, so the adapter is **not** changed (`https://payment.zarinpal.com/pg/StartPay/<authority>` stays). Ask ZarinPal support to confirm in writing, with the exact redirect form to expect |
+| Outbound IP allowlist | **Identified, not registered/verified** | the VPS reaches the internet from `82.115.18.101` (checked from the host with two echo services; `eth0` carries the same address and Docker bridge networks are masqueraded to it). The CDN address `185.239.1.100` is not a Backend outbound address and must not be allowlisted. The VPS can reach `payment.zarinpal.com`. The payment egress path for the Backend does not exist yet (separate from the SMS relay); its real address must be re-checked from that path once built. Official error `-10` means the merchant ID or the request IP is not valid; ZarinPal documents that the IP it sees can differ from the website's. Whether `82.115.18.101` is registered in the merchant panel is unverified |
+| Merchant registered domain and callback | **Unverified (owner)** | official error `-14`: the `callback_url` domain must match the terminal's registered domain; `-18`: the referrer must match it. The callback the Backend will send is `https://yarizan.oarnova.games/payment/return` (the Nuxt return route). The registered website domain must be `yarizan.oarnova.games` or `oarnova.games` as ZarinPal's matching rule requires, and the same host must serve the callback. Confirm both in the panel; the Shaparak (eNamad) record already names the site |
+| Return routing | **Fixed and tested** | the Nuxt `/payment/return` validation accepted only `A` plus exactly 32 characters (33 in all), while the documented authority has 36 characters and sandbox authorities start with `S`: a real authority would have been rejected with 400 before reaching the Backend. Web and Backend now share one pattern (`[AS]` plus 32-40 alphanumerics, or the fake test form); a unit test fails if they differ and a full-application test proves which layer decided |
+| Sandbox | Local fake sandbox only | section 7; no request reached `sandbox.zarinpal.com` |
+| Merchant activation | **Not granted** | the owner reports activation is pending; nothing here changes it |
+| Real-payment authorization | **Not granted** | `COMMERCE_MODE=zarinpal` is refused at startup; needs merchant activation, the Backend production gates and a separate recorded go/no-go |
+
+### Operator actions
+
+1. In the ZarinPal panel: confirm the custom domain shows as confirmed, register the Backend egress IP (`82.115.18.101` unless the payment egress path differs), and confirm the registered website domain matches `yarizan.oarnova.games`.
+2. Ask ZarinPal support, in writing, whether API-created StartPay links must use `pay.yarizan.oarnova.games`, and the exact form (host, path, sandbox variant).
+3. Build the dedicated payment egress (not the SMS relay), then re-verify its public address and the allowlist from that path.
+
