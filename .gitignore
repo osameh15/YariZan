@@ -10,6 +10,9 @@ obj/
 # Secrets â€” NEVER commit these
 secrets/private.pem
 secrets/master.key
+# Disposable local-acceptance trust root exported from the workstation stack
+secrets/v2-local-acceptance-roots.json
+publish/*-local-acceptance/
 
 # Encrypted game bundles are reproducible from miniApps/ + secrets/master.key
 /games_encrypted/*

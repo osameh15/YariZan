@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
     <RootNamespace>YariZan.Core</RootNamespace>
   </PropertyGroup>
+  <!-- Workstation acceptance against the local stack only; never combined with CommercialRelease. -->
+  <PropertyGroup Condition="'$(LocalAcceptanceBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);YARIZAN_LOCAL_ACCEPTANCE</DefineConstants>
+  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Management" Version="9.0.0" />
