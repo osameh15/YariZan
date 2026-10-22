@@ -55,9 +55,17 @@ jobs:
             [[ "$heads" -gt 0 ]] || { echo 'Commit is not on main or a same-repository PR'; exit 1; }
           fi
           # Every required workflow must have succeeded for this exact commit.
-          for workflow in 'CI' 'V2 Backend CI' 'V2 Web and Provisioning CI' 'Image build and security validation'; do
-            ok=$(gh api "repos/$REPO/actions/runs?head_sha=$COMMIT&per_page=100" \
-              --jq "[.workflow_runs[]|select(.name==\"$workflow\" and .conclusion==\"success\")]|length")
+          # Query each required workflow by its file, so a run is bound to the reviewed workflow
+          # definition (not to a display name any workflow could reuse). The commit-wide runs list
+          # has returned partial results on the runner, so each lookup is retried before failing.
+          for workflow in ci.yml backend-ci.yml web-ci.yml images.yml; do
+            ok=0
+            for attempt in 1 2 3 4 5; do
+              ok=$(gh api "repos/$REPO/actions/workflows/$workflow/runs?head_sha=$COMMIT&per_page=100" \
+                --jq '[.workflow_runs[]|select(.conclusion=="success")]|length')
+              [[ "$ok" -gt 0 ]] && break
+              sleep $((attempt * 5))
+            done
             [[ "$ok" -gt 0 ]] || { echo "Missing successful '$workflow' run for $COMMIT"; exit 1; }
           done
           # Refuse to continue without an approval-protected environment (owner gate).
