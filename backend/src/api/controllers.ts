@@ -1054,6 +1054,27 @@ export class AdminController {
             "SELECT count(*) FROM outbox_events WHERE processed_at IS NULL",
           )
         ).rows[0].count,
+        devices: (await c.query("SELECT count(*) FROM devices")).rows[0].count,
+        licenses_active: (
+          await c.query("SELECT count(*) FROM licenses WHERE state='ACTIVE'")
+        ).rows[0].count,
+        paid_orders: (
+          await c.query(
+            "SELECT count(*) FROM orders WHERE paid_at IS NOT NULL AND accepted_payment_id IS NOT NULL",
+          )
+        ).rows[0].count,
+        // Last 30 days (Tehran calendar days), counts only: no amounts, no personal data.
+        daily: (
+          await c.query(
+            `WITH days AS (
+               SELECT generate_series((now() AT TIME ZONE 'Asia/Tehran')::date - 29, (now() AT TIME ZONE 'Asia/Tehran')::date, interval '1 day')::date AS day)
+             SELECT to_char(d.day,'YYYY-MM-DD') AS day,
+               (SELECT count(*) FROM customers WHERE (claimed_at AT TIME ZONE 'Asia/Tehran')::date=d.day)::int AS accounts,
+               (SELECT count(*) FROM trial_starts WHERE (started_at AT TIME ZONE 'Asia/Tehran')::date=d.day)::int AS trials,
+               (SELECT count(*) FROM orders WHERE accepted_payment_id IS NOT NULL AND (paid_at AT TIME ZONE 'Asia/Tehran')::date=d.day)::int AS paid_orders
+             FROM days d ORDER BY d.day`,
+          )
+        ).rows,
       };
     });
   }

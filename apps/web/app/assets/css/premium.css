@@ -712,7 +712,6 @@ label {
 .table-scroll {
   border-radius: 14px;
   background: var(--surface);
-  scrollbar-color: #b6a790 var(--surface-soft);
 }
 table caption {
   text-align: start;
@@ -1633,5 +1632,188 @@ td .button {
   .legal-facts > div {
     grid-template-columns: minmax(0, 1fr);
     gap: 4px;
+  }
+}
+
+/* Scrollbars: one slim, rounded design everywhere (Chromium, Edge and Safari via ::-webkit-scrollbar;
+   Firefox via the standard properties, applied only where the WebKit pseudo-elements are absent so
+   Chromium keeps the rounded thumb). */
+:root {
+  --scroll-thumb: #c9b99d;
+  --scroll-thumb-hover: var(--accent);
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--scroll-thumb);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scroll-thumb-hover);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scroll-thumb) transparent;
+  }
+}
+
+/* Persian inputs: text and placeholder start at the right. Mixed Latin text (IDs, usernames)
+   keeps its own order inside the field. */
+.search-input {
+  direction: rtl;
+  text-align: right;
+  unicode-bidi: plaintext;
+}
+input::placeholder,
+textarea::placeholder {
+  text-align: start;
+}
+
+/* Checkboxes in dialogs and forms: compact rows with a 44px touch target. */
+.check-label {
+  min-height: 36px;
+  margin-block: 0;
+}
+/* Consecutive checkboxes read as one group, so they sit tighter than the form's field gap. */
+.check-label + .check-label {
+  margin-top: -6px;
+}
+
+/* Admin dashboard */
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+@media (max-width: 640px) {
+  .dashboard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.stat-tile {
+  display: grid;
+  gap: 4px;
+  padding: 18px 20px;
+  margin: 0;
+  border-radius: 16px;
+}
+.stat-tile strong {
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.stat-tile p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.stat-tile-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--teal-50);
+  color: var(--accent);
+  font-size: 15px;
+}
+.dashboard-charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.daily-chart {
+  margin: 0;
+  padding: 18px 20px;
+  min-width: 0;
+}
+.daily-chart figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+}
+.daily-chart-title {
+  font-weight: 700;
+  color: var(--ink);
+}
+.daily-chart-total {
+  color: var(--muted);
+  font-size: 13px;
+}
+.daily-chart-plot {
+  position: relative;
+}
+.daily-chart svg {
+  display: block;
+  width: 100%;
+  height: 180px;
+  border-radius: 8px;
+}
+.daily-chart svg:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.daily-chart-bars path {
+  fill: #0a8a76;
+  transition: opacity 120ms ease;
+}
+.daily-chart-bars path.dim {
+  opacity: 0.35;
+}
+.daily-chart-grid line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.daily-chart-grid text,
+.daily-chart-axis text {
+  fill: var(--muted);
+  font-size: 11px;
+  font-family: Shabnam, Tahoma, sans-serif;
+}
+.daily-chart-tip {
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -110%);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.daily-chart-table {
+  margin-top: 8px;
+  font-size: 13px;
+}
+.daily-chart-table summary {
+  cursor: pointer;
+  color: var(--accent);
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+.daily-chart-table table {
+  width: 100%;
+  margin-top: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .daily-chart-bars path {
+    transition: none;
   }
 }

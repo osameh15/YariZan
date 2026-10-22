@@ -62,13 +62,9 @@ watch(
     <div v-if="publicOnly" class="wrap brochure-notice" role="note">
       <span aria-hidden="true">✦</span>
       <p v-if="storefront">
-        قیمت‌ها رسمی و به تومان است. خرید اینترنتی، ورود به حساب، فعال‌سازی و شروع آزمایش به‌زودی
-        فعال می‌شود؛ تا آن زمان برای تهیهٔ برنامه با پشتیبانی تماس بگیرید.
+        قیمت‌ها رسمی و به تومان است. برای تهیه و فعال‌سازی برنامه با پشتیبانی تماس بگیرید.
       </p>
-      <p v-else>
-        یاریزان در مرحلهٔ معرفی است. ثبت‌نام، ورود به حساب، خرید، فعال‌سازی و شروع آزمایش برنامه
-        هنوز در دسترس نیست. برای راهنمایی با پشتیبانی تماس بگیرید.
-      </p>
+      <p v-else>برای تهیه و فعال‌سازی برنامه با پشتیبانی یاریزان تماس بگیرید.</p>
     </div>
     <main id="main"><slot /></main>
     <footer class="site-footer">
@@ -105,7 +101,6 @@ watch(
           <a class="footer-email" :href="'mailto:' + SUPPORT_EMAIL" dir="ltr">{{
             SUPPORT_EMAIL
           }}</a>
-          <p class="muted">فروش اینترنتی در مرحلهٔ آماده‌سازی است.</p>
         </div>
       </div>
       <div class="footer-credits">

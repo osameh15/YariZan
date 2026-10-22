@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { test } = useCommerceMode();
 import { PRIMARY_SUPPORT_PHONE } from '#shared/contact';
 import type { ApiResult } from '#shared/api';
 import { gradeNames, availability } from '#shared/domain';
@@ -12,7 +13,7 @@ useSeoMeta({
   title: () => (product.value ? `${product.value.title_fa} | یاریزان` : 'محصولات یاریزان'),
 });
 const assistance = ref(false);
-const { publicOnly, storefront } = useSiteMode();
+const { publicOnly } = useSiteMode();
 // Public-only profiles have no API: commerce capabilities are never requested.
 const commerce = publicOnly.value
   ? ref<ApiResult<'/api/v2/commerce/capabilities', 'get'> | null>(null)
@@ -64,14 +65,7 @@ const commerce = publicOnly.value
             این پایه هنوز عرضه نشده است. فروش و فعال‌سازی آن در دسترس نیست.
           </p>
           <template v-else-if="publicOnly">
-            <p v-if="storefront" class="notice">
-              خرید اینترنتی، فعال‌سازی و شروع آزمایش این پایه به‌زودی فعال می‌شود. قیمت
-              نمایش‌داده‌شده قیمت رسمی است، اما هنوز هیچ سفارش یا پرداختی در این سایت ثبت نمی‌شود.
-            </p>
-            <p v-else class="notice">
-              یاریزان در مرحلهٔ معرفی است. خرید اینترنتی، فعال‌سازی و شروع آزمایش این پایه هنوز در
-              دسترس نیست و هیچ پرداختی در این سایت انجام نمی‌شود.
-            </p>
+            <p class="notice">برای تهیه و فعال‌سازی این پایه با پشتیبانی یاریزان تماس بگیرید.</p>
             <a class="button primary phone" :href="'tel:' + PRIMARY_SUPPORT_PHONE.tel" dir="ltr">{{
               PRIMARY_SUPPORT_PHONE.display
             }}</a>
@@ -81,10 +75,10 @@ const commerce = publicOnly.value
               v-if="product.sale_enabled && commerce?.checkout_enabled"
               class="button primary"
               :to="'/checkout?sku=' + product.sku"
-              >خرید آزمایشی این پایه</NuxtLink
+              >{{ test ? 'خرید آزمایشی این پایه' : 'خرید این پایه' }}</NuxtLink
             >
-            <p v-if="commerce?.checkout_enabled" class="muted">
-              پرداخت در این محیط شبیه‌سازی می‌شود؛ هیچ پولی دریافت نمی‌شود.
+            <p v-if="commerce?.checkout_enabled && test" class="muted">
+              محیط آزمایشی محلی؛ هیچ پولی دریافت نمی‌شود.
             </p>
             <button v-if="product.sale_enabled" class="button primary" @click="assistance = true">
               راهنمای تهیهٔ این نسخه ↗

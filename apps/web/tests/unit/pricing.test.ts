@@ -43,7 +43,7 @@ describe('public storefront catalog', () => {
   });
   it('availability is independent of price: G1 launch, G2-G6 Coming Soon', () => {
     expect(storefront.products[0]!.publication_status).toBe('published');
-    expect(availability(storefront.products[0]!, true)).toBe('فروش اینترنتی به‌زودی');
+    expect(availability(storefront.products[0]!, true)).toBe('تهیه از راه پشتیبانی');
     for (const p of storefront.products.slice(1)) {
       expect(p.publication_status).toBe('coming_soon');
       expect(availability(p, true)).toBe('به‌زودی');

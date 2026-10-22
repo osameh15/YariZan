@@ -185,7 +185,7 @@ describe('customer price presentation', () => {
     });
     expect(live.find('.discount-badge').exists()).toBe(true);
     // A promotion never changes availability wording: nothing is purchasable on the public site.
-    expect(live.text()).toContain('فروش اینترنتی به‌زودی');
+    expect(live.text()).toContain('تهیه از راه پشتیبانی');
   });
 });
 

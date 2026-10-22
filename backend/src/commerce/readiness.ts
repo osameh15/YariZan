@@ -19,10 +19,17 @@ export const PAYMENT_READINESS_EVIDENCE: readonly {
 }[] = [
   {
     id: "merchant_activation",
+    status: "owner_confirmed",
+    evidence:
+      "Owner confirms ZarinPal approved the merchant «استودیوی بازی‌سازی اوآر نوآ» (2026-10-22); not independently read from the dashboard",
+    reference: "YARIZAN-ZARINPAL-CONTRACT-AND-READINESS.md#8",
+  },
+  {
+    id: "live_payment_authorization",
     status: "blocked",
     evidence:
-      "Merchant account provisioned; activation not granted by ZarinPal",
-    reference: "YARIZAN-ZARINPAL-CONTRACT-AND-READINESS.md#8",
+      "Live payments are refused in source (ZARINPAL_LIVE_GATE_CLOSED); needs the restricted payment egress, the Backend production gates and a separate owner go/no-go",
+    reference: "YARIZAN-PRODUCTION-GATE-MATRIX.md",
   },
   {
     id: "custom_payment_domain",
@@ -68,10 +75,10 @@ export const PAYMENT_READINESS_EVIDENCE: readonly {
   },
   {
     id: "legal_merchant_documentation",
-    status: "partial",
+    status: "verified",
     evidence:
-      "Legal pages exist with owner-pending passages; eNamad record present; final texts need owner approval",
-    reference: "YARIZAN-FULL-APPLICATION-PRODUCTION-GATES.md",
+      "Legal policies 2.0.0 approved by the owner on 2026-10-22; eNamad storefront «یاریزان» for yarizan.oarnova.games (ID 8237399) confirmed by the owner",
+    reference: "apps/web/shared/legal.ts",
   },
 ];
 

@@ -5,6 +5,7 @@ import { financialToman, commerceState } from '#shared/commerce';
 import type { paths } from '#shared/api.generated';
 type CommerceSection =
   paths['/api/v2/admin/commerce/{section}']['get']['parameters']['path']['section'];
+const { test } = useCommerceMode();
 const api = useApi(true),
   route = useRoute(),
   rows = ref<Record<string, unknown>[]>([]),
@@ -313,9 +314,10 @@ const navigationGroups: { title: string; ids: string[] }[] = [
       </nav>
     </aside>
     <div class="portal-main" :aria-busy="busy">
-      <p class="eyebrow">فقط داده‌های آزمایشی</p>
+      <p v-if="test" class="eyebrow">فقط داده‌های آزمایشی</p>
       <h1>{{ title }}</h1>
       <ApiNotice
+        v-if="test"
         kind="info"
         message="هیچ پرداخت یا بازپرداخت واقعی اجرا نمی‌شود. ثبت درخواست یا تأیید مدیر به معنی بازگشت وجه نیست."
       /><ApiNotice :message="message" :kind="success ? 'success' : 'error'" />

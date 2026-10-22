@@ -84,6 +84,20 @@ const sections = [
   ['payment-readiness', 'آمادگی پرداخت', 'finance.read'],
 ];
 const allowed = (permission: string) => permissions.value.includes(permission);
+// Dashboard: totals and 30-day daily counts from /admin/reports (counts only, no amounts).
+const count = (key: string) => Number(reports.value[key] ?? 0);
+const dashboardTiles = computed(() => [
+  { icon: '◉', label: 'حساب فعال', value: count('customers') },
+  { icon: '▣', label: 'دستگاه ثبت‌شده', value: count('devices') },
+  { icon: '✓', label: 'مجوز معتبر', value: count('licenses_active') },
+  { icon: '◆', label: 'سفارش پرداخت‌شده', value: count('paid_orders') },
+  { icon: '▶', label: 'شروع نوبت آزمایشی', value: count('trials') },
+  { icon: '⟳', label: 'رویداد در انتظار پردازش', value: count('outbox_pending') },
+]);
+function series(key: 'accounts' | 'trials' | 'paid_orders') {
+  const daily = (reports.value.daily ?? []) as Record<string, unknown>[];
+  return daily.map((d) => ({ day: String(d.day), value: Number(d[key] ?? 0) }));
+}
 const title = computed(() => sections.find((s) => s[0] === section.value)?.[1] ?? 'مدیریت');
 const dialog = ref(false),
   selected = ref<Row>({}),
@@ -386,23 +400,36 @@ const navigationGroups: { title: string; ids: string[] }[] = [
       <ApiNotice :message="message" :kind="noticeSuccess ? 'success' : 'error'" />
       <p v-if="busy" role="status" class="notice">در حال دریافت اطلاعات…</p>
       <template v-if="section === 'dashboard'"
-        ><div v-if="allowed('audit.read') && !busy" class="stat-grid">
-          <article class="panel">
-            <span>{{ new Intl.NumberFormat('fa-IR').format(Number(reports.customers ?? 0)) }}</span>
-            <p>حساب فعال</p>
-          </article>
-          <article class="panel">
-            <span>{{ new Intl.NumberFormat('fa-IR').format(Number(reports.trials ?? 0)) }}</span>
-            <p>شروع آزمایش ثبت‌شده</p>
-          </article>
-          <article class="panel">
-            <span>{{
-              new Intl.NumberFormat('fa-IR').format(Number(reports.outbox_pending ?? 0))
-            }}</span>
-            <p>رویداد در انتظار پردازش</p>
-          </article>
-        </div>
-        <div class="panel">
+        ><template v-if="allowed('audit.read') && !busy">
+          <div class="dashboard-stats">
+            <article v-for="tile in dashboardTiles" :key="tile.label" class="panel stat-tile">
+              <span class="stat-tile-icon" aria-hidden="true">{{ tile.icon }}</span>
+              <strong>{{ new Intl.NumberFormat('fa-IR').format(tile.value) }}</strong>
+              <p>{{ tile.label }}</p>
+            </article>
+          </div>
+          <div class="dashboard-charts">
+            <DailyBarChart
+              class="panel"
+              title="حساب‌های تازه"
+              unit="حساب"
+              :points="series('accounts')"
+            />
+            <DailyBarChart
+              class="panel"
+              title="شروع نوبت آزمایشی"
+              unit="شروع"
+              :points="series('trials')"
+            />
+            <DailyBarChart
+              class="panel"
+              title="سفارش‌های پرداخت‌شده"
+              unit="سفارش"
+              :points="series('paid_orders')"
+            />
+          </div>
+        </template>
+        <div class="panel dashboard-note">
           <h2>هر عملیات، با دلیل روشن.</h2>
           <p>
             دسترسی بخش‌ها بر اساس نقش شماست. عملیات حساس به ورود دومرحله‌ای در پنج دقیقهٔ اخیر نیاز
@@ -434,7 +461,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                 ? 'نام محصول، شناسه یا یادداشت'
                 : 'شناسه، نام کاربری، شمارهٔ کامل همراه یا یادداشت'
             "
-            dir="ltr"
+            class="search-input"
             maxlength="128"
           /><button class="button secondary">جست‌وجو</button
           ><button type="button" class="button secondary" @click="load">تازه‌سازی</button>

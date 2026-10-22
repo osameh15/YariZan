@@ -15,6 +15,7 @@ const props = defineProps<{ id: string }>(),
   copied = ref(false),
   capabilities = ref<ApiResult<'/api/v2/commerce/capabilities', 'get'> | null>(null);
 const sandbox = computed(() => !!capabilities.value?.sandbox);
+const simulated = computed(() => capabilities.value?.mode === 'fake');
 // A payment page we may open: only the official sandbox StartPay with a sandbox authority.
 const gatewayUrl = computed(
   () =>
@@ -128,7 +129,7 @@ onBeforeUnmount(() => {
       kind="info"
       message="محیط آزمایشی رسمی زرین‌پال (سندباکس)؛ هیچ مبلغ واقعی دریافت نمی‌شود."
     /><ApiNotice
-      v-else
+      v-else-if="simulated"
       kind="info"
       message="پرداخت آزمایشی است؛ هیچ مبلغ واقعی از شما دریافت نمی‌شود."
     />
@@ -213,8 +214,8 @@ onBeforeUnmount(() => {
       <FormShell v-if="order.paid_at" @submit="requestRefund"
         ><h3>درخواست بررسی بازپرداخت</h3>
         <p>
-          درخواست شما نیاز به بررسی دارد. بازپرداخت واقعی در این مرحله اجرا نمی‌شود. مجوز آفلاین روی
-          دستگاهی که همیشه آفلاین است ممکن است تا همگام‌سازی معتبر بماند.
+          درخواست شما بررسی و نتیجه به شما اعلام می‌شود. ثبت یا تأیید درخواست به معنی بازگشت وجه
+          نیست؛ بازگشت وجه جداگانه اعلام می‌شود.
         </p>
         <label
           >دلیل درخواست<textarea v-model="refund" required minlength="10" maxlength="1000" /></label
