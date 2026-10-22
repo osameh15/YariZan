@@ -34,13 +34,10 @@ useSeoMeta({ title: 'اطلاعات فروشنده | یاریزان' });
       <div>
         <dt>تلفن پشتیبانی</dt>
         <dd class="legal-phones">
-          <a
-            v-for="phone in SUPPORT_PHONES"
-            :key="phone.tel"
-            :href="'tel:' + phone.tel"
-            dir="ltr"
-            >{{ phone.display }}</a
-          >
+          <template v-for="(phone, index) in SUPPORT_PHONES" :key="phone.tel">
+            <span v-if="index > 0"> و </span>
+            <a :href="'tel:' + phone.tel" dir="ltr">{{ phone.display }}</a>
+          </template>
         </dd>
       </div>
       <div>
@@ -58,6 +55,10 @@ useSeoMeta({ title: 'اطلاعات فروشنده | یاریزان' });
     </dl>
     <h2>نماد اعتماد الکترونیکی</h2>
     <p>
+      نماد اعتماد الکترونیکی این فروشگاه با نام «یاریزان» (<bdi dir="ltr">Yarizan</bdi>) برای
+      زیردامنهٔ <bdi dir="ltr">yarizan.oarnova.games</bdi> تأیید شده است.
+    </p>
+    <p>
       شناسهٔ نماد اعتماد این فروشگاه
       <bdi dir="ltr">{{ ENAMAD.id }}</bdi> است. اطلاعات ثبت‌شدهٔ نماد را در سامانهٔ رسمی اینماد
       ببینید:
@@ -71,6 +72,10 @@ useSeoMeta({ title: 'اطلاعات فروشنده | یاریزان' });
       >
     </p>
     <h2>پرداخت</h2>
+    <p>
+      پذیرندهٔ زرین‌پال با نام «{{ MERCHANT.tradeNameFa }}» تأیید شده است. این تأیید به‌تنهایی
+      به معنای فعال بودن پرداخت آنلاین در سایت نیست.
+    </p>
     <p>
       پرداخت اینترنتی از راه درگاه {{ MERCHANT.paymentProviderFa }} انجام می‌شود. تا زمانی که خرید
       اینترنتی روی همین سایت فعال اعلام نشده است، پرداخت آنلاین در دسترس نیست و برای تهیهٔ برنامه
