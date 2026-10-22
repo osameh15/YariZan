@@ -8,7 +8,7 @@ Grade-specific Persian RTL educational mini-game launcher by **OAR NOVA GAMES ST
 
 ## App features
 
-Download the Windows installer or the ZIP containing the installer and its SHA-256 checksum from [release 1.1.0](https://github.com/osameh15/YariZan/releases/tag/1.1.0).
+Download the Windows installer for your grade from the official download page, [yarizan.oarnova.games/download](https://yarizan.oarnova.games/download), and compare its SHA-256 with the value shown there. The legacy 1.1.0 GitHub release is historical and not a V2 build.
 
 - One grade per package, named **YariZan G1**, **G2**, etc.; the Persian cover title follows the selected grade.
 - Portrait game artwork in three columns and two rows per page, with book page-turn animation.
@@ -111,9 +111,8 @@ Create the setup executable:
 | Output | Use |
 |---|---|
 | `publish/YariZan-G1-win-x64/YariZan-G1.exe` | Self-contained launcher; keep adjacent `games_encrypted/` |
-| `publish/YariZan-G1-Setup-v1.1.0.exe` | Installer containing launcher and games |
-| `publish/YariZan-G1-Setup-v1.1.0.exe.sha256` | Installer SHA-256 checksum |
-| `publish/YariZan-G1-Setup-v1.1.0.zip` | Installer and its checksum in one download |
+| `publish/YariZan-G1-Setup-v2.0.0.exe` | Installer containing launcher and games (version from the app project) |
+| `publish/YariZan-G1-Setup-v2.0.0.exe.sha256` | Installer SHA-256 checksum |
 | `publish/installer-about.rtf` | Generated build input; disposable after compilation |
 
 If the standard publish directory already exists, the builder preserves it and prints the new directory with a build suffix.

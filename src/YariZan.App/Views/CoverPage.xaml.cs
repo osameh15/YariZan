@@ -18,7 +18,7 @@ public partial class CoverPage : UserControl
         AppNameText.Text = AppBranding.PersianTitle(grade);
         DataContext = this;
 
-        var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0";
+        var ver = Assembly.GetExecutingAssembly().GetName().Version!.ToString(3);
         VersionText.Text = "نسخهٔ " + ToPersianDigits(ver);
     }
 

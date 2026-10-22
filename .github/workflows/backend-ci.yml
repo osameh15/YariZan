@@ -54,6 +54,6 @@ jobs:
       - run: npm run check:secrets
       - run: npm audit --audit-level=high
       - run: python ../tools/Check-PublicRepository.py
-      - name: Release tooling unit tests (manifest validation, SMS pattern comparison)
+      - name: Release tooling unit tests (manifest validation, SMS pattern comparison, Windows version consistency)
         working-directory: .
-        run: node --test tools/release/manifest.test.mjs tools/sms-test/compare-patterns.test.mjs
+        run: node --test tools/release/manifest.test.mjs tools/sms-test/compare-patterns.test.mjs tools/release/windows-version.test.mjs
