@@ -15,7 +15,7 @@ import { Outbox } from "./outbox/outbox";
 import {
   Signing,
   SIGNING_KEY_MANAGER,
-  DevelopmentKeyManager,
+  signingKeyManager,
 } from "./signing/signing";
 import { Identity } from "./identity/identity";
 import { Sms } from "./accounts/sms";
@@ -54,7 +54,7 @@ import {
     Signing,
     {
       provide: SIGNING_KEY_MANAGER,
-      useFactory: () => new DevelopmentKeyManager(),
+      useFactory: () => signingKeyManager(),
     },
   ],
   exports: [

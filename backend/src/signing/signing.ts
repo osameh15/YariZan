@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import {
+  createHash,
   createPublicKey,
   createPrivateKey,
   generateKeyPairSync,
@@ -7,7 +8,7 @@ import {
   sign,
   verify,
 } from "node:crypto";
-import { requireCondition } from "../common/errors";
+import { ApiError, requireCondition } from "../common/errors";
 import { configuration } from "../config";
 import { hash } from "../security/crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -148,6 +149,74 @@ export class DevelopmentKeyManager implements SigningKeyManager {
       dsaEncoding: "ieee-p1363",
     });
   }
+}
+/** Key ids that only ever name disposable keys; the Windows commercial check forbids the same words. */
+export const NON_PRODUCTION_KID = /test|fixture|disposable|development|demo/i;
+/** Production kid naming, e.g. "yarizan-license-2026-01". */
+export const PRODUCTION_KID = /^yarizan-license-[a-z0-9-]{1,40}$/;
+/** Uppercase hex SHA-256 of the SPKI DER, the same fingerprint as CommercialReleasePolicy (C#). */
+export function publicKeyFingerprint(key: KeyObject) {
+  return createHash("sha256")
+    .update(createPublicKey(key).export({ type: "spki", format: "der" }))
+    .digest("hex")
+    .toUpperCase();
+}
+/**
+ * Production license-signing key from a root-owned secret file (never an image layer, never the
+ * environment). The file, the reviewed kid and the approved public fingerprint must all agree, so a
+ * wrong or swapped file refuses startup instead of signing with an unapproved key.
+ */
+export class FileKeyManager implements SigningKeyManager {
+  readonly kid: string;
+  readonly publicKey: string;
+  private readonly privateKey: KeyObject;
+  constructor(file: string, kid: string, fingerprint: string) {
+    requireCondition(
+      PRODUCTION_KID.test(kid) && !NON_PRODUCTION_KID.test(kid),
+      "SIGNING_KID_INVALID",
+    );
+    let key: KeyObject;
+    try {
+      key = createPrivateKey(readFileSync(file));
+    } catch {
+      throw new ApiError("SIGNING_KEY_UNREADABLE", 500);
+    }
+    requireCondition(
+      key.asymmetricKeyType === "ec" &&
+        key.asymmetricKeyDetails?.namedCurve === "prime256v1",
+      "SIGNING_KEY_INVALID",
+    );
+    requireCondition(
+      publicKeyFingerprint(key) === fingerprint,
+      "SIGNING_KEY_NOT_APPROVED",
+    );
+    this.privateKey = key;
+    this.kid = kid;
+    this.publicKey = createPublicKey(key)
+      .export({ type: "spki", format: "pem" })
+      .toString();
+  }
+  sign(message: Buffer) {
+    return sign("sha256", message, {
+      key: this.privateKey,
+      dsaEncoding: "ieee-p1363",
+    });
+  }
+}
+/**
+ * Production must use the approved file key. Development and test use it when configured and the
+ * disposable key otherwise.
+ */
+export function signingKeyManager(): SigningKeyManager {
+  const c = configuration();
+  if (c.LICENSE_SIGNING_KEY_FILE)
+    return new FileKeyManager(
+      c.LICENSE_SIGNING_KEY_FILE,
+      c.LICENSE_SIGNING_KID!,
+      c.LICENSE_SIGNING_KEY_SHA256!,
+    );
+  requireCondition(c.NODE_ENV !== "production", "SIGNING_KEY_REQUIRED");
+  return new DevelopmentKeyManager();
 }
 export const profiles = {
   enrollment: {

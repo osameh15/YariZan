@@ -57,3 +57,6 @@ jobs:
       - name: Release tooling unit tests (manifest validation, SMS pattern comparison, Windows version consistency)
         working-directory: .
         run: node --test tools/release/manifest.test.mjs tools/sms-test/compare-patterns.test.mjs tools/release/windows-version.test.mjs
+      - name: License-signing key ceremony self-test (throwaway key, test passphrase)
+        working-directory: .
+        run: bash tools/release/license-key-ceremony.test.sh

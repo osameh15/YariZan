@@ -286,3 +286,100 @@ test("Public-key curve and SPKI normalization strict", () => {
     64,
   );
 });
+
+test("Production signing key: approved file, kid and fingerprint must all agree", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const { FileKeyManager, publicKeyFingerprint, signingKeyManager } =
+    await import("../src/signing/signing");
+  const dir = mkdtempSync(path.join(tmpdir(), "yz-signing-"));
+  const pair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const file = path.join(dir, "license-signing.pem");
+  writeFileSync(file, pair.privateKey.export({ type: "pkcs8", format: "pem" }));
+  const fingerprint = publicKeyFingerprint(pair.privateKey);
+  assert.match(fingerprint, /^[0-9A-F]{64}$/);
+  const keys = new FileKeyManager(file, "yarizan-license-2026-01", fingerprint);
+  const s = new Signing(keys);
+  const a = s.artifact("decision", {
+    device_id: "30000000-0000-4000-8000-000000000001",
+    device_fingerprint_version: 2,
+    device_fingerprint_digest: "A".repeat(64),
+    license_id: "10000000-0000-4000-8000-000000000001",
+    sku: "YARIZAN-G1",
+    decision_version: 1,
+    status: "ACTIVE",
+  });
+  assert.equal(a.payload.kid, "yarizan-license-2026-01");
+  assert.ok(
+    verify(
+      "sha256",
+      Buffer.from(profiles.decision.domain + canonical(a.payload)),
+      { key: pair.publicKey, dsaEncoding: "ieee-p1363" },
+      Buffer.from(a.signature, "base64url"),
+    ),
+  );
+  // A swapped key file, a development-style kid or an unreadable file refuses to sign.
+  const other = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  assert.throws(
+    () =>
+      new FileKeyManager(
+        file,
+        "yarizan-license-2026-01",
+        publicKeyFingerprint(other.privateKey),
+      ),
+    (e: { code?: string }) => e.code === "SIGNING_KEY_NOT_APPROVED",
+  );
+  for (const kid of [
+    "yarizan-license-development",
+    "disposable-development-1",
+    "yarizan-license-test",
+  ])
+    assert.throws(
+      () => new FileKeyManager(file, kid, fingerprint),
+      (e: { code?: string }) => e.code === "SIGNING_KID_INVALID",
+    );
+  assert.throws(
+    () =>
+      new FileKeyManager(
+        path.join(dir, "missing.pem"),
+        "yarizan-license-2026-01",
+        fingerprint,
+      ),
+    (e: { code?: string }) => e.code === "SIGNING_KEY_UNREADABLE",
+  );
+  const rsa = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  writeFileSync(
+    path.join(dir, "rsa.pem"),
+    rsa.privateKey.export({ type: "pkcs8", format: "pem" }),
+  );
+  assert.throws(
+    () =>
+      new FileKeyManager(
+        path.join(dir, "rsa.pem"),
+        "yarizan-license-2026-01",
+        fingerprint,
+      ),
+    (e: { code?: string }) => e.code === "SIGNING_KEY_INVALID",
+  );
+  // Configuration: all three settings or none, and never a non-production kid.
+  const base = {
+    ...process.env,
+    LICENSE_SIGNING_KEY_FILE: "/run/secrets/yarizan-license-signing.pem",
+  };
+  assert.throws(
+    () => configuration(base),
+    /LICENSE_SIGNING_CONFIGURATION_INCOMPLETE/,
+  );
+  assert.throws(
+    () =>
+      configuration({
+        ...base,
+        LICENSE_SIGNING_KID: "yarizan-license-demo",
+        LICENSE_SIGNING_KEY_SHA256: fingerprint,
+      }),
+    /LICENSE_SIGNING_KID_NOT_PRODUCTION/,
+  );
+  // Without a configured file, development and test keep the disposable key.
+  assert.match(signingKeyManager().kid, /^disposable-development-/);
+});
