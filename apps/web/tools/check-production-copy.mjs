@@ -25,8 +25,8 @@ const single = [
   [/support@oarnova\.games|info@oarnova\.games/, 'studio mailbox', 'shared/contact.ts'],
   [/y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX/, 'eNamad code', 'shared/contact.ts'],
 ];
-// Nothing is exempt: the old personal domain is gone from every customer-facing page.
-const allowed = [];
+// The developer portfolio link is a deliberate footer link (owner decision), not a support contact.
+const allowed = [['app/layouts/default.vue', /https:\/\/osameh\.dev"/]];
 
 async function* files(dir, exts) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
