@@ -2,7 +2,6 @@
 import { persianDigits } from '#shared/digits';
 import {
   formatSizeMb,
-  gradeContent,
   gradeStatus,
   gradeTitles,
   grades,
@@ -36,7 +35,7 @@ const statusLabel = (grade: Grade) =>
       : 'به‌زودی';
 const defaultRequirements = [
   'ویندوز ۱۰ یا ۱۱ (۶۴ بیتی)',
-  'نیازمندی‌های دقیق پس از آزمون نهایی روی دستگاه‌های واقعی ویندوز و پیش از انتشار اعلام می‌شود.',
+  'اتصال اینترنت برای دریافت برنامه، شروع نوبت آزمایش و دریافت مجوز',
 ];
 const formatDate = (iso: string) =>
   persianDigits(
@@ -140,19 +139,13 @@ const formatDate = (iso: string) =>
       </template>
       <template v-else>
         <h2>پایهٔ {{ gradeTitles[selected] }}: نسخهٔ ویندوز به‌زودی منتشر می‌شود</h2>
-        <p v-if="gradeContent[selected] === 'ready'">
-          محتوای بازی‌های این پایه آماده است، اما نصب‌کنندهٔ تأییدشده هنوز منتشر نشده است. دکمهٔ
-          دریافت پس از انتشار و تأیید نسخه همین‌جا فعال می‌شود.
+        <p>
+          هنگام انتشار، نسخه، حجم، تاریخ و کد <bdi dir="ltr">SHA-256</bdi> این پایه همین‌جا نمایش
+          داده می‌شود.
         </p>
-        <p v-else>
-          این پایه هنوز در دست آماده‌سازی است. پس از انتشار، نسخه، حجم، تاریخ و کد
-          <bdi dir="ltr">SHA-256</bdi> همین‌جا نمایش داده می‌شود.
-        </p>
-        <p>تا آن زمان لطفاً هیچ فایل نصبی با نام یاریزان را از منبع دیگری اجرا نکنید.</p>
+        <p>لطفاً هیچ فایل نصبی با نام یاریزان را از منبعی جز همین صفحه اجرا نکنید.</p>
         <p class="actions">
-          <span class="button secondary is-disabled" role="link" aria-disabled="true"
-            >دریافت هنوز فعال نیست</span
-          >
+          <span class="button secondary is-disabled" role="link" aria-disabled="true">به‌زودی</span>
           <NuxtLink class="button secondary" to="/support">گفت‌وگو با پشتیبانی</NuxtLink>
         </p>
       </template>

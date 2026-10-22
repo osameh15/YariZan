@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { MERCHANT } from '#shared/contact';
 const { data: products, status, error, refresh } = await useCatalog();
 useSeoMeta({ title: 'دنیای پایه‌ها | یاریزان' });
 const { publicOnly, storefront } = useSiteMode();
+const { live } = useCommerceMode();
 </script>
 <template>
   <div class="wrap section">
@@ -14,14 +16,17 @@ const { publicOnly, storefront } = useSiteMode();
       <span aria-hidden="true">✦</span>
       <p v-if="storefront">
         قیمت‌ها به تومان و برای هر پایه جداگانه است. پایهٔ اول نخستین عرضه است و پایه‌های دیگر
-        به‌زودی می‌رسند. خرید اینترنتی هنوز فعال نیست؛ برای تهیهٔ برنامه کنار شما هستیم.
+        به‌ترتیب عرضه می‌شوند. برای خرید و تهیهٔ برنامه کنار شما هستیم.
       </p>
       <p v-else-if="publicOnly">
-        این فهرست برای معرفی پایه‌هاست. قیمت هنگام آغاز فروش اعلام می‌شود و خرید اینترنتی هنوز فعال
-        نیست؛ برای راهنمایی کنار شما هستیم.
+        این فهرست برای معرفی پایه‌هاست. برای خرید و تهیهٔ برنامه کنار شما هستیم.
       </p>
       <p v-else>
-        قیمت‌ها به تومان است. پرداخت اینترنتی هنوز فعال نیست؛ برای راهنمایی خرید کنار شما هستیم.
+        قیمت‌ها به تومان است.
+        <template v-if="live"
+          >پرداخت در درگاه امن {{ MERCHANT.paymentProviderFa }} انجام می‌شود.</template
+        >
+        برای راهنمایی خرید کنار شما هستیم.
       </p>
     </div>
     <LoadState

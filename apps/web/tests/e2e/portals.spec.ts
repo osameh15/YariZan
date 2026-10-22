@@ -69,7 +69,7 @@ test('Persian SSR homepage and real six-grade catalog', async ({ page, request }
   await capture(page, '03-grade-one');
   await page.getByRole('button', { name: 'راهنمای تهیهٔ این نسخه' }).click();
   await expect(page.getByRole('dialog', { name: 'راهنمای تهیهٔ یاریزان' })).toBeVisible();
-  await expect(page.getByRole('dialog')).toContainText('هیچ خرید یا پرداختی ثبت نمی‌کند');
+  await expect(page.getByRole('dialog')).toContainText('با پشتیبانی تماس بگیرید');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'راهنمای تهیهٔ این نسخه' })).toBeFocused();
   await page.goto('/products/grade-2');
