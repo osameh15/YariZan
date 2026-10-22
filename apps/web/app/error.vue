@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { PRIMARY_SUPPORT_PHONE } from '#shared/contact';
 const props = defineProps<{ error: { statusCode: number } }>();
 useHead({ htmlAttrs: { lang: 'fa', dir: 'rtl' }, title: 'صفحه در دسترس نیست | یاریزان' });
 const unavailable = computed(() => props.error.statusCode === 503);
@@ -19,7 +20,9 @@ const unavailable = computed(() => props.error.statusCode === 503);
         نشانی را بررسی کنید یا به صفحهٔ اصلی برگردید. اگر مشکل ادامه داشت، با پشتیبانی تماس بگیرید.
       </p>
       <a class="button primary" href="/">بازگشت به خانه</a
-      ><a href="tel:09188764024" class="text-link" dir="ltr">۰۹۱۸-۸۷۶-۴۰۲۴</a>
+      ><a :href="'tel:' + PRIMARY_SUPPORT_PHONE.tel" class="text-link" dir="ltr">{{
+        PRIMARY_SUPPORT_PHONE.display
+      }}</a>
     </div>
   </div>
 </template>

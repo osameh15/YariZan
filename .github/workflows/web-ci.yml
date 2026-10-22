@@ -52,6 +52,7 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm run check:copy
+      - run: npm run check:production-copy
       - run: npm run check:secrets
       - run: npm test
       - name: Production build with BigInt compatibility gate
@@ -75,6 +76,8 @@ jobs:
         run: npm run build:storefront
       - name: Storefront fail-closed acceptance without Backend, database or secrets
         run: npm run test:storefront
+      - name: Production copy guard over every built profile (full, brochure, storefront)
+        run: node tools/check-production-copy.mjs --build
       - name: Save browser screenshots and dependency findings
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

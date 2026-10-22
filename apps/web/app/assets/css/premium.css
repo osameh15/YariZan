@@ -1542,3 +1542,97 @@ td .button {
   flex: 1;
   min-width: 0;
 }
+
+/* Footer: the related-links group is set in bold; other footer text keeps its weight. */
+.footer-related a {
+  font-weight: 700;
+}
+.footer-email,
+.support-email {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+.support-email {
+  font-size: 15px;
+}
+
+/* Legal pages */
+.legal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+.legal-back:hover {
+  text-decoration: underline;
+}
+.legal-back:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.legal-status {
+  margin-block: 0 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.9;
+}
+.legal-status.proposed {
+  background: #faf3e6;
+  border-color: #dbc797;
+  color: #5a4300;
+}
+.legal-body {
+  max-width: 72ch;
+  line-height: 2.05;
+}
+.legal-body p,
+.legal-body li {
+  overflow-wrap: anywhere;
+}
+.legal-facts {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.legal-facts > div {
+  display: grid;
+  grid-template-columns: minmax(110px, 160px) minmax(0, 1fr);
+  gap: 12px;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.legal-facts dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+.legal-facts dd {
+  margin: 0;
+  font-weight: 700;
+}
+.legal-phones a {
+  display: inline-block;
+  margin-inline-end: 16px;
+  font-weight: 700;
+}
+.legal-steps {
+  display: grid;
+  gap: 10px;
+  padding-inline-start: 22px;
+}
+@media (max-width: 480px) {
+  .legal-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
