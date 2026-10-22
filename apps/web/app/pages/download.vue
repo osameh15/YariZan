@@ -111,7 +111,7 @@ const formatDate = (iso: string) =>
             <dd dir="ltr">{{ release.format.toUpperCase() }}</dd>
           </div>
           <div class="download-hash">
-            <dt>کد SHA-256</dt>
+            <dt>کد <bdi dir="ltr">SHA-256</bdi></dt>
             <dd dir="ltr" class="mono">{{ release.sha256 }}</dd>
           </div>
         </dl>
@@ -127,8 +127,8 @@ const formatDate = (iso: string) =>
           دریافت پس از انتشار و تأیید نسخه همین‌جا فعال می‌شود.
         </p>
         <p v-else>
-          این پایه هنوز در دست آماده‌سازی است. پس از انتشار، نسخه، حجم، تاریخ و کد SHA-256 همین‌جا
-          نمایش داده می‌شود.
+          این پایه هنوز در دست آماده‌سازی است. پس از انتشار، نسخه، حجم، تاریخ و کد
+          <bdi dir="ltr">SHA-256</bdi> همین‌جا نمایش داده می‌شود.
         </p>
         <p>تا آن زمان لطفاً هیچ فایل نصبی با نام یاریزان را از منبع دیگری اجرا نکنید.</p>
         <p class="actions">
@@ -160,7 +160,9 @@ const formatDate = (iso: string) =>
         <h2>راهنمای نصب</h2>
         <ol>
           <li>پایهٔ موردنظر را انتخاب و فایل را از همین صفحه دریافت کنید.</li>
-          <li>پیش از اجرا، کد SHA-256 فایل را با مقدار این صفحه مقایسه کنید.</li>
+          <li>
+            پیش از اجرا، کد <bdi dir="ltr">SHA-256</bdi> فایل را با مقدار این صفحه مقایسه کنید.
+          </li>
           <li>فایل نصب را اجرا کنید و مراحل نصب را دنبال کنید.</li>
           <li>پس از نصب، برنامه را باز کنید و راهنمای فعال‌سازی را دنبال کنید.</li>
         </ol>
@@ -168,9 +170,11 @@ const formatDate = (iso: string) =>
       <article class="panel">
         <h2>راستی‌آزمایی فایل</h2>
         <p>
-          در PowerShell ویندوز این فرمان را اجرا کنید و نتیجه را با کد SHA-256 بالا مقایسه کنید:
+          در <bdi dir="ltr">PowerShell</bdi> ویندوز این فرمان را اجرا کنید و نتیجه را با کد
+          <bdi dir="ltr">SHA-256</bdi> بالا مقایسه کنید:
         </p>
-        <pre class="code-block" dir="ltr">Get-FileHash .\نام-فایل.exe -Algorithm SHA256</pre>
+        <pre class="code-block" dir="ltr" tabindex="0" aria-label="فرمان راستی‌آزمایی فایل">
+Get-FileHash .\نام-فایل.exe -Algorithm SHA256</pre>
         <p>
           اگر کدها یکی نبود، فایل را اجرا نکنید و به پشتیبانی خبر بدهید. پشتیبانی هرگز رمز عبور یا
           کد پیامک شما را نمی‌خواهد.

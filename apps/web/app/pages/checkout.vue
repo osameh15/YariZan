@@ -80,7 +80,16 @@ async function create() {
     creating.value = false;
   }
 }
-onMounted(load);
+// The local official-sandbox mode must not be described as the in-browser simulator.
+const sandbox = ref(false);
+onMounted(async () => {
+  try {
+    sandbox.value = !!(await api.get('/api/v2/commerce/capabilities')).sandbox;
+  } catch {
+    sandbox.value = false;
+  }
+  await load();
+});
 useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
 </script>
 <template>
@@ -211,8 +220,17 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
           </dl>
           <div class="simulation-note">
             <span class="badge">پرداخت آزمایشی</span>
-            <p>محیط آزمایشی: پرداخت کاملاً شبیه‌سازی می‌شود و هیچ پولی جابه‌جا نخواهد شد.</p>
-            <small>درگاه: شبیه‌ساز زرین‌پال · پول واقعی دریافت نمی‌شود.</small>
+            <template v-if="sandbox">
+              <p>
+                محیط آزمایشی رسمی زرین‌پال (سندباکس): پرداخت در درگاه آزمایشی انجام می‌شود و هیچ
+                پولی جابه‌جا نخواهد شد.
+              </p>
+              <small>درگاه: سندباکس زرین‌پال · پول واقعی دریافت نمی‌شود.</small>
+            </template>
+            <template v-else>
+              <p>محیط آزمایشی: پرداخت کاملاً شبیه‌سازی می‌شود و هیچ پولی جابه‌جا نخواهد شد.</p>
+              <small>درگاه: شبیه‌ساز زرین‌پال · پول واقعی دریافت نمی‌شود.</small>
+            </template>
           </div>
           <button class="button primary checkout-submit" :disabled="!canCreate" @click="create">
             ثبت سفارش و بررسی پرداخت <span aria-hidden="true">←</span>
