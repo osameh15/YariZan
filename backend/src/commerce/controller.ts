@@ -28,8 +28,11 @@ import {
 import { uuid, mutationSchema } from "../common/schemas";
 import { Admin } from "../admin/admin";
 import { requireCondition } from "../common/errors";
+import { Capabilities } from "../security/capabilities";
+import { capabilityIds } from "../config";
 
 @Controller("api/v2")
+@Capabilities("CUSTOMER_AUTH", "LIVE_COMMERCE")
 export class CommerceController {
   constructor(
     private orders: Orders,
@@ -45,12 +48,18 @@ export class CommerceController {
       correlationId: req.res!.locals.correlationId as string,
     };
   }
-  @Get("commerce/capabilities") capabilities() {
+  @Capabilities("PRODUCTION_CORE")
+  @Get("commerce/capabilities")
+  capabilities() {
+    const enabled = this.orders.security.config.enabledCapabilities;
     return {
       mode: this.orders.security.config.COMMERCE_MODE,
-      checkout_enabled: ["fake", "zarinpal_sandbox"].includes(
-        this.orders.security.config.COMMERCE_MODE,
-      ),
+      checkout_enabled:
+        enabled.has("LIVE_COMMERCE") &&
+        enabled.has("CUSTOMER_AUTH") &&
+        ["fake", "zarinpal_sandbox"].includes(
+          this.orders.security.config.COMMERCE_MODE,
+        ),
       real_payments_enabled: false,
       // True only for the explicit local sandbox mode (the official ZarinPal sandbox, no real money).
       sandbox: this.orders.security.config.COMMERCE_MODE === "zarinpal_sandbox",
@@ -58,6 +67,8 @@ export class CommerceController {
       test_price_irr:
         this.orders.security.config.LOCAL_TEST_PRICE_G1_IRR ?? null,
       currency: "IRR",
+      // What this deployment serves, so the web hides entry points the API would refuse.
+      enabled_capabilities: capabilityIds.filter((id) => enabled.has(id)),
     };
   }
   @Post("discounts/quote") async quote(
@@ -118,10 +129,9 @@ export class CommerceController {
       this.actor(req, u.id),
     );
   }
-  @Get("payments/zarinpal/return") async returned(
-    @Query() query: unknown,
-    @Req() req: Request,
-  ) {
+  @Capabilities("LIVE_COMMERCE")
+  @Get("payments/zarinpal/return")
+  async returned(@Query() query: unknown, @Req() req: Request) {
     await this.orders.security.rate(
       "payment-return:" + req.socket.remoteAddress,
       60,
@@ -166,7 +176,9 @@ export class CommerceController {
       return { requested: true, money_returned: false };
     });
   }
-  @Get("admin/commerce/:section") async adminList(
+  @Capabilities("ADMIN_AUTH")
+  @Get("admin/commerce/:section")
+  async adminList(
     @Param("section") section: string,
     @Query() query: unknown,
     @Req() req: Request,
@@ -183,6 +195,7 @@ export class CommerceController {
     });
   }
   // Read-only: no write route exists for readiness, and nothing here can enable payments.
+  @Capabilities("ADMIN_AUTH")
   @Get("admin/payment-readiness")
   @Header("Cache-Control", "no-store")
   async paymentReadiness(@Req() req: Request) {
@@ -201,10 +214,9 @@ export class CommerceController {
       return this.readiness.report(c);
     });
   }
-  @Get("admin/commerce/orders/:id") async adminOrder(
-    @Param("id") id: string,
-    @Req() req: Request,
-  ) {
+  @Capabilities("ADMIN_AUTH")
+  @Get("admin/commerce/orders/:id")
+  async adminOrder(@Param("id") id: string, @Req() req: Request) {
     return this.orders.db.transaction(async (c) => {
       await this.orders.security.admin(req, "commerce.read", c);
       const order = await this.orders.view(c, uuid.parse(id));
@@ -231,10 +243,9 @@ export class CommerceController {
       };
     });
   }
-  @Post("admin/commerce/campaigns") campaign(
-    @Body() body: unknown,
-    @Req() req: Request,
-  ) {
+  @Capabilities("ADMIN_AUTH")
+  @Post("admin/commerce/campaigns")
+  campaign(@Body() body: unknown, @Req() req: Request) {
     const b = campaignInput.parse(body);
     return this.admin.operation(
       req,
@@ -244,7 +255,9 @@ export class CommerceController {
       (c) => this.management.campaign(c, b),
     );
   }
-  @Patch("admin/commerce/campaigns/:id") updateCampaign(
+  @Capabilities("ADMIN_AUTH")
+  @Patch("admin/commerce/campaigns/:id")
+  updateCampaign(
     @Param("id") id: string,
     @Body() body: unknown,
     @Req() req: Request,
@@ -258,10 +271,9 @@ export class CommerceController {
       (c) => this.management.campaign(c, b, id),
     );
   }
-  @Post("admin/commerce/coupons") coupon(
-    @Body() body: unknown,
-    @Req() req: Request,
-  ) {
+  @Capabilities("ADMIN_AUTH")
+  @Post("admin/commerce/coupons")
+  coupon(@Body() body: unknown, @Req() req: Request) {
     const b = codeInput.parse(body);
     return this.admin.operation(
       req,
@@ -271,7 +283,9 @@ export class CommerceController {
       (c) => this.management.code(c, b),
     );
   }
-  @Patch("admin/commerce/coupons/:id") updateCoupon(
+  @Capabilities("ADMIN_AUTH")
+  @Patch("admin/commerce/coupons/:id")
+  updateCoupon(
     @Param("id") id: string,
     @Body() body: unknown,
     @Req() req: Request,
@@ -285,7 +299,9 @@ export class CommerceController {
       (c) => this.management.code(c, b, id),
     );
   }
-  @Post("admin/commerce/orders/:id/reconcile") reconcile(
+  @Capabilities("ADMIN_AUTH", "LIVE_COMMERCE")
+  @Post("admin/commerce/orders/:id/reconcile")
+  reconcile(
     @Param("id") id: string,
     @Body() body: unknown,
     @Req() req: Request,
@@ -299,7 +315,9 @@ export class CommerceController {
       (c) => this.management.reconcile(c, id, b),
     );
   }
-  @Post("admin/commerce/refunds/:id/review") reviewRefund(
+  @Capabilities("ADMIN_AUTH", "LIVE_COMMERCE")
+  @Post("admin/commerce/refunds/:id/review")
+  reviewRefund(
     @Param("id") id: string,
     @Body() body: unknown,
     @Req() req: Request,

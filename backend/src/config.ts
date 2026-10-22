@@ -2,9 +2,9 @@ import { z } from "zod";
 
 export class ConfigurationError extends Error {}
 
-// Every condition that must be independently reviewed before the API may start with
-// NODE_ENV=production. Each gate is closed in source. There is deliberately no environment
-// variable that opens a gate: opening one requires a reviewed code change with its own tests.
+// Every condition that must be independently reviewed before a production capability may serve
+// traffic. Each gate is closed in source. There is deliberately no environment variable that opens
+// a gate: opening one requires a reviewed code change with its own tests and evidence.
 export const productionGates = [
   {
     id: "G1_FIRST_CLAIM_ASSURANCE",
@@ -40,8 +40,126 @@ export const productionGates = [
     open: false,
   },
 ] as const;
+export type GateId = (typeof productionGates)[number]["id"];
+
+// Independently reviewed production capabilities. A capability serves production traffic only when
+// (1) it is approved here, in source, by a reviewed change that records its evidence, (2) every gate
+// it depends on is open in source, (3) the operator lists it in ENABLED_CAPABILITIES and (4) its own
+// runtime prerequisites validate. Listing an unknown or unapproved capability refuses startup. Each
+// route and sensitive service checks its capabilities on every call (src/security/capabilities.ts),
+// so a disabled capability is rejected explicitly and never falls back to synthetic behaviour.
+// Development and test enable every capability unless ENABLED_CAPABILITIES narrows them.
+export const capabilityIds = [
+  "PRODUCTION_CORE",
+  "CUSTOMER_AUTH",
+  "ADMIN_AUTH",
+  "DESKTOP_PROVISIONING",
+  "TRIALS_AND_LICENSES",
+  "LIVE_COMMERCE",
+] as const;
+export type CapabilityId = (typeof capabilityIds)[number];
+export const capabilities: Record<
+  CapabilityId,
+  { approved: boolean; gates: GateId[]; requirement: string }
+> = {
+  // Evidence enforced here: a dedicated runtime login on the internal "db" host, an HTTPS browser
+  // origin, independent high-entropy keys and no development fixtures; /ready verifies migration
+  // count and hashes. Opening G8 additionally needs server-generated secrets with recorded offline
+  // custody and a successful isolated restore drill (infrastructure preflight).
+  PRODUCTION_CORE: {
+    approved: true,
+    gates: ["G8_SECRET_CUSTODY"],
+    requirement:
+      "PostgreSQL, validated secrets, migrations, health, backup and restore",
+  },
+  CUSTOMER_AUTH: {
+    approved: false,
+    gates: ["G5_TRUSTED_RATE_LIMITS", "G1_FIRST_CLAIM_ASSURANCE"],
+    requirement:
+      "Trusted client identity for rate limits and live customer OTP SMS through the reviewed egress",
+  },
+  ADMIN_AUTH: {
+    approved: false,
+    gates: ["G5_TRUSTED_RATE_LIMITS", "G6_ADMIN_SMS_MFA"],
+    requirement:
+      "Password plus live SMS MFA through the reviewed egress and two privately enrolled owners",
+  },
+  DESKTOP_PROVISIONING: {
+    approved: false,
+    gates: ["G4_DESKTOP_CREDENTIALS", "G5_TRUSTED_RATE_LIMITS"],
+    requirement:
+      "Production desktop roots and credential acceptance on physical Windows (W1-W14)",
+  },
+  TRIALS_AND_LICENSES: {
+    approved: false,
+    gates: ["G1_SIGNING_CUSTODY"],
+    requirement:
+      "Production license-signing ceremony with the approved root registered in the Windows app",
+  },
+  LIVE_COMMERCE: {
+    approved: false,
+    gates: [],
+    requirement:
+      "Restricted payment egress, reconciliation and refund procedures and the owner's real-money go",
+  },
+};
+const sourceGateOpen = (id: GateId) =>
+  productionGates.some((gate) => gate.id === id && gate.open);
+export function closedGatesFor(
+  id: CapabilityId,
+  registry = capabilities,
+  gateOpen = sourceGateOpen,
+) {
+  return registry[id].gates.filter((gate) => !gateOpen(gate));
+}
+/** Gates that still keep the whole API from starting in production: those of PRODUCTION_CORE. */
 export function closedProductionGates() {
-  return productionGates.filter((gate) => !gate.open);
+  return closedGatesFor("PRODUCTION_CORE");
+}
+// Production keys must be generated on the server: a repeated or patterned value (for example the
+// CI fixtures "1111..." or "abab...") is refused.
+export function highEntropyHex(value: string) {
+  return new Set(value.toLowerCase()).size >= 10 && !/(.)\1{5}/.test(value);
+}
+/**
+ * Resolves ENABLED_CAPABILITIES. The registry and gate state default to the reviewed source values;
+ * tests pass their own to exercise the production rules while the real gates stay closed.
+ */
+export function enabledCapabilities(
+  value: string | undefined,
+  production: boolean,
+  registry = capabilities,
+  gateOpen = sourceGateOpen,
+) {
+  if (value === undefined) {
+    if (production)
+      throw new ConfigurationError(
+        "ENABLED_CAPABILITIES_REQUIRED: list the approved production capabilities",
+      );
+    return new Set<CapabilityId>(capabilityIds);
+  }
+  const enabled = new Set<CapabilityId>();
+  for (const id of value.split(",")) {
+    if (!(capabilityIds as readonly string[]).includes(id))
+      throw new ConfigurationError("CAPABILITY_UNKNOWN");
+    enabled.add(id as CapabilityId);
+  }
+  if (production) {
+    if (!enabled.has("PRODUCTION_CORE"))
+      throw new ConfigurationError("CAPABILITY_REQUIRED: PRODUCTION_CORE");
+    for (const id of enabled) {
+      if (!registry[id].approved)
+        throw new ConfigurationError("CAPABILITY_NOT_APPROVED: " + id);
+      const closed = closedGatesFor(id, registry, gateOpen);
+      if (closed.length)
+        throw new ConfigurationError(
+          (id === "PRODUCTION_CORE"
+            ? "PRODUCTION_GATE_CLOSED: "
+            : "CAPABILITY_GATE_CLOSED: " + id + ": ") + closed.join(","),
+        );
+    }
+  }
+  return enabled;
 }
 
 export function configuration(env: NodeJS.ProcessEnv = process.env) {
@@ -65,6 +183,7 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
     "LICENSE_SIGNING_KEY_FILE",
     "LICENSE_SIGNING_KID",
     "LICENSE_SIGNING_KEY_SHA256",
+    "ENABLED_CAPABILITIES",
   ])
     if (runtimeEnv[name] === "") delete runtimeEnv[name];
   const parsed = z
@@ -126,6 +245,10 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
       SMS_ALLOW_LIVE: z.enum(["true", "false"]).default("false"),
       SMS_FAKE_OUTBOX: z.string().optional(),
       MFA_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/),
+      ENABLED_CAPABILITIES: z
+        .string()
+        .regex(/^[A-Z_]{1,40}(,[A-Z_]{1,40}){0,9}$/)
+        .optional(),
     })
     .safeParse(runtimeEnv);
   if (!parsed.success)
@@ -146,13 +269,17 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
     )
   )
     throw new ConfigurationError("LICENSE_SIGNING_KID_NOT_PRODUCTION");
-  if (parsed.data.NODE_ENV === "production")
+  const production = parsed.data.NODE_ENV === "production";
+  // Production stays refused while a gate of PRODUCTION_CORE is closed, whatever is enabled.
+  if (production && closedProductionGates().length)
     throw new ConfigurationError(
-      "PRODUCTION_GATE_CLOSED: " +
-        closedProductionGates()
-          .map((gate) => gate.id)
-          .join(","),
+      "PRODUCTION_GATE_CLOSED: " + closedProductionGates().join(","),
     );
+  const enabled = enabledCapabilities(
+    parsed.data.ENABLED_CAPABILITIES,
+    production,
+  );
+  if (production) productionChecks(parsed.data, enabled);
   if (parsed.data.COMMERCE_MODE === "zarinpal")
     throw new ConfigurationError("ZARINPAL_LIVE_GATE_CLOSED");
   // The local sandbox integration: the official ZarinPal sandbox host only, never a live merchant.
@@ -222,7 +349,62 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
     ]).size !== 3
   )
     throw new ConfigurationError("INDEPENDENT_SECRETS_REQUIRED");
-  return parsed.data;
+  return {
+    ...parsed.data,
+    enabledCapabilities: enabled as ReadonlySet<CapabilityId>,
+  };
+}
+
+// Production-only rules. A capability that is not enabled must also have no live side effect
+// configured, so a disabled feature can never reach a provider, a signing key or a fixture.
+export function productionChecks(
+  c: {
+    COMMERCE_MODE: string;
+    SMS_PROVIDER: string;
+    SMS_FAKE_OUTBOX?: string;
+    BROWSER_ORIGIN: string;
+    DATABASE_URL: string;
+    CODE_HMAC_KEY: string;
+    TOKEN_HMAC_KEY: string;
+    MFA_ENCRYPTION_KEY: string;
+    MOBILE_ENCRYPTION_KEY?: string;
+    OTP_HMAC_KEY?: string;
+    LICENSE_SIGNING_KEY_FILE?: string;
+  },
+  enabled: ReadonlySet<CapabilityId>,
+) {
+  if (c.COMMERCE_MODE === "fake" || c.COMMERCE_MODE === "zarinpal_sandbox")
+    throw new ConfigurationError("COMMERCE_TEST_MODE_REFUSED");
+  if (c.COMMERCE_MODE !== "disabled" && !enabled.has("LIVE_COMMERCE"))
+    throw new ConfigurationError("COMMERCE_MODE_REFUSED");
+  if (c.SMS_PROVIDER === "fake" || c.SMS_FAKE_OUTBOX)
+    throw new ConfigurationError("SMS_TEST_PROVIDER_REFUSED");
+  if (
+    c.SMS_PROVIDER !== "disabled" &&
+    !enabled.has("CUSTOMER_AUTH") &&
+    !enabled.has("ADMIN_AUTH")
+  )
+    throw new ConfigurationError("SMS_PROVIDER_REFUSED");
+  if (c.LICENSE_SIGNING_KEY_FILE && !enabled.has("TRIALS_AND_LICENSES"))
+    throw new ConfigurationError("LICENSE_SIGNING_REFUSED");
+  const origin = new URL(c.BROWSER_ORIGIN);
+  if (
+    origin.protocol !== "https:" ||
+    ["localhost", "127.0.0.1"].includes(origin.hostname)
+  )
+    throw new ConfigurationError("PRODUCTION_ORIGIN_REQUIRED");
+  const db = new URL(c.DATABASE_URL);
+  if (db.hostname !== "db" || !db.username || db.username === "postgres")
+    throw new ConfigurationError("PRODUCTION_RUNTIME_DATABASE_LOGIN_REQUIRED");
+  for (const key of [
+    c.CODE_HMAC_KEY,
+    c.TOKEN_HMAC_KEY,
+    c.MFA_ENCRYPTION_KEY,
+    c.MOBILE_ENCRYPTION_KEY,
+    c.OTP_HMAC_KEY,
+  ])
+    if (key !== undefined && !highEntropyHex(key))
+      throw new ConfigurationError("PRODUCTION_SECRET_REQUIRED");
 }
 export type Configuration = ReturnType<typeof configuration>;
 

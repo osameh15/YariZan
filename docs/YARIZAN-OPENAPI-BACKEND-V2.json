@@ -9951,6 +9951,20 @@
                     "currency": {
                       "type": "string",
                       "const": "IRR"
+                    },
+                    "enabled_capabilities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "PRODUCTION_CORE",
+                          "CUSTOMER_AUTH",
+                          "ADMIN_AUTH",
+                          "DESKTOP_PROVISIONING",
+                          "TRIALS_AND_LICENSES",
+                          "LIVE_COMMERCE"
+                        ]
+                      }
                     }
                   },
                   "required": [
@@ -9959,7 +9973,8 @@
                     "real_payments_enabled",
                     "sandbox",
                     "test_price_irr",
-                    "currency"
+                    "currency",
+                    "enabled_capabilities"
                   ]
                 }
               }

@@ -46,6 +46,7 @@ import {
   mutationSchema,
 } from "../common/schemas";
 import { requireCondition } from "../common/errors";
+import { Capabilities } from "../security/capabilities";
 
 const actor = (req: Request): Actor => ({
   type: "SYSTEM",
@@ -57,6 +58,7 @@ const userActor = (req: Request, id: string): Actor => ({
   id,
 });
 @Controller()
+@Capabilities("PRODUCTION_CORE")
 export class HealthController {
   constructor(private db: Database) {}
   @Get("health") health() {
@@ -76,6 +78,7 @@ export class HealthController {
   }
 }
 @Controller("api/v2")
+@Capabilities("PRODUCTION_CORE")
 export class PublicController {
   constructor(
     private db: Database,
@@ -153,6 +156,7 @@ export class PublicController {
   }
 }
 @Controller("api/v2")
+@Capabilities("DESKTOP_PROVISIONING")
 export class IdentityController {
   constructor(
     private identity: Identity,
@@ -233,7 +237,9 @@ export class IdentityController {
   @Post("devices/register") retiredRegister() {
     requireCondition(false, "PROTOCOL_RETIRED", 410);
   }
-  @Post("auth/claim") claim(
+  @Capabilities("DESKTOP_PROVISIONING", "CUSTOMER_AUTH")
+  @Post("auth/claim")
+  claim(
     @Body() body: unknown,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -261,10 +267,9 @@ export class IdentityController {
       ...(session ? sessionCookies(res, this.security, session) : {}),
     };
   }
-  @Post("auth/claim/otp/request") async claimOtp(
-    @Body() body: unknown,
-    @Req() req: Request,
-  ) {
+  @Capabilities("DESKTOP_PROVISIONING", "CUSTOMER_AUTH")
+  @Post("auth/claim/otp/request")
+  async claimOtp(@Body() body: unknown, @Req() req: Request) {
     this.origin(req);
     await this.security.rate(
       "sms-request-ip:" + req.socket.remoteAddress,
@@ -289,6 +294,7 @@ export class IdentityController {
   }
 }
 @Controller("api/v2")
+@Capabilities("CUSTOMER_AUTH")
 export class AccountsController {
   constructor(
     private accounts: Accounts,
@@ -399,10 +405,9 @@ export class AccountsController {
       )
     ).rows;
   }
-  @Post("admin/auth/login") async adminLogin(
-    @Body() body: unknown,
-    @Req() req: Request,
-  ) {
+  @Capabilities("ADMIN_AUTH")
+  @Post("admin/auth/login")
+  async adminLogin(@Body() body: unknown, @Req() req: Request) {
     requireCondition(
       req.headers.origin === this.security.config.BROWSER_ORIGIN,
       "CSRF_REJECTED",
@@ -436,7 +441,9 @@ export class AccountsController {
   ) {
     return sessionCookies(res, this.security, result, admin);
   }
-  @Post("admin/auth/sms/verify") async adminSms(
+  @Capabilities("ADMIN_AUTH")
+  @Post("admin/auth/sms/verify")
+  async adminSms(
     @Body() body: unknown,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -580,7 +587,9 @@ export class AccountsController {
       b.current?.code,
     );
   }
-  @Post("admin/auth/logout") async adminLogout(
+  @Capabilities("ADMIN_AUTH")
+  @Post("admin/auth/logout")
+  async adminLogout(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -603,6 +612,7 @@ export class AccountsController {
   }
 }
 @Controller("api/v2/desktop")
+@Capabilities("DESKTOP_PROVISIONING", "TRIALS_AND_LICENSES")
 export class DesktopController {
   constructor(
     private security: Security,
@@ -650,7 +660,9 @@ export class DesktopController {
       actor(req),
     );
   }
-  @Get("entitlements") entitlements(@Req() req: Request) {
+  @Capabilities("DESKTOP_PROVISIONING")
+  @Get("entitlements")
+  entitlements(@Req() req: Request) {
     return this.db.transaction(async (c) => {
       const d = await this.security.device(c, this.security.bearer(req));
       return (
@@ -663,6 +675,7 @@ export class DesktopController {
   }
 }
 @Controller("api/v2/admin")
+@Capabilities("ADMIN_AUTH")
 export class AdminController {
   constructor(
     private admin: Admin,
@@ -836,7 +849,9 @@ export class AdminController {
       (c, a) => this.admin.restrict(c, id, product, blocked, b, a),
     );
   }
-  @Post("trials/:id/:sku/reset") trial(
+  @Capabilities("ADMIN_AUTH", "TRIALS_AND_LICENSES")
+  @Post("trials/:id/:sku/reset")
+  trial(
     @Param("id") id: string,
     @Param("sku") product: string,
     @Body() body: unknown,
@@ -851,7 +866,9 @@ export class AdminController {
       (c, a) => this.admin.trialReset(c, id, product, b, a),
     );
   }
-  @Post("licenses/issue") issue(@Body() body: unknown, @Req() req: Request) {
+  @Capabilities("ADMIN_AUTH", "TRIALS_AND_LICENSES")
+  @Post("licenses/issue")
+  issue(@Body() body: unknown, @Req() req: Request) {
     const b = mutationSchema.extend({ device_id: uuid, sku }).parse(body);
     return this.admin.operation(
       req,
@@ -861,11 +878,9 @@ export class AdminController {
       (c, a) => this.admin.issue(c, b.device_id, b.sku, b, a),
     );
   }
-  @Post("licenses/:id/revoke") revoke(
-    @Param("id") id: string,
-    @Body() body: unknown,
-    @Req() req: Request,
-  ) {
+  @Capabilities("ADMIN_AUTH", "TRIALS_AND_LICENSES")
+  @Post("licenses/:id/revoke")
+  revoke(@Param("id") id: string, @Body() body: unknown, @Req() req: Request) {
     const b = mutationSchema.parse(body);
     return this.admin.operation(
       req,
@@ -875,11 +890,9 @@ export class AdminController {
       (c, a) => this.admin.revoke(c, id, b, a),
     );
   }
-  @Post("licenses/:id/reissue") recover(
-    @Param("id") id: string,
-    @Body() body: unknown,
-    @Req() req: Request,
-  ) {
+  @Capabilities("ADMIN_AUTH", "TRIALS_AND_LICENSES")
+  @Post("licenses/:id/reissue")
+  recover(@Param("id") id: string, @Body() body: unknown, @Req() req: Request) {
     const b = mutationSchema.parse(body);
     return this.admin.operation(
       req,
@@ -889,7 +902,9 @@ export class AdminController {
       (c, a) => this.admin.revoke(c, id, b, a, true),
     );
   }
-  @Post("activation-codes") code(@Body() body: unknown, @Req() req: Request) {
+  @Capabilities("ADMIN_AUTH", "TRIALS_AND_LICENSES")
+  @Post("activation-codes")
+  code(@Body() body: unknown, @Req() req: Request) {
     const b = mutationSchema
       .extend({ device_id: uuid, sku, expires_at: z.iso.datetime() })
       .parse(body);
@@ -906,11 +921,9 @@ export class AdminController {
       (c, a) => this.admin.issue(c, b.device_id, b.sku, b, a, b.expires_at),
     );
   }
-  @Post("activation-codes/:id/cancel") cancel(
-    @Param("id") id: string,
-    @Body() body: unknown,
-    @Req() req: Request,
-  ) {
+  @Capabilities("ADMIN_AUTH", "TRIALS_AND_LICENSES")
+  @Post("activation-codes/:id/cancel")
+  cancel(@Param("id") id: string, @Body() body: unknown, @Req() req: Request) {
     const b = mutationSchema.parse(body);
     requireCondition(b.expected_revision === 1, "STALE_REVISION", 409);
     return this.admin.operation(

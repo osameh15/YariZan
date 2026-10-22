@@ -152,6 +152,10 @@ export class Sms {
       this.provider = new MeliPayamakSharedProvider(c.MELIPAYAMAK_API_TOKEN!);
   }
   available() {
+    // SMS exists only for customer and admin authentication; with neither enabled nothing is sent.
+    const enabled = this.security.config.enabledCapabilities;
+    if (!enabled.has("CUSTOMER_AUTH") && !enabled.has("ADMIN_AUTH"))
+      throw new ApiError("CAPABILITY_DISABLED", 503);
     if (!this.provider) throw new ApiError("SMS_UNAVAILABLE", 503);
   }
   async send(m: SmsMessage) {

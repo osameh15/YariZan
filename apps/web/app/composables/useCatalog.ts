@@ -3,8 +3,8 @@ import { productSchema } from '#shared/domain';
 import { publicCatalog, type PublicProduct } from '#shared/catalog-snapshot';
 export function useCatalog() {
   // Public-only profiles never call the API: they render the reviewed static snapshot.
-  const { publicOnly, storefront } = useSiteMode();
-  if (publicOnly.value)
+  const { live, storefront } = useSiteMode();
+  if (!live.value)
     return useAsyncData<PublicProduct[]>('catalog', async () => [
       ...publicCatalog(storefront.value ? 'storefront' : 'brochure').products,
     ]);

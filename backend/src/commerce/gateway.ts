@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { Database } from "../database/database";
 import { Security } from "../security/security";
 import { requireCondition } from "../common/errors";
+import { requireCapability } from "../security/capabilities";
 import { z } from "zod";
 
 // Documented authorities are 36 characters ("A" + 35 alphanumerics); the range stays tolerant
@@ -334,6 +335,10 @@ export class Gateway {
         : this.fake;
   }
   available() {
+    requireCapability(
+      this.security.config.enabledCapabilities,
+      "LIVE_COMMERCE",
+    );
     requireCondition(
       ["fake", "zarinpal_sandbox"].includes(this.security.config.COMMERCE_MODE),
       "COMMERCE_UNAVAILABLE",
