@@ -8,11 +8,15 @@ cd /d "%~dp0"
 set "NONINTERACTIVE="
 set "SKIP_PACK="
 set "GRADE="
+set "CANDIDATE="
 :args
 if "%~1"=="" goto :start
 if /I "%~1"=="--grade" goto :grade_arg
 if /I "%~1"=="--noninteractive" set "NONINTERACTIVE=1"
 if /I "%~1"=="--skip-pack" set "SKIP_PACK=1"
+REM --acceptance-candidate: production root and API, marked <version>-acceptance-candidate, for the
+REM physical W1-W14 acceptance only. Never published; the release checks refuse it.
+if /I "%~1"=="--acceptance-candidate" set "CANDIDATE=1"
 shift
 goto :args
 :grade_arg
@@ -26,9 +30,19 @@ shift
 goto :args
 :start
 REM Validate before selecting/packing games or modifying any existing build.
-dotnet run --project src\YariZan.ReleaseCheck -c Release -- --commercial "%CD%"
+set "RELEASE_CHECK=--commercial"
+set "BUILD_KIND=-p:CommercialRelease=true"
+set "SUFFIX="
+set "CHECK_FLAG="
+if defined CANDIDATE (
+    set "RELEASE_CHECK=--acceptance-candidate"
+    set "BUILD_KIND=-p:AcceptanceCandidate=true"
+    set "SUFFIX=-acceptance-candidate"
+    set "CHECK_FLAG=-Candidate"
+)
+dotnet run --project src\YariZan.ReleaseCheck -c Release -- %RELEASE_CHECK% "%CD%"
 if errorlevel 1 (
-    echo [ERROR] V2 commercial release prerequisites are not satisfied. No installer will be built.
+    echo [ERROR] V2 release prerequisites are not satisfied. No installer will be built.
     exit /b 1
 )
 powershell -NoProfile -ExecutionPolicy Bypass -File "tools\Get-GameGrade.ps1" -Grade "%GRADE%" -OutputPath "publish\selected-grade.txt"
@@ -44,7 +58,7 @@ if not defined VERSION (
     echo [ERROR] Could not read the release version from YariZan.App.csproj.
     exit /b 1
 )
-set "INSTALLER=publish\YariZan-G%GRADE%-Setup-v%VERSION%.exe"
+set "INSTALLER=publish\YariZan-G%GRADE%-Setup-v%VERSION%%SUFFIX%.exe"
 set "PUBLISH_DIR=publish\YariZan-G%GRADE%-win-x64"
 if exist "%PUBLISH_DIR%" (
     set "PUBLISH_DIR=publish\YariZan-G%GRADE%-win-x64-build-%RANDOM%-%RANDOM%"
@@ -145,7 +159,7 @@ dotnet publish src\YariZan.App\YariZan.App.csproj ^
     -p:PublishSingleFile=true ^
     -p:IncludeNativeLibrariesForSelfExtract=true ^
     -p:PublishReadyToRun=false ^
-    -p:CommercialRelease=true ^
+    %BUILD_KIND% ^
     "-p:AssemblyTitle=YariZan G%GRADE%" "-p:Product=YariZan G%GRADE%" ^
     -p:DebugType=none -p:DebugSymbols=false ^
     -o "%PUBLISH_DIR%"
@@ -159,7 +173,7 @@ powershell -NoProfile -Command "Rename-Item -LiteralPath (Join-Path $env:PUBLISH
 if errorlevel 1 exit /b 1
 REM The commercial binary must report the release version, target the production API and carry no
 REM local acceptance build or endpoint.
-powershell -NoProfile -ExecutionPolicy Bypass -File "tools\release\Test-WindowsBinary.ps1" -Path "%PUBLISH_DIR%\YariZan-G%GRADE%.exe" -Version "%VERSION%" -Kind app
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\release\Test-WindowsBinary.ps1" -Path "%PUBLISH_DIR%\YariZan-G%GRADE%.exe" -Version "%VERSION%" -Kind app %CHECK_FLAG%
 if errorlevel 1 (
     echo [ERROR] The published application failed the release binary check.
     exit /b 1
@@ -169,14 +183,16 @@ echo.
 REM ----- Step 5: compile installer -------------------------------------------
 echo [Step 5/5] Compiling installer ...
 if not exist "publish" mkdir publish
-"%INNO_PATH%" /DGrade=%GRADE% "/DMyAppVersion=%VERSION%" "/DMyPublishDir=%PUBLISH_DIR%" "YariZan-Setup.iss"
+set "INNO_CANDIDATE="
+if defined CANDIDATE set "INNO_CANDIDATE=/DCandidate=1"
+"%INNO_PATH%" /DGrade=%GRADE% "/DMyAppVersion=%VERSION%" "/DMyPublishDir=%PUBLISH_DIR%" %INNO_CANDIDATE% "YariZan-Setup.iss"
 if errorlevel 1 (
     echo [ERROR] Installer compilation failed.
     if not defined NONINTERACTIVE pause
     exit /b 1
 )
 echo [OK] Installer compiled.
-powershell -NoProfile -ExecutionPolicy Bypass -File "tools\release\Test-WindowsBinary.ps1" -Path "%INSTALLER%" -Version "%VERSION%" -Kind installer
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\release\Test-WindowsBinary.ps1" -Path "%INSTALLER%" -Version "%VERSION%" -Kind installer %CHECK_FLAG%
 if errorlevel 1 (
     echo [ERROR] The installer failed the release binary check.
     exit /b 1

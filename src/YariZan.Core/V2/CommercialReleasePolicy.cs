@@ -66,6 +66,15 @@ public static class CommercialReleasePolicy
             throw new InvalidDataException("V2_ACTIVATION_CONFIG_INVALID");
     }
 
+    /// <summary>
+    /// Physical acceptance candidate: the same reviewed production root and production API as the
+    /// commercial release, built so that W1-W14 can run on real machines before release approval.
+    /// The candidate is marked "2.0.0-acceptance-candidate" and is never a public release: the
+    /// publication script and the release binary check accept only the exact release version.
+    /// </summary>
+    public static void EnsureAcceptanceCandidate(string rootsJson, string approvedJson, string activationJson)
+        => ValidateConfiguration(rootsJson, approvedJson, activationJson);
+
     public static void EnsureCommercialRelease(string rootsJson, string approvedJson, string activationJson)
     {
         ValidateConfiguration(rootsJson, approvedJson, activationJson);

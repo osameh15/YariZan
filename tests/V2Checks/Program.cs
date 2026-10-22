@@ -317,6 +317,14 @@ internal static partial class Program
             "unreviewed activation host rejected");
         Check(Reject(() => CommercialReleasePolicy.EnsureCommercialRelease(roots, approvals, config)),
             "commercial release remains blocked with structurally valid inputs until production enrollment integration exists");
+        CommercialReleasePolicy.EnsureAcceptanceCandidate(roots, approvals, config);
+        Check(true, "acceptance candidate accepts the reviewed root and production API without authorizing a release");
+        Check(Reject(() => CommercialReleasePolicy.EnsureAcceptanceCandidate(Roots("disposable-test", pem), Approvals("disposable-test", CommercialReleasePolicy.PublicKeyFingerprint(pem)), config)),
+            "acceptance candidate refuses a disposable test root");
+        Check(Reject(() => CommercialReleasePolicy.EnsureAcceptanceCandidate(roots, Approvals("release-key-1", new string('0', 64)), config)),
+            "acceptance candidate refuses an unreviewed root");
+        Check(Reject(() => CommercialReleasePolicy.EnsureAcceptanceCandidate(roots, approvals, config.Replace("https://yarizan.oarnova.games/api/v2/", "http://127.0.0.1:3100/api/v2/"))),
+            "acceptance candidate refuses the local acceptance API");
     }
 
     private static (int Code, string Output) Tool(string executable, params string[] arguments)
@@ -337,6 +345,12 @@ internal static partial class Program
         string fixture = Path.Combine(_root, "release-prerequisites"); Directory.CreateDirectory(fixture);
         var missing = Tool("dotnet", validator, "--commercial", fixture);
         Check(missing.Code != 0 && missing.Output.Contains("V2_PUBLIC_ROOTS_MISSING"), "commercial CLI missing-root gate fails clearly");
+        var candidateMissing = Tool("dotnet", validator, "--acceptance-candidate", fixture);
+        Check(candidateMissing.Code != 0 && candidateMissing.Output.Contains("V2_PUBLIC_ROOTS_MISSING"), "acceptance-candidate CLI needs the production root too");
+        var mixed = Tool("dotnet", "build", Path.Combine(repo, "src", "YariZan.App", "YariZan.App.csproj"), "-c", "Release", "--no-restore",
+            "-p:AcceptanceCandidate=true", "-p:CommercialRelease=true", "-p:IncludeGameBundle=false", "-p:IncludeGameKey=false", "--nologo");
+        Check(mixed.Code != 0 && mixed.Output.Contains("AcceptanceCandidate cannot be combined with CommercialRelease"),
+            "an acceptance candidate can never be built as a commercial release");
         Directory.CreateDirectory(Path.Combine(fixture, "secrets")); Directory.CreateDirectory(Path.Combine(fixture, "release"));
         string rootsPath = Path.Combine(fixture, "secrets", "v2-license-public-keys.json");
         File.WriteAllText(rootsPath, JsonSerializer.Serialize(new Dictionary<string, string> { ["renamed-release-key"] = signing.Key.ExportSubjectPublicKeyInfoPem() }));
@@ -363,8 +377,11 @@ internal static partial class Program
             "-p:CommercialRelease=true", "-p:FixtureOnlyBuild=true", "-p:IncludeGameBundle=false", "-p:IncludeGameKey=false", "--nologo");
         Check(combined.Code != 0 && combined.Output.Contains("FixtureOnlyBuild cannot be combined"), "fixture exemption cannot be combined with commercial release");
         var installer = Tool("cmd.exe", "/d", "/c", "build-installer.bat", "--noninteractive");
-        Check(installer.Code != 0 && installer.Output.Contains("V2 commercial release prerequisites are not satisfied") && !installer.Output.Contains("[Step 1/5]"),
+        Check(installer.Code != 0 && installer.Output.Contains("V2 release prerequisites are not satisfied") && !installer.Output.Contains("[Step 1/5]"),
             "installer preflight stops before game packing or installer compilation");
+        var candidateInstaller = Tool("cmd.exe", "/d", "/c", "build-installer.bat", "--noninteractive", "--acceptance-candidate");
+        Check(candidateInstaller.Code != 0 && candidateInstaller.Output.Contains("V2 release prerequisites are not satisfied") && !candidateInstaller.Output.Contains("[Step 1/5]"),
+            "acceptance-candidate installer also stops before packing without the reviewed production root");
     }
 
     private static void TrialChecks(SigningFixture signing, IDeviceIdentity identity)
