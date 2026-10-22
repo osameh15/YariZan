@@ -3856,6 +3856,75 @@ test("Merchant/amount/currency/authority mismatch remains unknown and auditable"
   }
 });
 
+test("Payment readiness is read-only, needs finance.read with recent MFA, is audited and never exposes configuration values", async () => {
+  const owner = await adminLogin("owner"),
+    support = await adminLogin("support");
+  await denied("/admin/payment-readiness", undefined, "UNAUTHENTICATED");
+  await denied("/admin/payment-readiness", undefined, "FORBIDDEN", support);
+  const config = security.config as { ZARINPAL_MERCHANT_ID?: string };
+  const merchant = "00000000-0000-4000-8000-00000000c0de";
+  const previous = config.ZARINPAL_MERCHANT_ID;
+  config.ZARINPAL_MERCHANT_ID = merchant;
+  try {
+    const r = await ok<{
+      real_payments_possible: boolean;
+      production_payment_gate: { open: boolean };
+      gates: { open: boolean }[];
+      merchant_configuration: Record<string, boolean>;
+      evidence: { id: string; status: string }[];
+    }>("/admin/payment-readiness", undefined, owner);
+    assert.equal(r.headers.get("cache-control"), "no-store");
+    assert.equal(r.body.real_payments_possible, false);
+    assert.equal(r.body.production_payment_gate.open, false);
+    assert.ok(r.body.gates.length >= 6 && r.body.gates.every((g) => !g.open));
+    assert.equal(r.body.merchant_configuration.merchant_id_present, true);
+    assert.equal(r.body.merchant_configuration.live_merchant_usable, false);
+    for (const id of [
+      "merchant_activation",
+      "custom_payment_domain",
+      "callback_domain",
+      "outbound_ip_allowlist",
+      "sandbox_acceptance",
+      "payment_reconciliation_tests",
+      "refund_readiness",
+      "legal_merchant_documentation",
+    ])
+      assert.ok(
+        r.body.evidence.some((e) => e.id === id),
+        id,
+      );
+    // Presence only: no configuration value or secret ever appears.
+    const text = JSON.stringify(r.body);
+    for (const secret of [
+      merchant,
+      security.config.CODE_HMAC_KEY,
+      security.config.TOKEN_HMAC_KEY,
+      security.config.MFA_ENCRYPTION_KEY,
+      "postgresql://",
+    ])
+      assert.ok(!text.includes(secret));
+  } finally {
+    config.ZARINPAL_MERCHANT_ID = previous;
+  }
+  assert.ok(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM audit_logs WHERE action='admin.payment_readiness.viewed'",
+      )
+    ).rows[0].n >= 1,
+  );
+  // No write route exists for the feature.
+  for (const method of ["POST", "PATCH", "PUT", "DELETE"]) {
+    const w = await request("/admin/payment-readiness", {}, owner, method);
+    assert.equal(w.status, 404, method);
+  }
+  // Stale MFA is refused like every other finance view.
+  await db.query(
+    "UPDATE admin_sessions SET mfa_at=now()-interval '10 minutes' WHERE token_hash IN (SELECT token_hash FROM admin_sessions ORDER BY mfa_at DESC LIMIT 2)",
+  );
+  await denied("/admin/payment-readiness", undefined, "MFA_REQUIRED", owner);
+});
+
 test("Commerce RBAC, revision conflicts, notes search and finance reporting are server-authoritative", async () => {
   const d = await discountFixture(),
     e = await buyer(),

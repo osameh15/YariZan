@@ -1,6 +1,8 @@
 # Payment Readiness Dashboard — Technical Design (read-only)
 
-Status: design only. Nothing here is implemented, deployed or exposed. The dashboard lives inside the existing protected Admin (`/zanyari`) of the **full application**, which is not deployed publicly (the storefront has no Admin). It reports readiness; it never turns anything on.
+Status: **implemented (2026-10-22), not deployed.** Backend `GET /api/v2/admin/payment-readiness` (`backend/src/commerce/readiness.ts`), Admin page `/zanyari/payment-readiness` (`apps/web/app/components/PaymentReadiness.vue`). It requires `finance.read`, which only `owner` holds today (the `auditor` role has `audit.read` only), plus SMS MFA within 5 minutes. Each view writes `admin.payment_readiness.viewed`. The page has no form or control other than refresh. Configuration is reported as presence only, never a value. Static evidence rows (`PAYMENT_READINESS_EVIDENCE`) change only through a reviewed code change that cites the ZarinPal readiness document. Tests: the Backend integration test "Payment readiness is read-only …" and the Playwright `tests/e2e/payment-readiness.spec.ts`.
+
+Original design follows. The dashboard lives inside the existing protected Admin (`/zanyari`) of the **full application**, which is not deployed publicly (the storefront has no Admin). It reports readiness; it never turns anything on.
 
 ## 1. Goal and non-goals
 

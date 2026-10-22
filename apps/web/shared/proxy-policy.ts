@@ -28,6 +28,8 @@ export const browserRoutes = [
     /^admin\/notes\/(?:customers|devices|licenses|activation-codes|trials|products|orders|payments|campaigns|coupons)\/[A-Za-z0-9:~-]{1,128}$/,
   ],
   ['GET', /^admin\/auth\/session$/],
+  // Read-only payment readiness report; no write route exists.
+  ['GET', /^admin\/payment-readiness$/],
   ['GET', /^admin\/(?:customers|devices|licenses|trials|activation-codes|products|audit|reports)$/],
   ['PATCH', /^admin\/products\/YARIZAN-G[1-6]$/],
   // Product promotions: list and create per product, update and deactivate/restore by id.

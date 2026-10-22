@@ -227,6 +227,67 @@ const responses = {
     status: z.literal("VERIFICATION_PENDING"),
   }),
   "/api/v2/admin/commerce/{section}": z.record(z.string(), z.unknown()),
+  "/api/v2/admin/payment-readiness": z.strictObject({
+    real_payments_possible: z.literal(false),
+    generated_at: z.iso.datetime(),
+    production_payment_gate: z.strictObject({
+      id: z.literal("ZARINPAL_LIVE_GATE_CLOSED"),
+      open: z.literal(false),
+    }),
+    gates: z.array(
+      z.strictObject({ id: z.string(), reason: z.string(), open: z.boolean() }),
+    ),
+    runtime: z.strictObject({
+      node_env: z.enum(["development", "test", "production"]),
+      commerce_mode: z.enum([
+        "disabled",
+        "fake",
+        "zarinpal_sandbox",
+        "zarinpal",
+      ]),
+      sandbox: z.boolean(),
+    }),
+    merchant_configuration: z.strictObject({
+      merchant_id_present: z.boolean(),
+      callback_url_present: z.boolean(),
+      live_merchant_usable: z.literal(false),
+    }),
+    sandbox_evidence: z.strictObject({
+      verified_payments: z.number().int(),
+      unresolved_payments: z.number().int(),
+      last_verified_at: z.iso.datetime().nullable(),
+    }),
+    health: z.strictObject({
+      unknown_payments: z.number().int(),
+      open_exceptions: z.number().int(),
+      jobs_in_review: z.number().int(),
+      overdue_jobs: z.number().int(),
+      paid_unfulfilled: z.number().int(),
+      oldest_unresolved_seconds: z.number().int().nullable(),
+    }),
+    catalog: z.array(
+      z.strictObject({
+        sku: z.string(),
+        publication_status: z.string(),
+        sale_enabled: z.boolean(),
+        price_irr: z.string().nullable(),
+      }),
+    ),
+    evidence: z.array(
+      z.strictObject({
+        id: z.string(),
+        status: z.enum([
+          "verified",
+          "owner_confirmed",
+          "partial",
+          "blocked",
+          "not_started",
+        ]),
+        evidence: z.string(),
+        reference: z.string(),
+      }),
+    ),
+  }),
   "/api/v2/admin/commerce/orders/{id}": commerce.orderView.extend({
     transitions: z.array(z.record(z.string(), z.unknown())),
     reconciliation: z.array(z.record(z.string(), z.unknown())),
