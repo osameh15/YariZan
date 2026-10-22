@@ -10,10 +10,10 @@ useSeoMeta({ title: 'پشتیبانی و رسیدگی به شکایت | یاری
     <h2>راه‌های تماس</h2>
     <p class="legal-phones">
       تلفن:
-      <template v-for="(phone, index) in SUPPORT_PHONES" :key="phone.tel">
-        <span v-if="index > 0"> و </span>
-        <a :href="'tel:' + phone.tel" dir="ltr">{{ phone.display }}</a>
-      </template>
+      <template v-for="(phone, i) in SUPPORT_PHONES" :key="phone.tel"
+        ><span v-if="i > 0"> و </span
+        ><a :href="'tel:' + phone.tel" dir="ltr">{{ phone.display }}</a></template
+      >
     </p>
     <p>
       ایمیل: <a :href="'mailto:' + SUPPORT_EMAIL" dir="ltr">{{ SUPPORT_EMAIL }}</a>

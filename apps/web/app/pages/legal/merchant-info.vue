@@ -34,10 +34,10 @@ useSeoMeta({ title: 'اطلاعات فروشنده | یاریزان' });
       <div>
         <dt>تلفن پشتیبانی</dt>
         <dd class="legal-phones">
-          <template v-for="(phone, index) in SUPPORT_PHONES" :key="phone.tel">
-            <span v-if="index > 0"> و </span>
-            <a :href="'tel:' + phone.tel" dir="ltr">{{ phone.display }}</a>
-          </template>
+          <template v-for="(phone, i) in SUPPORT_PHONES" :key="phone.tel"
+            ><span v-if="i > 0"> و </span
+            ><a :href="'tel:' + phone.tel" dir="ltr">{{ phone.display }}</a></template
+          >
         </dd>
       </div>
       <div>
