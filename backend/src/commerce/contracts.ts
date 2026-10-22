@@ -106,6 +106,14 @@ export const orderView = z.object({
       provider_ref: z.string().nullable(),
       exception_code: z.string().nullable(),
       redirect_url: z.string().nullable(),
+      /** What the browser reported on return (untrusted, display only). */
+      customer_return: z.enum(["OK", "NOK"]).nullable(),
+      /** Latest provider inquiry answer (reconciliation evidence, never settlement). */
+      provider_status: z
+        .enum(["VERIFIED", "PAID", "IN_BANK", "FAILED", "REVERSED"])
+        .nullable(),
+      /** Why a terminal attempt ended, from the transition history. */
+      terminal_reason: z.string().nullable(),
     }),
   ),
 });

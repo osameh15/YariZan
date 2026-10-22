@@ -340,7 +340,7 @@ export class Orders {
     requireCondition(r, "NOT_FOUND", 404);
     const payments = (
       await c.query(
-        "SELECT id,state,created_at,verified_at,provider_ref,exception_code,redirect_url FROM payment_attempts WHERE order_id=$1 ORDER BY created_at,id",
+        "SELECT p.id,p.state,p.created_at,p.verified_at,p.provider_ref,p.exception_code,p.redirect_url,p.customer_return,p.provider_status,CASE WHEN p.state IN ('FAILED','CANCELLED') THEN (SELECT t.reason FROM payment_transitions t WHERE t.attempt_id=p.id AND t.next_state=p.state ORDER BY t.created_at DESC,t.id LIMIT 1) END terminal_reason FROM payment_attempts p WHERE p.order_id=$1 ORDER BY p.created_at,p.id",
         [id],
       )
     ).rows;

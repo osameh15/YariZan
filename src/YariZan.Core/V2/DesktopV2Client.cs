@@ -44,7 +44,15 @@ public interface IDeviceRegistrationClient
 /// <summary>Versioned desktop API client. No PHP fallback or browser-cookie authentication.</summary>
 public sealed class DesktopV2Client : IDesktopV2Client, IDeviceRegistrationClient
 {
+#if YARIZAN_LOCAL_ACCEPTANCE
+    // Local acceptance build only (-p:LocalAcceptanceBuild=true, refused with CommercialRelease):
+    // the workstation stack on loopback. Fixed at compile time; no setting can redirect it.
+    public static readonly Uri ApiBase = new("http://127.0.0.1:3100/api/v2/");
+    public const bool LocalAcceptance = true;
+#else
     public static readonly Uri ApiBase = new("https://yarizan.oarnova.games/api/v2/");
+    public const bool LocalAcceptance = false;
+#endif
     private readonly HttpClient _http;
     private readonly IDeviceCredentialProvider _credentials;
     private readonly TimeSpan _timeout;

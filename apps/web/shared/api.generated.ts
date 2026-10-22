@@ -595,6 +595,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v2/admin/payment-readiness': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/v2/admin/payment-readiness */
+    get: operations['get__api_v2_admin_payment_readiness'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v2/admin/products': {
     parameters: {
       query?: never;
@@ -3750,11 +3767,17 @@ export interface operations {
               provider_ref: string | null;
               exception_code: string | null;
               redirect_url: string | null;
+              customer_return: ('OK' | 'NOK') | null;
+              provider_status: ('VERIFIED' | 'PAID' | 'IN_BANK' | 'FAILED' | 'REVERSED') | null;
+              terminal_reason: string | null;
             }[];
             transitions: {
               [key: string]: unknown;
             }[];
             reconciliation: {
+              [key: string]: unknown;
+            }[];
+            inquiries: {
               [key: string]: unknown;
             }[];
           };
@@ -5127,6 +5150,155 @@ export interface operations {
           'application/json': {
             note: string;
             revision: number;
+          };
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  get__api_v2_admin_payment_readiness: {
+    parameters: {
+      query?: never;
+      header: {
+        'X-CSRF-Token': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful operation */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @constant */
+            real_payments_possible: false;
+            /** Format: date-time */
+            generated_at: string;
+            production_payment_gate: {
+              /** @constant */
+              id: 'ZARINPAL_LIVE_GATE_CLOSED';
+              /** @constant */
+              open: false;
+            };
+            gates: {
+              id: string;
+              reason: string;
+              open: boolean;
+            }[];
+            runtime: {
+              /** @enum {string} */
+              node_env: 'development' | 'test' | 'production';
+              /** @enum {string} */
+              commerce_mode: 'disabled' | 'fake' | 'zarinpal_sandbox' | 'zarinpal';
+              sandbox: boolean;
+            };
+            merchant_configuration: {
+              merchant_id_present: boolean;
+              callback_url_present: boolean;
+              /** @constant */
+              live_merchant_usable: false;
+            };
+            sandbox_evidence: {
+              verified_payments: number;
+              unresolved_payments: number;
+              last_verified_at: string | null;
+            };
+            health: {
+              unknown_payments: number;
+              open_exceptions: number;
+              jobs_in_review: number;
+              overdue_jobs: number;
+              paid_unfulfilled: number;
+              oldest_unresolved_seconds: number | null;
+            };
+            catalog: {
+              sku: string;
+              publication_status: string;
+              sale_enabled: boolean;
+              price_irr: string | null;
+            }[];
+            evidence: {
+              id: string;
+              /** @enum {string} */
+              status: 'verified' | 'owner_confirmed' | 'partial' | 'blocked' | 'not_started';
+              evidence: string;
+              reference: string;
+            }[];
           };
         };
       };
@@ -9192,6 +9364,9 @@ export interface operations {
               provider_ref: string | null;
               exception_code: string | null;
               redirect_url: string | null;
+              customer_return: ('OK' | 'NOK') | null;
+              provider_status: ('VERIFIED' | 'PAID' | 'IN_BANK' | 'FAILED' | 'REVERSED') | null;
+              terminal_reason: string | null;
             }[];
           };
         };
@@ -9327,6 +9502,9 @@ export interface operations {
               provider_ref: string | null;
               exception_code: string | null;
               redirect_url: string | null;
+              customer_return: ('OK' | 'NOK') | null;
+              provider_status: ('VERIFIED' | 'PAID' | 'IN_BANK' | 'FAILED' | 'REVERSED') | null;
+              terminal_reason: string | null;
             }[];
           };
         };

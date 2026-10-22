@@ -24,7 +24,7 @@ docker compose --profile web up -d --build
 | API | `http://127.0.0.1:3100` (`/ready`) |
 | PostgreSQL 17 | `127.0.0.1:55432` (user `yarizan`, database `yarizan`; disposable) |
 
-Check: `curl http://127.0.0.1:3100/ready` returns `{"status":"ready","production_gate":"closed"}`. The schema count is whatever `backend/src/database/schema-version.ts` declares (12 at the time of writing: `schema_migrations` must have that many rows). The seed creates six grades at 12,990,000 IRR (Grade 1 published and for sale locally, Grades 2-6 Coming Soon).
+Check: `curl http://127.0.0.1:3100/ready` returns `{"status":"ready","production_gate":"closed"}`. The schema count is whatever `backend/src/database/schema-version.ts` declares (13 at the time of writing: `schema_migrations` must have that many rows). The seed creates six grades at 12,990,000 IRR (Grade 1 published and for sale locally, Grades 2-6 Coming Soon).
 
 ## Stop
 

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Post,
   Patch,
@@ -14,6 +15,7 @@ import { z } from "zod";
 import { Orders } from "./orders";
 import { Payments } from "./payments";
 import { CommerceAdministration } from "./administration";
+import { PaymentReadiness } from "./readiness";
 import {
   quoteInput,
   orderInput,
@@ -34,6 +36,7 @@ export class CommerceController {
     private payments: Payments,
     private management: CommerceAdministration,
     private admin: Admin,
+    private readiness: PaymentReadiness,
   ) {}
   private actor(req: Request, id?: string) {
     return {
@@ -130,7 +133,7 @@ export class CommerceController {
         Status: z.string().max(20).optional(),
       })
       .parse(query);
-    return this.payments.returned(q.Authority);
+    return this.payments.returned(q.Authority, q.Status);
   }
   @Post("orders/:id/refund-request") async refund(
     @Param("id") id: string,
@@ -179,6 +182,25 @@ export class CommerceController {
         : this.management.list(c, section, filters.parse(query));
     });
   }
+  // Read-only: no write route exists for readiness, and nothing here can enable payments.
+  @Get("admin/payment-readiness")
+  @Header("Cache-Control", "no-store")
+  async paymentReadiness(@Req() req: Request) {
+    return this.orders.db.transaction(async (c) => {
+      const a = await this.orders.security.admin(req, "finance.read", c);
+      await this.orders.audit.append(
+        c,
+        {
+          type: "ADMIN",
+          id: a.id,
+          correlationId: req.res!.locals.correlationId as string,
+        },
+        "admin.payment_readiness.viewed",
+        a.id,
+      );
+      return this.readiness.report(c);
+    });
+  }
   @Get("admin/commerce/orders/:id") async adminOrder(
     @Param("id") id: string,
     @Req() req: Request,
@@ -191,6 +213,12 @@ export class CommerceController {
         reconciliation: (
           await c.query(
             "SELECT r.job_id,r.attempt,r.event,r.error,r.created_at FROM commerce_job_runs r JOIN commerce_jobs j ON j.id=r.job_id WHERE j.order_id=$1 ORDER BY r.created_at,r.id",
+            [id],
+          )
+        ).rows,
+        inquiries: (
+          await c.query(
+            "SELECT q.attempt_id,q.status,q.observed_at FROM payment_inquiries q JOIN payment_attempts p ON p.id=q.attempt_id WHERE p.order_id=$1 ORDER BY q.observed_at,q.id",
             [id],
           )
         ).rows,

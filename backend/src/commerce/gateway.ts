@@ -38,7 +38,22 @@ export type PaymentResult = {
   previously_verified?: boolean;
   /** The provider returned a parsed, documented answer (not a timeout or transport failure). */
   answered?: boolean;
+  /** Recorded as the transition reason when the result is terminal. */
+  terminal_reason?: string;
 };
+/**
+ * Documented inquiry vocabulary (paymentGateway/otherMethods/Inquiry): VERIFIED, PAID (paid, not yet
+ * verified), IN_BANK (customer at the bank page), FAILED (not completed), REVERSED. ZarinPal states that
+ * inquiry must never be used to verify a payment, so it is reconciliation evidence only.
+ */
+export const PROVIDER_STATUSES = [
+  "VERIFIED",
+  "PAID",
+  "IN_BANK",
+  "FAILED",
+  "REVERSED",
+] as const;
+export type ProviderStatus = (typeof PROVIDER_STATUSES)[number];
 export interface PaymentGateway {
   /** Identifies the provider contract stored on every payment attempt. */
   readonly providerConfig: string;
@@ -47,6 +62,11 @@ export interface PaymentGateway {
   ): Promise<{ authority: string; redirect_url: string }>;
   verify(request: PaymentRequest): Promise<PaymentResult>;
   query(request: PaymentRequest): Promise<PaymentResult>;
+  /**
+   * Read-only provider status for reconciliation; null when there is no documented answer. Optional:
+   * a provider without it never reaches a provider-confirmed terminal failure.
+   */
+  inquire?(request: PaymentRequest): Promise<ProviderStatus | null>;
   /**
    * Whether a freshly created authority and redirect are exactly what this provider issues. The
    * caller refuses (and records an ambiguous creation) otherwise, so a malformed or foreign redirect
@@ -171,7 +191,7 @@ export class ZarinPalAdapter implements PaymentGateway {
         signal: AbortSignal.timeout(10000),
       },
     );
-    requireCondition(response.ok && response.body, "GATEWAY_UNKNOWN", 503);
+    requireCondition(response.body, "GATEWAY_UNKNOWN", 503);
     const reader = response.body.getReader();
     let bytes = 0;
     const chunks: Uint8Array[] = [];
@@ -187,14 +207,29 @@ export class ZarinPalAdapter implements PaymentGateway {
       await reader.cancel().catch(() => {});
       reader.releaseLock();
     }
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+    const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
       data?: {
         code?: number;
         authority?: string;
         ref_id?: string | number;
         status?: string;
       };
+      errors?: { code?: unknown };
     };
+    if (response.ok) return parsed;
+    // The real provider sends documented refusals (-50, -51, -54 ...) with HTTP 4xx. Only a negative
+    // integer error code in a 4xx counts as an answer; its data is never read. A 5xx or anything else
+    // stays unknown (an outage may have processed the call).
+    const refusal = parsed?.errors?.code;
+    requireCondition(
+      response.status >= 400 &&
+        response.status < 500 &&
+        Number.isInteger(refusal) &&
+        Number(refusal) < 0,
+      "GATEWAY_UNKNOWN",
+      503,
+    );
+    return { errors: { code: Number(refusal) } };
   }
   async create(r: PaymentRequest) {
     requireCondition(
@@ -249,15 +284,31 @@ export class ZarinPalAdapter implements PaymentGateway {
           previously_verified: code === 101,
           answered: true,
         };
-      return { state: "UNKNOWN", answered: typeof code === "number" };
+      return {
+        state: "UNKNOWN",
+        answered:
+          typeof code === "number" || typeof result.errors?.code === "number",
+      };
     } catch {
       return { state: "UNKNOWN" };
     }
   }
-  // Authoritative status check = server-side verify. The inquiry endpoint's status vocabulary
-  // is not mapped (recorded as an open item in the readiness matrix), so it is never consulted.
+  // Authoritative status check = server-side verify. Inquiry never settles anything (see inquire).
   query(r: PaymentRequest): Promise<PaymentResult> {
     return this.verify(r);
+  }
+  async inquire(r: PaymentRequest): Promise<ProviderStatus | null> {
+    if (!r.authority || !this.authorityPattern.test(r.authority)) return null;
+    try {
+      const result = await this.call("inquiry", { authority: r.authority });
+      const status = result.data?.status;
+      return result.data?.code === 100 &&
+        (PROVIDER_STATUSES as readonly string[]).includes(status ?? "")
+        ? (status as ProviderStatus)
+        : null;
+    } catch {
+      return null;
+    }
   }
 }
 @Injectable()

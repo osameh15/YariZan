@@ -39,7 +39,11 @@ public sealed class DesktopProvisioningClient(HttpClient http, IDeviceIdentity i
     private string? _pairingId;
     private DateTimeOffset _credentialExpires;
     public string? DeviceId => enrollmentStore.ReadVerifiedIdentity()?.DeviceId;
+#if YARIZAN_LOCAL_ACCEPTANCE
+    public static readonly Uri ConnectPage = new("http://localhost:3200/connect");
+#else
     public static readonly Uri ConnectPage = new("https://yarizan.oarnova.games/connect");
+#endif
 
     public async Task<DesktopPairing> BeginAsync(CancellationToken cancellation)
     {
