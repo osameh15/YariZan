@@ -17,7 +17,7 @@ const forbidden = [
   [/\[نیاز به تأیید مالک/, 'unresolved owner placeholder'],
   [/پیش‌نویس:/, 'draft notice'],
   [/lorem ipsum/i, 'lorem ipsum'],
-  [/support@osameh|t\.me\/osameh|@osameh_ir|telegram/i, 'obsolete contact'],
+  [/osameh\.dev|support@osameh|t\.me\/osameh|@osameh_ir|telegram/i, 'obsolete contact'],
 ];
 // Facts that may only be written in their single source of truth.
 const single = [
@@ -25,8 +25,8 @@ const single = [
   [/support@oarnova\.games|info@oarnova\.games/, 'studio mailbox', 'shared/contact.ts'],
   [/y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX/, 'eNamad code', 'shared/contact.ts'],
 ];
-// The developer portfolio link is a deliberate footer link, not a support contact.
-const allowed = [['app/layouts/default.vue', /https:\/\/osameh\.dev"/]];
+// Nothing is exempt: the old personal domain is gone from every customer-facing page.
+const allowed = [];
 
 async function* files(dir, exts) {
   for (const e of await readdir(dir, { withFileTypes: true })) {

@@ -1,6 +1,6 @@
 # First-claim and device-ownership dispute policy (G1_FIRST_CLAIM_ASSURANCE)
 
-Status: **proposed, awaiting owner approval.** The gate stays closed until the owner approves this text, or an amended one, in a reviewed PR.
+Status: **policy direction approved by the owner (2026-10-22), including the seven-day notice.** The final public wording is part of the consolidated legal-text sign-off; the gate stays closed until that sign-off and the evidence below exist.
 
 ## The residual risk being accepted
 
@@ -35,6 +35,12 @@ The device username or hardware identifier **alone is never proof** (the Admin c
 | Account holder lost the mobile number | password or mobile reset through support | `evidence_ref` (strong item 1) |
 
 Each operation needs an Admin with recent SMS MFA. It is idempotent per request, and both the request and the result are written to the append-only audit log. Evidence files themselves are kept outside the application (support archive); only their reference is stored.
+
+## Suspected fraud and exceptional cases
+
+- Signs of fraud include two competing claimants, a claimant who cannot pass a fresh OTP to any number on record, a recent unresolved payment, or evidence that does not match the order in Admin.
+- In those cases support asks for additional evidence, a second Admin reviews the case, and nothing changes until the review ends. The seven-day notice period is never shortened.
+- An urgent safety block, for example a reported stolen device, may only restrict the device (the existing Admin product block); it never transfers ownership.
 
 ## Refusals
 
