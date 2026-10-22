@@ -16,7 +16,7 @@ public partial class InfoPage : UserControl
         InitializeComponent();
         AppTitle.Text = AppBranding.PersianTitle(grade);
         IntroductionText.Text = $"یاریزان مجموعه‌ای از بازی‌های آموزشی ویژهٔ پایه {AppBranding.GradeName(grade)} دبستان است. هر صفحه از کتاب شامل ۶ تصویر از صفحه‌های کتاب درسی است؛ اگر صفحه‌ای چند بازی داشته باشد، با کلیک روی آن بازی دلخواه را انتخاب کنید. با ورق زدن یا وارد کردن شمارهٔ صفحه به صفحه‌های دیگر دسترسی پیدا می‌کنید.";
-        var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0";
+        var ver = Assembly.GetExecutingAssembly().GetName().Version!.ToString(3);
         VersionText.Text = "نسخهٔ " + ToPersianDigits(ver);
 
         if (!isActivated)

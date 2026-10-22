@@ -8,11 +8,15 @@
 #endif
 #define MyAppName        "YariZan G" + Grade
 #define MyAppNameFa      "یاریزان"
-#define MyAppVersion     "1.1.0"
+; The version comes from src/YariZan.App/YariZan.App.csproj (build-installer.bat passes /DMyAppVersion).
+; This default must stay equal to it: tools/release/windows-version.test.mjs fails otherwise.
+#ifndef MyAppVersion
+#define MyAppVersion     "2.0.0"
+#endif
 #define MyAppPublisher   "OAR NOVA GAMES STUDIO"
-#define MyAppDeveloper   "osameh_ir"
-#define MyAppURL         "https://osameh.dev"
-#define MyAppSupportURL  "mailto:support@osameh.dev"
+#define MyAppURL         "https://yarizan.oarnova.games/"
+#define MyAppSupportURL  "https://yarizan.oarnova.games/support"
+#define MyAppUpdatesURL  "https://yarizan.oarnova.games/download"
 #define MyAppExeName     "YariZan-G" + Grade + ".exe"
 #ifndef MyPublishDir
 #define MyPublishDir     "publish\YariZan-G" + Grade + "-win-x64"
@@ -27,9 +31,9 @@ AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppSupportURL}
-AppUpdatesURL={#MyAppURL}
-AppCopyright=Copyright (C) 2025 {#MyAppPublisher} — {#MyAppDeveloper}
-AppContact=support@osameh.dev
+AppUpdatesURL={#MyAppUpdatesURL}
+AppCopyright=Copyright (C) 2026 {#MyAppPublisher}
+AppContact={#MyAppSupportURL}
 
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
@@ -57,12 +61,13 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 
-VersionInfoVersion=1.1.0.0
+VersionInfoVersion={#MyAppVersion}.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription={#MyAppName} Setup
-VersionInfoCopyright=Copyright (C) 2025 {#MyAppPublisher}
+VersionInfoCopyright=Copyright (C) 2026 {#MyAppPublisher}
 VersionInfoProductName={#MyAppName}
-VersionInfoProductVersion=1.1.0.0
+VersionInfoProductVersion={#MyAppVersion}.0
+VersionInfoTextVersion={#MyAppVersion}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -92,10 +97,5 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 ; Preserve per-user activation across reinstall. The server controls access and trials.
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%nYariZan is a Persian RTL launcher for educational mini-games for grade {#Grade}.%n%nFeatures:%n  - Hardware-bound activation with online access checks%n  - 2 online trial launches%n  - 12 portrait mini-games per spread, direct page navigation%n  - Persian Shabnam font, fullscreen kiosk mode%n%nWebsite: osameh.dev%nSupport: support@osameh.dev%n%nPlease close other applications before continuing.
-FinishedLabel=YariZan has been installed successfully.%n%nLaunch from the Start Menu or the Desktop shortcut. Open the cover to check your saved activation or start an online trial. Send your HWID to support@osameh.dev to receive a serial.%n%nWebsite: osameh.dev%nSupport: support@osameh.dev%n%nInternet is required for activation and access checks. Reinstalling does not reset server trial usage or device blocks.
-
-[CustomMessages]
-english.SupportTelegram=Telegram: @osameh_ir
-english.SupportWebsite=Website: osameh.dev
-english.SupportEmail=Support: support@osameh.dev
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nYariZan is the Persian educational game collection for grade {#Grade} by OAR NOVA GAMES STUDIO.%n%n  - Activate once on this device; licensed play then works offline%n  - Two trial sessions (internet is needed only to start each trial)%n  - Connect the app to your account on yarizan.oarnova.games%n%nWebsite and support: yarizan.oarnova.games%n%nPlease close other applications before continuing.
+FinishedLabel=YariZan has been installed.%n%nOpen it from the Start Menu or the Desktop shortcut. To buy, activate or connect your account, use the app's activation screen or visit yarizan.oarnova.games.%n%nReinstalling or upgrading keeps this device's activation. It does not reset trial usage.

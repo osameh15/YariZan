@@ -1,163 +1,139 @@
 ﻿END-USER LICENSE AGREEMENT (EULA)
-YariZan - Educational Mini-Games Launcher
-Version 1.1.0
+YariZan - Educational Game Collection for Windows
+Version 2.0.0
 
 ================================================================
 ENGLISH
 ================================================================
 
-Copyright (c) 2025 OAR NOVA GAMES STUDIO. All rights reserved.
+Copyright (c) 2026 OAR NOVA GAMES STUDIO. All rights reserved.
 
-Studio     : OAR NOVA GAMES STUDIO
-Developer  : osameh_ir
-Contact    : Telegram @osameh_ir  (https://t.me/osameh_ir)
-Website    : https://osameh.dev
-Support    : support@osameh.dev
+Publisher : OAR NOVA GAMES STUDIO (https://oarnova.games)
+Website   : https://yarizan.oarnova.games
+Support   : https://yarizan.oarnova.games/support
+Phone     : 0918-876-4024, 0936-964-2754
 
 PLEASE READ THIS AGREEMENT CAREFULLY. BY INSTALLING OR USING
 YARIZAN ("the Software") YOU AGREE TO BE BOUND BY THE TERMS
-BELOW. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
+BELOW AND BY THE TERMS OF USE PUBLISHED ON THE WEBSITE. IF YOU
+DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 
 1. LICENSE GRANT
-   Subject to your compliance with this Agreement and your
-   payment of the applicable fee, OAR NOVA GAMES STUDIO grants you a
-   personal, non-exclusive, non-transferable, revocable license
-   to install and use one (1) copy of the Software on a single
-   Windows PC for which you have received and successfully
-   activated a hardware-bound serial number.
+   Each purchased grade grants a personal, non-exclusive,
+   non-transferable license to use that grade of the Software
+   on the one Windows device on which it was activated, through
+   the account that bought it. After activation, licensed use
+   does not require an internet connection.
 
 2. TRIAL USE
-   The Software may be launched up to TWO (2) times without an
-   activation serial for evaluation purposes. After the trial
-   limit is reached, a valid activation serial is required to
-   continue using the Software.
+   Each grade can be tried for two (2) trial sessions per device.
+   An internet connection is required only to start a trial
+   session.
 
-3. ACTIVATION SERIAL
-   Each activation serial is bound to the unique hardware
-   identifier (HWID) of one specific PC. Sharing, selling,
-   transferring or attempting to use a serial on another PC
-   is prohibited and will result in activation failure.
+3. ACCOUNT AND DEVICE
+   The Software is connected to your account on the website.
+   A license is bound to the activated device and cannot be
+   moved, shared or transferred, except through the support
+   process published on the website.
 
 4. RESTRICTIONS
    You may NOT, in whole or in part:
      a) copy, redistribute, sublicense, lend, lease or sell
         the Software or any of its components;
-     b) reverse engineer, decompile, disassemble, or attempt
-        to extract the embedded mini-games or to obtain the
-        master encryption key from the Software;
-     c) tamper with, bypass, or attempt to defeat the
-        activation, trial, or HWID-binding mechanisms;
+     b) reverse engineer, decompile or disassemble the Software,
+        or extract the embedded games or their encryption keys;
+     c) tamper with, bypass or defeat the activation, trial or
+        device-binding mechanisms;
      d) remove or alter any copyright, trademark or
-        proprietary notices contained in the Software;
+        proprietary notices;
      e) use the Software for any unlawful purpose.
 
 5. OWNERSHIP
-   The Software, including the launcher application, the
-   embedded mini-games, the artwork, fonts and documentation,
-   is licensed, not sold. OAR NOVA GAMES STUDIO retains all right,
-   title and interest in and to the Software, including all
-   intellectual property rights therein.
+   The Software, including the application, the embedded games,
+   artwork, fonts and documentation, is licensed, not sold.
+   OAR NOVA GAMES STUDIO retains all intellectual property rights.
 
-6. UPDATES & SUPPORT
-   OAR NOVA GAMES STUDIO may, at its sole discretion, provide updates
-   or new versions. Support is offered through Telegram
-   @osameh_ir and email support@osameh.dev. Visit https://osameh.dev.
-   Response time is typically 15 minutes to 8 hours.
+6. UPDATES, SUPPORT AND REFUNDS
+   Updates are published on the website. Support, purchase
+   questions and refund requests follow the policies published
+   at https://yarizan.oarnova.games.
 
 7. DISCLAIMER OF WARRANTIES
-   THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE",
-   WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
-   BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-   FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
+   TO THE EXTENT PERMITTED BY LAW, THE SOFTWARE IS PROVIDED
+   "AS IS", WITHOUT WARRANTY OF ANY KIND.
 
 8. LIMITATION OF LIABILITY
-   IN NO EVENT SHALL OAR NOVA GAMES STUDIO OR ITS DEVELOPER BE LIABLE
-   FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL OR
-   PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUE, ARISING
-   FROM OR RELATED TO YOUR USE OF THE SOFTWARE.
+   TO THE EXTENT PERMITTED BY LAW, OAR NOVA GAMES STUDIO IS NOT
+   LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL OR CONSEQUENTIAL
+   DAMAGES ARISING FROM THE USE OF THE SOFTWARE.
 
 9. TERMINATION
-   This license terminates automatically if you fail to comply
-   with any of its terms. Upon termination you must cease all
-   use of the Software and destroy all copies in your possession.
-
-10. CONTACT
-    Telegram : @osameh_ir
-    URL      : https://t.me/osameh_ir
-    Website  : https://osameh.dev
-    Email    : support@osameh.dev
-
+   This license terminates automatically if you do not comply
+   with its terms. You must then stop using the Software.
 
 ================================================================
-فارسی  (PERSIAN)
+فارسی (PERSIAN)
 ================================================================
 
 توافق‌نامهٔ کاربر نهایی
-یاریزان — مجموعه بازی‌های آموزشی
-نسخهٔ ۱.۰.۰
+یاریزان — مجموعهٔ بازی‌های آموزشی برای ویندوز
+نسخهٔ ۲.۰.۰
 
-تمامی حقوق محفوظ است. © ۲۰۲۵ OAR NOVA GAMES STUDIO
+تمامی حقوق محفوظ است. © ۲۰۲۶ OAR NOVA GAMES STUDIO
 
-استودیو         : OAR NOVA GAMES STUDIO
-توسعه‌دهنده    : osameh_ir
-ارتباط          : تلگرام @osameh_ir   (https://t.me/osameh_ir)
-وب‌سایت        : https://osameh.dev
-ایمیل پشتیبانی : support@osameh.dev
+ناشر          : OAR NOVA GAMES STUDIO (https://oarnova.games)
+وب‌سایت       : https://yarizan.oarnova.games
+پشتیبانی      : https://yarizan.oarnova.games/support
+تلفن          : ۰۹۱۸-۸۷۶-۴۰۲۴ و ۰۹۳۶-۹۶۴-۲۷۵۴
 
 لطفاً پیش از نصب یا استفاده از برنامه، این توافق‌نامه را با
-دقت مطالعه کنید. با نصب یا اجرای برنامه، شما با همهٔ شرایط
-زیر موافقت می‌کنید. در صورت عدم موافقت، برنامه را نصب نکنید.
+دقت مطالعه کنید. با نصب یا اجرای برنامه، شما با شرایط زیر و
+شرایط استفادهٔ منتشرشده در وب‌سایت موافقت می‌کنید. در صورت
+عدم موافقت، برنامه را نصب نکنید.
 
 ۱) اعطای حق استفاده
-   OAR NOVA GAMES STUDIO به شما اجازه می‌دهد یک نسخه از این
-   برنامه را روی تنها یک رایانهٔ ویندوزی که سریال آن را
-   به‌صورت معتبر دریافت و فعال‌سازی کرده‌اید، نصب و استفاده کنید.
+   هر پایهٔ خریداری‌شده حق استفادهٔ شخصی، غیرانحصاری و
+   غیرقابل‌انتقال از همان پایه را روی همان یک دستگاه ویندوزی
+   که با حساب خریدار فعال شده است می‌دهد. پس از فعال‌سازی،
+   استفاده به اینترنت نیاز ندارد.
 
 ۲) استفادهٔ آزمایشی
-   برنامه تا ۲ بار بدون سریال قابل اجرا است تا بتوانید آن را
-   ارزیابی کنید. پس از پایان آزمایش، برای ادامه استفاده باید
-   سریال معتبر وارد نمایید.
+   هر پایه روی هر دستگاه دو نوبت آزمایشی دارد. اینترنت فقط
+   برای شروع هر نوبت آزمایشی لازم است.
 
-۳) سریال فعال‌سازی
-   هر سریال به شناسهٔ سخت‌افزاری (HWID) یک رایانهٔ مشخص گره
-   خورده است. به‌اشتراک گذاشتن، فروش، انتقال یا تلاش برای
-   استفاده از سریال روی دستگاه دیگر مجاز نیست.
+۳) حساب و دستگاه
+   برنامه به حساب شما در وب‌سایت متصل می‌شود. مجوز به دستگاه
+   فعال‌شده وابسته است و جز از راه روند پشتیبانی منتشرشده در
+   وب‌سایت، قابل انتقال یا اشتراک نیست.
 
 ۴) محدودیت‌ها
    شما حق ندارید:
-     • برنامه یا اجزای آن را کپی، توزیع یا اجاره دهید؛
-     • برنامه را مهندسی معکوس، دیکامپایل یا اجزای رمزگذاری
-       شدهٔ بازی‌ها را استخراج کنید؛
-     • سامانهٔ فعال‌سازی، آزمایش، یا اتصال به HWID را دور بزنید؛
-     • علائم تجاری یا اطلاعات حق نشر را تغییر یا حذف کنید؛
-     • از برنامه برای اهداف غیرقانونی استفاده نمایید.
+     • برنامه یا اجزای آن را کپی، توزیع، اجاره یا فروش دهید؛
+     • برنامه را مهندسی معکوس یا دیکامپایل کنید، یا بازی‌ها و
+       کلیدهای رمزگذاری آن‌ها را استخراج کنید؛
+     • سازوکار فعال‌سازی، آزمایش یا اتصال به دستگاه را دور بزنید؛
+     • اطلاعات حق نشر یا علائم تجاری را تغییر یا حذف کنید؛
+     • از برنامه برای اهداف غیرقانونی استفاده کنید.
 
 ۵) مالکیت
-   برنامه (شامل لانچر، بازی‌های مینی، گرافیک، فونت و مستندات)
-   به فروش نمی‌رسد، بلکه تنها مجوز استفاده داده می‌شود.
-   تمامی حقوق مالکیت معنوی متعلق به OAR NOVA GAMES STUDIO است.
+   برنامه (شامل نرم‌افزار، بازی‌ها، گرافیک، فونت و مستندات)
+   فروخته نمی‌شود و فقط مجوز استفاده داده می‌شود. همهٔ حقوق
+   مالکیت معنوی متعلق به OAR NOVA GAMES STUDIO است.
 
-۶) به‌روزرسانی و پشتیبانی
-   پشتیبانی از طریق تلگرام @osameh_ir و ایمیل
-   support@osameh.dev ارائه می‌شود. وب‌سایت: https://osameh.dev
-   زمان پاسخ‌گویی معمولاً بین ۱۵ دقیقه تا ۸ ساعت است.
+۶) به‌روزرسانی، پشتیبانی و بازپرداخت
+   به‌روزرسانی‌ها در وب‌سایت منتشر می‌شوند. پشتیبانی، پرسش‌های
+   خرید و درخواست بازپرداخت طبق سیاست‌های منتشرشده در
+   https://yarizan.oarnova.games انجام می‌شود.
 
 ۷) سلب مسئولیت تضمین
-   برنامه «همان‌گونه که هست» و بدون هیچ‌گونه ضمانت صریح یا
-   ضمنی ارائه می‌شود.
+   تا جایی که قانون اجازه می‌دهد، برنامه «همان‌گونه که هست» و
+   بدون هیچ‌گونه ضمانتی ارائه می‌شود.
 
 ۸) محدودیت مسئولیت
-   OAR NOVA GAMES STUDIO در قبال هیچ خسارت غیرمستقیم، اتفاقی،
-   ویژه، تبعی یا از دست رفتن سود، ناشی از استفاده از برنامه،
-   مسئول نخواهد بود.
+   تا جایی که قانون اجازه می‌دهد، OAR NOVA GAMES STUDIO در قبال
+   خسارت‌های غیرمستقیم، اتفاقی، ویژه یا تبعی ناشی از استفاده از
+   برنامه مسئول نیست.
 
 ۹) خاتمه
-   در صورت عدم رعایت هر یک از شرایط، این مجوز به‌صورت خودکار
-   لغو می‌شود و باید استفاده از برنامه را متوقف و همهٔ نسخه‌ها
-   را حذف کنید.
-
-۱۰) تماس
-    تلگرام : @osameh_ir
-    لینک   : https://t.me/osameh_ir
-    وب‌سایت : https://osameh.dev
-    ایمیل پشتیبانی : support@osameh.dev
+   در صورت رعایت‌نکردن شرایط، این مجوز خودبه‌خود لغو می‌شود و
+   باید استفاده از برنامه را متوقف کنید.

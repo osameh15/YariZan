@@ -134,7 +134,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/Write-InstallerAbout.p
 & 'C:\Program Files\Inno Setup 7\ISCC.exe' /DGrade=1 'YariZan-Setup.iss'
 ```
 
-Adjust the compiler path. App/key/game changes require republishing first. Version releases consistently: update ISS `MyAppVersion`, app `Version`/`FileVersion`, EULA version and displayed version text. Keep each grade's installer AppId stable for upgrade identity. Grade installers have separate installation directories and shortcuts; the old combined installer has a different identity.
+Adjust the compiler path. App/key/game changes require republishing first. Version releases from one place: `<Version>` in `src/YariZan.App/YariZan.App.csproj`. `build-installer.bat` passes it to Inno Setup, the displayed version comes from the assembly, `tools/release/windows-version.test.mjs` fails if the ISS default, the EULA (English and Persian) or the download registry disagree, and `tools/release/Test-WindowsBinary.ps1` checks the built app and installer. Keep each grade's installer AppId stable for upgrade identity. Grade installers have separate installation directories and shortcuts; the old combined installer has a different identity.
 
 ## Checks before distribution
 
@@ -144,7 +144,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests/Run-LauncherChecks.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Run-GradeChecks.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Run-BookChecks.ps1
 py tools/Check-PublicRepository.py
-Get-FileHash publish/YariZan-G1-Setup-v1.1.0.exe -Algorithm SHA256
+Get-FileHash publish/YariZan-G1-Setup-v2.0.0.exe -Algorithm SHA256
 ```
 
 Use [panel checks](../web/licensing/README.md#tests-and-local-preview) for backend changes. Test on a disposable Windows PC: install/uninstall, icon, cover-first start, two trials, activation, outage/retry, serial replacement/removal, game order/launch, RTL About and keyboard dismissal. Compiling setup does not test installation.

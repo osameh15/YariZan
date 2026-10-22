@@ -37,6 +37,14 @@ if errorlevel 1 (
     exit /b 1
 )
 set /p GRADE=<"publish\selected-grade.txt"
+REM The release version has one source: the app project. Inno Setup receives it explicitly.
+powershell -NoProfile -Command "([xml](Get-Content 'src/YariZan.App/YariZan.App.csproj')).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1" > "publish\release-version.txt"
+set /p VERSION=<"publish\release-version.txt"
+if not defined VERSION (
+    echo [ERROR] Could not read the release version from YariZan.App.csproj.
+    exit /b 1
+)
+set "INSTALLER=publish\YariZan-G%GRADE%-Setup-v%VERSION%.exe"
 set "PUBLISH_DIR=publish\YariZan-G%GRADE%-win-x64"
 if exist "%PUBLISH_DIR%" (
     set "PUBLISH_DIR=publish\YariZan-G%GRADE%-win-x64-build-%RANDOM%-%RANDOM%"
@@ -149,43 +157,44 @@ if errorlevel 1 (
 echo [OK] Publish complete.
 powershell -NoProfile -Command "Rename-Item -LiteralPath (Join-Path $env:PUBLISH_DIR 'YariZan.exe') -NewName ('YariZan-G' + $env:GRADE + '.exe')"
 if errorlevel 1 exit /b 1
+REM The commercial binary must report the release version, target the production API and carry no
+REM local acceptance build or endpoint.
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\release\Test-WindowsBinary.ps1" -Path "%PUBLISH_DIR%\YariZan-G%GRADE%.exe" -Version "%VERSION%" -Kind app
+if errorlevel 1 (
+    echo [ERROR] The published application failed the release binary check.
+    exit /b 1
+)
 echo.
 
 REM ----- Step 5: compile installer -------------------------------------------
 echo [Step 5/5] Compiling installer ...
 if not exist "publish" mkdir publish
-"%INNO_PATH%" /DGrade=%GRADE% "/DMyPublishDir=%PUBLISH_DIR%" "YariZan-Setup.iss"
+"%INNO_PATH%" /DGrade=%GRADE% "/DMyAppVersion=%VERSION%" "/DMyPublishDir=%PUBLISH_DIR%" "YariZan-Setup.iss"
 if errorlevel 1 (
     echo [ERROR] Installer compilation failed.
     if not defined NONINTERACTIVE pause
     exit /b 1
 )
 echo [OK] Installer compiled.
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\release\Test-WindowsBinary.ps1" -Path "%INSTALLER%" -Version "%VERSION%" -Kind installer
+if errorlevel 1 (
+    echo [ERROR] The installer failed the release binary check.
+    exit /b 1
+)
+powershell -NoProfile -Command "$f = Get-Item -LiteralPath $env:INSTALLER; '{0}  {1}' -f (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $f.Name | Set-Content -LiteralPath ($f.FullName + '.sha256') -Encoding ascii; 'Size: ' + $f.Length + ' bytes'"
+if errorlevel 1 exit /b 1
 echo.
-
 echo ========================================
 echo SUCCESS
 echo ========================================
 echo.
-echo Installer:  publish\YariZan-G%GRADE%-Setup-v1.1.0.exe
+echo Installer:  %INSTALLER%
+type "%INSTALLER%.sha256"
 echo.
-echo Next steps:
-echo   1. Test the installer on a clean Windows VM.
-echo   2. Optionally generate a SHA-256 checksum.
-echo   3. Upload to a Telegram channel / GitHub release.
-echo.
-
-if defined NONINTERACTIVE goto :end
-choice /C YN /M "Generate SHA-256 checksum"
-if errorlevel 2 goto :end
-if errorlevel 1 goto :sha
-
-:sha
-echo.
-echo Generating SHA-256 ...
-powershell -NoProfile -Command "Get-FileHash 'publish\YariZan-G%GRADE%-Setup-v1.1.0.exe' -Algorithm SHA256 | Select-Object -ExpandProperty Hash" > "publish\YariZan-G%GRADE%-Setup-v1.1.0.sha256"
-echo.
-type "publish\YariZan-G%GRADE%-Setup-v1.1.0.sha256"
+echo Next steps (docs/YARIZAN-WINDOWS-RELEASE.md):
+echo   1. Authenticode-sign the installer and verify the signature.
+echo   2. Run the physical acceptance checklist on the signed installer.
+echo   3. Publish with tools\local\Publish-YariZanWindowsRelease.ps1.
 echo.
 
 :end
