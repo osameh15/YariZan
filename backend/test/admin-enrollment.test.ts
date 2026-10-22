@@ -407,6 +407,51 @@ test("An activated owner logs in only with password then SMS MFA, never a TOTP f
   );
 });
 
+test("Customer or forged credentials never reach Admin routes or change Admin roles", async () => {
+  const count = async (sql: string) =>
+    (await db.query(sql)).rows[0].n as number;
+  const roles = await count("SELECT count(*)::int AS n FROM admin_user_roles");
+  const sessions = await count("SELECT count(*)::int AS n FROM admin_sessions");
+  const token = () => randomUUID().replace(/-/g, "").padEnd(43, "x");
+  for (const cookie of [
+    "",
+    `yz_customer=${token()}`,
+    `yz_admin=${token()}`,
+    `yz_customer=${token()}; yz_csrf_customer=${token()}`,
+  ])
+    for (const [method, route] of [
+      ["GET", "/admin/commerce/finance"],
+      ["GET", "/admin/customers"],
+      ["GET", "/admin/auth/session"],
+      ["POST", "/admin/products/YARIZAN-G1/promotions"],
+    ]) {
+      const r = await fetch(base + route, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Origin: origin,
+          ...(cookie ? { Cookie: cookie } : {}),
+        },
+        ...(method === "POST" ? { body: "{}" } : {}),
+      });
+      // Reads are refused as unauthenticated; a write may already fail validation. Never a success.
+      assert.ok(
+        method === "GET"
+          ? r.status === 401
+          : [400, 401, 403].includes(r.status),
+        `${method} ${route} with ${cookie || "no"} cookie: ${r.status}`,
+      );
+    }
+  assert.equal(
+    await count("SELECT count(*)::int AS n FROM admin_user_roles"),
+    roles,
+  );
+  assert.equal(
+    await count("SELECT count(*)::int AS n FROM admin_sessions"),
+    sessions,
+  );
+});
+
 test("Rerunning is idempotent and conflicting identities fail safely", async () => {
   const before = await row(one.username);
   const auditBefore = (
