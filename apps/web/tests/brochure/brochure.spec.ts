@@ -219,6 +219,41 @@ test('path aliases, encodings and trailing slashes do not bypass the allowlist',
   expect(head.status()).toBe(200);
 });
 
+test('letter-case variants of protected pages and the API stay closed and uncacheable', async ({
+  request,
+}) => {
+  // GHSA-vjh5-4x84-xrqp: routeRules could be skipped for case variants; the boundary must not be.
+  for (const url of [
+    '/ACCOUNT',
+    '/Account/',
+    '/ZanYari',
+    '/CHECKOUT',
+    '/Payment/return',
+    '/LOGIN',
+    '/Connect',
+    '/Reset-Password',
+    '/SUPPORT-RESET',
+  ]) {
+    const response = await request.get(url, { headers: { Accept: 'text/html' } });
+    expect([404, 503], url).toContain(response.status());
+    expect(response.headers()['cache-control'], url).toBe('no-store');
+    expect(response.headers()['x-robots-tag'], url).toBe('noindex, nofollow');
+    expect(response.headers()['x-content-type-options'], url).toBe('nosniff');
+    expect(response.headers()['set-cookie'], url).toBeUndefined();
+  }
+  for (const [method, url] of [
+    ['GET', '/API/v2/products'],
+    ['GET', '/Api/V2/account'],
+    ['POST', '/API/v2/auth/login'],
+  ] as const) {
+    const response = await request.fetch(url, { method, data: method === 'POST' ? {} : undefined });
+    expect(response.status(), url).toBe(503);
+    expect(response.headers()['cache-control'], url).toBe('no-store');
+    expect(response.headers()['set-cookie'], url).toBeUndefined();
+    expect(await response.json(), url).toEqual({ error: { code: 'SERVICE_UNAVAILABLE' } });
+  }
+});
+
 test('unknown pages return a Persian 404 with correct status', async ({ page }) => {
   const response = await page.goto('/no-such-page');
   expect(response?.status()).toBe(404);
