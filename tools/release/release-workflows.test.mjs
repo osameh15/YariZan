@@ -78,11 +78,12 @@ function verifySource(overrides = {}) {
     gh() {
       case "$2" in
         */compare/*) [ "$MOCK_COMPARE" != api-error ] || return 1; printf '%s' "$MOCK_COMPARE" ;;
-        */actions/runs*) printf '%s' "$MOCK_CI" ;;
+        */actions/workflows/*/runs?head_sha=*) printf '%s' "$MOCK_CI" ;;
         */environments/*) printf '%s' "$MOCK_REVIEWERS" ;;
         *) echo 'Unexpected API call' >&2; return 1 ;;
       esac
     }
+    sleep() { :; }
     ${verifyShell}
   `,
     ],
@@ -139,7 +140,10 @@ test('storefront binds source checks to trusted context and preserves exact CI a
   assert.ok(storefront.includes('DISPATCH_REF: ${{ github.ref }}'));
   assert.ok(storefront.includes('DISPATCH_EVENT: ${{ github.event_name }}'));
   assert.ok(!storefront.includes('/pulls'));
-  assert.ok(storefront.includes('actions/runs?head_sha=$COMMIT'));
+  // Required CI is bound to the reviewed workflow files, never to a reusable display name.
+  assert.ok(storefront.includes('actions/workflows/$workflow/runs?head_sha=$COMMIT'));
+  assert.ok(storefront.includes('for workflow in ci.yml backend-ci.yml web-ci.yml images.yml; do'));
+  assert.ok(!storefront.includes('select(.name=='));
   assert.ok(storefront.includes('SCHEMA_MIGRATION_COUNT'));
   const schema = readFileSync(
     new URL('../../backend/src/database/schema-version.ts', import.meta.url),
