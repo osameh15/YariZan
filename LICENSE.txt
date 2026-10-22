@@ -12,6 +12,7 @@ Publisher : OAR NOVA GAMES STUDIO (https://oarnova.games)
 Website   : https://yarizan.oarnova.games
 Support   : https://yarizan.oarnova.games/support
 Phone     : 0918-876-4024, 0936-964-2754
+Email     : support@oarnova.games (support), info@oarnova.games (general)
 
 PLEASE READ THIS AGREEMENT CAREFULLY. BY INSTALLING OR USING
 YARIZAN ("the Software") YOU AGREE TO BE BOUND BY THE TERMS
@@ -85,6 +86,7 @@ DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 وب‌سایت       : https://yarizan.oarnova.games
 پشتیبانی      : https://yarizan.oarnova.games/support
 تلفن          : ۰۹۱۸-۸۷۶-۴۰۲۴ و ۰۹۳۶-۹۶۴-۲۷۵۴
+ایمیل         : support@oarnova.games (پشتیبانی)، info@oarnova.games (عمومی)
 
 لطفاً پیش از نصب یا استفاده از برنامه، این توافق‌نامه را با
 دقت مطالعه کنید. با نصب یا اجرای برنامه، شما با شرایط زیر و
