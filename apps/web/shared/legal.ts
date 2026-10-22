@@ -1,7 +1,6 @@
-// Approval state of the public legal policies. The texts in app/pages/legal are the proposed V2
-// policies. Until the owner approves them in a reviewed change, every legal page says so plainly,
-// and the production release guard (tools/check-production-copy.mjs) refuses a release build.
-// Approval sets `approved: true` with the real date and the version; nothing else may set it.
+// Owner-approved V2 legal policies. Approved on 2026-10-22 after exact-text review;
+// effective from 2026-10-22 for subsequent publication and new transactions.
+// Legal identity and payment activation are verified separately from policy approval.
 export interface LegalApproval {
   /** Policy text version, e.g. "2.0.0". */
   version: string;
@@ -14,9 +13,9 @@ export interface LegalApproval {
 
 export const LEGAL_APPROVAL: LegalApproval = {
   version: '2.0.0',
-  approved: false,
-  approvedOn: null,
-  effectiveFrom: null,
+  approved: true,
+  approvedOn: '2026-10-22',
+  effectiveFrom: '2026-10-22',
 };
 
 export function legalStatusText(a: LegalApproval = LEGAL_APPROVAL): string {

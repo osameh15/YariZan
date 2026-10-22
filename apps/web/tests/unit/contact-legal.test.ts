@@ -23,10 +23,13 @@ describe('public contact facts', () => {
 });
 
 describe('legal approval state', () => {
-  it('is not approved and never shows a fabricated effective date', () => {
-    expect(LEGAL_APPROVAL.approved).toBe(false);
-    expect(LEGAL_APPROVAL.approvedOn).toBeNull();
-    expect(legalStatusText()).toContain('پیشنهادی');
+  it('records the actual owner approval for legal policies version 2.0.0', () => {
+    expect(LEGAL_APPROVAL.version).toBe('2.0.0');
+    expect(LEGAL_APPROVAL.approved).toBe(true);
+    expect(LEGAL_APPROVAL.approvedOn).toBe('2026-10-22');
+    expect(LEGAL_APPROVAL.effectiveFrom).toBe('2026-10-22');
+    expect(legalStatusText()).not.toContain('پیشنهادی');
+    expect(legalStatusText()).toContain('۲.۰.۰');
   });
   it('shows the version and effective date only once approved', () => {
     const text = legalStatusText({
