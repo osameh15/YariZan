@@ -35,7 +35,12 @@ public partial class MainWindow : Window
         _loadGameKey = loadGameKey ?? AppKeys.LoadEmbeddedMasterKey;
         InitializeComponent();
         Title = $"YariZan G{Math.Clamp(_library.Manifest.SelectedGrade, 1, 6)}"
-            + (DesktopV2Client.LocalAcceptance ? " — LOCAL ACCEPTANCE BUILD (not for distribution)" : "");
+            + (DesktopV2Client.LocalAcceptance ? " — LOCAL ACCEPTANCE BUILD (not for distribution)" : "")
+#if YARIZAN_ACCEPTANCE_CANDIDATE
+            // Physical acceptance candidate: production root and API, but visibly not a release.
+            + " — ACCEPTANCE CANDIDATE (not for distribution)"
+#endif
+            ;
         Loaded += (_, _) => ShowStartPage();
         Closed += (_, _) =>
         {

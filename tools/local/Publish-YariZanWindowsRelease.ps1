@@ -11,19 +11,26 @@
        YariZan-G1-Setup-v2.0.0.exe.
     2. Checks the installer metadata (tools/release/Test-WindowsBinary.ps1) and a valid Authenticode
        signature, and refuses an unsigned or invalid installer.
-    3. Reads the approval record (-Approval) and refuses unless it names this exact SHA-256 and size
-       and records signature, malware scan and physical acceptance W1-W14 as passed.
-    4. Uploads with scp to a private staging directory as a .part file. SSH verifies the server's host
+    3. Reads the approval record (-Approval) and refuses unless it names this exact SHA-256 and size,
+       the exact source commit and the packaged YariZan.exe (-AppExe), and records signature, malware
+       scan and physical acceptance W1-W14 as passed.
+    4. Refuses a packaged launcher that is unsigned, lacks the production API endpoint or contains a
+       local-test marker or development trust root.
+    5. GitHub first: refuses unless tag <version> exists and points to the approved source commit, a
+       GitHub Release (draft or published) exists for it, and its installer and .sha256 assets are
+       downloaded and proven byte-identical to this file. Nothing is uploaded to the VPS before that.
+    6. Uploads with scp to a private staging directory as a .part file. SSH verifies the server's host
        key against known_hosts (StrictHostKeyChecking=yes) and uses your normal ~/.ssh/config.
-    5. Recomputes SHA-256 and size on the server, then renames the .part file only when both match.
-    6. Prints the exact privileged publish command for the owner (sudo is a permission boundary) and
+    7. Recomputes SHA-256 and size on the server, then renames the .part file only when both match.
+    8. Prints the exact privileged publish command for the owner (sudo is a permission boundary) and
        the rollback command, and writes a sanitized release record next to the installer.
   Stage 'verify': after the owner ran the publish command, checks the public URLs through the CDN:
     GET, HEAD, Range, Content-Length, Content-Disposition, the latest redirect and the full SHA-256.
 
 .EXAMPLE
   .\tools\local\Publish-YariZanWindowsRelease.ps1 -Installer publish\YariZan-G1-Setup-v2.0.0.exe `
-     -Grade 1 -ReleaseVersion 2.0.0 -Approval docs\evidence\windows-release-G1-2.0.0.json
+     -Grade 1 -ReleaseVersion 2.0.0 -Approval docs\evidence\windows-release-G1-2.0.0.json `
+     -AppExe publish\YariZan-G1-win-x64\YariZan-G1.exe
   .\tools\local\Publish-YariZanWindowsRelease.ps1 -Stage verify -Installer publish\YariZan-G1-Setup-v2.0.0.exe -Grade 1 -ReleaseVersion 2.0.0
 #>
 param(
@@ -32,6 +39,8 @@ param(
   # Not "-Version": powershell.exe would treat that as its own engine-version switch.
   [Parameter(Mandatory)][string]$ReleaseVersion,
   [string]$Approval,
+  # The signed YariZan-G<grade>.exe that was packaged into the installer (checked for test markers).
+  [string]$AppExe,
   [ValidateSet('upload', 'verify')][string]$Stage = 'upload',
   [string]$SshTarget = 'oarnova@82.115.18.101',
   [string]$SshKey = (Join-Path $HOME '.ssh\oarnova_laptop_ed25519'),
@@ -87,6 +96,49 @@ $checks = [ordered]@{
 }
 $bad = @($checks.Keys | Where-Object { -not $checks[$_] })
 if ($bad) { Fail "Approval record does not match or is incomplete: $($bad -join ', ')" }
+if (-not ("$($a.source_commit)" -match '^[0-9a-f]{40}$')) { Fail 'Approval record must name the exact 40-hex source_commit.' }
+
+# The packaged launcher must be the signed production build: no local-acceptance endpoints, test
+# markers or disposable development trust roots. The installer itself is compressed, so the exact
+# application executable that was packaged is checked and must match the approval record.
+if (-not $AppExe) { Fail '-AppExe (the signed YariZan-G<grade>.exe that was packaged) is required.' }
+$app = Get-Item -LiteralPath $AppExe
+$appSha = (Get-FileHash -LiteralPath $app.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($a.app_sha256 -ne $appSha) { Fail 'Approval record app_sha256 does not match -AppExe.' }
+if ((Get-AuthenticodeSignature -LiteralPath $app.FullName).Status -ne 'Valid') { Fail 'The packaged YariZan.exe is not validly signed.' }
+$bytes = [IO.File]::ReadAllBytes($app.FullName)
+$text = [Text.Encoding]::UTF8.GetString($bytes) + [Text.Encoding]::Unicode.GetString($bytes) + [Text.Encoding]::Unicode.GetString($bytes, 1, $bytes.Length - 1)
+foreach ($marker in @('127.0.0.1:3100', 'localhost:3100', 'local acceptance', 'LocalAcceptanceBuild', 'disposable-development', 'v2-local-acceptance-roots')) {
+  if ($text.Contains($marker)) { Fail "The packaged launcher contains a local-test marker or development trust root ('$marker')." }
+}
+if (-not $text.Contains('yarizan.oarnova.games/api/v2/')) { Fail 'The packaged launcher does not carry the production API endpoint.' }
+
+# GitHub first: the tag, the release and its assets must exist and be byte-identical to this file
+# before anything reaches the VPS.
+$repoSlug = 'osameh15/YariZan'
+$tag = $ReleaseVersion
+$ref = gh api "repos/$repoSlug/git/ref/tags/$tag" 2>$null | ConvertFrom-Json
+if (-not $ref) { Fail "Tag $tag does not exist on GitHub." }
+$tagged = if ($ref.object.type -eq 'tag') { (gh api "repos/$repoSlug/git/tags/$($ref.object.sha)" | ConvertFrom-Json).object.sha } else { $ref.object.sha }
+if ($tagged -ne $a.source_commit) { Fail "Tag $tag points to $tagged, not the approved source commit $($a.source_commit)." }
+$release = gh release view $tag --repo $repoSlug --json tagName,isDraft,assets 2>$null | ConvertFrom-Json
+if (-not $release) { Fail "No GitHub Release exists for tag $tag." }
+$asset = @($release.assets | Where-Object { $_.name -eq $name })
+if ($asset.Count -ne 1) { Fail "The GitHub Release has no asset named $name." }
+if ([int64]$asset[0].size -ne $size) { Fail "GitHub asset size $($asset[0].size) differs from the local $size bytes." }
+$sumName = "$name.sha256"
+if (-not @($release.assets | Where-Object { $_.name -eq $sumName })) { Fail "The GitHub Release has no checksum asset $sumName." }
+$dl = Join-Path ([IO.Path]::GetTempPath()) ("yz-gh-" + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $dl | Out-Null
+try {
+  gh release download $tag --repo $repoSlug --pattern $name --pattern $sumName --dir $dl
+  if ($LASTEXITCODE -ne 0) { Fail 'Could not download the GitHub Release assets for comparison.' }
+  $ghSha = (Get-FileHash -LiteralPath (Join-Path $dl $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($ghSha -ne $sha) { Fail "The GitHub asset SHA-256 $ghSha differs from the approved local file $sha." }
+  $listed = ((Get-Content -LiteralPath (Join-Path $dl $sumName) -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
+  if ($listed -ne $sha) { Fail "The GitHub checksum asset lists $listed, not $sha." }
+} finally { Remove-Item -LiteralPath $dl -Recurse -Force -ErrorAction SilentlyContinue }
+Write-Host "[OK] GitHub tag $tag -> $tagged; release asset $name is byte-identical ($size bytes, SHA-256 $sha); draft=$($release.isDraft)."
 
 # Upload: host key verified, private staging, .part until the server digest matches.
 $ssh = @('-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=20', '-i', $SshKey)
@@ -106,7 +158,9 @@ $remoteHome = ("$(& ssh.exe @ssh $SshTarget 'printf %s "$HOME"')").Trim()
 $record = [ordered]@{
   kind = 'yarizan-windows-release'; grade = $Grade; version = $ReleaseVersion; file = $name; sha256 = $sha; size = $size
   signature = [ordered]@{ status = "$($sig.Status)"; signer = $sig.SignerCertificate.Subject; thumbprint = $sig.SignerCertificate.Thumbprint }
-  source_commit = (git -C $repo rev-parse HEAD).Trim(); uploaded_at = (Get-Date).ToUniversalTime().ToString('o')
+  source_commit = $a.source_commit; app_sha256 = $appSha
+  github = [ordered]@{ tag = $tag; commit = $tagged; draft = $release.isDraft; asset_sha256 = $sha }
+  uploaded_at = (Get-Date).ToUniversalTime().ToString('o')
   staged = "$remoteHome/$stage/$name"; version_url = $versionUrl; latest_url = $latestUrl
 }
 $out = "$($file.FullName).release.json"

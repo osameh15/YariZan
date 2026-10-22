@@ -79,9 +79,22 @@
   <Target Name="ValidateV2CommercialBuild" BeforeTargets="PrepareForBuild" Condition="'$(CommercialRelease)' == 'true'">
     <Error Condition="'$(FixtureOnlyBuild)' == 'true'" Text="FixtureOnlyBuild cannot be combined with CommercialRelease." />
     <Error Condition="'$(LocalAcceptanceBuild)' == 'true'" Text="LocalAcceptanceBuild cannot be combined with CommercialRelease." />
+    <Error Condition="'$(AcceptanceCandidate)' == 'true'" Text="AcceptanceCandidate cannot be combined with CommercialRelease." />
     <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --commercial &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
   </Target>
-  <Target Name="ValidateV2CommercialPublish" BeforeTargets="PrepareForPublish" Condition="'$(FixtureOnlyBuild)' != 'true' and '$(CommercialRelease)' != 'true' and '$(LocalAcceptanceBuild)' != 'true'">
+  <!-- Physical acceptance candidate: production root and API, version 2.0.0-acceptance-candidate.
+       It exists so W1-W14 can run before release approval and is never publishable. -->
+  <PropertyGroup Condition="'$(AcceptanceCandidate)' == 'true'">
+    <InformationalVersion>$(Version)-acceptance-candidate</InformationalVersion>
+    <DefineConstants>$(DefineConstants);YARIZAN_ACCEPTANCE_CANDIDATE</DefineConstants>
+  </PropertyGroup>
+  <Target Name="ValidateAcceptanceCandidate" BeforeTargets="PrepareForBuild" Condition="'$(AcceptanceCandidate)' == 'true'">
+    <Error Condition="'$(CommercialRelease)' == 'true'" Text="AcceptanceCandidate cannot be combined with CommercialRelease." />
+    <Error Condition="'$(LocalAcceptanceBuild)' == 'true'" Text="AcceptanceCandidate cannot be combined with LocalAcceptanceBuild." />
+    <Error Condition="'$(FixtureOnlyBuild)' == 'true'" Text="AcceptanceCandidate cannot be combined with FixtureOnlyBuild." />
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --acceptance-candidate &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
+  </Target>
+  <Target Name="ValidateV2CommercialPublish" BeforeTargets="PrepareForPublish" Condition="'$(FixtureOnlyBuild)' != 'true' and '$(CommercialRelease)' != 'true' and '$(LocalAcceptanceBuild)' != 'true' and '$(AcceptanceCandidate)' != 'true'">
     <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --commercial &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
   </Target>
 </Project>
