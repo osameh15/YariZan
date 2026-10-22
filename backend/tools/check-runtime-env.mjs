@@ -154,7 +154,7 @@ try {
     [undefined, "NODE_ENV_REQUIRED"],
     ["", "NODE_ENV_REQUIRED"],
     ["staging", "NODE_ENV_INVALID"],
-    ["production", "PRODUCTION_GATE_CLOSED: G1_FIRST_CLAIM_ASSURANCE"],
+    ["production", "PRODUCTION_GATE_CLOSED: G8_SECRET_CUSTODY"],
     ["test", "ZARINPAL_LIVE_GATE_CLOSED", ["--env", "COMMERCE_MODE=zarinpal"]],
   ]) {
     finished(
