@@ -9,6 +9,7 @@ import {
   verify,
 } from "node:crypto";
 import { ApiError, requireCondition } from "../common/errors";
+import { requireCapability } from "../security/capabilities";
 import { configuration } from "../config";
 import { hash } from "../security/crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -150,6 +151,14 @@ export class DevelopmentKeyManager implements SigningKeyManager {
     });
   }
 }
+/** The manager when no signing capability is enabled: it holds no key and refuses to sign. */
+export class DisabledKeyManager implements SigningKeyManager {
+  readonly kid = "disabled";
+  readonly publicKey = "";
+  sign(): Buffer {
+    throw new ApiError("CAPABILITY_DISABLED", 503);
+  }
+}
 /** Key ids that only ever name disposable keys; the Windows commercial check forbids the same words. */
 export const NON_PRODUCTION_KID = /test|fixture|disposable|development|demo/i;
 /** Production kid naming, e.g. "yarizan-license-2026-01". */
@@ -209,6 +218,13 @@ export class FileKeyManager implements SigningKeyManager {
  */
 export function signingKeyManager(): SigningKeyManager {
   const c = configuration();
+  // With neither licensing nor desktop provisioning enabled no artifact may be signed at all, so no
+  // key is loaded or generated and every signing attempt is refused.
+  if (
+    !c.enabledCapabilities.has("TRIALS_AND_LICENSES") &&
+    !c.enabledCapabilities.has("DESKTOP_PROVISIONING")
+  )
+    return new DisabledKeyManager();
   if (c.LICENSE_SIGNING_KEY_FILE)
     return new FileKeyManager(
       c.LICENSE_SIGNING_KEY_FILE,
@@ -236,11 +252,16 @@ export const profiles = {
 import { Inject } from "@nestjs/common";
 @Injectable()
 export class Signing {
+  private readonly enabled = configuration().enabledCapabilities;
   constructor(@Inject(SIGNING_KEY_MANAGER) readonly keys: SigningKeyManager) {}
   artifact(
     type: keyof typeof profiles,
     claims: Record<string, unknown>,
   ): Envelope {
+    requireCapability(
+      this.enabled,
+      type === "enrollment" ? "DESKTOP_PROVISIONING" : "TRIALS_AND_LICENSES",
+    );
     const profile = profiles[type];
     artifactClaims[type].parse(claims);
     if ("grade" in claims)

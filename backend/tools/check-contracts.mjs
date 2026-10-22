@@ -207,6 +207,16 @@ const responses = {
     sandbox: z.boolean(),
     test_price_irr: commerce.money.nullable(),
     currency: z.literal("IRR"),
+    enabled_capabilities: z.array(
+      z.enum([
+        "PRODUCTION_CORE",
+        "CUSTOMER_AUTH",
+        "ADMIN_AUTH",
+        "DESKTOP_PROVISIONING",
+        "TRIALS_AND_LICENSES",
+        "LIVE_COMMERCE",
+      ]),
+    ),
   }),
   "/api/v2/discounts/quote": commerce.quoteView,
   "/api/v2/orders": commerce.orderView,

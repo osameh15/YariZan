@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { data: products, status, error, refresh } = await useCatalog();
-const { publicOnly } = useSiteMode();
+const { publicOnly, desktop } = useSiteMode();
 useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
 </script>
 <template>
@@ -14,7 +14,7 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
       <div class="actions">
         <NuxtLink class="button primary" to="/products"
           >کشف دنیای پایه‌ها <span aria-hidden="true">←</span></NuxtLink
-        ><NuxtLink v-if="!publicOnly" class="text-link" to="/connect"
+        ><NuxtLink v-if="desktop" class="text-link" to="/connect"
           >برنامه را دارم؛ متصل می‌شوم ↗</NuxtLink
         ><NuxtLink v-else class="text-link" to="/support"
           >پرسشی دارید؟ با ما تماس بگیرید ↗</NuxtLink

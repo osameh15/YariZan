@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ENAMAD, SUPPORT_EMAIL, SUPPORT_PHONES } from '#shared/contact';
 const open = ref(false);
-const { publicOnly, storefront } = useSiteMode();
+const { publicOnly, storefront, desktop } = useSiteMode();
 const route = useRoute();
 // The eNamad seal is third-party: request it only after the page has loaded, so a slow or
 // unreachable host never delays the load event, and show it only if the image really loads.
@@ -31,7 +31,7 @@ watch(
       /></NuxtLink>
       <nav class="desktop-nav" aria-label="منوی اصلی">
         <NuxtLink to="/">خانه</NuxtLink><NuxtLink to="/products">دنیای پایه‌ها</NuxtLink
-        ><NuxtLink v-if="!publicOnly" to="/connect">اتصال برنامه</NuxtLink
+        ><NuxtLink v-if="desktop" to="/connect">اتصال برنامه</NuxtLink
         ><NuxtLink to="/download">دانلود برنامه</NuxtLink
         ><NuxtLink to="/support">همراه شما</NuxtLink>
       </nav>
@@ -52,9 +52,8 @@ watch(
     <BaseDialog v-model="open" title="به یاریزان خوش آمدید"
       ><nav class="mobile-nav" aria-label="منوی همراه">
         <NuxtLink to="/">خانه</NuxtLink><NuxtLink to="/products">دنیای پایه‌ها</NuxtLink
-        ><template v-if="!publicOnly"
-          ><NuxtLink to="/connect">اتصال برنامه</NuxtLink
-          ><NuxtLink to="/account">حساب من</NuxtLink></template
+        ><NuxtLink v-if="desktop" to="/connect">اتصال برنامه</NuxtLink
+        ><NuxtLink v-if="!publicOnly" to="/account">حساب من</NuxtLink
         ><NuxtLink to="/download">دانلود برنامه</NuxtLink
         ><NuxtLink to="/support">پشتیبانی</NuxtLink>
       </nav></BaseDialog
@@ -76,7 +75,7 @@ watch(
         </div>
         <nav aria-label="پیوندهای پایانی">
           <NuxtLink to="/products">محصولات</NuxtLink
-          ><NuxtLink v-if="!publicOnly" to="/connect">اتصال امن برنامه</NuxtLink
+          ><NuxtLink v-if="desktop" to="/connect">اتصال امن برنامه</NuxtLink
           ><NuxtLink to="/download">دریافت برای ویندوز</NuxtLink
           ><NuxtLink to="/support">پرسش‌ها و پشتیبانی</NuxtLink
           ><NuxtLink to="/legal">قوانین و حریم خصوصی</NuxtLink

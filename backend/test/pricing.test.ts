@@ -8,6 +8,7 @@ import { migrate } from "../src/database/migrate";
 import {
   initializePricing,
   productionBootstrap,
+  publishApprovedCatalog,
 } from "../src/database/production-bootstrap";
 
 // Each scenario uses its own disposable database next to yarizan_phase2_test.
@@ -294,4 +295,70 @@ test("Existing database upgraded from 009 keeps legacy prices as unattributed", 
   const result = await initializePricing(legacy, revision);
   assert.deepEqual(result.unchanged, ["YARIZAN-G1"]);
   assert.equal(result.initialized.length, 5);
+});
+
+test("Approved catalog publication: G1 published, others coming soon, flags closed, never overwrites", async () => {
+  const pool = await freshDatabase("yarizan_phase2_pricing_publish");
+  await migrate(transactional(pool));
+  await productionBootstrap(pool);
+  await assert.rejects(
+    publishApprovedCatalog(pool, "latest"),
+    /PRICING_REVISION_MISMATCH/,
+  );
+  // The launch candidate cannot be published without its approved price.
+  await assert.rejects(
+    publishApprovedCatalog(pool, revision),
+    /PRICE_REQUIRED/,
+  );
+  await initializePricing(pool, revision);
+  const result = await publishApprovedCatalog(pool, revision);
+  assert.deepEqual(result.published, ["YARIZAN-G1"]);
+  assert.deepEqual(
+    result.coming_soon,
+    [2, 3, 4, 5, 6].map((g) => `YARIZAN-G${g}`),
+  );
+  const rows = (
+    await pool.query(
+      "SELECT sku,publication_status,sale_enabled,trial_enabled,activation_enabled FROM products ORDER BY grade",
+    )
+  ).rows;
+  assert.deepEqual(
+    rows.map((r) => [r.sku, r.publication_status]),
+    approvedPricing.products.map((p) => [
+      p.sku,
+      p.launch === "launch-candidate" ? "published" : "coming_soon",
+    ]),
+  );
+  assert.ok(
+    rows.every(
+      (r) => !r.sale_enabled && !r.trial_enabled && !r.activation_enabled,
+    ),
+  );
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT count(*)::int n FROM audit_logs WHERE action='product.publication_initialized' AND actor_type='SYSTEM'",
+      )
+    ).rows[0].n,
+    6,
+  );
+  // An Admin decision (here: G2 hidden again) is never overwritten by a repeated run.
+  await pool.query(
+    "UPDATE products SET publication_status='hidden' WHERE sku='YARIZAN-G3'",
+  );
+  await pool.query(
+    "UPDATE products SET publication_status='published' WHERE sku='YARIZAN-G2'",
+  );
+  const again = await publishApprovedCatalog(pool, revision);
+  assert.deepEqual(again.published, []);
+  assert.deepEqual(again.coming_soon, ["YARIZAN-G3"]);
+  assert.equal(again.unchanged.length, 5);
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT publication_status FROM products WHERE sku='YARIZAN-G2'",
+      )
+    ).rows[0].publication_status,
+    "published",
+  );
 });

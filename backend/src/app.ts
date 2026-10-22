@@ -1,5 +1,7 @@
 import "reflect-metadata";
 import { Global, Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
+import { CapabilityGuard } from "./security/capabilities";
 import { Database } from "./database/database";
 import { Security } from "./security/security";
 import { PasswordHashing } from "./security/passwords";
@@ -123,5 +125,7 @@ class CommerceModule {}
     CommerceModule,
   ],
   controllers: [HealthController, PublicController],
+  // Every route declares its capabilities; undeclared or disabled ones are refused.
+  providers: [{ provide: APP_GUARD, useClass: CapabilityGuard }],
 })
 export class AppModule {}

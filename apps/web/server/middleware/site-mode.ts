@@ -1,4 +1,7 @@
+import { useRuntimeConfig } from '#imports';
 import { defineEventHandler, setHeader, setResponseStatus, createError, type H3Event } from 'h3';
+import { fetchCapabilities, requiredCapabilities } from '#shared/capabilities';
+import { backendBase } from '#shared/proxy-policy';
 import { brochureDecision } from '#shared/site-mode';
 import { serverSiteMode } from '../utils/site-mode';
 
@@ -13,8 +16,19 @@ function pinNoStore(event: H3Event) {
     setHeaderOriginal(name, name.toLowerCase() === 'cache-control' ? 'no-store' : value);
   setHeader(event, 'Cache-Control', 'no-store');
 }
-export default defineEventHandler((event) => {
-  if (serverSiteMode() === 'full') return;
+export default defineEventHandler(async (event) => {
+  if (serverSiteMode() === 'full') {
+    // Full application: a page whose Backend capability is disabled is unavailable, exactly like
+    // the public-only profiles, instead of rendering a form the Backend would refuse.
+    const path = (event.node.req.url ?? '').split('?')[0] ?? '';
+    const needed = requiredCapabilities(path);
+    if (!needed.length || path.startsWith('/api/')) return;
+    const enabled = await fetchCapabilities(backendBase(useRuntimeConfig(event).apiBase));
+    if (needed.every((id) => enabled.includes(id))) return;
+    pinNoStore(event);
+    setHeader(event, 'Retry-After', retryAfterSeconds);
+    throw createError({ statusCode: 503, statusMessage: 'Service Unavailable' });
+  }
   // Use the raw request target: h3 may already have decoded or normalized event.path.
   const decision = brochureDecision(event.method, event.node.req.url ?? '');
   if (decision === 'page' || decision === 'asset' || decision === 'health') return;
