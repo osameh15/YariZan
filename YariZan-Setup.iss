@@ -17,6 +17,7 @@
 #define MyAppURL         "https://yarizan.oarnova.games/"
 #define MyAppSupportURL  "https://yarizan.oarnova.games/support"
 #define MyAppUpdatesURL  "https://yarizan.oarnova.games/download"
+#define MyAppSupportEmail "support@oarnova.games"
 #define MyAppExeName     "YariZan-G" + Grade + ".exe"
 #ifndef MyPublishDir
 #define MyPublishDir     "publish\YariZan-G" + Grade + "-win-x64"
@@ -33,7 +34,7 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppSupportURL}
 AppUpdatesURL={#MyAppUpdatesURL}
 AppCopyright=Copyright (C) 2026 {#MyAppPublisher}
-AppContact={#MyAppSupportURL}
+AppContact={#MyAppSupportEmail}
 
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
@@ -97,5 +98,5 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 ; Preserve per-user activation across reinstall. The server controls access and trials.
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%nYariZan is the Persian educational game collection for grade {#Grade} by OAR NOVA GAMES STUDIO.%n%n  - Activate once on this device; licensed play then works offline%n  - Two trial sessions (internet is needed only to start each trial)%n  - Connect the app to your account on yarizan.oarnova.games%n%nWebsite and support: yarizan.oarnova.games%n%nPlease close other applications before continuing.
-FinishedLabel=YariZan has been installed.%n%nOpen it from the Start Menu or the Desktop shortcut. To buy, activate or connect your account, use the app's activation screen or visit yarizan.oarnova.games.%n%nReinstalling or upgrading keeps this device's activation. It does not reset trial usage.
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nYariZan is the Persian educational game collection for grade {#Grade} by OAR NOVA GAMES STUDIO.%n%n  - Activate once on this device; licensed play then works offline%n  - Two trial sessions (internet is needed only to start each trial)%n  - Connect the app to your account on yarizan.oarnova.games%n%nWebsite: yarizan.oarnova.games%nSupport: {#MyAppSupportEmail}%n%nPlease close other applications before continuing.
+FinishedLabel=YariZan has been installed.%n%nOpen it from the Start Menu or the Desktop shortcut. To buy, activate or connect your account, use the app's activation screen or visit yarizan.oarnova.games. Support: {#MyAppSupportEmail}.%n%nReinstalling or upgrading keeps this device's activation. It does not reset trial usage.

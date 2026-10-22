@@ -25,6 +25,7 @@ test('the installer script defaults to the same version and derives every versio
   assert.ok(iss.includes('AppId=YariZan-Grade-{#Grade}'));
   assert.doesNotMatch(iss, /\d+\.\d+\.\d+\.\d+/, 'no hard-coded four-part version');
   assert.doesNotMatch(iss, /osameh|telegram/i, 'no obsolete contact');
+  assert.ok(iss.includes('#define MyAppSupportEmail "support@oarnova.games"'), 'official support email');
 });
 
 test('the build script passes the project version to Inno Setup and checks both binaries', () => {
@@ -40,6 +41,7 @@ test('the end-user licence states the same version in English and Persian', () =
   const persian = version.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
   assert.ok(eula.includes('نسخهٔ ' + persian));
   assert.doesNotMatch(eula, /osameh|telegram|serial|HWID/i);
+  for (const mail of ['support@oarnova.games', 'info@oarnova.games']) assert.ok(eula.includes(mail), mail);
 });
 
 test('the download registry never lists a version newer than the app', () => {
