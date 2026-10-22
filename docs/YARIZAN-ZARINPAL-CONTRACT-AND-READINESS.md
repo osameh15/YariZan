@@ -51,18 +51,18 @@ Tests: unit tests for 100, 101, other codes and transport failure; integration t
 | Merchant activation | **Blocked (owner)** | account provisioned, not activated |
 | Callback domain acceptance | **Unverified** | assumption: ZarinPal accepts only the merchant's registered domain; confirm in the panel before cutover |
 | Callback query parameter names (`Authority`, `Status`) | Assumed from the SDK | used only to schedule a verify; confirm in a sandbox or activation test |
-| Provider error codes other than 100 and 101 | **Unmapped** | all treated as `UNKNOWN`; no behaviour depends on them |
-| Inquiry endpoint status vocabulary | **Unresolved** | inquiry exists in the official docs; its status values are not mapped, so inquiry is never used |
+| Provider error codes other than 100 and 101 | Answered, never settling | a negative code in a 4xx body (the real sandbox sends `-50`, `-51` with HTTP 401) is recorded as an answered refusal and leaves the attempt `UNKNOWN`; a 5xx stays unanswered |
+| Inquiry endpoint status vocabulary | **Mapped, evidence only** | `VERIFIED`, `PAID`, `IN_BANK`, `FAILED`, `REVERSED` (section 10); never used to verify or capture |
 | Sandbox | **Real official sandbox round trip done (2026-10-21)**, plus local fake server tests | the real adapter, in `sandbox` mode, runs through `Payments` against a local HTTP server that mimics the documented request and verify contract (section 7). No request reached `sandbox.zarinpal.com` and no real money is involved; official sandbox behaviour is still unvalidated until a merchant-capable sandbox run |
 | Refunds and reversals | **Unresolved** | no refund method exists in the adapter; refund needs a reviewed API contract or panel process and explicit order states |
 | Settlement timing and fees | **Unresolved** | merchant-specific; needs the activated account and finance sign-off |
-| Reconciliation | Partial | Admin reconcile route and exceptions exist; no scheduled provider-side reconciliation |
+| Reconciliation | Implemented (section 10) | every answered non-success verify is followed by one inquiry; observations are append-only; only a repeated, spaced `FAILED` ends an attempt; Admin reconcile route and exceptions for the rest |
 | Egress to `payment.zarinpal.com` | **Not built** | API container has no unrestricted egress; needs the restricted-egress infrastructure PR |
 | Legal pages, merchant information | **Not started** | needed for merchant activation review |
 
-## 5. Why inquiry is not used
+## 5. Why inquiry never verifies
 
-The previous adapter called inquiry and then verify inside one status check, and the job then called verify again. That made a real capture look like a 100 followed by a 101. Because the inquiry status vocabulary is not mapped, the status check is now one verify call and inquiry stays out of the money path until it is mapped and reviewed.
+The previous adapter called inquiry and then verify inside one status check, and the job then called verify again. That made a real capture look like a 100 followed by a 101. The status check is still one verify call. Inquiry runs only after verify gave a documented non-success answer, and it is reconciliation evidence only (section 10). ZarinPal's own inquiry page says never to use it to verify a transaction.
 
 ## 6. Official documentation MCP verification (2026-10-19)
 
@@ -110,7 +110,7 @@ Each row is evidence for one question only. A passing row never implies the next
 | Outbound IP allowlist | **Identified, not registered/verified** | the VPS reaches the internet from `82.115.18.101` (checked from the host with two echo services; `eth0` carries the same address and Docker bridge networks are masqueraded to it). The CDN address `185.239.1.100` is not a Backend outbound address and must not be allowlisted. The VPS can reach `payment.zarinpal.com`. The payment egress path for the Backend does not exist yet (separate from the SMS relay); its real address must be re-checked from that path once built. Official error `-10` means the merchant ID or the request IP is not valid; ZarinPal documents that the IP it sees can differ from the website's. Whether `82.115.18.101` is registered in the merchant panel is unverified |
 | Merchant registered domain and callback | **Unverified (owner)** | official error `-14`: the `callback_url` domain must match the terminal's registered domain; `-18`: the referrer must match it. The callback the Backend will send is `https://yarizan.oarnova.games/payment/return` (the Nuxt return route). The registered website domain must be `yarizan.oarnova.games` or `oarnova.games` as ZarinPal's matching rule requires, and the same host must serve the callback. Confirm both in the panel; the Shaparak (eNamad) record already names the site |
 | Return routing | **Fixed and tested** | the Nuxt `/payment/return` validation accepted only `A` plus exactly 32 characters (33 in all), while the documented authority has 36 characters and sandbox authorities start with `S`: a real authority would have been rejected with 400 before reaching the Backend. Web and Backend now share one pattern (`[AS]` plus 32-40 alphanumerics, or the fake test form); a unit test fails if they differ and a full-application test proves which layer decided |
-| Sandbox | Local fake sandbox only | section 7; no request reached `sandbox.zarinpal.com` |
+| Sandbox | **Real sandbox round trip, cancel and inquiry done** | sections 9 and 10 |
 | Merchant activation | **Not granted** | the owner reports activation is pending; nothing here changes it |
 | Real-payment authorization | **Not granted** | `COMMERCE_MODE=zarinpal` is refused at startup; needs merchant activation, the Backend production gates and a separate recorded go/no-go |
 
@@ -154,7 +154,7 @@ A second Grade 1 test order (100,000 IRR) was taken to `https://sandbox.zarinpal
 | Cancel | the sandbox returned the browser to `http://localhost:3200/payment/return?Authority=S...&Status=NOK`, which redirected to `/payment/result` |
 | Provider answer after cancel | `verify` answers `errors.code -51`, "Session is not valid, session is not active paid try." with empty `data` |
 | Our state | order `PENDING`, attempt `UNKNOWN`, no provider reference, no exception, no fulfillment, no entitlement; the page tells the customer the result is not final and not to pay again; the VERIFY job keeps retrying |
-| Policy | fail closed: any answer that is not 100 or 101 never settles. `-51` is also what an unpaid authority answers before the customer pays, so it is not treated as a terminal failure; a cancelled or abandoned attempt waits for expiry and reconciliation. A possible refinement (decided separately): treat `Status=NOK` plus `-51` as a customer cancellation after a defined window |
+| Policy | fail closed: any answer that is not 100 or 101 never settles. `-51` is also what an unpaid authority answers before the customer pays, so it is not treated as a terminal failure. Owner decision (2026-10-22): `Status=NOK`, `-51` and elapsed time never mark a payment cancelled; see section 10 |
 
 ### 9.2 Workstation network diagnosis (2026-10-21)
 
@@ -166,3 +166,53 @@ A second Grade 1 test order (100,000 IRR) was taken to `https://sandbox.zarinpal
 | TLS validation | never disabled. Certificates validated on every successful call |
 | Remedy | disconnect the tunnel for ZarinPal sandbox tests, or route only `*.zarinpal.com` and `trustseal.enamad.ir` directly. The Claude Code MCP client reads `NO_PROXY` from `.claude/settings.local.json` (ignored by Git) in new sessions. No global network setting was changed |
 
+
+## 10. Cancellation and reconciliation policy (2026-10-22)
+
+Owner decisions: a browser `Status=NOK`, a verify error such as `-51` or an elapsed timer never marks a payment cancelled. Financial uncertainty stays until an authoritative provider answer establishes a terminal result. No new paid order or entitlement can come from `Status=NOK`.
+
+### 10.1 Official inquiry method
+
+Source: documentation MCP, `/paymentGateway/otherMethods/Inquiry.html`. `POST /pg/v4/payment/inquiry.json` with `merchant_id` and `authority`; `data.status` is one of `VERIFIED` (verified), `PAID` (paid, not verified), `IN_BANK` (payment in progress), `FAILED` (unsuccessful, not completed) or `REVERSED`. The page states that inquiry must never be used to verify a transaction. `/paymentGateway/moreFeatures/reverse.html` documents reversal of a successful payment within 30 minutes (errors `-60` to `-63`); the adapter has no reverse call.
+
+### 10.2 Real sandbox observations (2026-10-22, no money)
+
+| Authority | Verify | Inquiry |
+|---|---|---|
+| The paid and verified first order | `101` | `VERIFIED` |
+| The cancelled second order (`Status=NOK`, about 13 hours earlier) | `-51`, **HTTP 401** | `IN_BANK` |
+| A fresh authority, never opened | `-51`, HTTP 401 | `IN_BANK` |
+| A paid authority, more than 30 minutes later | reverse: `-63` (reverse window expired) | — |
+
+Findings:
+
+- The sandbox never reported `FAILED` for a cancelled payment, so in the sandbox inquiry cannot tell a cancel from an unpaid authority. A cancelled sandbox attempt therefore stays unresolved and goes to Admin reconciliation, as the owner decided.
+- The real provider sends refusals with HTTP 401 and an `errors.code`. The adapter previously treated any non-2xx as an outage, so `-51` was an unanswered call. That matters for the code 101 policy: an unanswered earlier call is the evidence that lets a later 101 count as our own capture. A documented refusal in a 4xx body is now an answered call; a 5xx is still unanswered.
+
+### 10.3 Evidence categories
+
+| Category | Source | Effect |
+|---|---|---|
+| Customer-reported return | `payment_attempts.customer_return` (`OK`/`NOK`, first report wins) | display only; never settles, never ends an attempt |
+| Provider observation | `payment_inquiries` (append-only, every answer) and `payment_attempts.provider_status` | reconciliation evidence only |
+| Provider-confirmed failure | a `FAILED` inquiry answer that repeats at least 15 minutes (`FAILED_CONFIRMATION_SECONDS`) after an earlier `FAILED`, with no other status in between, after a documented non-success verify | attempt `FAILED`, reason `provider_confirmed_failed`; the order becomes `FAILED` (never if it already has an accepted payment) and a reserved coupon is released |
+| Unresolved | anything else (`IN_BANK`, a single `FAILED`, an outage, no answer) | attempt stays `UNKNOWN`; after eight verify runs the job goes to review with `RECONCILIATION_REVIEW` |
+| Verified paid | verify `100`, or `101` with order-bound evidence (section 3) | the only capture path; unchanged |
+| Contradiction | inquiry `VERIFIED` while verify refuses | `PROVIDER_STATE_CONFLICT` exception, no capture |
+| Reversed | inquiry `REVERSED` without our capture | `PROVIDER_REVERSED` exception, no capture |
+
+`PAID` keeps the attempt unknown; the next verify captures it. A delayed capture after `-51` settles exactly once through the normal verify path.
+
+### 10.4 Customer messages (Persian)
+
+- Unknown after a `NOK` return: the customer is told the gateway reported a cancellation or failure, that the financial result is not final, not to pay again, and that the result will appear on the same page.
+- Unknown otherwise: the existing "not final, do not pay again" message.
+- Provider-confirmed failure: the order was not paid; any debited amount returns under Shaparak rules within 72 hours; a new order can be placed.
+
+### 10.5 Tests
+
+`backend/test/integration.test.ts`, "Reconciliation:" (local sandbox-shaped server, real response shapes including HTTP 401 `-51`):
+
+- `NOK`, contradictory and duplicate returns, repeated `-51` and two hours of `IN_BANK` answers leave the order `PENDING` with no capture. Every observation is kept, the history cannot be updated, and an inquiry outage records nothing.
+- A single `FAILED` stays unknown. An older `FAILED` followed by `IN_BANK` does not confirm. A spaced repeat ends the attempt as `FAILED`, after which later returns, worker passes and a late verify success grant nothing.
+- A delayed payment after `-51` settles once, with one fulfillment and one entitlement. Inquiry `VERIFIED` without a verify capture and inquiry `REVERSED` each raise an exception and capture nothing.

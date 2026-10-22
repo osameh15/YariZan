@@ -9,6 +9,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400 });
   const target = new URL('payments/zarinpal/return', backendBase(config.apiBase));
   target.searchParams.set('Authority', q.Authority);
+  // The browser's OK/NOK is forwarded for display only; the Backend never settles on it.
+  if (q.Status === 'OK' || q.Status === 'NOK') target.searchParams.set('Status', q.Status);
   const response = await fetch(target, { redirect: 'error', signal: AbortSignal.timeout(10000) });
   if (!response.ok) throw createError({ statusCode: 400 });
   const result = (await response.json()) as { order_id?: string };

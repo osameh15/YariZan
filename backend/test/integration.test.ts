@@ -1664,7 +1664,11 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 12 });
+    assert.deepEqual(await verifyMigrations(c), { total: 13 });
+    await assert.rejects(
+      c.query("UPDATE payment_inquiries SET status='FAILED'"),
+      /permission denied/,
+    );
   } finally {
     await c.query("RESET ROLE");
     c.release();
@@ -5200,7 +5204,12 @@ type SandboxPayment = {
   preVerified: boolean;
   /** Unique per payment: a provider never reuses a reference across payments. */
   ref: number;
+  /** Customer has not paid (cancelled, abandoned or still at the bank): verify answers -51 with HTTP 401. */
+  unpaid: boolean;
+  /** Inquiry answer override; otherwise derived from the payment state. */
+  inquiry: string | null;
 };
+let sandboxReferences = 0;
 async function sandboxServer() {
   const { createServer } = await import("node:http");
   const payments = new Map<string, SandboxPayment>();
@@ -5208,6 +5217,7 @@ async function sandboxServer() {
   const behavior = {
     verifyFailures: 0,
     verifyAmountOverride: null as number | null,
+    inquiryFailures: 0,
   };
   const server = createServer((req, res) => {
     let raw = "";
@@ -5234,7 +5244,10 @@ async function sandboxServer() {
           merchant: String(body.merchant_id),
           verifiedOnce: false,
           preVerified: false,
-          ref: 700000 + payments.size,
+          // Unique across every sandbox server in the run, as real references are.
+          ref: 700000 + ++sandboxReferences,
+          unpaid: false,
+          inquiry: null,
         });
         return reply(200, {
           data: {
@@ -5254,6 +5267,16 @@ async function sandboxServer() {
         }
         const p = payments.get(String(body.authority));
         if (!p) return reply(200, { data: [], errors: { code: -54 } });
+        // Observed on the real sandbox (2026-10-22): an unpaid or cancelled authority.
+        if (p.unpaid)
+          return reply(401, {
+            data: {},
+            errors: {
+              message: "Session is not valid, session is not active paid try.",
+              code: -51,
+              validations: [],
+            },
+          });
         const amount = behavior.verifyAmountOverride ?? Number(body.amount);
         if (amount !== p.amount || body.merchant_id !== p.merchant)
           return reply(200, { data: [], errors: { code: -50 } });
@@ -5266,6 +5289,28 @@ async function sandboxServer() {
             ref_id: p.ref,
             card_pan: "603799******9999",
             fee: 0,
+          },
+          errors: [],
+        });
+      }
+      if (path === "/pg/v4/payment/inquiry.json") {
+        if (behavior.inquiryFailures > 0) {
+          behavior.inquiryFailures--;
+          return reply(503, { errors: { code: -999 } });
+        }
+        const p = payments.get(String(body.authority));
+        if (!p) return reply(401, { data: {}, errors: { code: -54 } });
+        return reply(200, {
+          data: {
+            status:
+              p.inquiry ??
+              (p.verifiedOnce || p.preVerified
+                ? "VERIFIED"
+                : p.unpaid
+                  ? "IN_BANK"
+                  : "PAID"),
+            code: 100,
+            message: "Success",
           },
           errors: [],
         });
@@ -5556,6 +5601,230 @@ test("Sandbox adapter: code 101 without prior evidence, amount mismatch and outa
         )
       ).rows[0].n,
       1,
+    );
+  });
+});
+
+// Reconciliation policy: what each piece of evidence can and cannot decide.
+type ReconciledPayment = {
+  state: string;
+  customer_return: string | null;
+  provider_status: string | null;
+  terminal_reason: string | null;
+};
+async function reconciled(e: Awaited<ReturnType<typeof buyer>>, id: string) {
+  const order = (
+    await ok<{
+      state: string;
+      paid_at: string | null;
+      exception_code: string | null;
+      payments: ReconciledPayment[];
+    }>(`/orders/${id}`, undefined, e.browser)
+  ).body;
+  const n = async (sql: string) =>
+    (await db.query(sql, [id])).rows[0].n as number;
+  return {
+    order,
+    payment: order.payments[0],
+    fulfillments: await n(
+      "SELECT count(*)::int n FROM order_fulfillments WHERE order_item_id=(SELECT id FROM order_items WHERE order_id=$1)",
+    ),
+    entitlements: await n(
+      "SELECT count(*)::int n FROM entitlements e JOIN order_items i ON i.id=e.source_order_item_id WHERE i.order_id=$1",
+    ),
+    inquiries: await n(
+      "SELECT count(*)::int n FROM payment_inquiries q JOIN payment_attempts p ON p.id=q.attempt_id WHERE p.order_id=$1",
+    ),
+  };
+}
+// payment_inquiries is append-only, so earlier observations are inserted with an explicit time.
+const priorInquiry = (attempt: string, status: string, secondsAgo: number) =>
+  db.query(
+    "INSERT INTO payment_inquiries(id,attempt_id,status,correlation_id,observed_at) VALUES($1,$2,$3,$4,now()-($5::integer*interval '1 second'))",
+    [randomUUID(), attempt, status, randomUUID(), secondsAgo],
+  );
+
+test("Reconciliation: browser NOK, verify -51 and elapsed time never end or settle a payment", async () => {
+  await withSandbox(async (sandbox, authorityOf) => {
+    const e = await buyer(),
+      o = await saleOrder(e),
+      p = await salePayment(e, o);
+    const authority = await authorityOf(p.attempt_id);
+    sandbox.payments.get(authority)!.unpaid = true;
+    // The customer pressed cancel at the bank page; the browser says NOK.
+    await ok(`/payments/zarinpal/return?Authority=${authority}&Status=NOK`);
+    // Duplicate and contradictory browser returns keep the first report and change nothing else.
+    await ok(`/payments/zarinpal/return?Authority=${authority}&Status=OK`);
+    await ok(`/payments/zarinpal/return?Authority=${authority}&Status=NOK`);
+    for (let n = 0; n < 3; n++) await runVerify(p.attempt_id);
+    let r = await reconciled(e, o.id);
+    assert.equal(r.order.state, "PENDING");
+    assert.equal(r.order.paid_at, null);
+    assert.deepEqual(
+      [r.payment.state, r.payment.customer_return, r.payment.provider_status],
+      ["UNKNOWN", "NOK", "IN_BANK"],
+    );
+    assert.equal(r.payment.terminal_reason, null);
+    assert.equal(r.fulfillments, 0);
+    // Every answered verify is followed by exactly one inquiry, and every observation is kept.
+    const verifies = () =>
+      sandbox.calls.filter(
+        (c) => c.path.endsWith("verify.json") && c.body.authority === authority,
+      ).length;
+    assert.ok(r.inquiries >= 1);
+    assert.equal(r.inquiries, verifies());
+    // Hours of unresolved answers are still not a cancellation.
+    await priorInquiry(p.attempt_id, "IN_BANK", 7200);
+    await runVerify(p.attempt_id);
+    r = await reconciled(e, o.id);
+    assert.equal(r.payment.state, "UNKNOWN");
+    assert.equal(r.order.state, "PENDING");
+    // Verify always carried the stored authority and the original amount.
+    for (const v of sandbox.calls.filter((c) => c.path.endsWith("verify.json")))
+      assert.deepEqual(
+        [v.body.authority, v.body.amount],
+        [authority, o.total_irr],
+      );
+    // Inquiry history cannot be rewritten.
+    await assert.rejects(
+      db.query("UPDATE payment_inquiries SET status='FAILED' WHERE true"),
+    );
+    // An inquiry outage records nothing and decides nothing.
+    sandbox.behavior.inquiryFailures = 1;
+    await runVerify(p.attempt_id);
+    // One inserted prior observation, and one verify whose inquiry hit the outage and recorded nothing.
+    assert.equal((await reconciled(e, o.id)).inquiries, verifies());
+  });
+});
+
+test("Reconciliation: only a repeated, spaced provider FAILED ends an attempt; the order fails once and grants nothing", async () => {
+  await withSandbox(async (sandbox, authorityOf) => {
+    const e = await buyer(),
+      o = await saleOrder(e),
+      p = await salePayment(e, o);
+    const payment = sandbox.payments.get(await authorityOf(p.attempt_id))!;
+    payment.unpaid = true;
+    payment.inquiry = "FAILED";
+    // One FAILED answer is evidence, not a result.
+    await runVerify(p.attempt_id);
+    let r = await reconciled(e, o.id);
+    assert.deepEqual(
+      [r.payment.state, r.payment.provider_status, r.order.state],
+      ["UNKNOWN", "FAILED", "PENDING"],
+    );
+    // An earlier FAILED followed by a different answer does not confirm anything.
+    await priorInquiry(p.attempt_id, "FAILED", 3600);
+    await priorInquiry(p.attempt_id, "IN_BANK", 1800);
+    // The FAILED answers recorded after the IN_BANK one are younger than the window.
+    await runVerify(p.attempt_id);
+    r = await reconciled(e, o.id);
+    assert.equal(r.payment.state, "UNKNOWN");
+    // FAILED, spaced by more than the window with nothing else in between: provider-confirmed.
+    const f = await buyer(),
+      of = await saleOrder(f),
+      pf = await salePayment(f, of);
+    const failed = sandbox.payments.get(await authorityOf(pf.attempt_id))!;
+    failed.unpaid = true;
+    failed.inquiry = "FAILED";
+    await priorInquiry(pf.attempt_id, "FAILED", 1200);
+    await runVerify(pf.attempt_id);
+    r = await reconciled(f, of.id);
+    assert.deepEqual(
+      [r.order.state, r.payment.state, r.payment.terminal_reason],
+      ["FAILED", "FAILED", "provider_confirmed_failed"],
+    );
+    assert.equal(r.order.paid_at, null);
+    assert.equal(r.fulfillments, 0);
+    assert.equal(r.entitlements, 0);
+    // Later browser returns, worker passes and even a late verify success change nothing.
+    failed.unpaid = false;
+    await ok(
+      `/payments/zarinpal/return?Authority=${await authorityOf(pf.attempt_id)}&Status=OK`,
+    );
+    await recoverCommerce();
+    r = await reconciled(f, of.id);
+    assert.deepEqual([r.order.state, r.payment.state], ["FAILED", "FAILED"]);
+    assert.equal(r.fulfillments, 0);
+    assert.equal(
+      (
+        await db.query(
+          "SELECT state FROM commerce_jobs WHERE kind='VERIFY' AND target_id=$1",
+          [pf.attempt_id],
+        )
+      ).rows[0].state,
+      "DONE",
+    );
+  });
+});
+
+test("Reconciliation: delayed capture after -51 settles exactly once; provider VERIFIED or REVERSED without a verify capture needs a person", async () => {
+  await withSandbox(async (sandbox, authorityOf) => {
+    // (a) The customer was still at the bank: -51 and IN_BANK, then payment completes later.
+    const a = await buyer(),
+      oa = await saleOrder(a),
+      pa = await salePayment(a, oa);
+    const late = sandbox.payments.get(await authorityOf(pa.attempt_id))!;
+    late.unpaid = true;
+    await runVerify(pa.attempt_id);
+    await runVerify(pa.attempt_id);
+    assert.equal((await reconciled(a, oa.id)).payment.state, "UNKNOWN");
+    late.unpaid = false;
+    await ok(
+      `/payments/zarinpal/return?Authority=${await authorityOf(pa.attempt_id)}&Status=OK`,
+    );
+    assert.equal((await settle(a, oa.id)).state, "FULFILLED");
+    await recoverCommerce();
+    const ra = await reconciled(a, oa.id);
+    assert.deepEqual([ra.fulfillments, ra.entitlements], [1, 1]);
+    assert.equal(ra.payment.state, "VERIFIED");
+    // The earlier -51 was an answered call, so it is not evidence for accepting a later 101.
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*)::int n FROM payment_events WHERE external_event_id=$1",
+          ["verify_answered:" + pa.attempt_id],
+        )
+      ).rows[0].n,
+      1,
+    );
+
+    // (b) Inquiry says VERIFIED but verify refuses: never a capture, flagged for reconciliation.
+    const b = await buyer(),
+      ob = await saleOrder(b),
+      pb = await salePayment(b, ob);
+    const conflict = sandbox.payments.get(await authorityOf(pb.attempt_id))!;
+    conflict.unpaid = true;
+    conflict.inquiry = "VERIFIED";
+    await runVerify(pb.attempt_id);
+    const rb = await reconciled(b, ob.id);
+    assert.deepEqual(
+      [
+        rb.order.state,
+        rb.order.exception_code,
+        rb.payment.state,
+        rb.fulfillments,
+      ],
+      ["PENDING", "PROVIDER_STATE_CONFLICT", "UNKNOWN", 0],
+    );
+
+    // (c) REVERSED: money went back to the customer; never a capture, flagged for finance.
+    const c = await buyer(),
+      oc = await saleOrder(c),
+      pc = await salePayment(c, oc);
+    const reversed = sandbox.payments.get(await authorityOf(pc.attempt_id))!;
+    reversed.unpaid = true;
+    reversed.inquiry = "REVERSED";
+    await priorInquiry(pc.attempt_id, "REVERSED", 3600);
+    await runVerify(pc.attempt_id);
+    const rc = await reconciled(c, oc.id);
+    assert.deepEqual(
+      [
+        rc.order.state,
+        rc.order.exception_code,
+        rc.payment.state,
+        rc.fulfillments,
+      ],
+      ["PENDING", "PROVIDER_REVERSED", "UNKNOWN", 0],
     );
   });
 });
