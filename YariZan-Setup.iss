@@ -19,6 +19,13 @@
 #define MyAppUpdatesURL  "https://yarizan.oarnova.games/download"
 #define MyAppSupportEmail "support@oarnova.games"
 #define MyAppExeName     "YariZan-G" + Grade + ".exe"
+; Physical acceptance candidate (build-installer.bat --acceptance-candidate passes /DCandidate=1):
+; its file name and product version say so, and the release checks refuse it.
+#ifdef Candidate
+#define Suffix "-acceptance-candidate"
+#else
+#define Suffix ""
+#endif
 #ifndef MyPublishDir
 #define MyPublishDir     "publish\YariZan-G" + Grade + "-win-x64"
 #endif
@@ -28,7 +35,7 @@
 AppId=YariZan-Grade-{#Grade}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppVerName={#MyAppName} {#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppVersion}{#Suffix}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppSupportURL}
@@ -43,7 +50,7 @@ DisableDirPage=no
 DisableProgramGroupPage=no
 
 OutputDir=publish
-OutputBaseFilename=YariZan-G{#Grade}-Setup-v{#MyAppVersion}
+OutputBaseFilename=YariZan-G{#Grade}-Setup-v{#MyAppVersion}{#Suffix}
 SetupIconFile=src\YariZan.App\Resources\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName} {#MyAppVersion}
@@ -68,7 +75,8 @@ VersionInfoDescription={#MyAppName} Setup
 VersionInfoCopyright=Copyright (C) 2026 {#MyAppPublisher}
 VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}.0
-VersionInfoTextVersion={#MyAppVersion}
+VersionInfoTextVersion={#MyAppVersion}{#Suffix}
+VersionInfoProductTextVersion={#MyAppVersion}{#Suffix}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
