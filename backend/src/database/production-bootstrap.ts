@@ -119,19 +119,108 @@ export async function initializePricing(
   }
 }
 
+export type PublicationResult = {
+  pricing_revision: string;
+  published: string[];
+  coming_soon: string[];
+  unchanged: string[];
+};
+
+// Makes the owner-approved catalog visible while no Admin can sign in yet: the launch candidate
+// becomes "published" and every other grade "coming_soon". Only rows that are still "hidden" are
+// changed, so a later Admin decision is never overwritten. Sale, trial and activation stay off:
+// they belong to their own capabilities. A published product must already have a current price.
+export async function publishApprovedCatalog(
+  pool: Pool,
+  revision: string,
+): Promise<PublicationResult> {
+  if (revision !== approvedPricing.revision)
+    throw new ConfigurationError(
+      `PRICING_REVISION_MISMATCH: expected ${approvedPricing.revision}`,
+    );
+  const c = await pool.connect();
+  const result: PublicationResult = {
+    pricing_revision: revision,
+    published: [],
+    coming_soon: [],
+    unchanged: [],
+  };
+  try {
+    await c.query("BEGIN");
+    await verifyMigrations(c);
+    const audit = new Audit();
+    const correlationId = randomUUID();
+    for (const p of approvedPricing.products) {
+      const row = (
+        await c.query<{ publication_status: string }>(
+          "SELECT publication_status FROM products WHERE sku=$1 FOR UPDATE",
+          [p.sku],
+        )
+      ).rows[0];
+      if (!row)
+        throw new ConfigurationError(
+          "PRODUCTS_MISSING: run the catalog bootstrap first",
+        );
+      if (row.publication_status !== "hidden") {
+        result.unchanged.push(p.sku);
+        continue;
+      }
+      const status =
+        p.launch === "launch-candidate" ? "published" : "coming_soon";
+      if (
+        status === "published" &&
+        !(
+          await c.query(
+            "SELECT 1 FROM product_prices WHERE sku=$1 AND ended_at IS NULL",
+            [p.sku],
+          )
+        ).rowCount
+      )
+        throw new ConfigurationError(
+          "PRICE_REQUIRED: initialize the approved prices first",
+        );
+      await c.query(
+        "UPDATE products SET publication_status=$2,revision=revision+1 WHERE sku=$1",
+        [p.sku, status],
+      );
+      await audit.append(
+        c,
+        { type: "SYSTEM", correlationId },
+        "product.publication_initialized",
+        p.sku,
+        { publication_status: status, pricing_revision: revision },
+      );
+      (status === "published" ? result.published : result.coming_soon).push(
+        p.sku,
+      );
+    }
+    await c.query("COMMIT");
+    return result;
+  } catch (error) {
+    await c.query("ROLLBACK");
+    throw error;
+  } finally {
+    c.release();
+  }
+}
+
 if (require.main === module) {
   void (async () => {
     let pool: Pool | undefined;
     try {
       const config = migrationConfiguration();
       pool = new Pool({ connectionString: config.url, max: 1 });
-      const pricing = process.argv
-        .find((a) => a.startsWith("--initialize-prices="))
-        ?.slice("--initialize-prices=".length);
-      if (process.argv.some((a) => a === "--initialize-prices"))
-        throw new ConfigurationError(
-          "PRICING_REVISION_REQUIRED: use --initialize-prices=<approved revision>",
-        );
+      const option = (name: string) => {
+        if (process.argv.some((a) => a === name))
+          throw new ConfigurationError(
+            `PRICING_REVISION_REQUIRED: use ${name}=<approved revision>`,
+          );
+        return process.argv
+          .find((a) => a.startsWith(name + "="))
+          ?.slice(name.length + 1);
+      };
+      const pricing = option("--initialize-prices");
+      const publication = option("--publish-approved-catalog");
       const result = await productionBootstrap(pool);
       console.log(JSON.stringify({ event: "production_bootstrap", ...result }));
       if (pricing !== undefined)
@@ -139,6 +228,13 @@ if (require.main === module) {
           JSON.stringify({
             event: "pricing_initialized",
             ...(await initializePricing(pool, pricing)),
+          }),
+        );
+      if (publication !== undefined)
+        console.log(
+          JSON.stringify({
+            event: "catalog_published",
+            ...(await publishApprovedCatalog(pool, publication)),
           }),
         );
     } catch (error: unknown) {
