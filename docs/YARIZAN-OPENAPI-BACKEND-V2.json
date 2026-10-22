@@ -5989,6 +5989,384 @@
         }
       }
     },
+    "/api/v2/admin/payment-readiness": {
+      "get": {
+        "operationId": "get__api_v2_admin_payment_readiness",
+        "summary": "GET /api/v2/admin/payment-readiness",
+        "security": [
+          {
+            "AdminCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "real_payments_possible": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "generated_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "production_payment_gate": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "const": "ZARINPAL_LIVE_GATE_CLOSED"
+                        },
+                        "open": {
+                          "type": "boolean",
+                          "const": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "open"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "gates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "open": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "reason",
+                          "open"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "runtime": {
+                      "type": "object",
+                      "properties": {
+                        "node_env": {
+                          "type": "string",
+                          "enum": [
+                            "development",
+                            "test",
+                            "production"
+                          ]
+                        },
+                        "commerce_mode": {
+                          "type": "string",
+                          "enum": [
+                            "disabled",
+                            "fake",
+                            "zarinpal_sandbox",
+                            "zarinpal"
+                          ]
+                        },
+                        "sandbox": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "node_env",
+                        "commerce_mode",
+                        "sandbox"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "merchant_configuration": {
+                      "type": "object",
+                      "properties": {
+                        "merchant_id_present": {
+                          "type": "boolean"
+                        },
+                        "callback_url_present": {
+                          "type": "boolean"
+                        },
+                        "live_merchant_usable": {
+                          "type": "boolean",
+                          "const": false
+                        }
+                      },
+                      "required": [
+                        "merchant_id_present",
+                        "callback_url_present",
+                        "live_merchant_usable"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "sandbox_evidence": {
+                      "type": "object",
+                      "properties": {
+                        "verified_payments": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "unresolved_payments": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "last_verified_at": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "verified_payments",
+                        "unresolved_payments",
+                        "last_verified_at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "health": {
+                      "type": "object",
+                      "properties": {
+                        "unknown_payments": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "open_exceptions": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "jobs_in_review": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "overdue_jobs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "paid_unfulfilled": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "oldest_unresolved_seconds": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "unknown_payments",
+                        "open_exceptions",
+                        "jobs_in_review",
+                        "overdue_jobs",
+                        "paid_unfulfilled",
+                        "oldest_unresolved_seconds"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "catalog": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sku": {
+                            "type": "string"
+                          },
+                          "publication_status": {
+                            "type": "string"
+                          },
+                          "sale_enabled": {
+                            "type": "boolean"
+                          },
+                          "price_irr": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "sku",
+                          "publication_status",
+                          "sale_enabled",
+                          "price_irr"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "verified",
+                              "owner_confirmed",
+                              "partial",
+                              "blocked",
+                              "not_started"
+                            ]
+                          },
+                          "evidence": {
+                            "type": "string"
+                          },
+                          "reference": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "status",
+                          "evidence",
+                          "reference"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "real_payments_possible",
+                    "generated_at",
+                    "production_payment_gate",
+                    "gates",
+                    "runtime",
+                    "merchant_configuration",
+                    "sandbox_evidence",
+                    "health",
+                    "catalog",
+                    "evidence"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/admin/products": {
       "get": {
         "operationId": "get__api_v2_admin_products",

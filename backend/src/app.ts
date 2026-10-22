@@ -10,6 +10,7 @@ import { Payments } from "./commerce/payments";
 import { Promotions } from "./commerce/promotions";
 import { CommerceAdministration } from "./commerce/administration";
 import { CommerceController } from "./commerce/controller";
+import { PaymentReadiness } from "./commerce/readiness";
 import { Outbox } from "./outbox/outbox";
 import {
   Signing,
@@ -102,7 +103,13 @@ class DesktopModule {}
 class AdminModule {}
 @Module({
   imports: [LicensesModule, AdminModule],
-  providers: [Gateway, Orders, Payments, CommerceAdministration],
+  providers: [
+    Gateway,
+    Orders,
+    Payments,
+    CommerceAdministration,
+    PaymentReadiness,
+  ],
   controllers: [CommerceController],
 })
 class CommerceModule {}

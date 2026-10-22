@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Post,
   Patch,
@@ -14,6 +15,7 @@ import { z } from "zod";
 import { Orders } from "./orders";
 import { Payments } from "./payments";
 import { CommerceAdministration } from "./administration";
+import { PaymentReadiness } from "./readiness";
 import {
   quoteInput,
   orderInput,
@@ -34,6 +36,7 @@ export class CommerceController {
     private payments: Payments,
     private management: CommerceAdministration,
     private admin: Admin,
+    private readiness: PaymentReadiness,
   ) {}
   private actor(req: Request, id?: string) {
     return {
@@ -177,6 +180,25 @@ export class CommerceController {
       return section === "finance"
         ? this.management.finance(c, filters.parse(query))
         : this.management.list(c, section, filters.parse(query));
+    });
+  }
+  // Read-only: no write route exists for readiness, and nothing here can enable payments.
+  @Get("admin/payment-readiness")
+  @Header("Cache-Control", "no-store")
+  async paymentReadiness(@Req() req: Request) {
+    return this.orders.db.transaction(async (c) => {
+      const a = await this.orders.security.admin(req, "finance.read", c);
+      await this.orders.audit.append(
+        c,
+        {
+          type: "ADMIN",
+          id: a.id,
+          correlationId: req.res!.locals.correlationId as string,
+        },
+        "admin.payment_readiness.viewed",
+        a.id,
+      );
+      return this.readiness.report(c);
     });
   }
   @Get("admin/commerce/orders/:id") async adminOrder(
