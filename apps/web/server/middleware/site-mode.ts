@@ -1,21 +1,14 @@
 import { useRuntimeConfig } from '#imports';
-import { defineEventHandler, setHeader, setResponseStatus, createError, type H3Event } from 'h3';
+import { defineEventHandler, setHeader, setResponseStatus, createError } from 'h3';
 import { fetchCapabilities, requiredCapabilities } from '#shared/capabilities';
 import { backendBase } from '#shared/proxy-policy';
 import { brochureDecision } from '#shared/site-mode';
 import { serverSiteMode } from '../utils/site-mode';
+import { pinNoStore } from '../utils/no-store';
 
 // Public-only boundary (brochure and storefront). Runs after security.ts (alphabetical order) and before every page,
 // server route and API handler, so protected routes fail closed before their own logic runs.
 const retryAfterSeconds = 3600;
-// Nuxt's error renderer marks 404 responses "no-cache"; refused requests must stay "no-store".
-function pinNoStore(event: H3Event) {
-  const response = event.node.res,
-    setHeaderOriginal = response.setHeader.bind(response);
-  response.setHeader = (name, value) =>
-    setHeaderOriginal(name, name.toLowerCase() === 'cache-control' ? 'no-store' : value);
-  setHeader(event, 'Cache-Control', 'no-store');
-}
 export default defineEventHandler(async (event) => {
   if (serverSiteMode() === 'full') {
     // Full application: a page whose Backend capability is disabled is unavailable, exactly like
