@@ -54,3 +54,31 @@ describe('search indexing policy', () => {
     expect(brochureDecision('POST', '/robots.txt')).toBe('method-not-allowed');
   });
 });
+
+describe('protected routes ignore letter case (GHSA-vjh5-4x84-xrqp)', () => {
+  it('matches every case variant of protected pages and the API', () => {
+    for (const path of [
+      '/ACCOUNT',
+      '/Account/orders',
+      '/ZanYari',
+      '/CHECKOUT',
+      '/Payment/return',
+      '/LOGIN',
+      '/Connect',
+      '/Reset-Password',
+      '/SUPPORT-RESET',
+      '/API/v2/account',
+      '/Api',
+    ])
+      expect(protectedRoute.test(path), path).toBe(true);
+    for (const path of [
+      '/',
+      '/products',
+      '/Products',
+      '/download',
+      '/legal/privacy',
+      '/accounts-info',
+    ])
+      expect(protectedRoute.test(path), path).toBe(false);
+  });
+});
