@@ -1382,6 +1382,27 @@ test("Audit search and reports authorized, outbox persisted", async () => {
     Number((await ok("/admin/reports", undefined, admin)).body.outbox_pending) >
       0,
   );
+  // Dashboard series: exactly 30 Tehran days of counts, no amounts or personal data.
+  const report = (
+    await ok<{ daily: Record<string, unknown>[]; devices: string }>(
+      "/admin/reports",
+      undefined,
+      admin,
+    )
+  ).body;
+  assert.equal(report.daily.length, 30);
+  for (const d of report.daily)
+    assert.deepEqual(Object.keys(d).sort(), [
+      "accounts",
+      "day",
+      "paid_orders",
+      "trials",
+    ]);
+  assert.ok(Number(report.devices) > 0);
+  assert.ok(
+    report.daily.reduce((n, d) => n + Number(d.trials), 0) > 0,
+    "today's trial starts are counted",
+  );
 });
 test("Real .NET verifier validates backend artifacts and rejects negative signatures/claims", async () => {
   const vector =
@@ -3881,6 +3902,7 @@ test("Payment readiness is read-only, needs finance.read with recent MFA, is aud
     assert.equal(r.body.merchant_configuration.live_merchant_usable, false);
     for (const id of [
       "merchant_activation",
+      "live_payment_authorization",
       "custom_payment_domain",
       "callback_domain",
       "outbound_ip_allowlist",

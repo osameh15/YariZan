@@ -119,7 +119,7 @@ test('public pages render in Persian RTL with no API, console errors or broken l
     await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await expect(page.locator('.brochure-notice[role="note"]')).toContainText(
-      storefront ? 'قیمت‌ها رسمی و به تومان است' : 'مرحلهٔ معرفی',
+      storefront ? 'قیمت‌ها رسمی و به تومان است' : 'برای تهیه و فعال‌سازی برنامه',
     );
     const hrefs = await page
       .locator('a[href^="/"]')
@@ -148,7 +148,7 @@ test('catalog shows six grades, Grade 1 information and Coming Soon without live
   if (storefront) {
     // Every grade shows the approved price; availability is shown separately from price.
     await expect(page.locator('.product-card .price')).toHaveText(Array(6).fill('۱٬۲۹۹٬۰۰۰ تومان'));
-    await expect(page.locator('.product-card .badge').first()).toHaveText('فروش اینترنتی به‌زودی');
+    await expect(page.locator('.product-card .badge').first()).toHaveText('تهیه از راه پشتیبانی');
     await expect(page.locator('.product-card.coming-soon .badge')).toHaveText(
       Array(5).fill('به‌زودی'),
     );
@@ -158,9 +158,9 @@ test('catalog shows six grades, Grade 1 information and Coming Soon without live
   }
   await page.goto('/products/grade-1');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('یاریزان پایه اول دبستان');
-  await expect(page.getByText(storefront ? 'فروش اینترنتی به‌زودی' : 'معرفی محصول')).toBeVisible();
+  await expect(page.getByText(storefront ? 'تهیه از راه پشتیبانی' : 'معرفی محصول')).toBeVisible();
   if (storefront) await expect(page.locator('.detail-price')).toHaveText('۱٬۲۹۹٬۰۰۰ تومان');
-  await expect(page.getByText('خرید اینترنتی، فعال‌سازی و شروع آزمایش')).toBeVisible();
+  await expect(page.getByText('برای تهیه و فعال‌سازی این پایه')).toBeVisible();
   await expect(page.getByRole('link', { name: /خرید/ })).toHaveCount(0);
   await page.goto('/products/grade-3');
   await expect(page.getByText('این پایه هنوز عرضه نشده است.')).toBeVisible();
@@ -174,7 +174,7 @@ test('disabled pages return a Persian 503 page that is never cached', async ({ r
     expect(response.headers()['cache-control'], url).toBe('no-store');
     expect(response.headers()['retry-after'], url).toBe('3600');
     expect(response.headers()['content-type'], url).toMatch(/^text\/html/);
-    expect(await response.text(), url).toContain('این بخش هنوز فعال نشده است.');
+    expect(await response.text(), url).toContain('این بخش در این نسخهٔ سایت در دسترس نیست.');
   }
 });
 
@@ -248,7 +248,9 @@ test('restrictions hold with JavaScript disabled', async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   expect((await page.goto('/checkout'))?.status()).toBe(503);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('این بخش هنوز فعال نشده است.');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    'این بخش در این نسخهٔ سایت در دسترس نیست.',
+  );
   expect((await page.goto('/products'))?.status()).toBe(200);
   await expect(page.locator('.product-card')).toHaveCount(6);
   await context.close();
@@ -266,7 +268,9 @@ test('client-side navigation to a disabled route is refused', async ({ page }) =
     ).__vue_app__;
     app.config.globalProperties.$router.push('/account');
   });
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('این بخش هنوز فعال نشده است.');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    'این بخش در این نسخهٔ سایت در دسترس نیست.',
+  );
   expect(problems.filter((p) => !/503|Service Unavailable/.test(p))).toEqual([]);
 });
 

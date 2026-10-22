@@ -9,7 +9,8 @@ const api = useApi(true),
   busy = ref(false),
   message = ref('');
 const items: Record<string, string> = {
-  merchant_activation: 'تأیید و فعال‌سازی پذیرنده در زرین‌پال',
+  merchant_activation: 'تأیید پذیرنده در زرین‌پال',
+  live_payment_authorization: 'مجوز فعال‌سازی پرداخت واقعی',
   custom_payment_domain: 'دامنهٔ اختصاصی پرداخت',
   callback_domain: 'سازگاری دامنهٔ بازگشت از درگاه',
   outbound_ip_allowlist: 'نشانی IP خروجی سرور در فهرست مجاز',

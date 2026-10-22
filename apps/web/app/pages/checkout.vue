@@ -3,6 +3,7 @@ import { persianDigits } from '#shared/digits';
 import { errorMessage, toman } from '#shared/domain';
 import { endsLabel } from '#shared/promotion';
 import type { ApiResult } from '#shared/api';
+import { MERCHANT } from '#shared/contact';
 const api = useApi(),
   route = useRoute(),
   coupon = ref(''),
@@ -80,16 +81,10 @@ async function create() {
     creating.value = false;
   }
 }
-// The local official-sandbox mode must not be described as the in-browser simulator.
-const sandbox = ref(false);
-onMounted(async () => {
-  try {
-    sandbox.value = !!(await api.get('/api/v2/commerce/capabilities')).sandbox;
-  } catch {
-    sandbox.value = false;
-  }
-  await load();
-});
+// Payment wording follows the real mode: live, local sandbox or local simulator.
+const { test, sandbox } = useCommerceMode();
+const PAYMENT_PROVIDER = MERCHANT.paymentProviderFa;
+onMounted(load);
 useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
 </script>
 <template>
@@ -218,7 +213,11 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
               <dd>{{ toman(quote.total_irr) }} <small>تومان</small></dd>
             </div>
           </dl>
-          <div class="simulation-note">
+          <div v-if="!test" class="simulation-note">
+            <span class="badge">پرداخت امن</span>
+            <p>پرداخت در صفحهٔ امن درگاه {{ PAYMENT_PROVIDER }} انجام می‌شود.</p>
+          </div>
+          <div v-else class="simulation-note">
             <span class="badge">پرداخت آزمایشی</span>
             <template v-if="sandbox">
               <p>

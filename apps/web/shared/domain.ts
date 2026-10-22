@@ -37,8 +37,8 @@ export function safeReturn(value: unknown, fallback = '/account') {
     ? value
     : fallback;
 }
-// Availability is independent of price. publicOnly: the public storefront/brochure, where no
-// product can be bought on the site yet, so a priced launch product reads "online sale soon".
+// Availability is independent of price. publicOnly: the public storefront/brochure, where a priced
+// launch product is obtained through support, so it reads "available through support".
 export function availability(
   p: Pick<Product, 'publication_status' | 'sale_enabled'> & { price_irr: number | null },
   publicOnly = false,
@@ -50,7 +50,7 @@ export function availability(
       : p.price_irr === null
         ? 'معرفی محصول'
         : publicOnly
-          ? 'فروش اینترنتی به‌زودی'
+          ? 'تهیه از راه پشتیبانی'
           : 'فروش غیرفعال';
 }
 export function errorMessage(error: unknown) {
