@@ -3750,11 +3750,17 @@ export interface operations {
               provider_ref: string | null;
               exception_code: string | null;
               redirect_url: string | null;
+              customer_return: ('OK' | 'NOK') | null;
+              provider_status: ('VERIFIED' | 'PAID' | 'IN_BANK' | 'FAILED' | 'REVERSED') | null;
+              terminal_reason: string | null;
             }[];
             transitions: {
               [key: string]: unknown;
             }[];
             reconciliation: {
+              [key: string]: unknown;
+            }[];
+            inquiries: {
               [key: string]: unknown;
             }[];
           };
@@ -9192,6 +9198,9 @@ export interface operations {
               provider_ref: string | null;
               exception_code: string | null;
               redirect_url: string | null;
+              customer_return: ('OK' | 'NOK') | null;
+              provider_status: ('VERIFIED' | 'PAID' | 'IN_BANK' | 'FAILED' | 'REVERSED') | null;
+              terminal_reason: string | null;
             }[];
           };
         };
@@ -9327,6 +9336,9 @@ export interface operations {
               provider_ref: string | null;
               exception_code: string | null;
               redirect_url: string | null;
+              customer_return: ('OK' | 'NOK') | null;
+              provider_status: ('VERIFIED' | 'PAID' | 'IN_BANK' | 'FAILED' | 'REVERSED') | null;
+              terminal_reason: string | null;
             }[];
           };
         };

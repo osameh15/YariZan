@@ -3738,6 +3738,43 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "customer_return": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "OK",
+                                  "NOK"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "provider_status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "VERIFIED",
+                                  "PAID",
+                                  "IN_BANK",
+                                  "FAILED",
+                                  "REVERSED"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "terminal_reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -3747,7 +3784,10 @@
                           "verified_at",
                           "provider_ref",
                           "exception_code",
-                          "redirect_url"
+                          "redirect_url",
+                          "customer_return",
+                          "provider_status",
+                          "terminal_reason"
                         ]
                       }
                     },
@@ -3762,6 +3802,16 @@
                       }
                     },
                     "reconciliation": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "inquiries": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -3796,7 +3846,8 @@
                     "mode",
                     "payments",
                     "transitions",
-                    "reconciliation"
+                    "reconciliation",
+                    "inquiries"
                   ]
                 }
               }
@@ -12576,6 +12627,43 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "customer_return": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "OK",
+                                  "NOK"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "provider_status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "VERIFIED",
+                                  "PAID",
+                                  "IN_BANK",
+                                  "FAILED",
+                                  "REVERSED"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "terminal_reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -12585,7 +12673,10 @@
                           "verified_at",
                           "provider_ref",
                           "exception_code",
-                          "redirect_url"
+                          "redirect_url",
+                          "customer_return",
+                          "provider_status",
+                          "terminal_reason"
                         ]
                       }
                     }
@@ -12903,6 +12994,43 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "customer_return": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "OK",
+                                  "NOK"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "provider_status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "VERIFIED",
+                                  "PAID",
+                                  "IN_BANK",
+                                  "FAILED",
+                                  "REVERSED"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "terminal_reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -12912,7 +13040,10 @@
                           "verified_at",
                           "provider_ref",
                           "exception_code",
-                          "redirect_url"
+                          "redirect_url",
+                          "customer_return",
+                          "provider_status",
+                          "terminal_reason"
                         ]
                       }
                     }

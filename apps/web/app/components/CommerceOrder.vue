@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { persianDigits } from '#shared/digits';
 import { errorMessage, toman } from '#shared/domain';
-import { commerceState } from '#shared/commerce';
+import { commerceState, paymentNotice } from '#shared/commerce';
 import type { ApiResult } from '#shared/api';
 import { sandboxStartPay } from '#shared/payment-return';
 const props = defineProps<{ id: string }>(),
@@ -174,8 +174,8 @@ onBeforeUnmount(() => {
           <dd>{{ toman(order.total_irr) }} تومان</dd>
         </div>
       </dl>
-      <p v-if="order.payments.some((p) => p.state === 'UNKNOWN')" class="notice">
-        نتیجه هنوز قطعی نیست. دوباره پرداخت نکنید؛ بررسی سرور ادامه دارد.
+      <p v-if="paymentNotice(order.payments)" class="notice" data-testid="payment-notice">
+        {{ paymentNotice(order.payments) }}
       </p>
       <p v-if="order.license_id">
         مجوز این پایه آمادهٔ دریافت در برنامهٔ ویندوز است. اتصال اینترنت فقط برای دریافت نخستین مجوز

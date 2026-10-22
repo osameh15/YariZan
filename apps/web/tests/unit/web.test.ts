@@ -185,6 +185,21 @@ describe('Commerce financial and navigation boundaries', () => {
     expect(commerceState({ state: 'FULFILLMENT_PENDING', paid_at: 'now' })).toContain('آماده‌سازی');
     expect(commerceState({ state: 'FULFILLED' })).toContain('آماده است');
   });
+  it('never presents a browser cancellation as a final payment result', async () => {
+    const { commerceState, paymentNotice } = await import('../../shared/commerce');
+    const cancelled = [{ state: 'UNKNOWN', customer_return: 'NOK' as const }];
+    expect(commerceState({ state: 'PENDING', payments: cancelled })).toContain('قطعی نیست');
+    const notice = paymentNotice(cancelled)!;
+    expect(notice).toContain('دوباره پرداخت نکنید');
+    expect(notice).not.toContain('سفارش تازه');
+    expect(paymentNotice([{ state: 'UNKNOWN' }])).toContain('دوباره پرداخت نکنید');
+    // Only a provider-confirmed failure invites a new order.
+    expect(
+      paymentNotice([{ state: 'FAILED', terminal_reason: 'provider_confirmed_failed' }]),
+    ).toContain('سفارش تازه');
+    expect(paymentNotice([{ state: 'PENDING' }])).toBeNull();
+    expect(paymentNotice([{ state: 'VERIFIED' }])).toBeNull();
+  });
   it('only retains the exact eligible checkout return path', () => {
     expect(safeReturn('/checkout?sku=YARIZAN-G1')).toBe('/checkout?sku=YARIZAN-G1');
     expect(safeReturn('/checkout?sku=YARIZAN-G1&next=https://example.com')).toBe('/account');

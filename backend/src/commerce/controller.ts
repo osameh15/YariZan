@@ -130,7 +130,7 @@ export class CommerceController {
         Status: z.string().max(20).optional(),
       })
       .parse(query);
-    return this.payments.returned(q.Authority);
+    return this.payments.returned(q.Authority, q.Status);
   }
   @Post("orders/:id/refund-request") async refund(
     @Param("id") id: string,
@@ -191,6 +191,12 @@ export class CommerceController {
         reconciliation: (
           await c.query(
             "SELECT r.job_id,r.attempt,r.event,r.error,r.created_at FROM commerce_job_runs r JOIN commerce_jobs j ON j.id=r.job_id WHERE j.order_id=$1 ORDER BY r.created_at,r.id",
+            [id],
+          )
+        ).rows,
+        inquiries: (
+          await c.query(
+            "SELECT q.attempt_id,q.status,q.observed_at FROM payment_inquiries q JOIN payment_attempts p ON p.id=q.attempt_id WHERE p.order_id=$1 ORDER BY q.observed_at,q.id",
             [id],
           )
         ).rows,

@@ -19,6 +19,8 @@ interface Attempt extends PaymentRequest {
   redirect_url: string | null;
 }
 const system = (): Actor => ({ type: "SYSTEM", correlationId: randomUUID() });
+/** Spacing between the first FAILED inquiry answer and the one that confirms it (sandbox session: 10 min). */
+export const FAILED_CONFIRMATION_SECONDS = 900;
 @Injectable()
 export class Payments
   implements OnApplicationBootstrap, BeforeApplicationShutdown
@@ -217,7 +219,65 @@ export class Payments
       mode: "simulated",
     };
   }
-  async returned(authority: string) {
+  /**
+   * Provider inquiry after a documented non-success verify answer. Every observation is kept. Only a
+   * FAILED answer that repeats after FAILED_CONFIRMATION_SECONDS, with no other status in between,
+   * ends the attempt as FAILED. Elapsed time alone, a browser NOK or a verify error never does.
+   */
+  private async reconcile(
+    a: Attempt,
+    verified: PaymentResult,
+  ): Promise<PaymentResult> {
+    const provider = this.orders.gateway.provider;
+    if (!provider.inquire) return verified;
+    const status = await provider.inquire(a);
+    if (!status) return verified;
+    return this.orders.db.transaction(async (c) => {
+      const o = await this.orderLock(c, a.order_id);
+      const current = (
+        await c.query(
+          "SELECT state FROM payment_attempts WHERE id=$1 FOR UPDATE",
+          [a.id],
+        )
+      ).rows[0];
+      if (current.state === "VERIFIED") return verified;
+      const confirmed =
+        status === "FAILED" &&
+        Boolean(
+          (
+            await c.query(
+              "SELECT 1 FROM payment_inquiries f WHERE f.attempt_id=$1 AND f.status='FAILED' AND f.observed_at<=now()-($2::integer*interval '1 second') AND NOT EXISTS(SELECT 1 FROM payment_inquiries x WHERE x.attempt_id=$1 AND x.status<>'FAILED' AND x.observed_at>=f.observed_at)",
+              [a.id, FAILED_CONFIRMATION_SECONDS],
+            )
+          ).rowCount,
+        );
+      const actor = system();
+      await c.query(
+        "INSERT INTO payment_inquiries(id,attempt_id,status,correlation_id) VALUES($1,$2,$3,$4)",
+        [randomUUID(), a.id, status, actor.correlationId],
+      );
+      await c.query(
+        "UPDATE payment_attempts SET provider_status=$2,provider_status_at=now() WHERE id=$1",
+        [a.id, status],
+      );
+      await this.orders.audit.append(c, actor, "payment.inquiry", a.id, {
+        status,
+      });
+      // The provider says the money moved but verify did not accept it: a person must look.
+      if (status === "VERIFIED")
+        await this.exception(c, o, a.id, "PROVIDER_STATE_CONFLICT");
+      if (status === "REVERSED")
+        await this.exception(c, o, a.id, "PROVIDER_REVERSED");
+      return confirmed
+        ? {
+            state: "FAILED",
+            answered: true,
+            terminal_reason: "provider_confirmed_failed",
+          }
+        : verified;
+    });
+  }
+  async returned(authority: string, status?: string) {
     this.orders.gateway.available();
     const a = (
       await this.orders.db.query(
@@ -227,6 +287,12 @@ export class Payments
     ).rows[0];
     requireCondition(a, "NOT_FOUND", 404);
     await this.orders.db.transaction(async (c) => {
+      // What the browser reported is kept for display only (first report wins) and never settles.
+      if (status === "OK" || status === "NOK")
+        await c.query(
+          "UPDATE payment_attempts SET customer_return=$2,customer_return_at=now() WHERE id=$1 AND customer_return IS NULL",
+          [a.id, status],
+        );
       await c.query(
         "UPDATE commerce_jobs SET due_at=now(),state=CASE WHEN state='REVIEW' THEN state ELSE 'PENDING' END WHERE kind='VERIFY' AND target_id=$1 AND (lease_until IS NULL OR lease_until<now()) AND state<>'DONE'",
         [a.id],
@@ -425,7 +491,13 @@ export class Payments
           amount_irr: Number(o.total_irr),
         });
       } else if (["FAILED", "CANCELLED"].includes(result.state)) {
-        await this.transition(c, id, result.state, "provider_terminal", actor);
+        await this.transition(
+          c,
+          id,
+          result.state,
+          result.terminal_reason ?? "provider_terminal",
+          actor,
+        );
         if (!o.accepted_payment_id) {
           await c.query(
             "UPDATE orders SET state=$2,revision=revision+1 WHERE id=$1",
@@ -596,6 +668,10 @@ export class Payments
               });
               result = { state: "UNKNOWN" };
             }
+            // A documented non-success verify answer (for example -51) is not a terminal result on its
+            // own: an unpaid, cancelled or abandoned authority answers the same way. Ask the provider.
+            if (result.state === "UNKNOWN" && result.answered)
+              result = await this.reconcile(a, result);
             await this.settle(a.id, result);
           }
           done = ["VERIFIED", "FAILED", "CANCELLED"].includes(

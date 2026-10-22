@@ -140,7 +140,7 @@ export class CommerceAdministration {
         "SELECT o.id,o.sku,o.state,o.total_irr,o.discount_irr,o.subtotal_irr,o.created_at,o.paid_at,o.revision,o.device_id,o.customer_id,c.username,o.exception_code FROM orders o JOIN customers c ON c.id=o.customer_id";
     else if (type === "payments")
       sql =
-        "SELECT p.id,p.order_id,p.state,p.provider_ref,p.authority,p.amount_irr,p.currency,p.created_at,p.verified_at,p.exception_code,o.sku,o.device_id,c.username FROM payment_attempts p JOIN orders o ON o.id=p.order_id JOIN customers c ON c.id=o.customer_id";
+        "SELECT p.id,p.order_id,p.state,p.provider_ref,p.authority,p.amount_irr,p.currency,p.created_at,p.verified_at,p.exception_code,p.customer_return,p.provider_status,p.provider_status_at,o.sku,o.device_id,c.username FROM payment_attempts p JOIN orders o ON o.id=p.order_id JOIN customers c ON c.id=o.customer_id";
     else if (type === "campaigns")
       sql =
         "SELECT d.*, (SELECT count(*) FROM discount_reservations r JOIN discount_codes x ON x.id=r.code_id WHERE x.campaign_id=d.id AND r.state IN ('RESERVED','UNKNOWN')) held, (SELECT count(*) FROM discount_redemptions r JOIN discount_codes x ON x.id=r.code_id WHERE x.campaign_id=d.id) redeemed FROM discount_campaigns d";
