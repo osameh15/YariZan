@@ -313,6 +313,19 @@ label {
   border-radius: var(--radius-control);
   line-height: 1.9;
 }
+/* A message that follows a form, buttons or text never touches them: every notice keeps a gap from
+   the element before it as well as after it. */
+* + .notice,
+* + .api-notice {
+  margin-top: 16px;
+}
+.notice:last-child,
+.api-notice:last-child {
+  margin-bottom: 0;
+}
+.field-error:not(:empty) {
+  margin-top: 6px;
+}
 .empty {
   border: 1px dashed var(--line);
   border-radius: var(--radius-card);
