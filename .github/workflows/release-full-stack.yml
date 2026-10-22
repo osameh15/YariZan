@@ -1,0 +1,326 @@
+# Full-stack release: the production API image and the full web image, built from one commit on
+# main with green CI, scanned without registry credentials, then published together by digest
+# after owner approval in the protected environment. Nothing is deployed here.
+#
+# Publishing does not enable a feature: the Backend serves only the capabilities approved in source
+# and listed on the server (docs/YARIZAN-PRODUCTION-CAPABILITIES.md). The manifest records the
+# approved capabilities, the gates that are still closed and the secret names the deployment reads.
+#
+# Prerequisites (owner):
+#   1. Environment yarizan-release-full-stack with required reviewers.
+#   2. Agreement that the GHCR package ghcr.io/osameh15/yarizan-api may be created.
+name: Release full-stack images (manual approval, no deployment)
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full 40-hex SHA already on main with green CI (dispatch from main only)
+        required: true
+        type: string
+permissions: {}
+concurrency:
+  group: release-images
+  cancel-in-progress: false
+env:
+  REGISTRY: ghcr.io/osameh15
+  RELEASE_SCOPE: full-stack
+  RELEASE_ENVIRONMENT: yarizan-release-full-stack
+  TRIVY_IMAGE: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
+jobs:
+  verify:
+    name: Verify commit, CI evidence and release controls
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      commit: ${{ steps.check.outputs.commit }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ inputs.commit }}
+          REPO: ${{ github.repository }}
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo 'Commit must be a full lowercase 40-hex SHA'; exit 1; }
+          # Only main may authorize publication; PR association grants no release authority.
+          [[ "$DISPATCH_EVENT" == workflow_dispatch && "$DISPATCH_REF" == refs/heads/main ]] || {
+            echo 'Full-stack releases must be dispatched from main'; exit 1; }
+          # With main as base, identical or behind means the target is reachable from main.
+          status=$(gh api "repos/$REPO/compare/main...$COMMIT" --jq .status)
+          [[ "$status" == identical || "$status" == behind ]] || {
+            echo 'Release commit must already be reachable from main'; exit 1; }
+          # Query each required workflow by its file, so a run is bound to the reviewed workflow
+          # definition (not to a display name any workflow could reuse). The commit-wide runs list
+          # has returned partial results on the runner, so each lookup is retried before failing.
+          for workflow in ci.yml backend-ci.yml web-ci.yml images.yml; do
+            ok=0
+            for attempt in 1 2 3 4 5; do
+              ok=$(gh api "repos/$REPO/actions/workflows/$workflow/runs?head_sha=$COMMIT&per_page=100" \
+                --jq '[.workflow_runs[]|select(.conclusion=="success")]|length')
+              [[ "$ok" -gt 0 ]] && break
+              sleep $((attempt * 5))
+            done
+            [[ "$ok" -gt 0 ]] || { echo "Missing successful '$workflow' run for $COMMIT"; exit 1; }
+          done
+          # Refuse to continue without an approval-protected environment (owner gate).
+          reviewers=$(gh api "repos/$REPO/environments/$RELEASE_ENVIRONMENT" \
+            --jq '[.protection_rules[]?|select(.type=="required_reviewers")]|length' 2>/dev/null || echo 0)
+          [[ "$reviewers" -gt 0 ]] || { echo "Environment $RELEASE_ENVIRONMENT with required reviewers is missing"; exit 1; }
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+
+  # Build and scan BEFORE any registry credential exists. Each candidate is pushed only to a
+  # job-local registry, scanned by digest and exported as an OCI archive. A policy failure ends
+  # the run here: nothing reaches GHCR and no manifest is produced.
+  candidate:
+    name: Build and scan the full-stack candidates (no registry credentials)
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    services:
+      registry:
+        image: registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
+        ports: ['5000:5000']
+    outputs:
+      api_digest: ${{ steps.api.outputs.digest }}
+      web_digest: ${{ steps.web.outputs.digest }}
+      short: ${{ steps.tag.outputs.short }}
+      api_archive_sha256: ${{ steps.export.outputs.api }}
+      web_archive_sha256: ${{ steps.export.outputs.web }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Refuse anything outside the full-stack scope
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SCOPE" == full-stack ]] || { echo "Unexpected scope $RELEASE_SCOPE"; exit 1; }
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          driver-opts: network=host
+      - id: tag
+        env:
+          COMMIT: ${{ needs.verify.outputs.commit }}
+        run: echo "short=${COMMIT:0:12}" >> "$GITHUB_OUTPUT"
+      - id: api
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: backend
+          file: backend/Dockerfile
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            SOURCE_COMMIT=${{ needs.verify.outputs.commit }}
+          tags: localhost:5000/yarizan-api:${{ steps.tag.outputs.short }}
+      - id: web
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            YARIZAN_BUILD_PROFILE=full
+            SOURCE_COMMIT=${{ needs.verify.outputs.commit }}
+          tags: localhost:5000/yarizan-web:full-${{ steps.tag.outputs.short }}
+      - name: Scan each exact candidate digest and enforce the zero HIGH/CRITICAL publication policy
+        env:
+          API_DIGEST: ${{ steps.api.outputs.digest }}
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p candidate
+          for pair in "yarizan-api@$API_DIGEST" "yarizan-web@$WEB_DIGEST"; do
+            name=${pair%@*}
+            reference="localhost:5000/$pair"
+            docker run --rm --network host -e TRIVY_INSECURE=true "$TRIVY_IMAGE" image --quiet \
+              --scanners vuln --format json --platform linux/amd64 "$reference" > "candidate/$name.trivy.json"
+            # Every finding stays in the uploaded evidence; only the gate decision is binary.
+            node tools/release/check-scan.mjs "candidate/$name.trivy.json" "$reference" "candidate/$name.scan-summary.json"
+          done
+      - id: export
+        name: Export the scanned artifacts unchanged
+        env:
+          API_DIGEST: ${{ steps.api.outputs.digest }}
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+        run: |
+          set -euo pipefail
+          skopeo --version
+          skopeo copy --all --preserve-digests --src-tls-verify=false \
+            "docker://localhost:5000/yarizan-api@$API_DIGEST" "oci-archive:candidate/yarizan-api.oci.tar"
+          skopeo copy --all --preserve-digests --src-tls-verify=false \
+            "docker://localhost:5000/yarizan-web@$WEB_DIGEST" "oci-archive:candidate/yarizan-web.oci.tar"
+          echo "api=$(sha256sum candidate/yarizan-api.oci.tar | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "web=$(sha256sum candidate/yarizan-web.oci.tar | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: full-stack-candidate
+          path: candidate/
+          retention-days: 7
+
+  # Reached only when both candidates passed the policy. After reviewer approval it pushes the
+  # SAME archives with their digests preserved, then proves GHCR serves exactly those digests.
+  publish:
+    name: Publish the scanned full-stack candidates
+    needs: [verify, candidate]
+    runs-on: ubuntu-latest
+    environment: yarizan-release-full-stack
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      API_DIGEST: ${{ needs.candidate.outputs.api_digest }}
+      WEB_DIGEST: ${{ needs.candidate.outputs.web_digest }}
+      SHORT: ${{ needs.candidate.outputs.short }}
+      AUTHFILE: /home/runner/.docker/config.json
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: full-stack-candidate
+          path: candidate
+      - name: Re-check the archives and the scan evidence before using credentials
+        env:
+          API_ARCHIVE_SHA256: ${{ needs.candidate.outputs.api_archive_sha256 }}
+          WEB_ARCHIVE_SHA256: ${{ needs.candidate.outputs.web_archive_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$API_DIGEST" =~ ^sha256:[0-9a-f]{64}$ && "$WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo 'Invalid candidate digest'; exit 1; }
+          echo "$API_ARCHIVE_SHA256  candidate/yarizan-api.oci.tar" | sha256sum -c -
+          echo "$WEB_ARCHIVE_SHA256  candidate/yarizan-web.oci.tar" | sha256sum -c -
+          node tools/release/check-scan.mjs candidate/yarizan-api.trivy.json "localhost:5000/yarizan-api@$API_DIGEST" api-recheck.json
+          node tools/release/check-scan.mjs candidate/yarizan-web.trivy.json "localhost:5000/yarizan-web@$WEB_DIGEST" web-recheck.json
+      - name: Push the scanned artifacts by digest
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          # One job-scoped credential file in Docker format: skopeo pushes with it and the
+          # attestation action (push-to-registry) reads the same file. Removed in the last step.
+          mkdir -p "$HOME/.docker"
+          printf '%s' "$GHCR_TOKEN" | skopeo login --authfile "$AUTHFILE" ghcr.io -u "$ACTOR" --password-stdin
+          push() {
+            skopeo copy --authfile "$AUTHFILE" --all --preserve-digests "oci-archive:candidate/$1.oci.tar" \
+              "docker://$REGISTRY/$1:$2"
+            published="sha256:$(skopeo inspect --authfile "$AUTHFILE" --raw "docker://$REGISTRY/$1:$2" | sha256sum | cut -d' ' -f1)"
+            [[ "$published" == "$3" ]] || { echo "Published $1 $published differs from scanned $3"; exit 1; }
+          }
+          push yarizan-api "$SHORT" "$API_DIGEST"
+          push yarizan-web "full-$SHORT" "$WEB_DIGEST"
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/yarizan-api
+          subject-digest: ${{ env.API_DIGEST }}
+          push-to-registry: true
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/yarizan-web
+          subject-digest: ${{ env.WEB_DIGEST }}
+          push-to-registry: true
+      - name: Remove registry credentials
+        if: always()
+        run: |
+          skopeo logout --authfile "$AUTHFILE" ghcr.io || true
+          rm -f "$AUTHFILE"
+      - name: Record the manifest entries from the passing scans
+        run: |
+          set -euo pipefail
+          mkdir -p entry
+          entry() {
+            jq -n --arg name "$1" --arg tag "$2" --arg digest "$3" --arg reference "$REGISTRY/$1@$3" \
+              --arg profile "$4" --slurpfile s "candidate/$1.scan-summary.json" \
+              '{name:$name,tag:$tag,digest:$digest,reference:$reference,
+                eligibility:"full-stack-candidate",
+                scan:{tool:"trivy 0.76.0",policy:$s[0].policy,artifact_digest:$digest,
+                  critical:$s[0].critical,high:$s[0].high,medium:$s[0].medium,low:$s[0].low}}
+               + (if $profile == "" then {} else {profile:$profile} end)' > "entry/$1.json"
+          }
+          entry yarizan-api "$SHORT" "$API_DIGEST" ""
+          entry yarizan-web "full-$SHORT" "$WEB_DIGEST" full
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: manifest-entry-full-stack
+          path: entry/
+
+  manifest:
+    name: Release manifest for the infrastructure handoff
+    needs: [verify, candidate, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: manifest-entry-*
+          path: entries
+          merge-multiple: true
+      - name: Read the approved capabilities and closed gates from the released source
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          NODE_ENV=test node -e '
+            const c = require("./dist/src/config.js");
+            const approved = c.capabilityIds.filter((id) => c.capabilities[id].approved);
+            const closed = c.productionGates.filter((g) => !g.open).map((g) => g.id);
+            console.log(JSON.stringify({ approved, closed_gates: closed }));
+          ' > ../capabilities.json
+      - env:
+          COMMIT: ${{ needs.verify.outputs.commit }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          migrations=$(sed -n 's/.*SCHEMA_MIGRATION_COUNT = \([0-9]*\).*/\1/p' backend/src/database/schema-version.ts)
+          jq -s --arg commit "$COMMIT" --arg run "$RUN_URL" --argjson migrations "$migrations" \
+            --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg scope "$RELEASE_SCOPE" \
+            --slurpfile caps capabilities.json \
+            '{schema:"yarizan-release-manifest/v1",release_scope:$scope,source_commit:$commit,ci_run_url:$run,built_at:$built,
+              migrations:$migrations,
+              capabilities:$caps[0],
+              required_secrets:["CODE_HMAC_KEY","TOKEN_HMAC_KEY","MFA_ENCRYPTION_KEY","DATABASE_URL","MIGRATION_DATABASE_URL","POSTGRES_SUPERUSER_PASSWORD"],
+              environment_changes:["api: NODE_ENV=production and ENABLED_CAPABILITIES (approved capabilities only; PRODUCTION_CORE required)","web: YARIZAN_SITE_MODE=full (required; must equal the image build profile)"],
+              route_changes:["Full application: staged/yarizan-app.yml replaces the storefront route slot only after internal acceptance; desktop routes reach the API, which refuses disabled capabilities"],
+              images:.}' entries/*.json > release-manifest.json
+          node tools/release/validate-manifest.mjs release-manifest.json
+          {
+            echo '## YariZan release manifest'
+            echo '```json'
+            cat release-manifest.json
+            echo '```'
+            echo 'Not deployed. Infrastructure deploys by digest only after separate owner approval.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-manifest
+          path: release-manifest.json
+          retention-days: 90
