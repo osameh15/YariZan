@@ -19,7 +19,12 @@
     <EmbeddedResource Include="..\..\release\v2-store-destinations.json" Link="Config\v2-store-destinations.json" />
     <!-- Release gate: reviewed V2 verification keys only; no signing private keys. -->
     <EmbeddedResource Include="..\..\secrets\v2-license-public-keys.json" Link="Keys\v2-license-public-keys.json"
-                      Condition="Exists('..\..\secrets\v2-license-public-keys.json')" />
+                      Condition="Exists('..\..\secrets\v2-license-public-keys.json') and '$(LocalAcceptanceBuild)' != 'true'" />
+    <!-- Local acceptance only: the disposable development root exported from the local stack
+         (tools/local/Build-LocalAcceptanceApp.ps1). Its kid contains "development", which the
+         commercial release check forbids. -->
+    <EmbeddedResource Include="..\..\secrets\v2-local-acceptance-roots.json" Link="Keys\v2-license-public-keys.json"
+                      Condition="'$(LocalAcceptanceBuild)' == 'true'" />
     <ProjectReference Include="..\YariZan.Core\YariZan.Core.csproj" />
   </ItemGroup>
 
@@ -55,11 +60,23 @@
           Condition="Exists('$(MSBuildThisFileDirectory)..\..\secrets\v2-license-public-keys.json')">
     <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --public-roots-only &quot;$(MSBuildThisFileDirectory)..\..\secrets\v2-license-public-keys.json&quot;" />
   </Target>
+  <PropertyGroup Condition="'$(LocalAcceptanceBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);YARIZAN_LOCAL_ACCEPTANCE</DefineConstants>
+  </PropertyGroup>
+  <Target Name="ValidateLocalAcceptanceBuild" BeforeTargets="PrepareForBuild" Condition="'$(LocalAcceptanceBuild)' == 'true'">
+    <Error Condition="'$(CommercialRelease)' == 'true'" Text="LocalAcceptanceBuild cannot be combined with CommercialRelease." />
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)..\..\secrets\v2-local-acceptance-roots.json')"
+           Text="LocalAcceptanceBuild needs secrets/v2-local-acceptance-roots.json; run tools/local/Build-LocalAcceptanceApp.ps1." />
+    <!-- No nested `dotnet run` of ReleaseCheck here: it rebuilds YariZan.Core into the shared output
+         without this build's constants. The root is checked by the export script and, at runtime,
+         by CommercialReleasePolicy.ReadPublicRoots (public SPKI only). -->
+  </Target>
   <Target Name="ValidateV2CommercialBuild" BeforeTargets="PrepareForBuild" Condition="'$(CommercialRelease)' == 'true'">
     <Error Condition="'$(FixtureOnlyBuild)' == 'true'" Text="FixtureOnlyBuild cannot be combined with CommercialRelease." />
+    <Error Condition="'$(LocalAcceptanceBuild)' == 'true'" Text="LocalAcceptanceBuild cannot be combined with CommercialRelease." />
     <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --commercial &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
   </Target>
-  <Target Name="ValidateV2CommercialPublish" BeforeTargets="PrepareForPublish" Condition="'$(FixtureOnlyBuild)' != 'true' and '$(CommercialRelease)' != 'true'">
+  <Target Name="ValidateV2CommercialPublish" BeforeTargets="PrepareForPublish" Condition="'$(FixtureOnlyBuild)' != 'true' and '$(CommercialRelease)' != 'true' and '$(LocalAcceptanceBuild)' != 'true'">
     <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --commercial &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
   </Target>
 </Project>

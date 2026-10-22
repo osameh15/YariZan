@@ -34,7 +34,8 @@ public partial class MainWindow : Window
         _activation.Activated += OnPaidActivated;
         _loadGameKey = loadGameKey ?? AppKeys.LoadEmbeddedMasterKey;
         InitializeComponent();
-        Title = $"YariZan G{Math.Clamp(_library.Manifest.SelectedGrade, 1, 6)}";
+        Title = $"YariZan G{Math.Clamp(_library.Manifest.SelectedGrade, 1, 6)}"
+            + (DesktopV2Client.LocalAcceptance ? " — LOCAL ACCEPTANCE BUILD (not for distribution)" : "");
         Loaded += (_, _) => ShowStartPage();
         Closed += (_, _) =>
         {
