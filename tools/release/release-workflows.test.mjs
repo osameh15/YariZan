@@ -13,7 +13,54 @@ const read = (file) =>
   );
 const values = (text, pattern) => [...text.matchAll(pattern)].map((m) => m[1]);
 
+// Shared publication controls for every scope's workflow.
+function commonControls(text, environment) {
+  assert.deepEqual(values(text, /^ {2}RELEASE_ENVIRONMENT: (\S+)$/gm), [environment]);
+  assert.deepEqual(values(text, /^ {4}environment: (\S+)$/gm), [environment]);
+  assert.equal(values(text, /^ {6}packages: (write)$/gm).length, 1, 'one job may write packages');
+  assert.ok(/^on:\n {2}workflow_dispatch:\n/m.test(text), 'manual dispatch only');
+  assert.ok(!/^ {2}(pull_request|pull_request_target|push|schedule|workflow_run):/m.test(text));
+  const candidate = text.slice(text.indexOf('\n  candidate:'), text.indexOf('\n  publish:'));
+  assert.ok(candidate.includes('node tools/release/check-scan.mjs'));
+  assert.ok(!/packages: write|login|GHCR_TOKEN/.test(candidate));
+  const publish = text.slice(text.indexOf('\n  publish:'), text.indexOf('\n  manifest:'));
+  assert.ok(publish.includes('--preserve-digests'));
+  assert.ok(publish.includes('differs from scanned'));
+  const login = publish.indexOf('skopeo login --authfile "$AUTHFILE"');
+  const attest = publish.indexOf('actions/attest-build-provenance@');
+  const cleanup = publish.indexOf('- name: Remove registry credentials');
+  assert.ok(login > 0 && attest > login && cleanup > attest, 'login -> attest -> cleanup order');
+  assert.ok(/- name: Remove registry credentials\n {8}if: always\(\)/.test(publish));
+  assert.ok(!publish.slice(0, attest).includes('skopeo logout'), 'no logout before attestation');
+  // Required CI is bound to the reviewed workflow files, never to a reusable display name.
+  assert.ok(text.includes('actions/workflows/$workflow/runs?head_sha=$COMMIT'));
+  assert.ok(
+    text.includes(
+      '[[ "$DISPATCH_EVENT" == workflow_dispatch && "$DISPATCH_REF" == refs/heads/main ]]',
+    ),
+  );
+  return { candidate, publish };
+}
+
+test('release-full-stack.yml publishes exactly the API and full web images behind its own environment', () => {
+  const { file, environment } = releaseWorkflows['full-stack'];
+  const text = read(file);
+  assert.deepEqual(values(text, /^ {2}RELEASE_SCOPE: (\S+)$/gm), ['full-stack']);
+  const { candidate, publish } = commonControls(text, environment);
+  assert.deepEqual(values(text, /YARIZAN_BUILD_PROFILE=(\w+)/g), ['full']);
+  assert.ok(candidate.includes('file: backend/Dockerfile'));
+  assert.ok(candidate.includes('file: apps/web/Dockerfile'));
+  assert.ok(!/brochure|storefront/.test(candidate));
+  assert.equal((publish.match(/actions\/attest-build-provenance@/g) ?? []).length, 2);
+  assert.equal((text.match(/eligibility:"full-stack-candidate"/g) ?? []).length, 1);
+  assert.deepEqual(releaseScopes['full-stack'], ['yarizan-api:', 'yarizan-web:full']);
+  // The manifest records approved capabilities from the released source and secret names only.
+  assert.ok(text.includes('capabilities:$caps[0]'));
+  assert.ok(/required_secrets:\[("[A-Z_]+",?)+\]/.test(text));
+});
+
 for (const [scope, { file, environment }] of Object.entries(releaseWorkflows)) {
+  if (scope === 'full-stack') continue;
   test(`${file} publishes only scope ${scope} behind ${environment}`, () => {
     const text = read(file);
     const [image] = releaseScopes[scope];
@@ -51,11 +98,10 @@ test('every release scope has exactly one workflow and distinct environments', (
   assert.deepEqual(Object.keys(releaseWorkflows).sort(), Object.keys(releaseScopes).sort());
   const environments = Object.values(releaseWorkflows).map((w) => w.environment);
   assert.equal(new Set(environments).size, environments.length);
-  assert.ok(
-    !Object.values(releaseScopes)
-      .flat()
-      .some((i) => i === 'yarizan-web:full' || i.startsWith('yarizan-api')),
-  );
+  // Only the full-stack scope may carry the full web or the API image.
+  for (const [scope, images] of Object.entries(releaseScopes))
+    if (scope !== 'full-stack')
+      assert.ok(!images.some((i) => i === 'yarizan-web:full' || i.startsWith('yarizan-api')));
 });
 
 // Execute the actual inline authorization code with a deterministic GitHub API stub.

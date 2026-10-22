@@ -6,8 +6,8 @@ export const registries = ['ghcr.io/osameh15/', 'localhost:5000/'];
 export const eligibility = {
   'yarizan-web:brochure': 'stage-a-brochure-candidate',
   'yarizan-web:storefront': 'public-storefront-candidate',
-  'yarizan-web:full': 'blocked-stage-b',
-  'yarizan-api:': 'blocked-stage-b',
+  'yarizan-web:full': 'full-stack-candidate',
+  'yarizan-api:': 'full-stack-candidate',
 };
 // A published release names exactly one approved scope, published by its own workflow behind
 // its own protected environment:
@@ -15,19 +15,38 @@ export const eligibility = {
 //    kept as the maintenance/rollback site.
 //  - public-storefront (release-storefront.yml, yarizan-release-public-storefront): storefront
 //    web image only (public pages with approved prices, no Backend).
-// A full web + API scope needs its own reviewed change and owner approval; until then the
-// validator rejects any manifest that tries to carry those images.
+//  - full-stack (release-full-stack.yml, yarizan-release-full-stack): the production API and the
+//    full web image together. The Backend still serves only its approved, enabled capabilities
+//    (docs/YARIZAN-PRODUCTION-CAPABILITIES.md); the manifest records them and the secret names.
 export const releaseScopes = {
   'stage-a-brochure': ['yarizan-web:brochure'],
   'public-storefront': ['yarizan-web:storefront'],
+  'full-stack': ['yarizan-api:', 'yarizan-web:full'],
 };
 export const releaseWorkflows = {
-  'stage-a-brochure': { file: 'release-images.yml', environment: 'yarizan-release-stage-a' },
+  'stage-a-brochure': {
+    file: 'release-images.yml',
+    environment: 'yarizan-release-stage-a',
+  },
   'public-storefront': {
     file: 'release-storefront.yml',
     environment: 'yarizan-release-public-storefront',
   },
+  'full-stack': {
+    file: 'release-full-stack.yml',
+    environment: 'yarizan-release-full-stack',
+  },
 };
+export const capabilityIds = [
+  'PRODUCTION_CORE',
+  'CUSTOMER_AUTH',
+  'ADMIN_AUTH',
+  'DESKTOP_PROVISIONING',
+  'TRIALS_AND_LICENSES',
+  'LIVE_COMMERCE',
+];
+// Secrets a full-stack deployment reads, by name only. Values never appear in a manifest.
+export const secretName = /^[A-Z][A-Z0-9_]{2,63}$/;
 // Local rollback rehearsals exercise every image against a throwaway registry and never publish.
 export const rehearsalScope = 'local-rehearsal';
 const digest = /^sha256:[0-9a-f]{64}$/;
@@ -58,6 +77,25 @@ export function validateManifest(m, { expectedMigrations, allowLocalRegistry = f
     if (keys.length !== scoped.length || !scoped.every((k) => keys.includes(k)))
       fail(`release_scope ${scope} must contain exactly: ${scoped.join(', ')}`);
   }
+  if (scope === 'full-stack') {
+    const c = m?.capabilities;
+    const ids = (list) =>
+      Array.isArray(list) && list.every((id) => capabilityIds.includes(id)) ? list : null;
+    if (!ids(c?.approved) || !c.approved.includes('PRODUCTION_CORE'))
+      fail('capabilities.approved must list known capabilities including PRODUCTION_CORE');
+    if (!Array.isArray(c?.closed_gates) || !c.closed_gates.every((g) => /^G\d_[A-Z_]+$/.test(g)))
+      fail('capabilities.closed_gates');
+    if (ids(c?.approved)?.includes('LIVE_COMMERCE'))
+      fail('capabilities.approved must not include LIVE_COMMERCE without its own release');
+    const secrets = m?.required_secrets;
+    if (
+      !Array.isArray(secrets) ||
+      secrets.length === 0 ||
+      !secrets.every((s) => typeof s === 'string' && secretName.test(s))
+    )
+      fail('required_secrets must list secret names only');
+  } else if (m?.capabilities !== undefined || m?.required_secrets !== undefined)
+    fail('capabilities and required_secrets belong to the full-stack scope only');
   const seen = new Set();
   for (const [index, image] of (m?.images ?? []).entries()) {
     const at = `images[${index}]`;

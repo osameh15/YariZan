@@ -235,7 +235,7 @@ try {
         tag: short,
         digest: api.previous.digest,
         reference: api.previous.reference,
-        eligibility: 'blocked-stage-b',
+        eligibility: 'full-stack-candidate',
         scan: { tool: 'not-scanned-in-rehearsal', critical: 0, high: 0 },
       },
     ],

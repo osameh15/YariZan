@@ -36,7 +36,7 @@ const api = () => ({
   tag: sha.slice(0, 12),
   digest: d('2'),
   reference: 'ghcr.io/osameh15/yarizan-api@' + d('2'),
-  eligibility: 'blocked-stage-b',
+  eligibility: 'full-stack-candidate',
   scan: { tool: 'trivy', critical: 0, high: 0 },
 });
 const fullWeb = () => ({
@@ -45,7 +45,7 @@ const fullWeb = () => ({
   tag: 'full-' + sha.slice(0, 12),
   digest: d('4'),
   reference: 'ghcr.io/osameh15/yarizan-web@' + d('4'),
-  eligibility: 'blocked-stage-b',
+  eligibility: 'full-stack-candidate',
   scan: { tool: 'trivy', critical: 0, high: 0 },
 });
 const rehearsal = () => {
@@ -94,11 +94,11 @@ test('rejects wrong migration count, short commit and missing evidence', () => {
       field,
     );
 });
-test('never classifies full application images as deployable', () => {
+test('full application images are only full-stack candidates', () => {
   const m = rehearsal();
   m.images[1].eligibility = 'stage-a-brochure-candidate';
   const local = { ...opts, allowLocalRegistry: true };
-  assert.ok(validateManifest(m, local).some((e) => e.includes('blocked-stage-b')));
+  assert.ok(validateManifest(m, local).some((e) => e.includes('full-stack-candidate')));
   const w = valid();
   w.images[0].profile = 'full';
   assert.ok(validateManifest(w, opts).some((e) => e.includes('eligibility')));
@@ -183,4 +183,70 @@ test('Stage A and storefront scopes cannot carry each other image', () => {
   assert.ok(
     validateManifest(m, opts).some((e) => e.includes('stage-a-brochure must contain exactly')),
   );
+});
+
+const fullStack = () => {
+  const m = valid();
+  m.release_scope = 'full-stack';
+  const scan = (digest) => ({
+    tool: 'trivy',
+    policy: 'stage-a-zero-high-critical',
+    artifact_digest: digest,
+    critical: 0,
+    high: 0,
+  });
+  m.images = [
+    { ...api(), scan: scan(d('2')) },
+    { ...fullWeb(), scan: scan(d('4')) },
+  ];
+  m.capabilities = {
+    approved: ['PRODUCTION_CORE'],
+    closed_gates: ['G8_SECRET_CUSTODY'],
+  };
+  m.required_secrets = ['CODE_HMAC_KEY', 'TOKEN_HMAC_KEY', 'MFA_ENCRYPTION_KEY'];
+  return m;
+};
+test('a full-stack release carries the API and full web images, capabilities and secret names', () => {
+  assert.deepEqual(validateManifest(fullStack(), opts), []);
+  const missing = fullStack();
+  missing.images.pop();
+  assert.ok(validateManifest(missing, opts).some((e) => e.includes('must contain exactly')));
+  const brochure = fullStack();
+  brochure.images.push(valid().images[0]);
+  assert.ok(validateManifest(brochure, opts).some((e) => e.includes('must contain exactly')));
+  const scan = fullStack();
+  scan.images[0].scan.high = 1;
+  assert.ok(validateManifest(scan, opts).some((e) => e.includes('scan')));
+});
+test('a full-stack manifest never carries secret values or unapproved real money', () => {
+  for (const secrets of [
+    [],
+    ['CODE_HMAC_KEY=abcdef'],
+    ['code_hmac_key'],
+    'CODE_HMAC_KEY',
+    undefined,
+  ]) {
+    const m = fullStack();
+    m.required_secrets = secrets;
+    assert.ok(
+      validateManifest(m, opts).some((e) => e.includes('required_secrets')),
+      String(secrets),
+    );
+  }
+  for (const approved of [
+    [],
+    ['CUSTOMER_AUTH'],
+    ['PRODUCTION_CORE', 'ROOT'],
+    ['PRODUCTION_CORE', 'LIVE_COMMERCE'],
+  ]) {
+    const m = fullStack();
+    m.capabilities.approved = approved;
+    assert.ok(
+      validateManifest(m, opts).some((e) => e.includes('capabilities')),
+      approved.join(),
+    );
+  }
+  const storefront = valid();
+  storefront.required_secrets = ['CODE_HMAC_KEY'];
+  assert.ok(validateManifest(storefront, opts).some((e) => e.includes('full-stack scope only')));
 });
