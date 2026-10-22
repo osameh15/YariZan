@@ -7513,6 +7513,14 @@ export interface operations {
             test_price_irr: number | null;
             /** @constant */
             currency: 'IRR';
+            enabled_capabilities: (
+              | 'PRODUCTION_CORE'
+              | 'CUSTOMER_AUTH'
+              | 'ADMIN_AUTH'
+              | 'DESKTOP_PROVISIONING'
+              | 'TRIALS_AND_LICENSES'
+              | 'LIVE_COMMERCE'
+            )[];
           };
         };
       };
