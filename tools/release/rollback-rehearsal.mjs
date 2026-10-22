@@ -156,8 +156,10 @@ try {
   ]);
   await until(
     () =>
-      spawnSync('docker', ['exec', db, 'pg_isready', '-U', 'yarizan', '-d', 'yarizan']).status ===
-      0,
+      // Over TCP: on first start the image runs a temporary server on the Unix socket only and then
+      // restarts it, so a socket check can pass before that restart and race the first migration.
+      spawnSync('docker', ['exec', db, 'pg_isready', '-h', '127.0.0.1', '-U', 'yarizan', '-d', 'yarizan'])
+        .status === 0,
     'postgres',
   );
   const url = 'postgresql://yarizan:rehearsal-disposable@db:5432/yarizan';
