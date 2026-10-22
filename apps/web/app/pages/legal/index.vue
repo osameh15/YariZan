@@ -3,6 +3,7 @@ useSeoMeta({ title: 'قوانین و حریم خصوصی | یاریزان' });
 </script>
 <template>
   <LegalDocument
+    index
     title="قوانین و حریم خصوصی"
     intro="متن‌های رسمی خرید، حریم خصوصی و پشتیبانی یاریزان."
   >

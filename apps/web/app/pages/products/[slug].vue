@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { PRIMARY_SUPPORT_PHONE } from '#shared/contact';
 import type { ApiResult } from '#shared/api';
 import { gradeNames, availability } from '#shared/domain';
 import PriceBlock from '~/components/PriceBlock.vue';
@@ -71,7 +72,9 @@ const commerce = publicOnly.value
               یاریزان در مرحلهٔ معرفی است. خرید اینترنتی، فعال‌سازی و شروع آزمایش این پایه هنوز در
               دسترس نیست و هیچ پرداختی در این سایت انجام نمی‌شود.
             </p>
-            <a class="button primary phone" href="tel:09188764024" dir="ltr">۰۹۱۸-۸۷۶-۴۰۲۴</a>
+            <a class="button primary phone" :href="'tel:' + PRIMARY_SUPPORT_PHONE.tel" dir="ltr">{{
+              PRIMARY_SUPPORT_PHONE.display
+            }}</a>
           </template>
           <template v-else>
             <NuxtLink
@@ -124,7 +127,9 @@ const commerce = publicOnly.value
         پرداخت اینترنتی هنوز آماده نیست. برای دریافت برنامه و راهنمای تهیهٔ پایهٔ موردنظر با
         پشتیبانی تماس بگیرید.
       </p>
-      <a class="button primary phone" href="tel:09188764024" dir="ltr">۰۹۱۸-۸۷۶-۴۰۲۴</a>
+      <a class="button primary phone" :href="'tel:' + PRIMARY_SUPPORT_PHONE.tel" dir="ltr">{{
+        PRIMARY_SUPPORT_PHONE.display
+      }}</a>
       <p class="muted">این صفحه هیچ خرید یا پرداختی ثبت نمی‌کند.</p></BaseDialog
     >
   </section>

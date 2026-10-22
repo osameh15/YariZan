@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { SUPPORT_EMAIL, SUPPORT_PHONES } from '#shared/contact';
 useSeoMeta({ title: 'همراه شما | پشتیبانی یاریزان' });
 const { publicOnly } = useSiteMode();
 </script>
@@ -14,8 +15,17 @@ const { publicOnly } = useSiteMode();
         <span class="feature-icon" aria-hidden="true">☏</span>
         <h2>یک تماس، یک راه روشن</h2>
         <div class="support-phones">
-          <a href="tel:09188764024" class="support-number" dir="ltr">۰۹۱۸-۸۷۶-۴۰۲۴</a>
-          <a href="tel:09369642754" class="support-number" dir="ltr">۰۹۳۶-۹۶۴-۲۷۵۴</a>
+          <a
+            v-for="phone in SUPPORT_PHONES"
+            :key="phone.tel"
+            :href="'tel:' + phone.tel"
+            class="support-number"
+            dir="ltr"
+            >{{ phone.display }}</a
+          >
+          <a :href="'mailto:' + SUPPORT_EMAIL" class="support-email" dir="ltr">{{
+            SUPPORT_EMAIL
+          }}</a>
         </div>
         <p>
           پایهٔ موردنظر و نام کاربری نمایشی برنامه را آماده کنید. رمز عبور، کد فعال‌سازی و اطلاعات

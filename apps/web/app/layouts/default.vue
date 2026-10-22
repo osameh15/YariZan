@@ -1,11 +1,11 @@
 <script setup lang="ts">
+import { ENAMAD, SUPPORT_EMAIL, SUPPORT_PHONES } from '#shared/contact';
 const open = ref(false);
 const { publicOnly, storefront } = useSiteMode();
 const route = useRoute();
 // The eNamad seal is third-party: request it only after the page has loaded, so a slow or
 // unreachable host never delays the load event, and show it only if the image really loads.
-const sealUrl =
-  'https://trustseal.enamad.ir/logo.aspx?id=8237399&Code=y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX';
+const sealUrl = ENAMAD.url.replace('/?id=', '/logo.aspx?id=');
 const sealSrc = ref<string | undefined>(undefined);
 const sealLoaded = ref(false);
 onMounted(() => {
@@ -86,7 +86,7 @@ watch(
           ><NuxtLink to="/legal">قوانین و حریم خصوصی</NuxtLink
           ><NuxtLink v-if="!publicOnly" to="/login">ورود به حساب</NuxtLink>
         </nav>
-        <nav aria-label="پیوندهای مرتبط">
+        <nav class="footer-related" aria-label="پیوندهای مرتبط">
           <span>پیوندهای مرتبط</span>
           <a href="https://oarnova.games">اوآر نوا</a>
           <a href="https://osameh.dev">نمونه‌کارهای توسعه‌دهنده</a>
@@ -94,9 +94,18 @@ watch(
         <div>
           <p>کنار شما هستیم</p>
           <div class="footer-phones">
-            <a class="phone" href="tel:09188764024" dir="ltr">۰۹۱۸-۸۷۶-۴۰۲۴</a>
-            <a class="phone" href="tel:09369642754" dir="ltr">۰۹۳۶-۹۶۴-۲۷۵۴</a>
+            <a
+              v-for="phone in SUPPORT_PHONES"
+              :key="phone.tel"
+              class="phone"
+              :href="'tel:' + phone.tel"
+              dir="ltr"
+              >{{ phone.display }}</a
+            >
           </div>
+          <a class="footer-email" :href="'mailto:' + SUPPORT_EMAIL" dir="ltr">{{
+            SUPPORT_EMAIL
+          }}</a>
           <p class="muted">فروش اینترنتی در مرحلهٔ آماده‌سازی است.</p>
         </div>
       </div>
@@ -110,7 +119,7 @@ watch(
           <a
             class="enamad-seal"
             :class="{ 'is-loaded': sealLoaded }"
-            href="https://trustseal.enamad.ir/?id=8237399&amp;Code=y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX"
+            :href="ENAMAD.url"
             target="_blank"
             rel="noopener"
             referrerpolicy="origin"
