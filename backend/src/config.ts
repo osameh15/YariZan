@@ -62,6 +62,9 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
     "ZARINPAL_CALLBACK_URL",
     "LOCAL_TEST_PRICE_G1_IRR",
     "SMS_FAKE_OUTBOX",
+    "LICENSE_SIGNING_KEY_FILE",
+    "LICENSE_SIGNING_KID",
+    "LICENSE_SIGNING_KEY_SHA256",
   ])
     if (runtimeEnv[name] === "") delete runtimeEnv[name];
   const parsed = z
@@ -106,6 +109,20 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
         .min(10000)
         .max(100000000)
         .optional(),
+      // Production license-signing key (G1 signing custody): a root-owned PKCS#8 file mounted
+      // read-only, its reviewed kid and its approved SPKI SHA-256. All three or none.
+      LICENSE_SIGNING_KEY_FILE: z
+        .string()
+        .regex(/^\/[A-Za-z0-9/_.-]{1,200}$/)
+        .optional(),
+      LICENSE_SIGNING_KID: z
+        .string()
+        .regex(/^yarizan-license-[a-z0-9-]{1,40}$/)
+        .optional(),
+      LICENSE_SIGNING_KEY_SHA256: z
+        .string()
+        .regex(/^[0-9A-F]{64}$/)
+        .optional(),
       SMS_ALLOW_LIVE: z.enum(["true", "false"]).default("false"),
       SMS_FAKE_OUTBOX: z.string().optional(),
       MFA_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/),
@@ -115,6 +132,20 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
     throw new ConfigurationError(
       "CONFIGURATION_INVALID: required environment keys missing or malformed",
     );
+  const signing = [
+    parsed.data.LICENSE_SIGNING_KEY_FILE,
+    parsed.data.LICENSE_SIGNING_KID,
+    parsed.data.LICENSE_SIGNING_KEY_SHA256,
+  ].filter(Boolean).length;
+  if (signing !== 0 && signing !== 3)
+    throw new ConfigurationError("LICENSE_SIGNING_CONFIGURATION_INCOMPLETE");
+  if (
+    parsed.data.LICENSE_SIGNING_KID &&
+    /test|fixture|disposable|development|demo/i.test(
+      parsed.data.LICENSE_SIGNING_KID,
+    )
+  )
+    throw new ConfigurationError("LICENSE_SIGNING_KID_NOT_PRODUCTION");
   if (parsed.data.NODE_ENV === "production")
     throw new ConfigurationError(
       "PRODUCTION_GATE_CLOSED: " +

@@ -12,6 +12,8 @@ secrets/private.pem
 secrets/master.key
 # Disposable local-acceptance trust root exported from the workstation stack
 secrets/v2-local-acceptance-roots.json
+# Production public root written by the key ceremony; approval lives in release/
+secrets/v2-license-public-keys.json
 publish/*-local-acceptance/
 
 # Encrypted game bundles are reproducible from miniApps/ + secrets/master.key
