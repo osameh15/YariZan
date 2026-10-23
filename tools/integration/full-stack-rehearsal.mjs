@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import {
   createDecipheriv,
+  createHash,
   createPublicKey,
   generateKeyPairSync,
   randomBytes,
@@ -256,15 +257,38 @@ async function proof(key, purpose, pairing_id) {
   };
 }
 let mobileSeed = 10000000 + Math.floor(Math.random() * 80000000);
+// G5: a public OTP request carries the single-use proof of work from auth/challenge, solved
+// exactly as the browser does (leading zero bits of SHA-256(challenge + ':' + counter)).
+function solvePow(challenge, bits) {
+  for (let counter = 0; ; counter++) {
+    const digest = createHash('sha256').update(challenge + ':' + counter).digest();
+    let zeros = 0;
+    for (const byte of digest) {
+      if (byte === 0) {
+        zeros += 8;
+        continue;
+      }
+      zeros += Math.clz32(byte) - 24;
+      break;
+    }
+    if (zeros >= bits) return String(counter);
+  }
+}
 async function enroll() {
   const key = device();
   const p = expectOk(await api('device-pairings', { body: await proof(key, 'PAIR') }), 'pairing');
+  const mobile = '091' + ++mobileSeed;
+  const issued = expectOk(
+    await web('auth/challenge', { body: { purpose: 'CLAIM', mobile } }),
+    'OTP challenge',
+  );
   const sent = expectOk(
     await web('auth/claim/otp/request', {
       body: {
         pairing_id: p.pairing_id,
         pairing_secret: p.pairing_secret,
-        mobile: '091' + ++mobileSeed,
+        mobile,
+        pow: { challenge: issued.challenge, counter: solvePow(issued.challenge, issued.bits) },
       },
     }),
     'claim OTP',
