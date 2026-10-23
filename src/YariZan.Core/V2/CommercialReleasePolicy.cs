@@ -75,10 +75,11 @@ public static class CommercialReleasePolicy
     public static void EnsureAcceptanceCandidate(string rootsJson, string approvedJson, string activationJson)
         => ValidateConfiguration(rootsJson, approvedJson, activationJson);
 
+    /// <summary>
+    /// Commercial 2.0.0 release: every embedded root must be a production root whose fingerprint is
+    /// approved in release/v2-approved-public-roots.json (the reviewed key ceremony), and activation
+    /// must target the production API. No property, configuration or environment switch relaxes this.
+    /// </summary>
     public static void EnsureCommercialRelease(string rootsJson, string approvedJson, string activationJson)
-    {
-        ValidateConfiguration(rootsJson, approvedJson, activationJson);
-        // No property/config/environment switch can bypass independent commercial security acceptance.
-        throw new InvalidOperationException("V2_ACTIVATION_INTEGRATION_BLOCKED: commercial ownership assurance, external signing custody and Windows provisioning acceptance require independent approval.");
-    }
+        => ValidateConfiguration(rootsJson, approvedJson, activationJson);
 }

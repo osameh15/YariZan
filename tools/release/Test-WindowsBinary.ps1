@@ -19,9 +19,14 @@ $ErrorActionPreference = 'Stop'
 $file = Get-Item -LiteralPath $Path
 $info = $file.VersionInfo
 $problems = @()
-if ($info.FileVersion -notin @($Version, "$Version.0")) { $problems += "FileVersion '$($info.FileVersion)' is not $Version" }
+# Inno Setup 7 pads the version strings with trailing spaces to a fixed width; compare the value
+# itself. The numeric version must match too, so padding can never hide a different version.
+$fileVersion = "$($info.FileVersion)".Trim()
+if ($fileVersion -notin @($Version, "$Version.0")) { $problems += "FileVersion '$fileVersion' is not $Version" }
+$numeric = '{0}.{1}.{2}' -f $info.FileMajorPart, $info.FileMinorPart, $info.FileBuildPart
+if ($numeric -ne $Version) { $problems += "numeric file version $numeric is not $Version" }
 $suffix = if ($Candidate) { '-acceptance-candidate' } else { '' }
-$product = ($info.ProductVersion -split '\+')[0]
+$product = ("$($info.ProductVersion)".Trim() -split '\+')[0]
 if ($Candidate) { if ($product -ne "$Version$suffix") { $problems += "ProductVersion '$($info.ProductVersion)' is not $Version$suffix" } }
 elseif ($product -notin @($Version, "$Version.0")) { $problems += "ProductVersion '$($info.ProductVersion)' is not $Version" }
 if ($Kind -eq 'installer') {

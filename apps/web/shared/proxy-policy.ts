@@ -17,7 +17,7 @@ export const browserRoutes = [
   ['GET', /^products(?:\/YARIZAN-G[1-6])?$/],
   [
     'POST',
-    /^auth\/(?:claim|login|logout|session\/rotate|password-reset\/(?:complete|otp)|otp\/(?:request|verify)|claim\/otp\/request)$/,
+    /^auth\/(?:challenge|claim|login|logout|session\/rotate|password-reset\/(?:complete|otp)|otp\/(?:request|verify)|claim\/otp\/request)$/,
   ],
   ['GET', /^account(?:\/(?:devices|licenses|entitlements|security))?$/],
   ['POST', /^device-pairings\/[0-9a-f-]{36}\/(?:preview|confirm|cancel)$/],

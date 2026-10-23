@@ -766,6 +766,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v2/auth/challenge': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/v2/auth/challenge */
+    post: operations['post__api_v2_auth_challenge'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v2/auth/claim': {
     parameters: {
       query?: never;
@@ -5245,15 +5262,13 @@ export interface operations {
         };
         content: {
           'application/json': {
-            /** @constant */
-            real_payments_possible: false;
+            real_payments_possible: boolean;
             /** Format: date-time */
             generated_at: string;
             production_payment_gate: {
               /** @constant */
-              id: 'ZARINPAL_LIVE_GATE_CLOSED';
-              /** @constant */
-              open: false;
+              id: 'ZARINPAL_LIVE_GATE';
+              open: boolean;
             };
             gates: {
               id: string;
@@ -6572,6 +6587,110 @@ export interface operations {
       };
     };
   };
+  post__api_v2_auth_challenge: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @enum {string} */
+          purpose: 'LOGIN' | 'RESET' | 'CLAIM';
+          mobile: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful operation */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            challenge: string;
+            bits: number;
+            expires_in: number;
+          };
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
   post__api_v2_auth_claim: {
     parameters: {
       query?: never;
@@ -6698,6 +6817,10 @@ export interface operations {
           pairing_id: string;
           pairing_secret: string;
           mobile: string;
+          pow?: {
+            challenge: string;
+            counter: string;
+          };
         };
       };
     };
@@ -6998,6 +7121,10 @@ export interface operations {
           mobile: string;
           /** @enum {string} */
           purpose: 'LOGIN' | 'RESET';
+          pow?: {
+            challenge: string;
+            counter: string;
+          };
         };
       };
     };
@@ -7507,8 +7634,7 @@ export interface operations {
             /** @enum {string} */
             mode: 'disabled' | 'fake' | 'zarinpal_sandbox' | 'zarinpal';
             checkout_enabled: boolean;
-            /** @constant */
-            real_payments_enabled: false;
+            real_payments_enabled: boolean;
             sandbox: boolean;
             test_price_irr: number | null;
             /** @constant */

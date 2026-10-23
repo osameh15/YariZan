@@ -315,8 +315,14 @@ internal static partial class Program
         Check(Reject(() => CommercialReleasePolicy.ValidateConfiguration(roots, approvals, "{}")), "missing activation configuration rejected");
         Check(Reject(() => CommercialReleasePolicy.ValidateConfiguration(roots, approvals, config.Replace("https://yarizan.oarnova.games/api/v2/", "http://localhost/"))),
             "unreviewed activation host rejected");
-        Check(Reject(() => CommercialReleasePolicy.EnsureCommercialRelease(roots, approvals, config)),
-            "commercial release remains blocked with structurally valid inputs until production enrollment integration exists");
+        CommercialReleasePolicy.EnsureCommercialRelease(roots, approvals, config);
+        Check(true, "commercial release accepts a reviewed production root and the production API");
+        Check(Reject(() => CommercialReleasePolicy.EnsureCommercialRelease(Roots("disposable-test", pem), Approvals("disposable-test", CommercialReleasePolicy.PublicKeyFingerprint(pem)), config)),
+            "commercial release refuses a test root even with a matching approval");
+        Check(Reject(() => CommercialReleasePolicy.EnsureCommercialRelease(roots, Approvals("release-key-1", new string('0', 64)), config)),
+            "commercial release refuses an unreviewed root");
+        Check(Reject(() => CommercialReleasePolicy.EnsureCommercialRelease(roots, approvals, config.Replace("https://yarizan.oarnova.games/api/v2/", "http://127.0.0.1:3100/api/v2/"))),
+            "commercial release refuses the local acceptance API");
         CommercialReleasePolicy.EnsureAcceptanceCandidate(roots, approvals, config);
         Check(true, "acceptance candidate accepts the reviewed root and production API without authorizing a release");
         Check(Reject(() => CommercialReleasePolicy.EnsureAcceptanceCandidate(Roots("disposable-test", pem), Approvals("disposable-test", CommercialReleasePolicy.PublicKeyFingerprint(pem)), config)),

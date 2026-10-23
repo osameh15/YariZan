@@ -9,38 +9,60 @@ export const productionGates = [
   {
     id: "G1_FIRST_CLAIM_ASSURANCE",
     reason: "Physical ownership/first-claim assurance and dispute policy",
-    open: false,
+    // Opened for the 2.0.0 release on the owner's approval of the first-claim dispute policy
+    // (docs/YARIZAN-FIRST-CLAIM-DISPUTE-POLICY.md) and recorded residual risk:
+    // docs/evidence/release-2.0.0-owner-acceptance.md.
+    open: true,
   },
   {
     id: "G1_SIGNING_CUSTODY",
     reason:
       "External commercial signing custody; development keys live in /app/.local",
-    open: false,
+    // Opened on the production key ceremony (docs/evidence/license-key-ceremony-yarizan-license-2026-01.json:
+    // two encrypted backups, both restore-tested, no plaintext left), the approved root in
+    // release/v2-approved-public-roots.json (PR #68) and the owner's confirmation that backup B is in
+    // independent storage (docs/evidence/release-2.0.0-owner-acceptance.md). Production still signs
+    // only with the file key whose SPKI SHA-256 equals LICENSE_SIGNING_KEY_SHA256.
+    open: true,
   },
   {
     id: "G4_DESKTOP_CREDENTIALS",
     reason:
       "Production desktop roots and credential integration on physical Windows",
-    open: false,
+    // The commercial Windows build embeds only the approved production root and the production API
+    // (CommercialReleasePolicy). The owner waived the physical W1-W14 matrix
+    // (docs/evidence/release-2.0.0-owner-acceptance.md).
+    open: true,
   },
   {
     id: "G6_ADMIN_SMS_MFA",
     reason:
       "Admin MFA needs live SMS with reviewed egress; no fallback login exists",
-    open: false,
+    // Password plus live SMS MFA stays mandatory; production refuses Admin or customer sign-in
+    // without the live provider (productionChecks). Owner acceptance: docs/evidence/release-2.0.0-owner-acceptance.md.
+    open: true,
   },
   {
     id: "G5_TRUSTED_RATE_LIMITS",
     reason: "IP-keyed limits collapse behind the CDN/Traefik proxy chain",
-    open: false,
+    // Option B (no network identity, docs/YARIZAN-G5-ANTI-ABUSE.md) is implemented and tested; the
+    // owner waived the staging acceptance campaign and accepted the residual risk: docs/evidence/release-2.0.0-owner-acceptance.md.
+    open: true,
   },
   {
     id: "G8_SECRET_CUSTODY",
     reason: "Durable key custody and recovery for HMAC/encryption keys",
-    open: false,
+    // Opened on the recorded custody ceremony and two passing restore drills of the first
+    // production backup: docs/evidence/g8-secret-custody-2026-10-23.json.
+    open: true,
   },
 ] as const;
 export type GateId = (typeof productionGates)[number]["id"];
+
+// Live ZarinPal payments (real money). Opened by the owner's commercial go for 2.0.0
+// (docs/evidence/release-2.0.0-owner-acceptance.md). It only permits COMMERCE_MODE=zarinpal; the
+// mode still needs LIVE_COMMERCE, production, the merchant ID and the exact production callback.
+export const ZARINPAL_LIVE_GATE_OPEN = true;
 
 // Independently reviewed production capabilities. A capability serves production traffic only when
 // (1) it is approved here, in source, by a reviewed change that records its evidence, (2) every gate
@@ -73,31 +95,31 @@ export const capabilities: Record<
       "PostgreSQL, validated secrets, migrations, health, backup and restore",
   },
   CUSTOMER_AUTH: {
-    approved: false,
+    approved: true,
     gates: ["G5_TRUSTED_RATE_LIMITS", "G1_FIRST_CLAIM_ASSURANCE"],
     requirement:
       "Trusted client identity for rate limits and live customer OTP SMS through the reviewed egress",
   },
   ADMIN_AUTH: {
-    approved: false,
+    approved: true,
     gates: ["G5_TRUSTED_RATE_LIMITS", "G6_ADMIN_SMS_MFA"],
     requirement:
       "Password plus live SMS MFA through the reviewed egress and two privately enrolled owners",
   },
   DESKTOP_PROVISIONING: {
-    approved: false,
+    approved: true,
     gates: ["G4_DESKTOP_CREDENTIALS", "G5_TRUSTED_RATE_LIMITS"],
     requirement:
       "Production desktop roots and credential acceptance on physical Windows (W1-W14)",
   },
   TRIALS_AND_LICENSES: {
-    approved: false,
+    approved: true,
     gates: ["G1_SIGNING_CUSTODY"],
     requirement:
       "Production license-signing ceremony with the approved root registered in the Windows app",
   },
   LIVE_COMMERCE: {
-    approved: false,
+    approved: true,
     gates: [],
     requirement:
       "Restricted payment egress, reconciliation and refund procedures and the owner's real-money go",
@@ -280,8 +302,21 @@ export function configuration(env: NodeJS.ProcessEnv = process.env) {
     production,
   );
   if (production) productionChecks(parsed.data, enabled);
-  if (parsed.data.COMMERCE_MODE === "zarinpal")
-    throw new ConfigurationError("ZARINPAL_LIVE_GATE_CLOSED");
+  // Live payments: production only, behind the source gate, with the merchant and exactly the
+  // production return URL. Every other environment uses the fake provider or the local sandbox.
+  if (parsed.data.COMMERCE_MODE === "zarinpal") {
+    if (!ZARINPAL_LIVE_GATE_OPEN)
+      throw new ConfigurationError("ZARINPAL_LIVE_GATE_CLOSED");
+    if (!production)
+      throw new ConfigurationError("ZARINPAL_LIVE_PRODUCTION_ONLY");
+    if (!parsed.data.ZARINPAL_MERCHANT_ID)
+      throw new ConfigurationError("ZARINPAL_LIVE_CONFIGURATION_REQUIRED");
+    if (
+      parsed.data.ZARINPAL_CALLBACK_URL !==
+      new URL("/payment/return", parsed.data.BROWSER_ORIGIN).href
+    )
+      throw new ConfigurationError("ZARINPAL_CALLBACK_URL_INVALID");
+  }
   // The local sandbox integration: the official ZarinPal sandbox host only, never a live merchant.
   // Production never reaches this point (the gate above refuses it); this check also refuses any
   // other environment so the mode has no possible production fallback.
@@ -385,8 +420,22 @@ export function productionChecks(
     !enabled.has("ADMIN_AUTH")
   )
     throw new ConfigurationError("SMS_PROVIDER_REFUSED");
+  // Sign-in sends one-time codes: production needs the live provider, never a disabled one.
+  if (
+    (enabled.has("CUSTOMER_AUTH") || enabled.has("ADMIN_AUTH")) &&
+    c.SMS_PROVIDER !== "melipayamak"
+  )
+    throw new ConfigurationError("SMS_PROVIDER_REQUIRED");
   if (c.LICENSE_SIGNING_KEY_FILE && !enabled.has("TRIALS_AND_LICENSES"))
     throw new ConfigurationError("LICENSE_SIGNING_REFUSED");
+  // Trials, licenses and device enrollments are signed: never without the production key file
+  // (its kid and approved fingerprint are required with it, see LICENSE_SIGNING_CONFIGURATION_INCOMPLETE).
+  if (
+    (enabled.has("TRIALS_AND_LICENSES") ||
+      enabled.has("DESKTOP_PROVISIONING")) &&
+    !c.LICENSE_SIGNING_KEY_FILE
+  )
+    throw new ConfigurationError("LICENSE_SIGNING_REQUIRED");
   const origin = new URL(c.BROWSER_ORIGIN);
   if (
     origin.protocol !== "https:" ||

@@ -46,7 +46,24 @@ export default defineEventHandler(async (event) => {
     .filter(
       (v) => v.startsWith(name + '=') && new RegExp('^' + name + '=[A-Za-z0-9_-]{43}$').test(v),
     );
-  if (cookie.length === 1 && !route.startsWith('products')) headers.Cookie = cookie[0]!;
+  const forwarded = cookie.length === 1 && !route.startsWith('products') ? [cookie[0]!] : [];
+  // Device trust (G5) reaches only the sign-in steps that read it, and only in its exact format.
+  const trustName = {
+    'auth/login': 'yz_trust',
+    'auth/otp/verify': 'yz_trust',
+    'admin/auth/login': 'yz_trust_admin',
+    'admin/auth/sms/verify': 'yz_trust_admin',
+  }[route];
+  if (trustName) {
+    const trust = (getHeader(event, 'cookie') ?? '')
+      .split(';')
+      .map((v) => v.trim())
+      .filter((v) =>
+        new RegExp('^' + trustName + '=[A-Za-z0-9_-]{20,200}\\.[0-9a-f]{64}$').test(v),
+      );
+    if (trust.length === 1) forwarded.push(trust[0]!);
+  }
+  if (forwarded.length) headers.Cookie = forwarded.join('; ');
   let body: string | undefined;
   if (mutating) {
     if (getHeader(event, 'transfer-encoding')) return fail(400, 'INVALID_REQUEST');

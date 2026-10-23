@@ -8,6 +8,7 @@ import { hashPassword, verifyPassword } from "../security/passwords";
 import { hash, token, unseal } from "../security/crypto";
 import { requireCondition } from "../common/errors";
 import { Otp, OtpRow, normalizeMobile } from "./otp";
+import { Abuse } from "../security/abuse";
 import { customerSession } from "./sessions";
 interface Customer {
   id: string;
@@ -26,6 +27,7 @@ export class AuthFlows {
     private security: Security,
     private otp: Otp,
     private audit: Audit,
+    private abuse: Abuse,
   ) {}
   private async session(c: PoolClient, id: string, admin = false) {
     if (!admin) return customerSession(c, this.security, id);
@@ -116,10 +118,30 @@ export class AuthFlows {
         "customer.login_otp",
         r.id,
       );
-      return session;
+      return {
+        ...session,
+        trust: this.abuse.trustToken(
+          "customer",
+          r.id,
+          hash(r.password_hash ?? ""),
+        ),
+      };
     });
   }
-  async adminPrimary(username: string, password: string, actor: Actor) {
+  /**
+   * Admin password step. Failure-only and isolated from customers (G5): an owner's browser that
+   * completed password + SMS before keeps its own counter and is never slowed by a flood against
+   * the username. The SMS second factor is never bypassed.
+   */
+  async adminPrimary(
+    username: string,
+    password: string,
+    actor: Actor,
+    trustFor: (
+      principalId: string | undefined,
+      stamp: string,
+    ) => string | null = () => null,
+  ) {
     const r = (
       await this.db.query<{
         id: string;
@@ -130,11 +152,14 @@ export class AuthFlows {
         [username],
       )
     ).rows[0];
+    const trust = trustFor(r?.id, hash(r?.password_hash ?? ""));
+    await this.abuse.assertNotThrottled("admin", username, trust);
     const valid = await verifyPassword(
       r?.password_hash ?? (await this.dummy),
       password,
     );
     if (!r || !valid) {
+      await this.abuse.recordFailure("admin", username, trust);
       await this.db.transaction((c) =>
         this.audit.append(c, actor, "admin.login_failed", "authentication"),
       );
@@ -184,7 +209,10 @@ export class AuthFlows {
         "admin.login_sms",
         r.id,
       );
-      return session;
+      return {
+        ...session,
+        trust: this.abuse.trustToken("admin", r.id, hash(r.password_hash)),
+      };
     });
   }
   async details(context: CustomerContext) {

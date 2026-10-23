@@ -154,8 +154,17 @@ try {
     [undefined, "NODE_ENV_REQUIRED"],
     ["", "NODE_ENV_REQUIRED"],
     ["staging", "NODE_ENV_INVALID"],
-    ["production", "PRODUCTION_GATE_CLOSED: G8_SECRET_CUSTODY"],
-    ["test", "ZARINPAL_LIVE_GATE_CLOSED", ["--env", "COMMERCE_MODE=zarinpal"]],
+    ["production", "ENABLED_CAPABILITIES_REQUIRED"],
+    [
+      "production",
+      "LICENSE_SIGNING_REQUIRED",
+      ["--env", "ENABLED_CAPABILITIES=PRODUCTION_CORE,TRIALS_AND_LICENSES"],
+    ],
+    [
+      "test",
+      "ZARINPAL_LIVE_PRODUCTION_ONLY",
+      ["--env", "COMMERCE_MODE=zarinpal"],
+    ],
   ]) {
     finished(
       run([

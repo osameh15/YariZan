@@ -60,25 +60,30 @@ test("Production gate cannot be enabled by environment flag", () =>
         ...process.env,
         NODE_ENV: "production",
         PRODUCTION_READY: "true",
+        ENABLED_CAPABILITIES: "PRODUCTION_CORE,TRIALS_AND_LICENSES",
       }),
-    /PRODUCTION_GATE_CLOSED/,
+    /LICENSE_SIGNING_REQUIRED/,
   ));
 
-test("Every production gate is closed in source and the core gates are named in the refusal", () => {
+test("2.0.0 opens every reviewed gate; no environment flag replaces a runtime prerequisite", () => {
   assert.ok(productionGates.length >= 6);
-  assert.ok(productionGates.every((gate) => !gate.open));
-  assert.ok(closedProductionGates().length > 0);
+  assert.ok(productionGates.every((gate) => gate.open));
+  assert.deepEqual(closedProductionGates(), []);
   for (const env of [
     { PRODUCTION_READY: "true" },
     { PRODUCTION_GATES: "open" },
     { G1_SIGNING_CUSTODY: "open" },
-    { SMS_PROVIDER: "disabled", COMMERCE_MODE: "disabled" },
+    { LICENSE_SIGNING: "ready" },
   ])
     assert.throws(
-      () => configuration({ ...process.env, NODE_ENV: "production", ...env }),
-      (error: Error) =>
-        closedProductionGates().every((gate) => error.message.includes(gate)) &&
-        error.message.startsWith("PRODUCTION_GATE_CLOSED: "),
+      () =>
+        configuration({
+          ...process.env,
+          NODE_ENV: "production",
+          ENABLED_CAPABILITIES: "PRODUCTION_CORE,DESKTOP_PROVISIONING",
+          ...env,
+        }),
+      /LICENSE_SIGNING_REQUIRED/,
     );
 });
 test("Release migration count matches the reviewed migration directory", () => {

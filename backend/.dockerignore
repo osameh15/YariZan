@@ -3,4 +3,6 @@ dist
 .env*
 test
 tools
+# Only the reviewed owner-Admin enrollment tool ships (operator use, interactive TTY).
+!tools/admin-enroll.mjs
 *.pem

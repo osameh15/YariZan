@@ -39,6 +39,14 @@ const login = z.strictObject({
 });
 const commerce = await import("../dist/src/commerce/contracts.js");
 const promotions = await import("../dist/src/commerce/promotions.js");
+// Proof of work for public OTP requests (G5); required at runtime, optional in the schema so a
+// missing proof gets its own error code.
+const powProof = z
+  .strictObject({
+    challenge: z.string().min(1).max(400),
+    counter: z.string().regex(/^[0-9]{1,15}$/),
+  })
+  .optional();
 const requests = {
   "/api/v2/discounts/quote": commerce.quoteInput,
   "/api/v2/orders": commerce.orderInput,
@@ -78,15 +86,21 @@ const requests = {
   }),
   "/api/v2/admin/auth/login": login,
   "/api/v2/admin/auth/sms/verify": schemas.otpProofSchema,
+  "/api/v2/auth/challenge": z.strictObject({
+    purpose: z.enum(["LOGIN", "RESET", "CLAIM"]),
+    mobile: schemas.mobile,
+  }),
   "/api/v2/auth/claim/otp/request": z.strictObject({
     pairing_id: schemas.uuid,
     pairing_secret: schemas.secret,
     mobile: schemas.mobile,
+    pow: powProof,
   }),
   "/api/v2/auth/otp/request": z.strictObject({
     username: z.string().min(1).max(64),
     mobile: schemas.mobile,
     purpose: z.enum(["LOGIN", "RESET"]),
+    pow: powProof,
   }),
   "/api/v2/auth/otp/verify": schemas.otpProofSchema,
   "/api/v2/auth/password-reset/otp": schemas.otpProofSchema.extend({
@@ -203,7 +217,7 @@ const responses = {
   "/api/v2/commerce/capabilities": z.object({
     mode: z.enum(["disabled", "fake", "zarinpal_sandbox", "zarinpal"]),
     checkout_enabled: z.boolean(),
-    real_payments_enabled: z.literal(false),
+    real_payments_enabled: z.boolean(),
     sandbox: z.boolean(),
     test_price_irr: commerce.money.nullable(),
     currency: z.literal("IRR"),
@@ -238,11 +252,11 @@ const responses = {
   }),
   "/api/v2/admin/commerce/{section}": z.record(z.string(), z.unknown()),
   "/api/v2/admin/payment-readiness": z.strictObject({
-    real_payments_possible: z.literal(false),
+    real_payments_possible: z.boolean(),
     generated_at: z.iso.datetime(),
     production_payment_gate: z.strictObject({
-      id: z.literal("ZARINPAL_LIVE_GATE_CLOSED"),
-      open: z.literal(false),
+      id: z.literal("ZARINPAL_LIVE_GATE"),
+      open: z.boolean(),
     }),
     gates: z.array(
       z.strictObject({ id: z.string(), reason: z.string(), open: z.boolean() }),
@@ -305,6 +319,11 @@ const responses = {
   }),
 
   "/api/v2/admin/auth/login": otpReceipt,
+  "/api/v2/auth/challenge": z.strictObject({
+    challenge: z.string(),
+    bits: z.number().int(),
+    expires_in: z.number().int(),
+  }),
   "/api/v2/auth/claim/otp/request": otpReceipt,
   "/api/v2/auth/otp/request": otpReceipt,
   "/api/v2/account/security/otp": otpReceipt,

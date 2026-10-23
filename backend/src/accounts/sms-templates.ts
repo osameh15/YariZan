@@ -3,12 +3,12 @@ import { ApiError } from "../common/errors";
 /**
  * Purpose-aware MeliPayamak pattern registry.
  *
- * Body IDs and texts come from the owner's MeliPayamak panel screenshot, and the owner has since
- * attested that all seven patterns are approved by the provider. That attestation is recorded as
- * `verification: "OWNER_ATTESTED"`; it is not a fresh check of the live panel. Every entry keeps
- * `textConfirmed: false`, and the live provider refuses to send an unconfirmed template. A flag may
- * only become true together with `verification: "PANEL_VERIFIED"`, in a reviewed change that cites
- * a direct panel check showing that neither the Body ID nor the wording changed.
+ * Body IDs and texts come from the owner's MeliPayamak panel. A template is sent live only when it
+ * is `textConfirmed: true` together with `verification: "PANEL_VERIFIED"`, set in a reviewed change
+ * that cites a direct panel check showing that neither the Body ID nor the wording changed.
+ * Admin MFA (562281) was verified on 2026-10-21 with a real delivery; the owner checked the other
+ * six patterns (559424, 559422, 559372, 562280, 559421, 559397) directly in the panel on 2026-10-23
+ * for the 2.0.0 release and confirmed that they are approved as transcribed below.
  */
 export type OtpPurpose =
   | "CLAIM"
@@ -39,35 +39,34 @@ export interface SmsTemplate {
   textConfirmed: boolean;
 }
 
-// Provider texts below are the owner's transcriptions of the panel screenshot (three-minute
-// validity for every OTP pattern). They are evidence for review, not proof that the live panel
-// still shows the same text.
+// Provider texts below are the owner's transcriptions of the panel (three-minute validity for every
+// OTP pattern), checked directly against the panel on the dates above.
 export const MOBILE_VERIFICATION: SmsTemplate = {
   bodyId: "559424",
-  verification: "OWNER_ATTESTED",
+  verification: "PANEL_VERIFIED",
   variables: ["code"],
   providerText:
     "یاریزان: کد تایید شماره موبایل شما: {0} اعتبار کد: ۳ دقیقه این کد محرمانه است.",
   providerValiditySeconds: OTP_VALIDITY_SECONDS,
-  textConfirmed: false,
+  textConfirmed: true,
 };
 export const ACCOUNT_LOGIN: SmsTemplate = {
   bodyId: "559422",
-  verification: "OWNER_ATTESTED",
+  verification: "PANEL_VERIFIED",
   variables: ["code"],
   providerText:
     "یاریزان: کد ورود شما: {0} اعتبار کد: ۳ دقیقه این کد را در اختیار دیگران قرار ندهید.",
   providerValiditySeconds: OTP_VALIDITY_SECONDS,
-  textConfirmed: false,
+  textConfirmed: true,
 };
 export const PASSWORD_RECOVERY: SmsTemplate = {
   bodyId: "559372",
-  verification: "OWNER_ATTESTED",
+  verification: "PANEL_VERIFIED",
   variables: ["code"],
   providerText:
     "یاریزان: کد بازیابی رمز عبور شما: {0} است. اعتبار: ۳ دقیقه. این کد را در اختیار دیگران قرار ندهید.",
   providerValiditySeconds: OTP_VALIDITY_SECONDS,
-  textConfirmed: false,
+  textConfirmed: true,
 };
 export const ADMIN_MFA: SmsTemplate = {
   bodyId: "562281",
@@ -83,28 +82,28 @@ export const ADMIN_MFA: SmsTemplate = {
 };
 export const PASSWORD_CHANGE_VERIFICATION: SmsTemplate = {
   bodyId: "562280",
-  verification: "OWNER_ATTESTED",
+  verification: "PANEL_VERIFIED",
   variables: ["code"],
   providerText:
     "یاریزان: کد تایید تغییر رمز عبور شما: {0} اعتبار: ۳ دقیقه. این کد را در اختیار دیگران قرار ندهید.",
   providerValiditySeconds: OTP_VALIDITY_SECONDS,
-  textConfirmed: false,
+  textConfirmed: true,
 };
 export const PASSWORD_CHANGE_NOTICE: SmsTemplate = {
   bodyId: "559421",
-  verification: "OWNER_ATTESTED",
+  verification: "PANEL_VERIFIED",
   variables: ["date"],
   providerText:
     "یاریزان: رمز عبور حساب شما در تاریخ {0} تغییر کرد. اگر این تغییر توسط شما انجام نشده است، با پشتیبانی یاریزان تماس بگیرید.",
-  textConfirmed: false,
+  textConfirmed: true,
 };
 export const PURCHASE_NOTICE: SmsTemplate = {
   bodyId: "559397",
-  verification: "OWNER_ATTESTED",
+  verification: "PANEL_VERIFIED",
   variables: ["order"],
   providerText:
     "یاریزان: سفارش شماره {0} با موفقیت پرداخت شد. برای مشاهده و فعال‌سازی محصول به حساب کاربری خود مراجعه کنید.",
-  textConfirmed: false,
+  textConfirmed: true,
 };
 
 /**

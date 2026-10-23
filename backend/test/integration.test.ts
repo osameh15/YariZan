@@ -30,6 +30,7 @@ import { productionBootstrap } from "../src/database/production-bootstrap";
 import { seed } from "../src/database/seed";
 import { Signing, Envelope, canonical, profiles } from "../src/signing/signing";
 import { Security } from "../src/security/security";
+import { Abuse, solvePow } from "../src/security/abuse";
 import { seal, unseal, hash } from "../src/security/crypto";
 
 import { Otp } from "../src/accounts/otp";
@@ -94,6 +95,31 @@ const mutation = (expected_revision = 1) => ({
   expected_revision,
   evidence_ref: "synthetic-ownership-verification-001",
 });
+// Public OTP requests need a solved proof of work (G5). Tests get one automatically; a body with
+// "pow: null" is sent without, to test the refusal.
+async function withProof(route: string, body: unknown) {
+  if (!["/auth/otp/request", "/auth/claim/otp/request"].includes(route))
+    return body;
+  const b = body as Record<string, unknown>;
+  if ("pow" in b) {
+    if (b.pow !== null) return body;
+    const rest = { ...b };
+    delete rest.pow;
+    return rest;
+  }
+  const purpose = route === "/auth/claim/otp/request" ? "CLAIM" : b.purpose;
+  const c = await fetch(base + "/auth/challenge", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: origin },
+    body: JSON.stringify({ purpose, mobile: b.mobile }),
+  });
+  if (!c.ok) return body;
+  const { challenge, bits } = (await c.json()) as {
+    challenge: string;
+    bits: number;
+  };
+  return { ...b, pow: { challenge, counter: solvePow(challenge, bits) } };
+}
 async function request<T = Record<string, unknown>>(
   route: string,
   body?: unknown,
@@ -109,6 +135,7 @@ async function request<T = Record<string, unknown>>(
     headers.Cookie = auth.cookie;
     headers["X-CSRF-Token"] = auth.csrf;
   }
+  body = await withProof(route, body);
   const r = await fetch(base + route, {
     method,
     headers,
@@ -523,8 +550,8 @@ test("Session rotation invalidates old session", async () => {
   await ok("/auth/logout", {}, next);
   await denied("/account", undefined, "UNAUTHENTICATED", next);
 });
-test("Login per-account rate limit", async () => {
-  for (let i = 0; i < 8; i++)
+test("Login per-account rate limit (failures only, unknown browsers)", async () => {
+  for (let i = 0; i < 10; i++)
     await denied(
       "/auth/login",
       { username: "rate-test-user", password: "wrong" },
@@ -3890,14 +3917,19 @@ test("Payment readiness is read-only, needs finance.read with recent MFA, is aud
     const r = await ok<{
       real_payments_possible: boolean;
       production_payment_gate: { open: boolean };
-      gates: { open: boolean }[];
+      gates: { id: string; open: boolean }[];
       merchant_configuration: Record<string, boolean>;
       evidence: { id: string; status: string }[];
     }>("/admin/payment-readiness", undefined, owner);
     assert.equal(r.headers.get("cache-control"), "no-store");
     assert.equal(r.body.real_payments_possible, false);
-    assert.equal(r.body.production_payment_gate.open, false);
-    assert.ok(r.body.gates.length >= 6 && r.body.gates.every((g) => !g.open));
+    // The live gate is open in source, but this test API runs the fake provider: no real payment.
+    assert.equal(r.body.production_payment_gate.open, true);
+    assert.ok(r.body.gates.length >= 6);
+    assert.deepEqual(
+      r.body.gates.filter((g) => !g.open).map((g) => g.id),
+      [],
+    );
     assert.equal(r.body.merchant_configuration.merchant_id_present, true);
     assert.equal(r.body.merchant_configuration.live_merchant_usable, false);
     for (const id of [
@@ -6074,4 +6106,341 @@ test("The browser payment simulator is unavailable while the real provider adapt
       "zarinpal-sandbox-v1",
     );
   });
+});
+
+// ---- G5 Option B (docs/YARIZAN-G5-ANTI-ABUSE.md): no network identity, isolated budgets ----
+async function raw(
+  route: string,
+  body: unknown,
+  extra: Record<string, string> = {},
+) {
+  const r = await fetch(base + route, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: origin, ...extra },
+    body: JSON.stringify(body),
+  });
+  return {
+    status: r.status,
+    body: (await r.json()) as ErrorBody,
+    headers: r.headers,
+  };
+}
+const cookieOf = (h: Headers, name: string) =>
+  h
+    .getSetCookie()
+    .find((v) => v.startsWith(name + "="))
+    ?.split(";")[0];
+const spoofs: Record<string, string>[] = [
+  { "X-Forwarded-For": "203.0.113.7" },
+  { "X-Real-IP": "198.51.100.9" },
+  { Forwarded: "for=192.0.2.44" },
+  { "X-YariZan-Client": "192.0.2.1" },
+  {},
+];
+test("G5: forwarded client headers never become an identity for limits", async () => {
+  const username = "g5-spoof-" + randomUUID();
+  for (let n = 0; n < 10; n++) {
+    const r = await raw(
+      "/auth/login",
+      { username, password: "wrong" },
+      spoofs[n % spoofs.length],
+    );
+    assert.equal(r.body.error.code, "INVALID_CREDENTIALS");
+  }
+  for (const h of spoofs) {
+    const r = await raw("/auth/login", { username, password: "wrong" }, h);
+    assert.equal(r.body.error.code, "RATE_LIMITED", JSON.stringify(h));
+  }
+});
+test("G5: a sustained targeted flood never locks out a known browser of the account", async () => {
+  const e = await enroll(candidate()),
+    other = await enroll(candidate());
+  const first = await raw("/auth/login", {
+    username: e.username,
+    password: "Synthetic!Password12345",
+  });
+  assert.ok(first.status < 300);
+  const trust = cookieOf(first.headers, "yz_trust");
+  assert.ok(trust, "a verified sign-in issues a device trust cookie");
+  for (let round = 0; round < 6; round++) {
+    // The attacker keeps flooding the username from unknown browsers ...
+    for (let n = 0; n < 6; n++) {
+      const code = (
+        await raw("/auth/login", {
+          username: e.username,
+          password: "wrong" + n,
+        })
+      ).body.error.code;
+      assert.ok(["INVALID_CREDENTIALS", "RATE_LIMITED"].includes(code), code);
+    }
+    // ... while the owner's known browser still signs in every time.
+    const known = await raw(
+      "/auth/login",
+      { username: e.username, password: "Synthetic!Password12345" },
+      { Cookie: trust! },
+    );
+    assert.ok(known.status < 300, `round ${round}: ${known.status}`);
+  }
+  // Unknown browsers for the targeted account are slowed; other accounts are untouched.
+  assert.equal(
+    (
+      await raw("/auth/login", {
+        username: e.username,
+        password: "Synthetic!Password12345",
+      })
+    ).body.error.code,
+    "RATE_LIMITED",
+  );
+  assert.ok(
+    (
+      await raw("/auth/login", {
+        username: other.username,
+        password: "Synthetic!Password12345",
+      })
+    ).status < 300,
+  );
+});
+test("G5: trust tokens are bound to their account, signature and credential", async () => {
+  const a = await enroll(candidate()),
+    b = await enroll(candidate());
+  const r = await raw("/auth/login", {
+    username: a.username,
+    password: "Synthetic!Password12345",
+  });
+  const trustA = cookieOf(r.headers, "yz_trust")!;
+  for (let n = 0; n < 10; n++)
+    await raw("/auth/login", { username: b.username, password: "wrong" });
+  // A's token does not unlock B, and a tampered token is ignored.
+  assert.equal(
+    (
+      await raw(
+        "/auth/login",
+        { username: b.username, password: "Synthetic!Password12345" },
+        { Cookie: trustA },
+      )
+    ).body.error.code,
+    "RATE_LIMITED",
+  );
+  const tampered = trustA.slice(0, -2) + (trustA.endsWith("00") ? "11" : "00");
+  for (let n = 0; n < 10; n++)
+    await raw("/auth/login", { username: a.username, password: "wrong" });
+  assert.equal(
+    (
+      await raw(
+        "/auth/login",
+        { username: a.username, password: "Synthetic!Password12345" },
+        { Cookie: tampered },
+      )
+    ).body.error.code,
+    "RATE_LIMITED",
+  );
+  // A password change revokes every trust token of the account.
+  await db.query("UPDATE customers SET password_hash=$2 WHERE username=$1", [
+    a.username,
+    await passwordHash("Synthetic!Changed123456"),
+  ]);
+  assert.equal(
+    (
+      await raw(
+        "/auth/login",
+        { username: a.username, password: "Synthetic!Changed123456" },
+        { Cookie: trustA },
+      )
+    ).body.error.code,
+    "RATE_LIMITED",
+  );
+});
+test("G5: Admin sign-in is isolated and keeps a known owner browser available, with SMS kept", async () => {
+  const id = randomUUID(),
+    username = "g5-admin-" + id,
+    phone = nextMobile();
+  await db.query(
+    "INSERT INTO admins(id,username,password_hash,mfa_ciphertext,mobile_ciphertext,mobile_last4) VALUES($1,$2,$3,$4,$5,$6)",
+    [
+      id,
+      username,
+      await passwordHash("Synthetic!Admin123456"),
+      seal(randomBytes(20).toString("hex"), process.env.MFA_ENCRYPTION_KEY!),
+      seal(phone, process.env.MOBILE_ENCRYPTION_KEY!),
+      phone.slice(-4),
+    ],
+  );
+  await db.query("INSERT INTO admin_user_roles VALUES($1,$2)", [id, "owner"]);
+  const sent = await ok<{ challenge_id: string }>("/admin/auth/login", {
+    username,
+    password: "Synthetic!Admin123456",
+  });
+  const verified = await raw("/admin/auth/sms/verify", {
+    challenge_id: sent.body.challenge_id,
+    code: await otpCode(sent.body.challenge_id),
+  });
+  const trust = cookieOf(verified.headers, "yz_trust_admin");
+  assert.ok(trust, "password + SMS issues an Admin device trust cookie");
+  // A customer flood on the same name never touches the Admin counter.
+  for (let n = 0; n < 12; n++)
+    await raw("/auth/login", { username, password: "wrong" });
+  for (let n = 0; n < 5; n++)
+    assert.equal(
+      (await raw("/admin/auth/login", { username, password: "wrong" })).body
+        .error.code,
+      "INVALID_CREDENTIALS",
+    );
+  assert.equal(
+    (
+      await raw("/admin/auth/login", {
+        username,
+        password: "Synthetic!Admin123456",
+      })
+    ).body.error.code,
+    "RATE_LIMITED",
+  );
+  // The owner's known browser still reaches the SMS step after the per-number cooldown; MFA stays.
+  await new Promise((done) => setTimeout(done, 10));
+  await db.query("DELETE FROM rate_buckets WHERE count=1 AND bucket % 60 = 0");
+  const known = await raw(
+    "/admin/auth/login",
+    { username, password: "Synthetic!Admin123456" },
+    { Cookie: trust! },
+  );
+  assert.ok(known.status < 300, JSON.stringify(known.body));
+  assert.ok((known.body as unknown as { challenge_id: string }).challenge_id);
+  assert.equal(
+    cookieOf(known.headers, "yz_admin"),
+    undefined,
+    "no session without the SMS code",
+  );
+});
+test("G5: proof of work is required, bound to purpose and mobile, and single-use", async () => {
+  const mobile = nextMobile(),
+    username = "g5-pow-" + randomUUID();
+  const challenge = async (purpose: string, m = mobile) =>
+    (
+      await ok<{ challenge: string; bits: number }>("/auth/challenge", {
+        purpose,
+        mobile: m,
+      })
+    ).body;
+  const solve = (c: { challenge: string; bits: number }) => ({
+    challenge: c.challenge,
+    counter: solvePow(c.challenge, c.bits),
+  });
+  await denied(
+    "/auth/otp/request",
+    { username, mobile, purpose: "LOGIN", pow: null },
+    "CHALLENGE_REQUIRED",
+  );
+  const reset = solve(await challenge("RESET"));
+  await denied(
+    "/auth/otp/request",
+    { username, mobile, purpose: "LOGIN", pow: reset },
+    "CHALLENGE_INVALID",
+  );
+  const otherMobile = solve(await challenge("LOGIN", nextMobile()));
+  await denied(
+    "/auth/otp/request",
+    { username, mobile, purpose: "LOGIN", pow: otherMobile },
+    "CHALLENGE_INVALID",
+  );
+  const good = solve(await challenge("LOGIN"));
+  const forged = {
+    ...good,
+    challenge:
+      good.challenge.slice(0, -1) + (good.challenge.endsWith("a") ? "b" : "a"),
+  };
+  await denied(
+    "/auth/otp/request",
+    { username, mobile, purpose: "LOGIN", pow: forged },
+    "CHALLENGE_INVALID",
+  );
+  await ok("/auth/otp/request", {
+    username,
+    mobile,
+    purpose: "LOGIN",
+    pow: good,
+  });
+  // Replay of the same solved challenge is refused even once every other limit is reset.
+  await denied(
+    "/auth/otp/request",
+    { username, mobile, purpose: "LOGIN", pow: good },
+    "CHALLENGE_INVALID",
+  );
+});
+test("G5: decoys never consume the real delivery budget and receipts look the same", async () => {
+  const delivery = () => security.peek("sms-delivery:customer", 3600);
+  // Enrolment itself delivers a real claim OTP, so the baseline is read afterwards.
+  const e = await enroll(candidate());
+  const before = await delivery();
+  const decoys: Record<string, unknown>[] = [];
+  for (let n = 0; n < 4; n++)
+    decoys.push(
+      (
+        await ok<Record<string, unknown>>("/auth/otp/request", {
+          username: "g5-nobody-" + randomUUID(),
+          mobile: nextMobile(),
+          purpose: "LOGIN",
+        })
+      ).body,
+    );
+  assert.equal(await delivery(), before, "decoys consume no delivery budget");
+  const real = (
+    await ok<Record<string, unknown>>("/auth/otp/request", {
+      username: e.username,
+      mobile: await mobileFor(e),
+      purpose: "LOGIN",
+    })
+  ).body;
+  assert.equal(await delivery(), before + 1);
+  for (const d of decoys) {
+    assert.deepEqual(Object.keys(d).sort(), Object.keys(real).sort());
+    assert.deepEqual(
+      [d.expires_in, d.retry_after],
+      [real.expires_in, real.retry_after],
+    );
+  }
+});
+test("G5: an exhausted customer delivery budget is silent, audited and never sends", async () => {
+  const e = await enroll(candidate());
+  while ((await security.peek("sms-delivery:customer", 3600)) < 150)
+    await security.bump("sms-delivery:customer", 3600);
+  const r = await ok<{ challenge_id: string }>("/auth/otp/request", {
+    username: e.username,
+    mobile: await mobileFor(e),
+    purpose: "LOGIN",
+  });
+  await new Promise((done) => setTimeout(done, 200));
+  assert.equal(
+    app.get(Sms).fake.codeFor(r.body.challenge_id),
+    undefined,
+    "no SMS was sent",
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT 1 FROM audit_logs WHERE action='otp.delivery_budget_exhausted' AND entity_id=$1",
+        [r.body.challenge_id],
+      )
+    ).rowCount,
+    1,
+  );
+});
+test("G5: Admin MFA keeps its own lane and budget when customer admission is exhausted", async () => {
+  while ((await security.peek("otp-admission:customer", 3600)) < 600)
+    await security.bump("otp-admission:customer", 3600);
+  await denied(
+    "/auth/otp/request",
+    { username: "g5-flood", mobile: nextMobile(), purpose: "LOGIN" },
+    "RATE_LIMITED",
+  );
+  const admin = await adminLogin();
+  assert.ok(
+    admin.cookie.startsWith("yz_admin="),
+    "owners still complete password + SMS",
+  );
+});
+test("G5: expired rate counters are purged and live ones kept", async () => {
+  const abuse = app.get(Abuse);
+  await security.once("g5-expired", Math.floor(Date.now() / 1000) - 10);
+  await security.bump("g5-live", 3600);
+  assert.ok((await abuse.purge()) >= 1);
+  assert.equal(await security.peek("g5-live", 3600), 1);
 });

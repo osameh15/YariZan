@@ -11,4 +11,6 @@ REVOKE ALL ON schema_migrations FROM yarizan_runtime;
 GRANT SELECT ON schema_migrations TO yarizan_runtime;
 REVOKE UPDATE ON audit_logs,license_decisions,trial_starts,activation_redemptions,customer_reset_events,license_recoveries,admin_operations,payment_events,device_enrollment_history,product_promotion_events,payment_inquiries FROM yarizan_runtime;
 GRANT DELETE ON discount_products TO yarizan_runtime;
+-- Expired rate counters only (Abuse.purge); TRUNCATE stays denied.
+GRANT DELETE ON rate_buckets TO yarizan_runtime;
 `;

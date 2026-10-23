@@ -6,6 +6,7 @@ import { METHOD_METADATA } from "@nestjs/common/constants";
 import {
   capabilities,
   capabilityIds,
+  closedGatesFor,
   closedProductionGates,
   configuration,
   enabledCapabilities,
@@ -49,14 +50,13 @@ const production = (
     new Set(enabled),
   );
 
-test("Only PRODUCTION_CORE is approved in source; every other capability stays closed", () => {
+test("2.0.0: every capability is approved in source and every gate is open", () => {
   assert.deepEqual(
     capabilityIds.filter((id) => capabilities[id].approved),
-    ["PRODUCTION_CORE"],
+    [...capabilityIds],
   );
-  // Real money is never approved by this change, and licensing needs its own ceremony.
-  assert.equal(capabilities.LIVE_COMMERCE.approved, false);
-  assert.equal(capabilities.TRIALS_AND_LICENSES.approved, false);
+  // Approval and open gates still serve nothing without each capability's runtime prerequisites.
+  for (const id of capabilityIds) assert.deepEqual(closedGatesFor(id), [], id);
   assert.ok(
     capabilities.TRIALS_AND_LICENSES.gates.includes("G1_SIGNING_CUSTODY"),
   );
@@ -66,22 +66,116 @@ test("Only PRODUCTION_CORE is approved in source; every other capability stays c
   );
 });
 
-test("Production stays refused while a PRODUCTION_CORE gate is closed, whatever is enabled", () => {
-  assert.deepEqual(closedProductionGates(), ["G8_SECRET_CUSTODY"]);
-  for (const ENABLED_CAPABILITIES of [
-    undefined,
-    "PRODUCTION_CORE",
-    "PRODUCTION_CORE,LIVE_COMMERCE",
-  ])
+test("G8 is open (recorded evidence): PRODUCTION_CORE starts; each further capability needs its own prerequisites", () => {
+  assert.deepEqual(closedProductionGates(), []);
+  const production = {
+    NODE_ENV: "production",
+    BROWSER_ORIGIN: "https://yarizan.oarnova.games",
+    DATABASE_URL: "postgresql://yarizan_api:runtime-secret@db:5432/yarizan",
+    CODE_HMAC_KEY: key(),
+    TOKEN_HMAC_KEY: key(),
+    MFA_ENCRYPTION_KEY: key(),
+    MOBILE_ENCRYPTION_KEY: key(),
+    OTP_HMAC_KEY: key(),
+  };
+  const started = configuration({
+    ...production,
+    ENABLED_CAPABILITIES: "PRODUCTION_CORE",
+  });
+  assert.deepEqual([...started.enabledCapabilities], ["PRODUCTION_CORE"]);
+  assert.equal(started.COMMERCE_MODE, "disabled");
+  assert.equal(started.SMS_PROVIDER, "disabled");
+  // The operator must still name the capabilities.
+  assert.throws(
+    () => configuration(production),
+    /ENABLED_CAPABILITIES_REQUIRED/,
+  );
+  const withCaps = (caps: string, extra: Record<string, string> = {}) =>
+    configuration({ ...production, ENABLED_CAPABILITIES: caps, ...extra });
+  // Licensing and provisioning sign with the production key: never without it.
+  for (const id of ["TRIALS_AND_LICENSES", "DESKTOP_PROVISIONING"])
+    assert.throws(
+      () => withCaps("PRODUCTION_CORE," + id),
+      /LICENSE_SIGNING_REQUIRED/,
+    );
+  const signing = {
+    LICENSE_SIGNING_KEY_FILE: "/run/secrets/yarizan-license-signing.pem",
+    LICENSE_SIGNING_KID: "yarizan-license-2026-01",
+    LICENSE_SIGNING_KEY_SHA256: "C1".repeat(32),
+  };
+  assert.deepEqual(
+    [
+      ...withCaps("PRODUCTION_CORE,TRIALS_AND_LICENSES", signing)
+        .enabledCapabilities,
+    ],
+    ["PRODUCTION_CORE", "TRIALS_AND_LICENSES"],
+  );
+  assert.throws(
+    () =>
+      withCaps("PRODUCTION_CORE,TRIALS_AND_LICENSES", {
+        ...signing,
+        LICENSE_SIGNING_KEY_SHA256: "",
+      }),
+    /LICENSE_SIGNING_CONFIGURATION_INCOMPLETE/,
+  );
+  assert.throws(
+    () =>
+      withCaps("PRODUCTION_CORE,TRIALS_AND_LICENSES", {
+        ...signing,
+        LICENSE_SIGNING_KID: "yarizan-license-test",
+      }),
+    /LICENSE_SIGNING_KID_NOT_PRODUCTION/,
+  );
+  // Sign-in sends one-time codes: never without the live SMS provider.
+  for (const id of ["CUSTOMER_AUTH", "ADMIN_AUTH"])
+    assert.throws(
+      () => withCaps("PRODUCTION_CORE," + id),
+      /SMS_PROVIDER_REQUIRED/,
+    );
+  const live = {
+    SMS_PROVIDER: "melipayamak",
+    SMS_ALLOW_LIVE: "true",
+    MELIPAYAMAK_API_TOKEN: "synthetic-token-0123456789",
+  };
+  assert.deepEqual(
+    [
+      ...withCaps("PRODUCTION_CORE,CUSTOMER_AUTH,ADMIN_AUTH", live)
+        .enabledCapabilities,
+    ],
+    ["PRODUCTION_CORE", "CUSTOMER_AUTH", "ADMIN_AUTH"],
+  );
+  assert.throws(
+    () =>
+      withCaps("PRODUCTION_CORE,CUSTOMER_AUTH", {
+        ...live,
+        SMS_ALLOW_LIVE: "false",
+      }),
+    /SMS_PROVIDER_CONFIGURATION_REQUIRED/,
+  );
+  // Live commerce alone with commerce disabled starts and moves no money.
+  assert.equal(
+    withCaps("PRODUCTION_CORE,LIVE_COMMERCE").COMMERCE_MODE,
+    "disabled",
+  );
+  // Opening G8 relaxes none of the production rules.
+  for (const [overrides, code] of [
+    [{ COMMERCE_MODE: "fake" }, "COMMERCE_TEST_MODE_REFUSED"],
+    [{ SMS_PROVIDER: "fake" }, "SMS_TEST_PROVIDER_REFUSED"],
+    [{ BROWSER_ORIGIN: "http://localhost:3100" }, "PRODUCTION_ORIGIN_REQUIRED"],
+    [
+      { DATABASE_URL: "postgresql://postgres:x@db:5432/yarizan" },
+      "PRODUCTION_RUNTIME_DATABASE_LOGIN_REQUIRED",
+    ],
+    [{ CODE_HMAC_KEY: "1".repeat(64) }, "PRODUCTION_SECRET_REQUIRED"],
+  ] as const)
     assert.throws(
       () =>
         configuration({
-          ...process.env,
-          NODE_ENV: "production",
-          ENABLED_CAPABILITIES,
+          ...production,
+          ENABLED_CAPABILITIES: "PRODUCTION_CORE",
+          ...overrides,
         }),
-      (error: Error) =>
-        error.message === "PRODUCTION_GATE_CLOSED: G8_SECRET_CUSTODY",
+      new RegExp(code),
     );
 });
 
@@ -92,7 +186,11 @@ test("Production capability list: required, core first, known, approved and with
   assert.throws(() => resolve("CUSTOMER_AUTH"), /CAPABILITY_REQUIRED/);
   assert.throws(() => resolve("PRODUCTION_CORE,FAKE"), /CAPABILITY_UNKNOWN/);
   assert.throws(
-    () => resolve("PRODUCTION_CORE,LIVE_COMMERCE", capabilities),
+    () =>
+      resolve("PRODUCTION_CORE,LIVE_COMMERCE", {
+        ...capabilities,
+        LIVE_COMMERCE: { ...capabilities.LIVE_COMMERCE, approved: false },
+      }),
     /CAPABILITY_NOT_APPROVED: LIVE_COMMERCE/,
   );
   assert.throws(
