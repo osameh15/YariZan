@@ -82,8 +82,11 @@ watch(
           ><NuxtLink v-if="!publicOnly" to="/login">ورود به حساب</NuxtLink>
         </nav>
         <nav class="footer-related" aria-label="پیوندهای مرتبط">
-          <span>پیوندهای مرتبط</span>
-          <a href="https://oarnova.games">اوآر نوا</a>
+          <strong class="footer-related-title">پیوندهای مرتبط</strong>
+          <ul>
+            <li><a href="https://oarnova.games">اوآر نوآ</a></li>
+            <li><a href="https://osameh.dev">پورتفولیوی توسعه‌دهنده</a></li>
+          </ul>
         </nav>
         <div>
           <p>کنار شما هستیم</p>

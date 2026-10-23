@@ -1542,9 +1542,25 @@ td .button {
   min-width: 0;
 }
 
-/* Footer: the related-links group is set in bold; other footer text keeps its weight. */
-.footer-related a {
+/* Footer: the related-links heading is bold; its links sit under it as an indented submenu. */
+.footer-related-title {
+  padding-block: 4px;
   font-weight: 700;
+  color: var(--ink);
+}
+.footer-related ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  padding-inline-start: 14px;
+  border-inline-start: 2px solid var(--line);
+  list-style: none;
+}
+.footer-related li a {
+  display: inline-flex;
+  align-items: center;
 }
 .footer-email,
 .support-email {
