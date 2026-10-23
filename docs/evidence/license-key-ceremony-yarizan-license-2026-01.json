@@ -1,0 +1,12 @@
+{
+  "kind": "yarizan-license-key-ceremony",
+  "kid": "yarizan-license-2026-01",
+  "algorithm": "ECDSA P-256 (ES256, IEEE P1363 signatures)",
+  "public_key_sha256": "C182381E26419907D0F967B7BDC3823C9A8475208A1E5AFAC59D7C01A04FBA4F",
+  "generated_at": "2026-10-23T16:23:42Z",
+  "backups": [
+    { "label": "A", "encryption": "gpg symmetric AES-256, S2K SHA-512", "file_sha256": "3584cd5b0bbd658b21ce45a4945322ef8b0606eecaf0df522409add872d83e72", "restore_test": "passed" },
+    { "label": "B", "encryption": "gpg symmetric AES-256, S2K SHA-512", "file_sha256": "cdd2b20f6e21dca450b40e2d8cdcac369495c5632daa78815875c83e6ed99fb7", "restore_test": "passed" }
+  ],
+  "plaintext_private_key_remaining": false
+}
