@@ -129,17 +129,13 @@ test("a template promising another lifetime is never production-ready", () => {
   );
 });
 
-test("every pattern is one-argument; only a directly panel-verified pattern is confirmed for live sending", () => {
+test("every pattern is one-argument and confirmed for live sending after its direct panel check", () => {
   for (const t of [
     ...Object.values(OTP_TEMPLATES),
     ...Object.values(NOTICE_TEMPLATES),
   ]) {
     assert.equal(t!.variables.length, 1, t!.bodyId);
-    assert.equal(
-      t!.textConfirmed,
-      t!.bodyId === "562281",
-      t!.bodyId + ": only Admin MFA has a direct panel verification so far",
-    );
+    assert.equal(t!.textConfirmed, true, t!.bodyId);
     // Every pattern carries exactly one {0} and a recorded transcription.
     assert.equal(t!.providerText.split("{0}").length - 1, 1, t!.bodyId);
     assert.ok(t!.providerText.startsWith("یاریزان: "), t!.bodyId);
@@ -151,7 +147,7 @@ test("every pattern is one-argument; only a directly panel-verified pattern is c
   }
 });
 
-test("owner attestation is recorded as such and can never silently become a live confirmation", () => {
+test("a pattern is confirmed for live sending only together with a direct panel verification", () => {
   const all = [
     ...new Set([
       ...Object.values(OTP_TEMPLATES),
@@ -160,12 +156,9 @@ test("owner attestation is recorded as such and can never silently become a live
   ];
   assert.equal(all.length, 7, "seven distinct patterns");
   for (const t of all) {
-    // A direct panel verification is the only thing that may confirm text for live sending.
-    assert.equal(
-      t!.verification,
-      t!.bodyId === "562281" ? "PANEL_VERIFIED" : "OWNER_ATTESTED",
-      t!.bodyId,
-    );
+    // All seven were checked directly in the provider panel (562281 on 2026-10-21, the rest on
+    // 2026-10-23); an owner attestation alone can never confirm text for live sending.
+    assert.equal(t!.verification, "PANEL_VERIFIED", t!.bodyId);
     if (t!.textConfirmed)
       assert.equal(t!.verification, "PANEL_VERIFIED", t!.bodyId);
   }
@@ -204,23 +197,20 @@ test("the seven approved Body IDs, purposes and exact transcriptions are registe
   assert.match(byId.get("559397")!, /سفارش شماره \{0\} با موفقیت پرداخت شد/);
 });
 
-test("pending templates cannot be rendered for live sending; the verified Admin MFA can", () => {
-  for (const p of ["CLAIM", "LOGIN", "RESET", "PASSWORD"] as const)
-    assert.throws(() => renderOtp(p, "123456", strict), unavailable, p);
-  assert.deepEqual(renderOtp("ADMIN", "123456", strict), {
-    bodyId: 562281,
-    args: ["123456"],
-  });
-  for (const t of Object.values(NOTICE_TEMPLATES))
+test("confirmed templates render for live sending; an unconfirmed template never does", () => {
+  for (const p of ["CLAIM", "LOGIN", "RESET", "PASSWORD", "ADMIN"] as const)
+    assert.deepEqual(renderOtp(p, "123456", strict).args, ["123456"], p);
+  assert.equal(renderOtp("ADMIN", "123456", strict).bodyId, 562281);
+  for (const t of Object.values(NOTICE_TEMPLATES)) {
+    const values: Record<string, string> =
+      t.variables[0] === "date" ? { date: "1405/07/27" } : { order: ORDER };
+    assert.equal(renderSms(t, values, strict).bodyId, Number(t.bodyId));
+    // The same template without its panel confirmation is refused for live sending.
     assert.throws(
-      () =>
-        renderSms(
-          t,
-          t.variables[0] === "date" ? { date: "1405/07/27" } : { order: ORDER },
-          strict,
-        ),
+      () => renderSms({ ...t, textConfirmed: false }, values, strict),
       unavailable,
     );
+  }
 });
 
 test("invalid Body IDs and missing templates fail closed", () => {
@@ -261,7 +251,7 @@ test("fake provider records notices and enforces the variable contract without a
   );
 });
 
-test("Sms.canNotify refuses live notices until text is confirmed and, for purchases, real commerce", () => {
+test("Sms.canNotify sends live notices only with confirmed text and, for purchases, real commerce", () => {
   const sms = (config: Record<string, string>) =>
     new Sms({ config } as unknown as Security);
   const live = {
@@ -269,8 +259,17 @@ test("Sms.canNotify refuses live notices until text is confirmed and, for purcha
     SMS_ALLOW_LIVE: "true",
     MELIPAYAMAK_API_TOKEN: "ci-synthetic-token-0123456789",
   };
-  assert.equal(sms(live).canNotify("PASSWORD_CHANGED"), false);
+  assert.equal(sms(live).canNotify("PASSWORD_CHANGED"), true);
+  // A purchase notice needs live payments; never for disabled or simulated commerce.
   assert.equal(sms(live).canNotify("PURCHASE_CONFIRMED"), false);
+  assert.equal(
+    sms({ ...live, COMMERCE_MODE: "zarinpal" }).canNotify("PURCHASE_CONFIRMED"),
+    true,
+  );
+  assert.equal(
+    sms({ ...live, SMS_ALLOW_LIVE: "false" }).canNotify("PASSWORD_CHANGED"),
+    false,
+  );
   assert.equal(
     sms({ ...live, COMMERCE_MODE: "fake" }).canNotify("PURCHASE_CONFIRMED"),
     false,
