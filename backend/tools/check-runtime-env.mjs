@@ -154,7 +154,12 @@ try {
     [undefined, "NODE_ENV_REQUIRED"],
     ["", "NODE_ENV_REQUIRED"],
     ["staging", "NODE_ENV_INVALID"],
-    ["production", "PRODUCTION_GATE_CLOSED: G8_SECRET_CUSTODY"],
+    ["production", "ENABLED_CAPABILITIES_REQUIRED"],
+    [
+      "production",
+      "CAPABILITY_NOT_APPROVED: CUSTOMER_AUTH",
+      ["--env", "ENABLED_CAPABILITIES=PRODUCTION_CORE,CUSTOMER_AUTH"],
+    ],
     ["test", "ZARINPAL_LIVE_GATE_CLOSED", ["--env", "COMMERCE_MODE=zarinpal"]],
   ]) {
     finished(

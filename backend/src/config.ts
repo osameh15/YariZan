@@ -37,7 +37,9 @@ export const productionGates = [
   {
     id: "G8_SECRET_CUSTODY",
     reason: "Durable key custody and recovery for HMAC/encryption keys",
-    open: false,
+    // Opened on the recorded custody ceremony and two passing restore drills of the first
+    // production backup: docs/evidence/g8-secret-custody-2026-10-23.json.
+    open: true,
   },
 ] as const;
 export type GateId = (typeof productionGates)[number]["id"];

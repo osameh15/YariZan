@@ -309,8 +309,13 @@ test("Live SMS needs the API token and the explicit live flag; fake cannot open 
   );
   assert.throws(
     () =>
-      configuration({ ...env, NODE_ENV: "production", SMS_PROVIDER: "fake" }),
-    /PRODUCTION_GATE_CLOSED/,
+      configuration({
+        ...env,
+        NODE_ENV: "production",
+        SMS_PROVIDER: "fake",
+        ENABLED_CAPABILITIES: "PRODUCTION_CORE",
+      }),
+    /SMS_TEST_PROVIDER_REFUSED/,
   );
 });
 

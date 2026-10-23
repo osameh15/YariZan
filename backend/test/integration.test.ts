@@ -3917,14 +3917,19 @@ test("Payment readiness is read-only, needs finance.read with recent MFA, is aud
     const r = await ok<{
       real_payments_possible: boolean;
       production_payment_gate: { open: boolean };
-      gates: { open: boolean }[];
+      gates: { id: string; open: boolean }[];
       merchant_configuration: Record<string, boolean>;
       evidence: { id: string; status: string }[];
     }>("/admin/payment-readiness", undefined, owner);
     assert.equal(r.headers.get("cache-control"), "no-store");
     assert.equal(r.body.real_payments_possible, false);
     assert.equal(r.body.production_payment_gate.open, false);
-    assert.ok(r.body.gates.length >= 6 && r.body.gates.every((g) => !g.open));
+    // Only G8 (secret custody) is open; every gate that touches payments or sign-in stays closed.
+    assert.ok(r.body.gates.length >= 6);
+    assert.deepEqual(
+      r.body.gates.filter((g) => g.open).map((g) => g.id),
+      ["G8_SECRET_CUSTODY"],
+    );
     assert.equal(r.body.merchant_configuration.merchant_id_present, true);
     assert.equal(r.body.merchant_configuration.live_merchant_usable, false);
     for (const id of [
