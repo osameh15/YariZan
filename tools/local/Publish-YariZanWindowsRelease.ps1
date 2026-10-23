@@ -84,15 +84,28 @@ if ($Stage -eq 'verify') {
 # Release checks: version metadata, Authenticode, approval evidence.
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'tools\release\Test-WindowsBinary.ps1') -Path $file.FullName -Version $ReleaseVersion -Kind installer
 if ($LASTEXITCODE -ne 0) { Fail 'Installer metadata check failed.' }
-$sig = Get-AuthenticodeSignature -LiteralPath $file.FullName
-if ($sig.Status -ne 'Valid') { Fail "Authenticode signature is '$($sig.Status)'. An unsigned installer is never published." }
 if (-not $Approval) { Fail '-Approval (the release approval record) is required.' }
 $a = Get-Content -LiteralPath $Approval -Raw -Encoding UTF8 | ConvertFrom-Json
+# Authenticode, or the owner's recorded exception for 2.0.0: an installer that carries no signature
+# at all (never a broken or untrusted one), published only over HTTPS with its SHA-256 and the
+# SmartScreen disclosure (docs/evidence/release-2.0.0-owner-acceptance.md). Nothing else changes.
+$ownerException = 'docs/evidence/release-2.0.0-owner-acceptance.md'
+$unsigned = $a.distribution -eq 'unsigned-owner-approved'
+if ($unsigned) {
+  if ($a.unsigned_approval -ne $ownerException -or -not (Test-Path (Join-Path $repo $ownerException))) { Fail "Unsigned distribution needs unsigned_approval = $ownerException in the approval record." }
+  if ($a.signature -ne 'none') { Fail "An unsigned release must record signature 'none'." }
+}
+elseif ($a.distribution -and $a.distribution -ne 'authenticode') { Fail "Unknown distribution '$($a.distribution)'." }
+$sig = Get-AuthenticodeSignature -LiteralPath $file.FullName
+if ($unsigned) { if ($sig.Status -ne 'NotSigned') { Fail "Installer signature status is '$($sig.Status)'; the unsigned exception accepts only a file with no signature." } }
+elseif ($sig.Status -ne 'Valid') { Fail "Authenticode signature is '$($sig.Status)'. An unsigned installer is published only under the recorded owner exception." }
+$acceptance = if ($unsigned) { @('W1-W14 passed', 'waived by owner') } else { @('W1-W14 passed') }
 $checks = [ordered]@{
   grade = ($a.grade -eq $Grade); version = ($a.version -eq $ReleaseVersion); file = ($a.file -eq $name)
   sha256 = ($a.sha256 -eq $sha); size = ([int64]$a.size -eq $size)
-  signature = ($a.signature -eq 'valid'); malware_scan = ($a.malware_scan -eq 'clean')
-  physical_acceptance = ($a.physical_acceptance -eq 'W1-W14 passed'); owner_approved = ($a.owner_approved -eq $true)
+  signature = (($unsigned -and $a.signature -eq 'none') -or (-not $unsigned -and $a.signature -eq 'valid'))
+  malware_scan = ($a.malware_scan -eq 'clean')
+  physical_acceptance = ($acceptance -contains $a.physical_acceptance); owner_approved = ($a.owner_approved -eq $true)
 }
 $bad = @($checks.Keys | Where-Object { -not $checks[$_] })
 if ($bad) { Fail "Approval record does not match or is incomplete: $($bad -join ', ')" }
@@ -105,7 +118,9 @@ if (-not $AppExe) { Fail '-AppExe (the signed YariZan-G<grade>.exe that was pack
 $app = Get-Item -LiteralPath $AppExe
 $appSha = (Get-FileHash -LiteralPath $app.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($a.app_sha256 -ne $appSha) { Fail 'Approval record app_sha256 does not match -AppExe.' }
-if ((Get-AuthenticodeSignature -LiteralPath $app.FullName).Status -ne 'Valid') { Fail 'The packaged YariZan.exe is not validly signed.' }
+$appSig = (Get-AuthenticodeSignature -LiteralPath $app.FullName).Status
+if ($unsigned) { if ($appSig -ne 'NotSigned') { Fail "The packaged YariZan.exe signature status is '$appSig'; the unsigned exception accepts only no signature." } }
+elseif ($appSig -ne 'Valid') { Fail 'The packaged YariZan.exe is not validly signed.' }
 $bytes = [IO.File]::ReadAllBytes($app.FullName)
 $text = [Text.Encoding]::UTF8.GetString($bytes) + [Text.Encoding]::Unicode.GetString($bytes) + [Text.Encoding]::Unicode.GetString($bytes, 1, $bytes.Length - 1)
 foreach ($marker in @('127.0.0.1:3100', 'localhost:3100', 'local acceptance', 'LocalAcceptanceBuild', 'disposable-development', 'v2-local-acceptance-roots')) {
