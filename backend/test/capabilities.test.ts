@@ -66,22 +66,58 @@ test("Only PRODUCTION_CORE is approved in source; every other capability stays c
   );
 });
 
-test("Production stays refused while a PRODUCTION_CORE gate is closed, whatever is enabled", () => {
-  assert.deepEqual(closedProductionGates(), ["G8_SECRET_CUSTODY"]);
-  for (const ENABLED_CAPABILITIES of [
-    undefined,
-    "PRODUCTION_CORE",
-    "PRODUCTION_CORE,LIVE_COMMERCE",
-  ])
+test("G8 is open (recorded evidence): PRODUCTION_CORE starts; everything else stays refused", () => {
+  assert.deepEqual(closedProductionGates(), []);
+  const production = {
+    NODE_ENV: "production",
+    BROWSER_ORIGIN: "https://yarizan.oarnova.games",
+    DATABASE_URL: "postgresql://yarizan_api:runtime-secret@db:5432/yarizan",
+    CODE_HMAC_KEY: key(),
+    TOKEN_HMAC_KEY: key(),
+    MFA_ENCRYPTION_KEY: key(),
+    MOBILE_ENCRYPTION_KEY: key(),
+    OTP_HMAC_KEY: key(),
+  };
+  const started = configuration({
+    ...production,
+    ENABLED_CAPABILITIES: "PRODUCTION_CORE",
+  });
+  assert.deepEqual([...started.enabledCapabilities], ["PRODUCTION_CORE"]);
+  assert.equal(started.COMMERCE_MODE, "disabled");
+  assert.equal(started.SMS_PROVIDER, "disabled");
+  // The operator must still name the capabilities, and no unapproved one can be added.
+  assert.throws(
+    () => configuration(production),
+    /ENABLED_CAPABILITIES_REQUIRED/,
+  );
+  for (const id of capabilityIds.filter((id) => id !== "PRODUCTION_CORE"))
     assert.throws(
       () =>
         configuration({
-          ...process.env,
-          NODE_ENV: "production",
-          ENABLED_CAPABILITIES,
+          ...production,
+          ENABLED_CAPABILITIES: "PRODUCTION_CORE," + id,
         }),
-      (error: Error) =>
-        error.message === "PRODUCTION_GATE_CLOSED: G8_SECRET_CUSTODY",
+      new RegExp("CAPABILITY_NOT_APPROVED: " + id),
+    );
+  // Opening G8 relaxes none of the production rules.
+  for (const [overrides, code] of [
+    [{ COMMERCE_MODE: "fake" }, "COMMERCE_TEST_MODE_REFUSED"],
+    [{ SMS_PROVIDER: "fake" }, "SMS_TEST_PROVIDER_REFUSED"],
+    [{ BROWSER_ORIGIN: "http://localhost:3100" }, "PRODUCTION_ORIGIN_REQUIRED"],
+    [
+      { DATABASE_URL: "postgresql://postgres:x@db:5432/yarizan" },
+      "PRODUCTION_RUNTIME_DATABASE_LOGIN_REQUIRED",
+    ],
+    [{ CODE_HMAC_KEY: "1".repeat(64) }, "PRODUCTION_SECRET_REQUIRED"],
+  ] as const)
+    assert.throws(
+      () =>
+        configuration({
+          ...production,
+          ENABLED_CAPABILITIES: "PRODUCTION_CORE",
+          ...overrides,
+        }),
+      new RegExp(code),
     );
 });
 

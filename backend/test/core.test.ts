@@ -60,26 +60,35 @@ test("Production gate cannot be enabled by environment flag", () =>
         ...process.env,
         NODE_ENV: "production",
         PRODUCTION_READY: "true",
+        ENABLED_CAPABILITIES: "PRODUCTION_CORE,CUSTOMER_AUTH",
       }),
-    /PRODUCTION_GATE_CLOSED/,
+    /CAPABILITY_NOT_APPROVED: CUSTOMER_AUTH/,
   ));
 
-test("Every production gate is closed in source and the core gates are named in the refusal", () => {
+test("Only G8 is open in source; no environment flag opens another gate", () => {
   assert.ok(productionGates.length >= 6);
-  assert.ok(productionGates.every((gate) => !gate.open));
-  assert.ok(closedProductionGates().length > 0);
+  assert.deepEqual(
+    productionGates.filter((gate) => gate.open).map((gate) => gate.id),
+    ["G8_SECRET_CUSTODY"],
+  );
+  assert.deepEqual(closedProductionGates(), []);
   for (const env of [
     { PRODUCTION_READY: "true" },
     { PRODUCTION_GATES: "open" },
     { G1_SIGNING_CUSTODY: "open" },
-    { SMS_PROVIDER: "disabled", COMMERCE_MODE: "disabled" },
+    { G5_TRUSTED_RATE_LIMITS: "open" },
   ])
     assert.throws(
-      () => configuration({ ...process.env, NODE_ENV: "production", ...env }),
-      (error: Error) =>
-        closedProductionGates().every((gate) => error.message.includes(gate)) &&
-        error.message.startsWith("PRODUCTION_GATE_CLOSED: "),
+      () =>
+        configuration({
+          ...process.env,
+          NODE_ENV: "production",
+          ENABLED_CAPABILITIES: "PRODUCTION_CORE,ADMIN_AUTH",
+          ...env,
+        }),
+      /CAPABILITY_NOT_APPROVED: ADMIN_AUTH/,
     );
+  assert.ok(productionGates.filter((gate) => !gate.open).length >= 5);
 });
 test("Release migration count matches the reviewed migration directory", () => {
   assert.equal(

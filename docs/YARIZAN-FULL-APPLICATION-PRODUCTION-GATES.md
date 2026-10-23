@@ -61,6 +61,8 @@ The public storefront (`YARIZAN_SITE_MODE=storefront`) does not depend on any ga
 
 ## G8_SECRET_CUSTODY
 
+**Open since 2026-10-23** on the evidence in `docs/evidence/g8-secret-custody-2026-10-23.json`: keys generated on the server, the first production backup encrypted to two owner-held age identities, and two passing isolated restore drills (13 migrations). The customer sign-in check below waits for `CUSTOMER_AUTH`, which stays closed; the recorded runbook deviations are listed in the evidence file.
+
 - **Existing:** five independent 32-byte keys (`CODE_HMAC_KEY`, `TOKEN_HMAC_KEY`, `MFA_ENCRYPTION_KEY`, `MOBILE_ENCRYPTION_KEY`, `OTP_HMAC_KEY`) required at start; distinctness enforced.
 - **Missing:** generation, storage, backup and recovery procedure. Losing `MOBILE_ENCRYPTION_KEY` makes stored mobiles unreadable; losing HMAC keys invalidates sessions and codes.
 - **Proposed implementation:** generate on the server, store in the root-only env file, back up encrypted to the owner's offline vault, include in the restore drill (S3 key list).

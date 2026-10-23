@@ -6,6 +6,8 @@ Legend for each gate: **I** implemented · **V** verified (with evidence) · **M
 
 ## G8_SECRET_CUSTODY (five HMAC and encryption keys)
 
+**Open since 2026-10-23** (`docs/evidence/g8-secret-custody-2026-10-23.json`). With it, `PRODUCTION_CORE` can start in production; every other capability stays refused. The items below record the state before the ceremony.
+
 - **I:** the API requires five independent 32-byte keys (distinctness enforced). The infrastructure helper `scripts/yarizan-secrets.sh` writes `api.env` root 0600 without echo. Backups include `api.env` encrypted.
 - **V:** startup refuses missing or shared keys (backend tests). The secrets helper has CI tests (infra `ci-yarizan-secrets.sh`).
 - **M:**

@@ -377,11 +377,16 @@ test("Local sandbox mode and the test price are configuration-gated and can neve
       /CALLBACK_URL_INVALID/,
       url,
     );
-  // Production is refused by the closed gates before any payment mode matters, and the mode itself
-  // is also refused outside development and test.
+  // Production refuses the payment test modes by its own rules, and the sandbox mode itself is
+  // also refused outside development and test.
   assert.throws(
-    () => configuration({ ...sandbox, NODE_ENV: "production" }),
-    /PRODUCTION_GATE_CLOSED/,
+    () =>
+      configuration({
+        ...sandbox,
+        NODE_ENV: "production",
+        ENABLED_CAPABILITIES: "PRODUCTION_CORE",
+      }),
+    /COMMERCE_TEST_MODE_REFUSED/,
   );
   assert.throws(
     () => configuration({ ...base, COMMERCE_MODE: "zarinpal" }),
@@ -404,8 +409,13 @@ test("Local sandbox mode and the test price are configuration-gated and can neve
     /LOCAL_TEST_PRICE_REFUSED/,
   );
   assert.throws(
-    () => configuration({ ...priced, NODE_ENV: "production" }),
-    /PRODUCTION_GATE_CLOSED/,
+    () =>
+      configuration({
+        ...priced,
+        NODE_ENV: "production",
+        ENABLED_CAPABILITIES: "PRODUCTION_CORE",
+      }),
+    /COMMERCE_TEST_MODE_REFUSED/,
   );
   for (const value of ["9999", "100000.5", "-1", "abc", "100000001"])
     assert.throws(
