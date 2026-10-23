@@ -17,7 +17,7 @@ const forbidden = [
   [/\[نیاز به تأیید مالک/, 'unresolved owner placeholder'],
   [/پیش‌نویس:/, 'draft notice'],
   [/lorem ipsum/i, 'lorem ipsum'],
-  [/osameh\.dev|support@osameh|t\.me\/osameh|@osameh_ir|telegram/i, 'obsolete contact'],
+  [/support@osameh|t\.me\/osameh|@osameh_ir|telegram/i, 'obsolete contact'],
 ];
 // Facts that may only be written in their single source of truth.
 const single = [
@@ -25,8 +25,13 @@ const single = [
   [/support@oarnova\.games|info@oarnova\.games/, 'studio mailbox', 'shared/contact.ts'],
   [/y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX/, 'eNamad code', 'shared/contact.ts'],
 ];
-// The developer portfolio link is a deliberate footer link (owner decision), not a support contact.
-const allowed = [['app/layouts/default.vue', /https:\/\/osameh\.dev"/]];
+// The developer portfolio is an owner-approved footer link, not an obsolete support contact.
+// Check its exact URL and sole occurrence in the reviewed SOURCE layout, which is the authority
+// for all generated output profiles. Build chunks duplicate/minify that same link, so a naive
+// global osameh.dev ban on built assets incorrectly rejects an approved production build.
+const portfolioDomain = /osameh\.dev/i;
+const portfolioSource = 'app/layouts/default.vue';
+const portfolioHref = 'href="https://osameh.dev"';
 
 async function* files(dir, exts) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
@@ -41,13 +46,20 @@ async function* files(dir, exts) {
 async function scan(dir, exts, label) {
   for await (const file of files(dir, exts)) {
     const rel = path.relative(root, file).replace(/\\/g, '/');
-    let text = await readFile(file, 'utf8');
-    for (const [file2, re] of allowed) if (rel === file2) text = text.replace(re, '');
+    const text = await readFile(file, 'utf8');
     for (const [re, what] of forbidden)
       if (re.test(text)) failures.push(`${label} ${rel}: ${what}`);
-    if (label === 'source')
+    if (label === 'source') {
+      // The personal domain is allowed only as the single explicit developer-portfolio footer link.
+      // Any other source occurrence, including a support address or a second link, is rejected.
+      if (portfolioDomain.test(text)) {
+        const occurrences = text.match(/osameh\.dev/gi) ?? [];
+        if (rel !== portfolioSource || occurrences.length !== 1 || !text.includes(portfolioHref))
+          failures.push(`source ${rel}: personal domain outside the approved footer link`);
+      }
       for (const [re, what, home] of single)
         if (re.test(text) && rel !== home) failures.push(`source ${rel}: ${what} outside ${home}`);
+    }
   }
 }
 
