@@ -85,8 +85,11 @@ export function validateManifest(m, { expectedMigrations, allowLocalRegistry = f
       fail('capabilities.approved must list known capabilities including PRODUCTION_CORE');
     if (!Array.isArray(c?.closed_gates) || !c.closed_gates.every((g) => /^G\d_[A-Z_]+$/.test(g)))
       fail('capabilities.closed_gates');
-    if (ids(c?.approved)?.includes('LIVE_COMMERCE'))
-      fail('capabilities.approved must not include LIVE_COMMERCE without its own release');
+    // LIVE_COMMERCE is approved only by the reviewed Backend source (the 2.0.0 release train); the
+    // manifest reads that approval from the released source and never adds or removes one.
+    const approvedSet = new Set(c?.approved ?? []);
+    if (Array.isArray(c?.approved) && approvedSet.size !== c.approved.length)
+      fail('capabilities.approved must not repeat a capability');
     const secrets = m?.required_secrets;
     if (
       !Array.isArray(secrets) ||

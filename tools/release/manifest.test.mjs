@@ -237,7 +237,7 @@ test('a full-stack manifest never carries secret values or unapproved real money
     [],
     ['CUSTOMER_AUTH'],
     ['PRODUCTION_CORE', 'ROOT'],
-    ['PRODUCTION_CORE', 'LIVE_COMMERCE'],
+    ['PRODUCTION_CORE', 'LIVE_COMMERCE', 'LIVE_COMMERCE'],
   ]) {
     const m = fullStack();
     m.capabilities.approved = approved;
@@ -246,6 +246,20 @@ test('a full-stack manifest never carries secret values or unapproved real money
       approved.join(),
     );
   }
+  // The 2.0.0 commercial source approves every capability, live payments included, with no gate closed.
+  const commercial = fullStack();
+  commercial.capabilities = {
+    approved: [
+      'PRODUCTION_CORE',
+      'CUSTOMER_AUTH',
+      'ADMIN_AUTH',
+      'DESKTOP_PROVISIONING',
+      'TRIALS_AND_LICENSES',
+      'LIVE_COMMERCE',
+    ],
+    closed_gates: [],
+  };
+  assert.deepEqual(validateManifest(commercial, opts), []);
   const storefront = valid();
   storefront.required_secrets = ['CODE_HMAC_KEY'];
   assert.ok(validateManifest(storefront, opts).some((e) => e.includes('full-stack scope only')));
