@@ -62,26 +62,18 @@ test("Production gate cannot be enabled by environment flag", () =>
         PRODUCTION_READY: "true",
         ENABLED_CAPABILITIES: "PRODUCTION_CORE,TRIALS_AND_LICENSES",
       }),
-    /CAPABILITY_GATE_CLOSED: TRIALS_AND_LICENSES: G1_SIGNING_CUSTODY/,
+    /LICENSE_SIGNING_REQUIRED/,
   ));
 
-test("2.0.0 opens exactly the reviewed gates; no environment flag opens another", () => {
+test("2.0.0 opens every reviewed gate; no environment flag replaces a runtime prerequisite", () => {
   assert.ok(productionGates.length >= 6);
-  assert.deepEqual(
-    productionGates.filter((gate) => gate.open).map((gate) => gate.id),
-    [
-      "G1_FIRST_CLAIM_ASSURANCE",
-      "G6_ADMIN_SMS_MFA",
-      "G5_TRUSTED_RATE_LIMITS",
-      "G8_SECRET_CUSTODY",
-    ],
-  );
+  assert.ok(productionGates.every((gate) => gate.open));
   assert.deepEqual(closedProductionGates(), []);
   for (const env of [
     { PRODUCTION_READY: "true" },
     { PRODUCTION_GATES: "open" },
     { G1_SIGNING_CUSTODY: "open" },
-    { G4_DESKTOP_CREDENTIALS: "open" },
+    { LICENSE_SIGNING: "ready" },
   ])
     assert.throws(
       () =>
@@ -91,7 +83,7 @@ test("2.0.0 opens exactly the reviewed gates; no environment flag opens another"
           ENABLED_CAPABILITIES: "PRODUCTION_CORE,DESKTOP_PROVISIONING",
           ...env,
         }),
-      /CAPABILITY_GATE_CLOSED: DESKTOP_PROVISIONING: G4_DESKTOP_CREDENTIALS/,
+      /LICENSE_SIGNING_REQUIRED/,
     );
 });
 test("Release migration count matches the reviewed migration directory", () => {

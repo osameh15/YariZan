@@ -3928,7 +3928,7 @@ test("Payment readiness is read-only, needs finance.read with recent MFA, is aud
     assert.ok(r.body.gates.length >= 6);
     assert.deepEqual(
       r.body.gates.filter((g) => !g.open).map((g) => g.id),
-      ["G1_SIGNING_CUSTODY", "G4_DESKTOP_CREDENTIALS"],
+      [],
     );
     assert.equal(r.body.merchant_configuration.merchant_id_present, true);
     assert.equal(r.body.merchant_configuration.live_merchant_usable, false);
