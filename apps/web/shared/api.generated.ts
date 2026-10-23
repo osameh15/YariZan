@@ -5262,15 +5262,13 @@ export interface operations {
         };
         content: {
           'application/json': {
-            /** @constant */
-            real_payments_possible: false;
+            real_payments_possible: boolean;
             /** Format: date-time */
             generated_at: string;
             production_payment_gate: {
               /** @constant */
-              id: 'ZARINPAL_LIVE_GATE_CLOSED';
-              /** @constant */
-              open: false;
+              id: 'ZARINPAL_LIVE_GATE';
+              open: boolean;
             };
             gates: {
               id: string;
@@ -7636,8 +7634,7 @@ export interface operations {
             /** @enum {string} */
             mode: 'disabled' | 'fake' | 'zarinpal_sandbox' | 'zarinpal';
             checkout_enabled: boolean;
-            /** @constant */
-            real_payments_enabled: false;
+            real_payments_enabled: boolean;
             sandbox: boolean;
             test_price_irr: number | null;
             /** @constant */

@@ -157,10 +157,14 @@ try {
     ["production", "ENABLED_CAPABILITIES_REQUIRED"],
     [
       "production",
-      "CAPABILITY_NOT_APPROVED: CUSTOMER_AUTH",
-      ["--env", "ENABLED_CAPABILITIES=PRODUCTION_CORE,CUSTOMER_AUTH"],
+      "CAPABILITY_GATE_CLOSED: TRIALS_AND_LICENSES: G1_SIGNING_CUSTODY",
+      ["--env", "ENABLED_CAPABILITIES=PRODUCTION_CORE,TRIALS_AND_LICENSES"],
     ],
-    ["test", "ZARINPAL_LIVE_GATE_CLOSED", ["--env", "COMMERCE_MODE=zarinpal"]],
+    [
+      "test",
+      "ZARINPAL_LIVE_PRODUCTION_ONLY",
+      ["--env", "COMMERCE_MODE=zarinpal"],
+    ],
   ]) {
     finished(
       run([

@@ -3,7 +3,7 @@ import { persianDigits } from '#shared/digits';
 import { errorMessage, toman } from '#shared/domain';
 import { commerceState, paymentNotice } from '#shared/commerce';
 import type { ApiResult } from '#shared/api';
-import { sandboxStartPay } from '#shared/payment-return';
+import { startPayPattern } from '#shared/payment-return';
 const props = defineProps<{ id: string }>(),
   api = useApi(),
   order = ref<ApiResult<'/api/v2/orders/{id}', 'get'>>(),
@@ -16,11 +16,14 @@ const props = defineProps<{ id: string }>(),
   capabilities = ref<ApiResult<'/api/v2/commerce/capabilities', 'get'> | null>(null);
 const sandbox = computed(() => !!capabilities.value?.sandbox);
 const simulated = computed(() => capabilities.value?.mode === 'fake');
-// A payment page we may open: only the official sandbox StartPay with a sandbox authority.
+const live = computed(() => capabilities.value?.real_payments_enabled === true);
+// A payment page we may open: the official ZarinPal StartPay for this deployment's mode only
+// (production in live mode, sandbox in sandbox mode). Anything else is never followed.
+const startPay = computed(() => startPayPattern(capabilities.value));
 const gatewayUrl = computed(
   () =>
     order.value?.payments.find(
-      (p) => p.state === 'PENDING' && sandboxStartPay.test(p.redirect_url ?? ''),
+      (p) => p.state === 'PENDING' && !!startPay.value?.test(p.redirect_url ?? ''),
     )?.redirect_url ?? '',
 );
 const testPrice = computed(
@@ -81,7 +84,7 @@ async function pay() {
       { id: props.id },
     );
     if (p.redirect_url === '/payment/simulate?order=' + props.id) await navigateTo(p.redirect_url);
-    else if (sandboxStartPay.test(p.redirect_url ?? ''))
+    else if (startPay.value?.test(p.redirect_url ?? ''))
       await navigateTo(p.redirect_url!, { external: true });
     else await load();
   } catch (e) {
@@ -193,9 +196,19 @@ onBeforeUnmount(() => {
           :disabled="busy"
           @click="pay"
         >
-          {{ sandbox ? 'ادامه در درگاه آزمایشی زرین‌پال' : 'ادامه در شبیه‌ساز پرداخت' }}</button
-        ><a v-if="gatewayUrl" class="button primary" :href="gatewayUrl" data-testid="gateway-link"
-          >ادامهٔ پرداخت در درگاه آزمایشی</a
+          {{
+            live
+              ? 'پرداخت در درگاه زرین‌پال'
+              : sandbox
+                ? 'ادامه در درگاه آزمایشی زرین‌پال'
+                : 'ادامه در شبیه‌ساز پرداخت'
+          }}</button
+        ><a
+          v-if="gatewayUrl"
+          class="button primary"
+          :href="gatewayUrl"
+          data-testid="gateway-link"
+          >{{ live ? 'ادامهٔ پرداخت در درگاه زرین‌پال' : 'ادامهٔ پرداخت در درگاه آزمایشی' }}</a
         ><NuxtLink
           v-if="
             order.payments.some(

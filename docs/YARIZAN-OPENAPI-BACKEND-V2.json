@@ -6068,8 +6068,7 @@
                   "type": "object",
                   "properties": {
                     "real_payments_possible": {
-                      "type": "boolean",
-                      "const": false
+                      "type": "boolean"
                     },
                     "generated_at": {
                       "type": "string",
@@ -6081,11 +6080,10 @@
                       "properties": {
                         "id": {
                           "type": "string",
-                          "const": "ZARINPAL_LIVE_GATE_CLOSED"
+                          "const": "ZARINPAL_LIVE_GATE"
                         },
                         "open": {
-                          "type": "boolean",
-                          "const": false
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -10119,8 +10117,7 @@
                       "type": "boolean"
                     },
                     "real_payments_enabled": {
-                      "type": "boolean",
-                      "const": false
+                      "type": "boolean"
                     },
                     "sandbox": {
                       "type": "boolean"

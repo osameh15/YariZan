@@ -132,8 +132,8 @@ export class FakeZarinPal implements PaymentGateway {
   }
 }
 
-// Runtime selection never constructs this adapter. Only injected offline transports are
-// authorized until merchant/currency/return-host acceptance and a separate gate review.
+// Built at runtime only for COMMERCE_MODE=zarinpal (production, behind ZARINPAL_LIVE_GATE_OPEN,
+// merchant and exact production callback validated in config.ts) and for the local sandbox.
 export class ZarinPalAdapter implements PaymentGateway {
   get providerConfig() {
     return this.environment === "sandbox"
@@ -322,15 +322,15 @@ export class Gateway {
   ) {
     this.fake = new FakeZarinPal(db);
     const c = security.config;
-    // Only the explicit local sandbox mode ever builds the real adapter, and only for the
-    // sandbox host. `zarinpal` (live) is refused at startup and never reaches this class.
+    // Live payments (`zarinpal`, production only, validated at startup) use the production host;
+    // the local sandbox uses the sandbox host. Every other mode keeps the in-database fake.
     this.provider =
-      c.COMMERCE_MODE === "zarinpal_sandbox"
+      c.COMMERCE_MODE === "zarinpal" || c.COMMERCE_MODE === "zarinpal_sandbox"
         ? new ZarinPalAdapter(
             c.ZARINPAL_MERCHANT_ID!,
             c.ZARINPAL_CALLBACK_URL!,
             fetch,
-            "sandbox",
+            c.COMMERCE_MODE === "zarinpal" ? "production" : "sandbox",
           )
         : this.fake;
   }
@@ -340,7 +340,9 @@ export class Gateway {
       "LIVE_COMMERCE",
     );
     requireCondition(
-      ["fake", "zarinpal_sandbox"].includes(this.security.config.COMMERCE_MODE),
+      ["fake", "zarinpal_sandbox", "zarinpal"].includes(
+        this.security.config.COMMERCE_MODE,
+      ),
       "COMMERCE_UNAVAILABLE",
       503,
     );

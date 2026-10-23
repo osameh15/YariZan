@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PoolClient } from "pg";
-import { productionGates } from "../config";
+import { productionGates, ZARINPAL_LIVE_GATE_OPEN } from "../config";
 import { Orders } from "./orders";
 
 /**
@@ -26,9 +26,9 @@ export const PAYMENT_READINESS_EVIDENCE: readonly {
   },
   {
     id: "live_payment_authorization",
-    status: "blocked",
+    status: "owner_confirmed",
     evidence:
-      "Live payments are refused in source (ZARINPAL_LIVE_GATE_CLOSED); needs the restricted payment egress, the Backend production gates and a separate owner go/no-go",
+      "Owner go for live payments in the 2.0.0 release (docs/evidence/release-2.0.0-owner-acceptance.md); live mode needs production, LIVE_COMMERCE, the merchant ID, the exact callback and the restricted payment egress",
     reference: "YARIZAN-PRODUCTION-GATE-MATRIX.md",
   },
   {
@@ -106,10 +106,15 @@ export class PaymentReadiness {
       )
     ).rows;
     return {
-      real_payments_possible: false as const,
+      // True only while this API runs live mode (validated at startup) with LIVE_COMMERCE enabled.
+      real_payments_possible:
+        config.COMMERCE_MODE === "zarinpal" &&
+        config.enabledCapabilities.has("LIVE_COMMERCE"),
       generated_at: new Date().toISOString(),
-      // The live gateway refuses to start in source (ZARINPAL_LIVE_GATE_CLOSED); no setting opens it.
-      production_payment_gate: { id: "ZARINPAL_LIVE_GATE_CLOSED", open: false },
+      production_payment_gate: {
+        id: "ZARINPAL_LIVE_GATE" as const,
+        open: ZARINPAL_LIVE_GATE_OPEN,
+      },
       gates: productionGates.map((g) => ({
         id: g.id,
         reason: g.reason,

@@ -33,7 +33,7 @@ export class Payments
   ) {}
   onApplicationBootstrap() {
     if (
-      !["fake", "zarinpal_sandbox"].includes(
+      !["fake", "zarinpal_sandbox", "zarinpal"].includes(
         this.orders.security.config.COMMERCE_MODE,
       )
     )

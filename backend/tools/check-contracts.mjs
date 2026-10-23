@@ -217,7 +217,7 @@ const responses = {
   "/api/v2/commerce/capabilities": z.object({
     mode: z.enum(["disabled", "fake", "zarinpal_sandbox", "zarinpal"]),
     checkout_enabled: z.boolean(),
-    real_payments_enabled: z.literal(false),
+    real_payments_enabled: z.boolean(),
     sandbox: z.boolean(),
     test_price_irr: commerce.money.nullable(),
     currency: z.literal("IRR"),
@@ -252,11 +252,11 @@ const responses = {
   }),
   "/api/v2/admin/commerce/{section}": z.record(z.string(), z.unknown()),
   "/api/v2/admin/payment-readiness": z.strictObject({
-    real_payments_possible: z.literal(false),
+    real_payments_possible: z.boolean(),
     generated_at: z.iso.datetime(),
     production_payment_gate: z.strictObject({
-      id: z.literal("ZARINPAL_LIVE_GATE_CLOSED"),
-      open: z.literal(false),
+      id: z.literal("ZARINPAL_LIVE_GATE"),
+      open: z.boolean(),
     }),
     gates: z.array(
       z.strictObject({ id: z.string(), reason: z.string(), open: z.boolean() }),

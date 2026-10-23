@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { paymentReturnAuthority, sandboxStartPay } from '../../shared/payment-return';
+import {
+  liveStartPay,
+  paymentReturnAuthority,
+  sandboxStartPay,
+  startPayPattern,
+} from '../../shared/payment-return';
 import { PAYMENT_RETURN_AUTHORITY } from '../../../../backend/src/commerce/gateway';
 
 // The web return handler must neither reject an authority the Backend adapter can issue (a real
@@ -64,5 +69,33 @@ describe('the only external payment destination', () => {
       '',
     ])
       expect(sandboxStartPay.test(bad), bad).toBe(false);
+  });
+  it('allows the production StartPay page only while the API reports live payments', () => {
+    const live = 'https://payment.zarinpal.com/pg/StartPay/A' + '0'.repeat(35);
+    const sandbox = 'https://sandbox.zarinpal.com/pg/StartPay/S' + '0'.repeat(35);
+    expect(liveStartPay.test(live)).toBe(true);
+    for (const bad of [
+      sandbox,
+      'https://payment.zarinpal.com/pg/StartPay/S' + '0'.repeat(35),
+      'http://payment.zarinpal.com/pg/StartPay/A' + '0'.repeat(35),
+      'https://payment.zarinpal.com.evil.example/pg/StartPay/A' + '0'.repeat(35),
+      live + '?x=1',
+      live + '/x',
+      'https://pay.yarizan.oarnova.games/pg/StartPay/A' + '0'.repeat(35),
+    ])
+      expect(liveStartPay.test(bad), bad).toBe(false);
+    // Live mode follows only production links, sandbox mode only sandbox links, otherwise none.
+    expect(startPayPattern({ real_payments_enabled: true, sandbox: false })?.test(live)).toBe(true);
+    expect(startPayPattern({ real_payments_enabled: true, sandbox: false })?.test(sandbox)).toBe(
+      false,
+    );
+    expect(startPayPattern({ real_payments_enabled: false, sandbox: true })?.test(live)).toBe(
+      false,
+    );
+    expect(startPayPattern({ real_payments_enabled: false, sandbox: true })?.test(sandbox)).toBe(
+      true,
+    );
+    expect(startPayPattern({ real_payments_enabled: false, sandbox: false })).toBeNull();
+    expect(startPayPattern(null)).toBeNull();
   });
 });
