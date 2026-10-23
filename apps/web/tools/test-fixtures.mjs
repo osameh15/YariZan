@@ -7,6 +7,9 @@ const { hash: hashPassword } = require('argon2');
 const { canonical } = await import(
   new URL('../../../backend/dist/src/signing/signing.js', import.meta.url)
 );
+const { solvePow } = await import(
+  new URL('../../../backend/dist/src/security/abuse.js', import.meta.url)
+);
 const { seal, unseal } = await import(
   new URL('../../../backend/dist/src/security/crypto.js', import.meta.url)
 );
@@ -79,10 +82,17 @@ export async function call(route, body, auth) {
       [body.pairing_id],
     );
     if (!owner.rowCount) {
+      const mobile = nextMobile();
+      // G5: public OTP requests carry a solved proof of work, as the browser does.
+      const issued = await call('/auth/challenge', { purpose: 'CLAIM', mobile });
       const sent = await call('/auth/claim/otp/request', {
         pairing_id: body.pairing_id,
         pairing_secret: body.pairing_secret,
-        mobile: nextMobile(),
+        mobile,
+        pow: {
+          challenge: issued.body.challenge,
+          counter: solvePow(issued.body.challenge, issued.body.bits),
+        },
       });
       assert.equal(sent.status, 201);
       body = {

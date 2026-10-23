@@ -30,6 +30,7 @@ import { Admin } from "../admin/admin";
 import { requireCondition } from "../common/errors";
 import { Capabilities } from "../security/capabilities";
 import { capabilityIds } from "../config";
+import { Abuse } from "../security/abuse";
 
 @Controller("api/v2")
 @Capabilities("CUSTOMER_AUTH", "LIVE_COMMERCE")
@@ -40,6 +41,7 @@ export class CommerceController {
     private management: CommerceAdministration,
     private admin: Admin,
     private readiness: PaymentReadiness,
+    private abuse: Abuse,
   ) {}
   private actor(req: Request, id?: string) {
     return {
@@ -131,12 +133,8 @@ export class CommerceController {
   }
   @Capabilities("LIVE_COMMERCE")
   @Get("payments/zarinpal/return")
-  async returned(@Query() query: unknown, @Req() req: Request) {
-    await this.orders.security.rate(
-      "payment-return:" + req.socket.remoteAddress,
-      60,
-      60,
-    );
+  async returned(@Query() query: unknown) {
+    await this.abuse.budget("payment-return");
     const q = z
       .object({
         Authority: z.string().regex(PAYMENT_RETURN_AUTHORITY),

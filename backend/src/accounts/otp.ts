@@ -39,6 +39,10 @@ export function normalizeMobile(value: string) {
   requireCondition(/^09[0-9]{9}$/.test(v), "MOBILE_INVALID");
   return v;
 }
+interface Lane {
+  admitted: number;
+  readonly max: number;
+}
 interface Delivery {
   id: string;
   purpose: Purpose;
@@ -46,10 +50,20 @@ interface Delivery {
   code: string;
   actor: Actor;
   deliver: boolean;
+  lane: Lane;
 }
+// G5 (docs/YARIZAN-G5-ANTI-ABUSE.md): Admin MFA has its own admission lane and SMS budget, so a
+// customer flood can never strand the owners. Decoys (no matching account) are admitted exactly
+// like real requests but never consume a delivery budget; an exhausted delivery budget is silent
+// (same receipt, no SMS, audited and alerted), so registration is never revealed.
+export const smsBudgets = {
+  admission: { customer: 600, admin: 60 },
+  delivery: { customer: 150, admin: 30 },
+} as const;
 @Injectable()
 export class Otp implements BeforeApplicationShutdown {
-  private admittedDeliveries = 0;
+  private readonly customerLane: Lane = { admitted: 0, max: 20 };
+  private readonly adminLane: Lane = { admitted: 0, max: 5 };
   private readonly pending: Delivery[] = [];
   private readonly running = new Set<Promise<void>>();
   private accepting = true;
@@ -106,15 +120,22 @@ export class Otp implements BeforeApplicationShutdown {
     this.sms.available();
     mobile = normalizeMobile(mobile);
     const lookup = this.lookup(mobile);
+    const kind = purpose === "ADMIN" ? "admin" : "customer";
+    const lane = kind === "admin" ? this.adminLane : this.customerLane;
     // Reserve before the first admission await; matched and decoy requests share this bound.
     requireCondition(
-      this.accepting && this.admittedDeliveries < 20,
+      this.accepting && lane.admitted < lane.max,
       "SMS_UNAVAILABLE",
       503,
     );
-    this.admittedDeliveries++;
+    lane.admitted++;
+    let exhausted = false;
     try {
-      await this.security.rate("sms-global", 200, 3600);
+      await this.security.rate(
+        "otp-admission:" + kind,
+        smsBudgets.admission[kind],
+        3600,
+      );
       await this.security.rate("otp-phone:" + lookup, 6, 3600);
       await this.security.rate(
         "otp-cooldown:" +
@@ -128,6 +149,22 @@ export class Otp implements BeforeApplicationShutdown {
         1,
         60,
       );
+      if (deliver) {
+        // Only real deliveries count; the ceiling is a cost cap, alerted at half and when reached.
+        const used = await this.security.bump("sms-delivery:" + kind, 3600);
+        if (used === Math.ceil(smsBudgets.delivery[kind] / 2))
+          console.warn(
+            JSON.stringify({ event: "sms_budget_half", lane: kind }),
+          );
+        if (used > smsBudgets.delivery[kind]) {
+          exhausted = true;
+          deliver = false;
+          if (used === smsBudgets.delivery[kind] + 1)
+            console.error(
+              JSON.stringify({ event: "sms_budget_exhausted", lane: kind }),
+            );
+        }
+      }
       const id = randomUUID(),
         code = String(randomInt(0, 1000000)).padStart(6, "0");
       await this.db.transaction(async (c) => {
@@ -159,9 +196,19 @@ export class Otp implements BeforeApplicationShutdown {
           ],
         );
         await this.audit.append(c, actor, "otp.requested", id, { purpose });
+        if (exhausted)
+          await this.audit.append(
+            c,
+            actor,
+            "otp.delivery_budget_exhausted",
+            id,
+            {
+              purpose,
+            },
+          );
       });
       // Every accepted request has a reserved FIFO slot. No vendor timing in the receipt.
-      const job = { id, purpose, mobile, code, actor, deliver };
+      const job = { id, purpose, mobile, code, actor, deliver, lane };
       if (!this.accepting) {
         await this.failure(job, "interrupted");
         requireCondition(false, "SMS_UNAVAILABLE", 503);
@@ -174,7 +221,7 @@ export class Otp implements BeforeApplicationShutdown {
         retry_after: 60,
       };
     } catch (error) {
-      this.admittedDeliveries--;
+      lane.admitted--;
       throw error;
     }
   }
@@ -183,7 +230,7 @@ export class Otp implements BeforeApplicationShutdown {
       const job = this.pending.shift()!;
       const task = this.deliver(job).finally(() => {
         this.running.delete(task);
-        this.admittedDeliveries--;
+        job.lane.admitted--;
         this.dispatch();
       });
       this.running.add(task);
@@ -194,7 +241,7 @@ export class Otp implements BeforeApplicationShutdown {
     const pending = this.pending.splice(0);
     for (const job of pending) {
       await this.failure(job, "interrupted");
-      this.admittedDeliveries--;
+      job.lane.admitted--;
     }
     await Promise.allSettled([...this.running]);
   }

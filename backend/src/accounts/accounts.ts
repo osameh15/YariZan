@@ -5,7 +5,8 @@ import { Database } from "../database/database";
 import { Security } from "../security/security";
 import { Audit, Actor } from "../audit/audit";
 import { requireCondition } from "../common/errors";
-import { token } from "../security/crypto";
+import { hash, token } from "../security/crypto";
+import { Abuse } from "../security/abuse";
 import { customerSession } from "./sessions";
 
 @Injectable()
@@ -17,19 +18,37 @@ export class Accounts {
     private db: Database,
     private security: Security,
     private audit: Audit,
+    private abuse: Abuse,
   ) {}
-  async login(username: string, password: string, actor: Actor) {
+  /**
+   * Password sign-in. Only failures are counted (G5): per username for unknown browsers and per
+   * trust token for a browser that signed in before, so a flood against a username never slows a
+   * known browser of that account. The check runs before the password hash, so floods stay cheap.
+   */
+  async login(
+    username: string,
+    password: string,
+    actor: Actor,
+    trustFor: (
+      principalId: string | undefined,
+      stamp: string,
+    ) => string | null = () => null,
+  ) {
     const row = (
       await this.db.query<{ id: string; password_hash: string | null }>(
         "SELECT id,password_hash FROM customers WHERE username=$1 AND state='ACTIVE'",
         [username],
       )
     ).rows[0];
+    const stamp = hash(row?.password_hash ?? "");
+    const trust = trustFor(row?.id, stamp);
+    await this.abuse.assertNotThrottled("customer", username, trust);
     const valid = await verifyPassword(
       row?.password_hash ?? (await this.dummy),
       password,
     );
     if (!(row && row.password_hash && valid)) {
+      await this.abuse.recordFailure("customer", username, trust);
       await this.db.transaction((c) =>
         this.audit.append(c, actor, "customer.login_failed", "authentication"),
       );
@@ -52,7 +71,10 @@ export class Accounts {
         "customer.login",
         row.id,
       );
-      return session;
+      return {
+        ...session,
+        trust: this.abuse.trustToken("customer", row.id, stamp),
+      };
     });
   }
   async rotate(tokenHash: string, customerId: string, actor: Actor) {

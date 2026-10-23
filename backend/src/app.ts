@@ -4,6 +4,7 @@ import { APP_GUARD } from "@nestjs/core";
 import { CapabilityGuard } from "./security/capabilities";
 import { Database } from "./database/database";
 import { Security } from "./security/security";
+import { Abuse } from "./security/abuse";
 import { PasswordHashing } from "./security/passwords";
 import { Audit } from "./audit/audit";
 import { Orders } from "./commerce/orders";
@@ -45,6 +46,7 @@ import {
   providers: [
     Database,
     Security,
+    Abuse,
     Sms,
     Notifications,
     Otp,
@@ -66,6 +68,7 @@ import {
     AuthFlows,
     Database,
     Security,
+    Abuse,
     PasswordHashing,
     Audit,
     Promotions,
