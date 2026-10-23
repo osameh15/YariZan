@@ -6,6 +6,7 @@ import { METHOD_METADATA } from "@nestjs/common/constants";
 import {
   capabilities,
   capabilityIds,
+  closedGatesFor,
   closedProductionGates,
   configuration,
   enabledCapabilities,
@@ -49,14 +50,20 @@ const production = (
     new Set(enabled),
   );
 
-test("Only PRODUCTION_CORE is approved in source; every other capability stays closed", () => {
+test("2.0.0: every capability is approved in source; licensing and provisioning stay behind their gates", () => {
   assert.deepEqual(
     capabilityIds.filter((id) => capabilities[id].approved),
-    ["PRODUCTION_CORE"],
+    [...capabilityIds],
   );
-  // Real money is never approved by this change, and licensing needs its own ceremony.
-  assert.equal(capabilities.LIVE_COMMERCE.approved, false);
-  assert.equal(capabilities.TRIALS_AND_LICENSES.approved, false);
+  // Approval alone serves nothing: closed gates still refuse licensing and provisioning.
+  assert.deepEqual(closedGatesFor("TRIALS_AND_LICENSES"), [
+    "G1_SIGNING_CUSTODY",
+  ]);
+  assert.deepEqual(closedGatesFor("DESKTOP_PROVISIONING"), [
+    "G4_DESKTOP_CREDENTIALS",
+  ]);
+  for (const id of ["CUSTOMER_AUTH", "ADMIN_AUTH", "LIVE_COMMERCE"] as const)
+    assert.deepEqual(closedGatesFor(id), [], id);
   assert.ok(
     capabilities.TRIALS_AND_LICENSES.gates.includes("G1_SIGNING_CUSTODY"),
   );
@@ -66,7 +73,7 @@ test("Only PRODUCTION_CORE is approved in source; every other capability stays c
   );
 });
 
-test("G8 is open (recorded evidence): PRODUCTION_CORE starts; everything else stays refused", () => {
+test("G8 is open (recorded evidence): PRODUCTION_CORE starts; each further capability needs its own prerequisites", () => {
   assert.deepEqual(closedProductionGates(), []);
   const production = {
     NODE_ENV: "production",
@@ -85,20 +92,53 @@ test("G8 is open (recorded evidence): PRODUCTION_CORE starts; everything else st
   assert.deepEqual([...started.enabledCapabilities], ["PRODUCTION_CORE"]);
   assert.equal(started.COMMERCE_MODE, "disabled");
   assert.equal(started.SMS_PROVIDER, "disabled");
-  // The operator must still name the capabilities, and no unapproved one can be added.
+  // The operator must still name the capabilities.
   assert.throws(
     () => configuration(production),
     /ENABLED_CAPABILITIES_REQUIRED/,
   );
-  for (const id of capabilityIds.filter((id) => id !== "PRODUCTION_CORE"))
+  const withCaps = (caps: string, extra: Record<string, string> = {}) =>
+    configuration({ ...production, ENABLED_CAPABILITIES: caps, ...extra });
+  // Licensing and provisioning stay refused while their gates are closed.
+  assert.throws(
+    () => withCaps("PRODUCTION_CORE,TRIALS_AND_LICENSES"),
+    /CAPABILITY_GATE_CLOSED: TRIALS_AND_LICENSES: G1_SIGNING_CUSTODY/,
+  );
+  assert.throws(
+    () => withCaps("PRODUCTION_CORE,DESKTOP_PROVISIONING"),
+    /CAPABILITY_GATE_CLOSED: DESKTOP_PROVISIONING: G4_DESKTOP_CREDENTIALS/,
+  );
+  // Sign-in sends one-time codes: never without the live SMS provider.
+  for (const id of ["CUSTOMER_AUTH", "ADMIN_AUTH"])
     assert.throws(
-      () =>
-        configuration({
-          ...production,
-          ENABLED_CAPABILITIES: "PRODUCTION_CORE," + id,
-        }),
-      new RegExp("CAPABILITY_NOT_APPROVED: " + id),
+      () => withCaps("PRODUCTION_CORE," + id),
+      /SMS_PROVIDER_REQUIRED/,
     );
+  const live = {
+    SMS_PROVIDER: "melipayamak",
+    SMS_ALLOW_LIVE: "true",
+    MELIPAYAMAK_API_TOKEN: "synthetic-token-0123456789",
+  };
+  assert.deepEqual(
+    [
+      ...withCaps("PRODUCTION_CORE,CUSTOMER_AUTH,ADMIN_AUTH", live)
+        .enabledCapabilities,
+    ],
+    ["PRODUCTION_CORE", "CUSTOMER_AUTH", "ADMIN_AUTH"],
+  );
+  assert.throws(
+    () =>
+      withCaps("PRODUCTION_CORE,CUSTOMER_AUTH", {
+        ...live,
+        SMS_ALLOW_LIVE: "false",
+      }),
+    /SMS_PROVIDER_CONFIGURATION_REQUIRED/,
+  );
+  // Live commerce alone with commerce disabled starts and moves no money.
+  assert.equal(
+    withCaps("PRODUCTION_CORE,LIVE_COMMERCE").COMMERCE_MODE,
+    "disabled",
+  );
   // Opening G8 relaxes none of the production rules.
   for (const [overrides, code] of [
     [{ COMMERCE_MODE: "fake" }, "COMMERCE_TEST_MODE_REFUSED"],
@@ -128,7 +168,11 @@ test("Production capability list: required, core first, known, approved and with
   assert.throws(() => resolve("CUSTOMER_AUTH"), /CAPABILITY_REQUIRED/);
   assert.throws(() => resolve("PRODUCTION_CORE,FAKE"), /CAPABILITY_UNKNOWN/);
   assert.throws(
-    () => resolve("PRODUCTION_CORE,LIVE_COMMERCE", capabilities),
+    () =>
+      resolve("PRODUCTION_CORE,LIVE_COMMERCE", {
+        ...capabilities,
+        LIVE_COMMERCE: { ...capabilities.LIVE_COMMERCE, approved: false },
+      }),
     /CAPABILITY_NOT_APPROVED: LIVE_COMMERCE/,
   );
   assert.throws(

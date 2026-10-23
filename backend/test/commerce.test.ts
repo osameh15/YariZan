@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { discountAmount, coupon } from "../src/commerce/contracts";
 import { ZarinPalAdapter, PaymentRequest } from "../src/commerce/gateway";
 import { configuration } from "../src/config";
@@ -86,7 +87,8 @@ test("Gateway malformed, nonauthoritative, oversized and transport failures stay
     assert.equal("refund" in adapter, false);
   }
 });
-test("Real gateway selection is closed even with synthetic merchant-like environment variables", () => {
+test("Live ZarinPal is production-only and fails closed without merchant, exact callback or LIVE_COMMERCE", () => {
+  // Outside production the live mode never starts, whatever else is set.
   assert.throws(
     () =>
       configuration({
@@ -96,9 +98,40 @@ test("Real gateway selection is closed even with synthetic merchant-like environ
         CODE_HMAC_KEY: "1".repeat(64),
         TOKEN_HMAC_KEY: "2".repeat(64),
         MFA_ENCRYPTION_KEY: "3".repeat(64),
+        ZARINPAL_MERCHANT_ID: "00000000-0000-4000-8000-000000000003",
       }),
-    /ZARINPAL_LIVE_GATE_CLOSED/,
+    /ZARINPAL_LIVE_PRODUCTION_ONLY/,
   );
+  const key = () => randomBytes(32).toString("hex");
+  const live = {
+    NODE_ENV: "production",
+    BROWSER_ORIGIN: "https://yarizan.oarnova.games",
+    DATABASE_URL: "postgresql://yarizan_api:runtime-secret@db:5432/yarizan",
+    CODE_HMAC_KEY: key(),
+    TOKEN_HMAC_KEY: key(),
+    MFA_ENCRYPTION_KEY: key(),
+    ENABLED_CAPABILITIES: "PRODUCTION_CORE,LIVE_COMMERCE",
+    COMMERCE_MODE: "zarinpal",
+    ZARINPAL_MERCHANT_ID: "00000000-0000-4000-8000-000000000003",
+    ZARINPAL_CALLBACK_URL: "https://yarizan.oarnova.games/payment/return",
+  };
+  const started = configuration(live);
+  assert.equal(started.COMMERCE_MODE, "zarinpal");
+  for (const [overrides, code] of [
+    [{ ENABLED_CAPABILITIES: "PRODUCTION_CORE" }, /COMMERCE_MODE_REFUSED/],
+    [{ ZARINPAL_MERCHANT_ID: "" }, /ZARINPAL_LIVE_CONFIGURATION_REQUIRED/],
+    [{ ZARINPAL_CALLBACK_URL: "" }, /ZARINPAL_CALLBACK_URL_INVALID/],
+    [
+      { ZARINPAL_CALLBACK_URL: "https://yarizan.oarnova.games/payment/result" },
+      /ZARINPAL_CALLBACK_URL_INVALID/,
+    ],
+    [
+      { ZARINPAL_CALLBACK_URL: "https://evil.example/payment/return" },
+      /ZARINPAL_CALLBACK_URL_INVALID/,
+    ],
+    [{ LOCAL_TEST_PRICE_G1_IRR: "100000" }, /LOCAL_TEST_PRICE_REFUSED/],
+  ] as const)
+    assert.throws(() => configuration({ ...live, ...overrides }), code);
 });
 test("Invalid merchant, callback, currency or amount contracts are refused before any provider request", async () => {
   let requests = 0;
@@ -390,7 +423,7 @@ test("Local sandbox mode and the test price are configuration-gated and can neve
   );
   assert.throws(
     () => configuration({ ...base, COMMERCE_MODE: "zarinpal" }),
-    /ZARINPAL_LIVE_GATE_CLOSED/,
+    /ZARINPAL_LIVE_PRODUCTION_ONLY/,
   );
   // The test price: integer IRR, only with a local commerce mode, never otherwise.
   const priced = {

@@ -59,10 +59,13 @@ export class CommerceController {
       checkout_enabled:
         enabled.has("LIVE_COMMERCE") &&
         enabled.has("CUSTOMER_AUTH") &&
-        ["fake", "zarinpal_sandbox"].includes(
+        ["fake", "zarinpal_sandbox", "zarinpal"].includes(
           this.orders.security.config.COMMERCE_MODE,
         ),
-      real_payments_enabled: false,
+      // Real money moves only in live mode (production, validated at startup).
+      real_payments_enabled:
+        enabled.has("LIVE_COMMERCE") &&
+        this.orders.security.config.COMMERCE_MODE === "zarinpal",
       // True only for the explicit local sandbox mode (the official ZarinPal sandbox, no real money).
       sandbox: this.orders.security.config.COMMERCE_MODE === "zarinpal_sandbox",
       // Present only while the local acceptance test price is configured.

@@ -33,8 +33,12 @@ export interface ReleaseApproval {
   approvedAt: string;
   /** Production license trust roots are embedded (never development or synthetic keys). */
   productionTrustRoots: true;
-  /** The installer is signed under the approved signing policy. */
-  signed: true;
+  /**
+   * How the installer is distributed: Authenticode-signed, or without any signature under the
+   * owner's recorded 2.0.0 exception (docs/evidence/release-2.0.0-owner-acceptance.md), which the
+   * download page discloses together with the SHA-256 check.
+   */
+  signature: 'authenticode' | 'unsigned-owner-approved';
   /** The artifact passed the malware and security scan. */
   scanned: true;
   /** Build provenance reference (attestation digest or release record id). */
@@ -97,7 +101,7 @@ export function assertValidRelease(release: WindowsRelease) {
     a.approvedBy.trim() === '' ||
     !isoDate(a.approvedAt) ||
     a.productionTrustRoots !== true ||
-    a.signed !== true ||
+    !['authenticode', 'unsigned-owner-approved'].includes(a.signature) ||
     a.scanned !== true ||
     a.provenance.trim() === ''
   )

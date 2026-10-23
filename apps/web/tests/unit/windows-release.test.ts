@@ -28,7 +28,7 @@ const sample: WindowsRelease = {
     approvedBy: 'Synthetic owner',
     approvedAt: '2026-10-30',
     productionTrustRoots: true,
-    signed: true,
+    signature: 'authenticode',
     scanned: true,
     provenance: 'synthetic-record-1',
   },
@@ -59,7 +59,8 @@ describe('Windows release list', () => {
       { ...sample.approval, approvedBy: ' ' },
       { ...sample.approval, approvedAt: 'soon' },
       { ...sample.approval, productionTrustRoots: false as unknown as true },
-      { ...sample.approval, signed: false as unknown as true },
+      { ...sample.approval, signature: 'self-signed' as unknown as 'authenticode' },
+      { ...sample.approval, signature: undefined as unknown as 'authenticode' },
       { ...sample.approval, scanned: false as unknown as true },
       { ...sample.approval, provenance: '' },
     ];
@@ -73,9 +74,15 @@ describe('Windows release list', () => {
     ).toThrow(/APPROVAL/);
     expect(() =>
       gradeStatus(1, [
-        { ...sample, approval: { ...sample.approval, signed: false as unknown as true } },
+        { ...sample, approval: { ...sample.approval, scanned: false as unknown as true } },
       ]),
     ).toThrow(/APPROVAL/);
+    // The owner's recorded unsigned exception is a valid, explicitly labelled distribution.
+    expect(
+      gradeStatus(1, [
+        { ...sample, approval: { ...sample.approval, signature: 'unsigned-owner-approved' } },
+      ]),
+    ).toBe('available');
   });
   it('rejects malformed release records', () => {
     const bad: [Partial<WindowsRelease>, RegExp][] = [

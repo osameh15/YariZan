@@ -3923,12 +3923,12 @@ test("Payment readiness is read-only, needs finance.read with recent MFA, is aud
     }>("/admin/payment-readiness", undefined, owner);
     assert.equal(r.headers.get("cache-control"), "no-store");
     assert.equal(r.body.real_payments_possible, false);
-    assert.equal(r.body.production_payment_gate.open, false);
-    // Only G8 (secret custody) is open; every gate that touches payments or sign-in stays closed.
+    // The live gate is open in source, but this test API runs the fake provider: no real payment.
+    assert.equal(r.body.production_payment_gate.open, true);
     assert.ok(r.body.gates.length >= 6);
     assert.deepEqual(
-      r.body.gates.filter((g) => g.open).map((g) => g.id),
-      ["G8_SECRET_CUSTODY"],
+      r.body.gates.filter((g) => !g.open).map((g) => g.id),
+      ["G1_SIGNING_CUSTODY", "G4_DESKTOP_CREDENTIALS"],
     );
     assert.equal(r.body.merchant_configuration.merchant_id_present, true);
     assert.equal(r.body.merchant_configuration.live_merchant_usable, false);

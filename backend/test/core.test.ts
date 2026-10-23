@@ -60,35 +60,39 @@ test("Production gate cannot be enabled by environment flag", () =>
         ...process.env,
         NODE_ENV: "production",
         PRODUCTION_READY: "true",
-        ENABLED_CAPABILITIES: "PRODUCTION_CORE,CUSTOMER_AUTH",
+        ENABLED_CAPABILITIES: "PRODUCTION_CORE,TRIALS_AND_LICENSES",
       }),
-    /CAPABILITY_NOT_APPROVED: CUSTOMER_AUTH/,
+    /CAPABILITY_GATE_CLOSED: TRIALS_AND_LICENSES: G1_SIGNING_CUSTODY/,
   ));
 
-test("Only G8 is open in source; no environment flag opens another gate", () => {
+test("2.0.0 opens exactly the reviewed gates; no environment flag opens another", () => {
   assert.ok(productionGates.length >= 6);
   assert.deepEqual(
     productionGates.filter((gate) => gate.open).map((gate) => gate.id),
-    ["G8_SECRET_CUSTODY"],
+    [
+      "G1_FIRST_CLAIM_ASSURANCE",
+      "G6_ADMIN_SMS_MFA",
+      "G5_TRUSTED_RATE_LIMITS",
+      "G8_SECRET_CUSTODY",
+    ],
   );
   assert.deepEqual(closedProductionGates(), []);
   for (const env of [
     { PRODUCTION_READY: "true" },
     { PRODUCTION_GATES: "open" },
     { G1_SIGNING_CUSTODY: "open" },
-    { G5_TRUSTED_RATE_LIMITS: "open" },
+    { G4_DESKTOP_CREDENTIALS: "open" },
   ])
     assert.throws(
       () =>
         configuration({
           ...process.env,
           NODE_ENV: "production",
-          ENABLED_CAPABILITIES: "PRODUCTION_CORE,ADMIN_AUTH",
+          ENABLED_CAPABILITIES: "PRODUCTION_CORE,DESKTOP_PROVISIONING",
           ...env,
         }),
-      /CAPABILITY_NOT_APPROVED: ADMIN_AUTH/,
+      /CAPABILITY_GATE_CLOSED: DESKTOP_PROVISIONING: G4_DESKTOP_CREDENTIALS/,
     );
-  assert.ok(productionGates.filter((gate) => !gate.open).length >= 5);
 });
 test("Release migration count matches the reviewed migration directory", () => {
   assert.equal(
