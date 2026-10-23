@@ -2,6 +2,23 @@ import { PoolClient } from "pg";
 import { Response } from "express";
 import { Security } from "../security/security";
 import { token } from "../security/crypto";
+import { Principal, TRUST_COOKIE } from "../security/abuse";
+
+/** Device trust from a verified sign-in: keeps this browser out of targeted lockout (G5). */
+export function trustCookie(
+  res: Response,
+  security: Security,
+  kind: Principal,
+  value: string,
+) {
+  res.cookie(TRUST_COOKIE[kind], value, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: security.config.NODE_ENV === "production",
+    path: "/api/v2",
+    maxAge: 180 * 86400000,
+  });
+}
 
 export async function customerSession(
   c: PoolClient,

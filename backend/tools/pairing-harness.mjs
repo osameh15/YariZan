@@ -3,6 +3,7 @@ import { configuration } from "../dist/src/config.js";
 import { unseal } from "../dist/src/security/crypto.js";
 import { generateKeyPairSync, randomBytes, sign } from "node:crypto";
 import { canonical } from "../dist/src/signing/signing.js";
+import { solvePow } from "../dist/src/security/abuse.js";
 if (process.env.NODE_ENV !== "development")
   throw new Error("Development-only synthetic pairing harness");
 const base = new URL(process.env.HARNESS_BASE ?? "http://127.0.0.1:3100");
@@ -68,10 +69,17 @@ const proof = async (purpose, pairing_id) => {
   };
 };
 const p = await call("device-pairings", await proof("PAIR"));
+const mobile = "09" + String(100000000 + Math.floor(Math.random() * 899999999));
+// G5: the public OTP request carries a solved proof of work, as the browser does.
+const issued = await call("auth/challenge", { purpose: "CLAIM", mobile });
 const sent = await call("auth/claim/otp/request", {
   pairing_id: p.pairing_id,
   pairing_secret: p.pairing_secret,
-  mobile: "09" + String(100000000 + Math.floor(Math.random() * 899999999)),
+  mobile,
+  pow: {
+    challenge: issued.challenge,
+    counter: solvePow(issued.challenge, issued.bits),
+  },
 });
 let code = "";
 for (let n = 0; n < 200 && !code; n++) {

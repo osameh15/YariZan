@@ -51,7 +51,13 @@ internal static class ProvisioningTransportChecks
         {
             if(!input.TryGetProperty("browser_callback",out var callback)){
                 string mobile="09"+RandomNumberGenerator.GetInt32(100000000,999999999).ToString();
-                using var sent=await Post("auth/claim/otp/request",new{pairing_id=pair.Id,pairing_secret=pair.BrowserCode,mobile});
+                // G5: the public OTP request needs a solved proof of work, as the browser does.
+                using var issued=await Post("auth/challenge",new{purpose="CLAIM",mobile});
+                string pow=issued.RootElement.GetProperty("challenge").GetString()!;
+                int bits=issued.RootElement.GetProperty("bits").GetInt32(),counter=0;
+                static int Zeros(byte[] d){int z=0;foreach(var b in d){if(b==0){z+=8;continue;}return z+System.Numerics.BitOperations.LeadingZeroCount((uint)b)-24;}return z;}
+                while(Zeros(SHA256.HashData(Encoding.UTF8.GetBytes(pow+":"+counter)))<bits)counter++;
+                using var sent=await Post("auth/claim/otp/request",new{pairing_id=pair.Id,pairing_secret=pair.BrowserCode,mobile,pow=new{challenge=pow,counter=counter.ToString()}});
                 string challenge=sent.RootElement.GetProperty("challenge_id").GetString()!,code="";
                 // Test-only encrypted fake delivery spool; production transport has no OTP retrieval API.
                 for(int n=0;n<100 && code.Length==0;n++){

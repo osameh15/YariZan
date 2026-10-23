@@ -42,15 +42,39 @@ export class Security {
       await this.rate("customer:" + r.rows[0].customer_id, 120, 60, instant);
     }
   }
-  async rate(key: string, limit: number, seconds = 60, instant = Date.now()) {
-    const bucket = Math.floor(instant / 1000 / seconds);
-    const safe = keyed(this.config.TOKEN_HMAC_KEY, "YariZan-Rate-V2", key);
+  // Each bucket is stored as the epoch second its window ends, so expired rows can be purged.
+  private window(seconds: number, instant: number) {
+    return (Math.floor(instant / 1000 / seconds) + 1) * seconds;
+  }
+  private safeKey(key: string) {
+    return keyed(this.config.TOKEN_HMAC_KEY, "YariZan-Rate-V2", key);
+  }
+  private async increment(key: string, bucket: number) {
     const r = await this.db.query<{ count: number }>(
       `INSERT INTO rate_buckets VALUES($1,$2,1)
       ON CONFLICT(key,bucket) DO UPDATE SET count=rate_buckets.count+1 RETURNING count`,
-      [safe, bucket],
+      [this.safeKey(key), bucket],
     );
-    requireCondition(r.rows[0].count <= limit, "RATE_LIMITED", 429);
+    return r.rows[0].count;
+  }
+  async rate(key: string, limit: number, seconds = 60, instant = Date.now()) {
+    const count = await this.increment(key, this.window(seconds, instant));
+    requireCondition(count <= limit, "RATE_LIMITED", 429);
+  }
+  /** Current count of a window without consuming it. */
+  async peek(key: string, seconds: number, instant = Date.now()) {
+    const r = await this.db.query<{ count: number }>(
+      "SELECT count FROM rate_buckets WHERE key=$1 AND bucket=$2",
+      [this.safeKey(key), this.window(seconds, instant)],
+    );
+    return r.rows[0]?.count ?? 0;
+  }
+  async bump(key: string, seconds: number, instant = Date.now()) {
+    return this.increment(key, this.window(seconds, instant));
+  }
+  /** True only for the first use of a key before its expiry (atomic). */
+  async once(key: string, expiresAtEpochSeconds: number) {
+    return (await this.increment(key, expiresAtEpochSeconds)) === 1;
   }
   bearer(req: Request) {
     const h = req.headers.authorization;

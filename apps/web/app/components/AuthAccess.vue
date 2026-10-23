@@ -15,6 +15,7 @@ const username = ref(''),
   done = ref(false),
   cooldown = ref(0),
   api = useApi(props.mode === 'admin'),
+  proofOfWork = useProofOfWork(),
   route = useRoute();
 const digits = (s: string) =>
   s
@@ -55,6 +56,10 @@ async function submit() {
               username: username.value.trim(),
               mobile: digits(mobile.value),
               purpose: props.mode === 'reset' ? 'RESET' : 'LOGIN',
+              pow: await proofOfWork(
+                props.mode === 'reset' ? 'RESET' : 'LOGIN',
+                digits(mobile.value),
+              ),
             });
       challenge.value = r.challenge_id;
       cooldown.value = r.retry_after;

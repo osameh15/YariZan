@@ -15,7 +15,8 @@ import { Database } from "../database/database";
 import { Identity } from "../identity/identity";
 import { AuthFlows } from "../accounts/auth-flows";
 import { otpProofSchema, mobile } from "../common/schemas";
-import { sessionCookies } from "../accounts/sessions";
+import { sessionCookies, trustCookie } from "../accounts/sessions";
+import { Abuse, powPurposes } from "../security/abuse";
 import { Accounts } from "../accounts/accounts";
 import { Security } from "../security/security";
 import { Trials } from "../trials/trials";
@@ -57,6 +58,13 @@ const userActor = (req: Request, id: string): Actor => ({
   type: "CUSTOMER",
   id,
 });
+// Proof of work for cost-bearing OTP requests (G5); optional so a missing proof gets its own code.
+const powSchema = z
+  .strictObject({
+    challenge: z.string().min(1).max(400),
+    counter: z.string().regex(/^[0-9]{1,15}$/),
+  })
+  .optional();
 @Controller()
 @Capabilities("PRODUCTION_CORE")
 export class HealthController {
@@ -161,6 +169,8 @@ export class IdentityController {
   constructor(
     private identity: Identity,
     private security: Security,
+    private abuse: Abuse,
+    private otp: Otp,
   ) {}
   private origin(req: Request) {
     requireCondition(
@@ -181,11 +191,7 @@ export class IdentityController {
     @Req() req: Request,
   ) {
     this.origin(req);
-    await this.security.rate(
-      "pairing-preview:" + req.socket.remoteAddress,
-      60,
-      300,
-    );
+    await this.abuse.budget("pairing-preview");
     return this.identity.preview(
       uuid.parse(id),
       z.strictObject({ pairing_secret: secret }).parse(body).pairing_secret,
@@ -220,11 +226,7 @@ export class IdentityController {
     @Body() body: unknown,
     @Req() req: Request,
   ) {
-    await this.security.rate(
-      "pairing-pickup:" + req.socket.remoteAddress,
-      120,
-      300,
-    );
+    await this.abuse.budget("pairing-pickup");
     return this.identity.pickup(
       uuid.parse(id),
       proofSchema.parse(body),
@@ -249,7 +251,7 @@ export class IdentityController {
   private async authorizedClaim(body: unknown, req: Request, res: Response) {
     this.origin(req);
     const b = claimSchema.parse(body);
-    await this.security.rate("claim-ip:" + req.socket.remoteAddress, 120, 300);
+    await this.abuse.budget("claim");
     const customer = (req.cookies as Record<string, string>)?.yz_customer
       ? await this.security.customer(req)
       : undefined;
@@ -271,14 +273,16 @@ export class IdentityController {
   @Post("auth/claim/otp/request")
   async claimOtp(@Body() body: unknown, @Req() req: Request) {
     this.origin(req);
-    await this.security.rate(
-      "sms-request-ip:" + req.socket.remoteAddress,
-      20,
-      300,
-    );
+    // SMS requests are bounded inside Otp.issue (admission budget, proof of work, per-mobile).
     const b = z
-      .strictObject({ pairing_id: uuid, pairing_secret: secret, mobile })
+      .strictObject({
+        pairing_id: uuid,
+        pairing_secret: secret,
+        mobile,
+        pow: powSchema,
+      })
       .parse(body);
+    await this.abuse.verifyPow("CLAIM", this.otp.lookup(b.mobile), b.pow);
     return this.identity.requestClaimOtp(
       b.pairing_id,
       b.pairing_secret,
@@ -302,7 +306,20 @@ export class AccountsController {
     private security: Security,
     private db: Database,
     private audit: Audit,
+    private abuse: Abuse,
+    private otp: Otp,
   ) {}
+  /** Proof-of-work challenge for a cost-bearing OTP request (G5). Stateless; no database work. */
+  @Post("auth/challenge") challenge(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    this.origin(req);
+    const b = z
+      .strictObject({ purpose: z.enum(powPurposes), mobile })
+      .parse(body);
+    return this.abuse.challenge(b.purpose, this.otp.lookup(b.mobile));
+  }
   @Post("auth/login") async login(
     @Body() body: unknown,
     @Req() req: Request,
@@ -319,18 +336,17 @@ export class AccountsController {
         password: z.string().max(128),
       })
       .parse(body);
-    await this.security.rate(
-      "customer-login-ip:" + req.socket.remoteAddress,
-      30,
-      300,
-    );
-    await this.security.rate("customer-login:" + b.username, 8, 300);
+    await this.abuse.budget("customer-login");
     const result = await this.accounts.login(
       b.username,
       b.password,
       actor(req),
+      (id, stamp) => this.abuse.trusted(req, "customer", id, stamp),
     );
-    return sessionCookies(res, this.security, result);
+    // Session cookies first (clients read the first Set-Cookie), then the device trust.
+    const out = sessionCookies(res, this.security, result);
+    trustCookie(res, this.security, "customer", result.trust);
+    return out;
   }
   @Post("auth/session/rotate") async rotate(
     @Req() req: Request,
@@ -419,13 +435,13 @@ export class AccountsController {
         password: z.string().min(1).max(128),
       })
       .parse(body);
-    await this.security.rate(
-      "admin-primary-ip:" + req.socket.remoteAddress,
-      10,
-      300,
+    await this.abuse.budget("admin-login");
+    return this.flows.adminPrimary(
+      b.username,
+      b.password,
+      actor(req),
+      (id, stamp) => this.abuse.trusted(req, "admin", id, stamp),
     );
-    await this.security.rate("admin-primary:" + b.username, 5, 300);
-    return this.flows.adminPrimary(b.username, b.password, actor(req));
   }
   private origin(req: Request) {
     requireCondition(
@@ -449,35 +465,32 @@ export class AccountsController {
     @Res({ passthrough: true }) res: Response,
   ) {
     this.origin(req);
-    await this.security.rate(
-      "otp-verify-ip:" + req.socket.remoteAddress,
-      60,
-      300,
-    );
+    await this.abuse.budget("admin-otp-verify");
     const b = otpProofSchema.parse(body);
-    return this.sessionCookies(
-      res,
-      true,
-      await this.flows.adminVerify(b.challenge_id, b.code, actor(req)),
+    const result = await this.flows.adminVerify(
+      b.challenge_id,
+      b.code,
+      actor(req),
     );
+    const out = this.sessionCookies(res, true, result);
+    trustCookie(res, this.security, "admin", result.trust);
+    return out;
   }
   @Post("auth/otp/request") async otpRequest(
     @Body() body: unknown,
     @Req() req: Request,
   ) {
     this.origin(req);
-    await this.security.rate(
-      "sms-request-ip:" + req.socket.remoteAddress,
-      20,
-      300,
-    );
+    // SMS requests are bounded inside Otp.issue (admission budget, proof of work, per-mobile).
     const b = z
       .strictObject({
         username: z.string().min(1).max(64),
         mobile,
         purpose: z.enum(["LOGIN", "RESET"]),
+        pow: powSchema,
       })
       .parse(body);
+    await this.abuse.verifyPow(b.purpose, this.otp.lookup(b.mobile), b.pow);
     return this.flows.requestLogin(b.username, b.mobile, b.purpose, actor(req));
   }
   @Post("auth/otp/verify") async otpLogin(
@@ -486,11 +499,7 @@ export class AccountsController {
     @Res({ passthrough: true }) res: Response,
   ) {
     this.origin(req);
-    await this.security.rate(
-      "otp-verify-ip:" + req.socket.remoteAddress,
-      60,
-      300,
-    );
+    await this.abuse.budget("otp-verify");
     const b = otpProofSchema.parse(body);
     const r = await this.flows.verifyLogin(
       b.challenge_id,
@@ -499,22 +508,17 @@ export class AccountsController {
       actor(req),
     );
     requireCondition("session" in r && r.session, "OTP_INVALID", 401);
-    return this.sessionCookies(
-      res,
-      false,
-      r as { session: string; csrf: string },
-    );
+    const signedIn = r as { session: string; csrf: string; trust: string };
+    const out = this.sessionCookies(res, false, signedIn);
+    trustCookie(res, this.security, "customer", signedIn.trust);
+    return out;
   }
   @Post("auth/password-reset/otp") async otpReset(
     @Body() body: unknown,
     @Req() req: Request,
   ) {
     this.origin(req);
-    await this.security.rate(
-      "otp-verify-ip:" + req.socket.remoteAddress,
-      30,
-      300,
-    );
+    await this.abuse.budget("otp-verify");
     const b = otpProofSchema.extend({ password }).parse(body);
     return this.flows.verifyLogin(
       b.challenge_id,
@@ -532,11 +536,7 @@ export class AccountsController {
     @Req() req: Request,
   ) {
     await this.security.customer(req);
-    await this.security.rate(
-      "sms-request-ip:" + req.socket.remoteAddress,
-      20,
-      300,
-    );
+    // Authenticated: bounded per account (AuthFlows.requestSecurity) and by the Otp admission lane.
     const b = z
       .strictObject({
         purpose: z.enum(["PASSWORD", "MOBILE_OLD", "MOBILE_NEW"]),

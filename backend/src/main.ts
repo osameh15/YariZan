@@ -51,7 +51,8 @@ export async function createApp() {
   const security = app.get(Security);
   app.use(async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await security.rate("ip:" + req.socket.remoteAddress, 600);
+      // No per-socket limit: behind the proxy chain the socket is a container, so it would be a
+      // second, smaller global bucket that one client could exhaust for everyone (G5).
       await security.rate("global", 6000);
       if (req.headers.authorization)
         await security.authenticatedRate(req.headers.authorization);

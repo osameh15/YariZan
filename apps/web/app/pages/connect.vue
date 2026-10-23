@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { errorMessage } from '#shared/domain';
 const api = useApi(),
+  proofOfWork = useProofOfWork(),
   id = ref(''),
   secret = ref(''),
   mobile = ref(''),
@@ -38,6 +39,7 @@ async function approve() {
         pairing_id: id.value.trim(),
         pairing_secret: secret.value.trim(),
         mobile: mobile.value,
+        pow: await proofOfWork('CLAIM', mobile.value),
       });
       challenge.value = r.challenge_id;
       cooldown.value = r.retry_after;
@@ -79,6 +81,7 @@ async function resend() {
       pairing_id: id.value.trim(),
       pairing_secret: secret.value.trim(),
       mobile: mobile.value,
+      pow: await proofOfWork('CLAIM', mobile.value),
     });
     challenge.value = r.challenge_id;
     cooldown.value = r.retry_after;
