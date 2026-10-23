@@ -13,12 +13,10 @@ The owner directed a commercial release of Grade 1 (issue #67). This record list
 | `G5_TRUSTED_RATE_LIMITS` | Option B implemented and tested (`docs/YARIZAN-G5-ANTI-ABUSE.md`, PR #65: 258 backend tests, including a sustained targeted flood) | the staging real-topology tests, the capacity test and the mobile proof-of-work benchmark |
 | `G6_ADMIN_SMS_MFA` | password plus live SMS MFA, unchanged; production refuses customer or Admin sign-in unless `SMS_PROVIDER=melipayamak` | — |
 | Live ZarinPal (`ZARINPAL_LIVE_GATE_OPEN`) | owner go for real payments. Live mode needs production, `LIVE_COMMERCE`, the merchant ID, the exact callback `https://yarizan.oarnova.games/payment/return`, and the restricted payment egress (infrastructure PR #55) | — |
+| `G1_SIGNING_CUSTODY` | `license-key-ceremony-yarizan-license-2026-01.json`: two encrypted backups, both restore-tested, no plaintext left; root approved in `release/v2-approved-public-roots.json` (PR #68, fingerprint `C182381E…BA4F`); the owner confirmed on 2026-10-23 that backup B is held in independent storage | the independent restore of backup B on a second computer |
+| `G4_DESKTOP_CREDENTIALS` | the commercial Windows build embeds only the approved production root and the production API (`CommercialReleasePolicy`, Windows V2 checks 424/424) | the physical W1–W14 matrix on two machines |
 
-**Still closed:**
-- `G1_SIGNING_CUSTODY`: the ceremony is done (`license-key-ceremony-yarizan-license-2026-01.json`, root approval PR #68), but per the owner it stays closed until backup B has a verified copy in independent storage.
-- `G4_DESKTOP_CREDENTIALS`: opens with it. The owner has waived the physical W1–W14 matrix for that step.
-
-Until both open, `TRIALS_AND_LICENSES` and `DESKTOP_PROVISIONING` cannot serve in production.
+Production refuses `TRIALS_AND_LICENSES` and `DESKTOP_PROVISIONING` unless the production key file, its production kid and its approved fingerprint are configured (`LICENSE_SIGNING_REQUIRED`). The API then signs only with a key whose SPKI SHA-256 equals that fingerprint.
 
 All five capabilities are approved in source. Each one still serves only when it is listed in `ENABLED_CAPABILITIES` on the server and its runtime prerequisites validate:
 - the license-signing key file and its fingerprint;

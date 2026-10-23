@@ -18,16 +18,21 @@ export const productionGates = [
     id: "G1_SIGNING_CUSTODY",
     reason:
       "External commercial signing custody; development keys live in /app/.local",
-    // Ceremony done (docs/evidence/license-key-ceremony-yarizan-license-2026-01.json). Stays closed
-    // until backup B has a verified copy in independent storage and the root approval is merged.
-    open: false,
+    // Opened on the production key ceremony (docs/evidence/license-key-ceremony-yarizan-license-2026-01.json:
+    // two encrypted backups, both restore-tested, no plaintext left), the approved root in
+    // release/v2-approved-public-roots.json (PR #68) and the owner's confirmation that backup B is in
+    // independent storage (docs/evidence/release-2.0.0-owner-acceptance.md). Production still signs
+    // only with the file key whose SPKI SHA-256 equals LICENSE_SIGNING_KEY_SHA256.
+    open: true,
   },
   {
     id: "G4_DESKTOP_CREDENTIALS",
     reason:
       "Production desktop roots and credential integration on physical Windows",
-    // Opens together with G1_SIGNING_CUSTODY: the Windows build embeds only the approved root.
-    open: false,
+    // The commercial Windows build embeds only the approved production root and the production API
+    // (CommercialReleasePolicy). The owner waived the physical W1-W14 matrix
+    // (docs/evidence/release-2.0.0-owner-acceptance.md).
+    open: true,
   },
   {
     id: "G6_ADMIN_SMS_MFA",
@@ -423,6 +428,14 @@ export function productionChecks(
     throw new ConfigurationError("SMS_PROVIDER_REQUIRED");
   if (c.LICENSE_SIGNING_KEY_FILE && !enabled.has("TRIALS_AND_LICENSES"))
     throw new ConfigurationError("LICENSE_SIGNING_REFUSED");
+  // Trials, licenses and device enrollments are signed: never without the production key file
+  // (its kid and approved fingerprint are required with it, see LICENSE_SIGNING_CONFIGURATION_INCOMPLETE).
+  if (
+    (enabled.has("TRIALS_AND_LICENSES") ||
+      enabled.has("DESKTOP_PROVISIONING")) &&
+    !c.LICENSE_SIGNING_KEY_FILE
+  )
+    throw new ConfigurationError("LICENSE_SIGNING_REQUIRED");
   const origin = new URL(c.BROWSER_ORIGIN);
   if (
     origin.protocol !== "https:" ||

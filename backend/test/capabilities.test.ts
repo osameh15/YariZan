@@ -50,20 +50,13 @@ const production = (
     new Set(enabled),
   );
 
-test("2.0.0: every capability is approved in source; licensing and provisioning stay behind their gates", () => {
+test("2.0.0: every capability is approved in source and every gate is open", () => {
   assert.deepEqual(
     capabilityIds.filter((id) => capabilities[id].approved),
     [...capabilityIds],
   );
-  // Approval alone serves nothing: closed gates still refuse licensing and provisioning.
-  assert.deepEqual(closedGatesFor("TRIALS_AND_LICENSES"), [
-    "G1_SIGNING_CUSTODY",
-  ]);
-  assert.deepEqual(closedGatesFor("DESKTOP_PROVISIONING"), [
-    "G4_DESKTOP_CREDENTIALS",
-  ]);
-  for (const id of ["CUSTOMER_AUTH", "ADMIN_AUTH", "LIVE_COMMERCE"] as const)
-    assert.deepEqual(closedGatesFor(id), [], id);
+  // Approval and open gates still serve nothing without each capability's runtime prerequisites.
+  for (const id of capabilityIds) assert.deepEqual(closedGatesFor(id), [], id);
   assert.ok(
     capabilities.TRIALS_AND_LICENSES.gates.includes("G1_SIGNING_CUSTODY"),
   );
@@ -99,14 +92,39 @@ test("G8 is open (recorded evidence): PRODUCTION_CORE starts; each further capab
   );
   const withCaps = (caps: string, extra: Record<string, string> = {}) =>
     configuration({ ...production, ENABLED_CAPABILITIES: caps, ...extra });
-  // Licensing and provisioning stay refused while their gates are closed.
-  assert.throws(
-    () => withCaps("PRODUCTION_CORE,TRIALS_AND_LICENSES"),
-    /CAPABILITY_GATE_CLOSED: TRIALS_AND_LICENSES: G1_SIGNING_CUSTODY/,
+  // Licensing and provisioning sign with the production key: never without it.
+  for (const id of ["TRIALS_AND_LICENSES", "DESKTOP_PROVISIONING"])
+    assert.throws(
+      () => withCaps("PRODUCTION_CORE," + id),
+      /LICENSE_SIGNING_REQUIRED/,
+    );
+  const signing = {
+    LICENSE_SIGNING_KEY_FILE: "/run/secrets/yarizan-license-signing.pem",
+    LICENSE_SIGNING_KID: "yarizan-license-2026-01",
+    LICENSE_SIGNING_KEY_SHA256: "C1".repeat(32),
+  };
+  assert.deepEqual(
+    [
+      ...withCaps("PRODUCTION_CORE,TRIALS_AND_LICENSES", signing)
+        .enabledCapabilities,
+    ],
+    ["PRODUCTION_CORE", "TRIALS_AND_LICENSES"],
   );
   assert.throws(
-    () => withCaps("PRODUCTION_CORE,DESKTOP_PROVISIONING"),
-    /CAPABILITY_GATE_CLOSED: DESKTOP_PROVISIONING: G4_DESKTOP_CREDENTIALS/,
+    () =>
+      withCaps("PRODUCTION_CORE,TRIALS_AND_LICENSES", {
+        ...signing,
+        LICENSE_SIGNING_KEY_SHA256: "",
+      }),
+    /LICENSE_SIGNING_CONFIGURATION_INCOMPLETE/,
+  );
+  assert.throws(
+    () =>
+      withCaps("PRODUCTION_CORE,TRIALS_AND_LICENSES", {
+        ...signing,
+        LICENSE_SIGNING_KID: "yarizan-license-test",
+      }),
+    /LICENSE_SIGNING_KID_NOT_PRODUCTION/,
   );
   // Sign-in sends one-time codes: never without the live SMS provider.
   for (const id of ["CUSTOMER_AUTH", "ADMIN_AUTH"])
