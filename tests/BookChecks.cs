@@ -191,7 +191,16 @@ internal static class BookChecks
         var brandedCover = new CoverPage(1);
         window.Content = brandedCover;
         SavePreview(brandedCover, Path.Combine(Path.GetDirectoryName(args[1])!, "cover-preview.png"));
-        var information = new InfoPage(isActivated: true, grade: 1);
+        var information = new InfoPage(isActivated: true, grade: 1, username: "YZ-0000-1111-2222-3333-4444-5555");
+        window.Content = information;
+        Check(((FrameworkElement)information.FindName("IdentityPanel")).Visibility == Visibility.Visible
+            && ((TextBox)information.FindName("IdentityText")).Text == "YZ-0000-1111-2222-3333-4444-5555",
+            "info page shows the device username after activation");
+        Check(((FrameworkElement)new InfoPage(isActivated: true, grade: 1).FindName("IdentityPanel")).Visibility == Visibility.Collapsed,
+            "info page hides the identity box when no username is available");
+        var trialInformation = new InfoPage(trialRemaining: 1, isActivated: false, grade: 1, username: "YZ-0000-1111-2222-3333-4444-5555");
+        window.Content = trialInformation;
+        SavePreview(trialInformation, Path.Combine(Path.GetDirectoryName(args[1])!, "info-trial-preview.png"));
         window.Content = information;
         SavePreview(information, Path.Combine(Path.GetDirectoryName(args[1])!, "info-preview.png"));
         var loading = new GameLoadingOverlay { GameName = PageTitle(3) };

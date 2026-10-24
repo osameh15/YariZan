@@ -143,7 +143,7 @@ public partial class MainWindow : Window
     public void ShowInfo()
     {
         if (!_access.CanEnter) { ShowLock(); return; }
-        var page = new InfoPage(_access.TrialRemaining, _access.IsPurchased, _library.Manifest.SelectedGrade);
+        var page = new InfoPage(_access.TrialRemaining, _access.IsPurchased, _library.Manifest.SelectedGrade, _access.Username);
         page.NextRequested += (_, _) => ShowGames();
         page.BackRequested += (_, _) => ShowCover();
         SwapPage(page, animate: true);
