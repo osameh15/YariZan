@@ -6,9 +6,9 @@ import {
   gradeTitles,
   grades,
   latestForGrade,
-  latestPath,
+  latestUrl,
   parseGrade,
-  releasePath,
+  releaseUrl,
   releasesForGrade,
   type Grade,
 } from '#shared/windows-release';
@@ -133,8 +133,8 @@ const formatDate = (iso: string) =>
           <p>مجوزهای بازی همچنان با امضای رمزنگاری‌شدهٔ یاریزان صادر و در برنامه بررسی می‌شوند.</p>
         </div>
         <p class="actions">
-          <a class="button" :href="latestPath(selected)" download>دریافت مستقیم برای ویندوز</a>
-          <a class="button secondary" :href="releasePath(release)" download>پیوند ثابت این نسخه</a>
+          <a class="button" :href="latestUrl(selected)" download>دریافت مستقیم برای ویندوز</a>
+          <a class="button secondary" :href="releaseUrl(release)" download>پیوند ثابت این نسخه</a>
         </p>
       </template>
       <template v-else>

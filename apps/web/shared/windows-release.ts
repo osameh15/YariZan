@@ -4,7 +4,8 @@
 // empty until the owner approves a V2 installer for a grade (current Windows CI, real Windows test,
 // production licensing trust roots, signing policy, malware scan and provenance). The legacy G1
 // installer on GitHub is not a V2 release and must never be listed here.
-// Files are served by the first-party release mirror under /downloads/windows/, never by GitHub.
+// Files are served by the first-party release mirror under /downloads/windows/ on the direct-download
+// host (DNS-only, the CDN refuses files this large), never by GitHub.
 export const grades = [1, 2, 3, 4, 5, 6] as const;
 export type Grade = (typeof grades)[number];
 export type InstallerFormat = 'exe' | 'msi' | 'zip';
@@ -103,11 +104,19 @@ export function parseGrade(value: unknown): Grade {
   return number as Grade;
 }
 
+/** First-party direct-download host of the release mirror (not proxied by the CDN). */
+export const DOWNLOAD_ORIGIN = 'https://dl.oarnova.games';
 export function releasePath(release: Pick<WindowsRelease, 'grade' | 'version' | 'filename'>) {
   return `/downloads/windows/grade-${release.grade}/${release.version}/${release.filename}`;
 }
 export function latestPath(grade: Grade) {
   return `/downloads/windows/grade-${grade}/latest`;
+}
+export function releaseUrl(release: Pick<WindowsRelease, 'grade' | 'version' | 'filename'>) {
+  return DOWNLOAD_ORIGIN + releasePath(release);
+}
+export function latestUrl(grade: Grade) {
+  return DOWNLOAD_ORIGIN + latestPath(grade);
 }
 
 // Fails loudly at build and test time rather than publishing a malformed or unapproved download.
