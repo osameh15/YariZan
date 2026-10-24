@@ -24,6 +24,11 @@ export interface AdminContext {
   id: string;
   token_hash: string;
 }
+/**
+ * How long one Admin password + SMS login authorizes permissioned actions. Equal to the Admin
+ * session lifetime (1 hour), so an Admin signs in once per session instead of every few minutes.
+ */
+export const ADMIN_MFA_WINDOW_MS = 60 * 60 * 1000;
 @Injectable()
 export class Security {
   readonly config = configuration();
@@ -178,7 +183,7 @@ export class Security {
     this.csrf(req, r.rows[0].csrf_hash);
     if (!permission) return r.rows[0];
     requireCondition(
-      Date.now() - r.rows[0].mfa_at.getTime() < 5 * 60 * 1000,
+      Date.now() - r.rows[0].mfa_at.getTime() < ADMIN_MFA_WINDOW_MS,
       "MFA_REQUIRED",
       403,
     );
