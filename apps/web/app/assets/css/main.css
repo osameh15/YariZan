@@ -241,6 +241,13 @@ form > .actions,
 .panel > .actions {
   margin-block-start: 16px;
 }
+.detail-actions {
+  gap: 12px;
+  margin-block: 8px 20px;
+}
+.actions.dialog-support {
+  margin-block-start: 14px;
+}
 .record-list + .button {
   margin-block-start: 20px;
 }

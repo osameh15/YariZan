@@ -70,6 +70,10 @@ test('Persian SSR homepage and real six-grade catalog', async ({ page, request }
   await page.getByRole('button', { name: 'راهنمای تهیهٔ این نسخه' }).click();
   await expect(page.getByRole('dialog', { name: 'راهنمای تهیهٔ یاریزان' })).toBeVisible();
   await expect(page.getByRole('dialog')).toContainText('با پشتیبانی تماس بگیرید');
+  await expect(page.getByRole('dialog').locator('a[href^="tel:"]')).toHaveCount(2);
+  await expect(
+    page.getByRole('dialog').getByRole('link', { name: /صفحهٔ پشتیبانی/ }),
+  ).toHaveAttribute('href', '/support');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'راهنمای تهیهٔ این نسخه' })).toBeFocused();
   await page.goto('/products/grade-2');
