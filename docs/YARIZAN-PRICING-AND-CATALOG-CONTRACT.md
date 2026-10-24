@@ -68,4 +68,4 @@ Any Admin price change after launch makes the drift check fail by design: the st
 
 ## 7. Admin
 
-Admin changes price and capability flags at `/zanyari` → «محصولات و قیمت» (`PATCH /api/v2/admin/products/{sku}`): `products.manage` permission, SMS MFA within five minutes, `expected_revision` conflict check, audit row, and a new `ADMIN` price row. Admin cannot enable live payments; that remains the reviewed configuration gate `ZARINPAL_LIVE_GATE_CLOSED` (see `YARIZAN-FULL-APPLICATION-PRODUCTION-GATES.md`).
+Admin changes price and capability flags at `/zanyari` → «محصولات و قیمت» (`PATCH /api/v2/admin/products/{sku}`): `products.manage` permission, SMS MFA within the last hour (the Admin session lifetime), `expected_revision` conflict check, audit row, and a new `ADMIN` price row. Admin cannot enable live payments; that remains the reviewed configuration gate `ZARINPAL_LIVE_GATE_CLOSED` (see `YARIZAN-FULL-APPLICATION-PRODUCTION-GATES.md`).

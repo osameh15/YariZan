@@ -1302,7 +1302,7 @@ test("Admin wrong MFA, reused MFA and expired recent authentication denied", asy
   );
   const old = await adminLogin();
   await db.query(
-    "UPDATE admin_sessions SET mfa_at=now()-interval '6 minutes' WHERE token_hash=$1",
+    "UPDATE admin_sessions SET mfa_at=now()-interval '61 minutes' WHERE token_hash=$1",
     [security.tokenHash(old.cookie.split("=")[1])],
   );
   await denied(
@@ -1765,7 +1765,7 @@ test("Production bootstrap is idempotent and never edits catalog or prices", asy
 test("Admin logout works without unrelated privilege or fresh MFA", async () => {
   const support = await adminLogin("support");
   await db.query(
-    "UPDATE admin_sessions SET mfa_at=now()-interval '6 minutes' WHERE token_hash=$1",
+    "UPDATE admin_sessions SET mfa_at=now()-interval '61 minutes' WHERE token_hash=$1",
     [security.tokenHash(support.cookie.split("=")[1])],
   );
   await ok("/admin/auth/logout", {}, support);
@@ -3991,7 +3991,7 @@ test("Payment readiness is read-only, needs finance.read with recent MFA, is aud
   }
   // Stale MFA is refused like every other finance view.
   await db.query(
-    "UPDATE admin_sessions SET mfa_at=now()-interval '10 minutes' WHERE token_hash IN (SELECT token_hash FROM admin_sessions ORDER BY mfa_at DESC LIMIT 2)",
+    "UPDATE admin_sessions SET mfa_at=now()-interval '61 minutes' WHERE token_hash IN (SELECT token_hash FROM admin_sessions ORDER BY mfa_at DESC LIMIT 2)",
   );
   await denied("/admin/payment-readiness", undefined, "MFA_REQUIRED", owner);
 });

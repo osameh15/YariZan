@@ -530,7 +530,7 @@ test('Expired sessions and recent-MFA expiry fail closed in the portals', async 
   await expect(page).toHaveURL(/\/login\?return=/);
   const a = await adminLogin(page);
   await sql(
-    "UPDATE admin_sessions SET mfa_at=now()-interval '6 minutes' WHERE admin_id=(SELECT id FROM admins WHERE username=$1)",
+    "UPDATE admin_sessions SET mfa_at=now()-interval '61 minutes' WHERE admin_id=(SELECT id FROM admins WHERE username=$1)",
     [a.username],
   );
   await page.goto('/zanyari/products');
