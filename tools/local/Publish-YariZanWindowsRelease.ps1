@@ -157,17 +157,17 @@ Write-Host "[OK] GitHub tag $tag -> $tagged; release asset $name is byte-identic
 
 # Upload: host key verified, private staging, .part until the server digest matches.
 $ssh = @('-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=20', '-i', $SshKey)
-$stage = 'yarizan-release-staging'
-& ssh.exe @ssh $SshTarget "umask 077; mkdir -p ~/$stage && chmod 700 ~/$stage"
+$stagingDir = 'yarizan-release-staging'
+& ssh.exe @ssh $SshTarget "umask 077; mkdir -p ~/$stagingDir && chmod 700 ~/$stagingDir"
 if ($LASTEXITCODE -ne 0) { Fail 'Could not prepare the private staging directory (check SSH, host key and network).' }
-& scp.exe @ssh $file.FullName "${SshTarget}:$stage/$name.part"
+& scp.exe @ssh $file.FullName "${SshTarget}:$stagingDir/$name.part"
 if ($LASTEXITCODE -ne 0) { Fail 'Upload failed; nothing was published.' }
-$remote = ("$(& ssh.exe @ssh $SshTarget "sha256sum ~/$stage/$name.part | cut -c1-64; stat -c %s ~/$stage/$name.part")").Trim() -split '\s+'
+$remote = ("$(& ssh.exe @ssh $SshTarget "sha256sum ~/$stagingDir/$name.part | cut -c1-64; stat -c %s ~/$stagingDir/$name.part")").Trim() -split '\s+'
 if ($remote[0] -ne $sha -or [int64]$remote[1] -ne $size) {
-  & ssh.exe @ssh $SshTarget "rm -f ~/$stage/$name.part"
+  & ssh.exe @ssh $SshTarget "rm -f ~/$stagingDir/$name.part"
   Fail "Server copy mismatch (sha $($remote[0]), size $($remote[1])); removed it. Nothing was published."
 }
-& ssh.exe @ssh $SshTarget "mv -f ~/$stage/$name.part ~/$stage/$name && chmod 400 ~/$stage/$name"
+& ssh.exe @ssh $SshTarget "mv -f ~/$stagingDir/$name.part ~/$stagingDir/$name && chmod 400 ~/$stagingDir/$name"
 $remoteHome = ("$(& ssh.exe @ssh $SshTarget 'printf %s "$HOME"')").Trim()
 
 $record = [ordered]@{
@@ -176,7 +176,7 @@ $record = [ordered]@{
   source_commit = $a.source_commit; app_sha256 = $appSha
   github = [ordered]@{ tag = $tag; commit = $tagged; draft = $release.isDraft; asset_sha256 = $sha }
   uploaded_at = (Get-Date).ToUniversalTime().ToString('o')
-  staged = "$remoteHome/$stage/$name"; version_url = $versionUrl; latest_url = $latestUrl
+  staged = "$remoteHome/$stagingDir/$name"; version_url = $versionUrl; latest_url = $latestUrl
 }
 $out = "$($file.FullName).release.json"
 $record | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $out -Encoding utf8
@@ -185,7 +185,7 @@ Write-Host "[OK] Uploaded and verified on the server: $name ($size bytes, SHA-25
 Write-Host "Release record: $out"
 Write-Host ''
 Write-Host 'Owner step on the VPS (privileged; uses the reviewed infrastructure script):'
-Write-Host "  sudo bash $publish publish --grade $Grade --version $ReleaseVersion --file $remoteHome/$stage/$name --sha256 $sha"
+Write-Host "  sudo bash $publish publish --grade $Grade --version $ReleaseVersion --file $remoteHome/$stagingDir/$name --sha256 $sha"
 Write-Host 'Then verify from here:'
 Write-Host "  .\tools\local\Publish-YariZanWindowsRelease.ps1 -Stage verify -Installer `"$($file.FullName)`" -Grade $Grade -ReleaseVersion $ReleaseVersion"
 Write-Host 'Rollback (returns latest to the previous release):'
