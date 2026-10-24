@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { test } = useCommerceMode();
-import { PRIMARY_SUPPORT_PHONE } from '#shared/contact';
+import { PRIMARY_SUPPORT_PHONE, SUPPORT_PHONES } from '#shared/contact';
 import type { ApiResult } from '#shared/api';
 import { gradeNames, availability } from '#shared/domain';
 import PriceBlock from '~/components/PriceBlock.vue';
@@ -71,19 +71,21 @@ const commerce = publicOnly.value
             }}</a>
           </template>
           <template v-else>
-            <NuxtLink
-              v-if="product.sale_enabled && commerce?.checkout_enabled"
-              class="button primary"
-              :to="'/checkout?sku=' + product.sku"
-              >{{ test ? 'خرید آزمایشی این پایه' : 'خرید این پایه' }}</NuxtLink
-            >
+            <div v-if="product.sale_enabled" class="actions detail-actions">
+              <NuxtLink
+                v-if="commerce?.checkout_enabled"
+                class="button primary"
+                :to="'/checkout?sku=' + product.sku"
+                >{{ test ? 'خرید آزمایشی این پایه' : 'خرید این پایه' }}</NuxtLink
+              >
+              <button class="button secondary" @click="assistance = true">
+                راهنمای تهیهٔ این نسخه ↗
+              </button>
+            </div>
+            <p v-else class="notice">فروش این نسخه فعلاً متوقف است.</p>
             <p v-if="commerce?.checkout_enabled && test" class="muted">
               محیط آزمایشی محلی؛ هیچ پولی دریافت نمی‌شود.
             </p>
-            <button v-if="product.sale_enabled" class="button primary" @click="assistance = true">
-              راهنمای تهیهٔ این نسخه ↗
-            </button>
-            <p v-else class="notice">فروش این نسخه فعلاً متوقف است.</p>
           </template>
           <div class="detail-facts">
             <p>✓ مجوز همیشگی، ویژهٔ همین پایه و دستگاه تأییدشده</p>
@@ -115,9 +117,21 @@ const commerce = publicOnly.value
     </div>
     <BaseDialog v-model="assistance" title="راهنمای تهیهٔ یاریزان"
       ><p>برای دریافت برنامه و راهنمای تهیهٔ پایهٔ موردنظر با پشتیبانی تماس بگیرید.</p>
-      <a class="button primary phone" :href="'tel:' + PRIMARY_SUPPORT_PHONE.tel" dir="ltr">{{
-        PRIMARY_SUPPORT_PHONE.display
-      }}</a>
+      <div class="actions">
+        <a
+          v-for="phone in SUPPORT_PHONES"
+          :key="phone.tel"
+          class="button secondary phone"
+          :href="'tel:' + phone.tel"
+          dir="ltr"
+          >{{ phone.display }}</a
+        >
+      </div>
+      <div class="actions dialog-support">
+        <NuxtLink class="button primary" to="/support" @click="assistance = false"
+          >صفحهٔ پشتیبانی ←</NuxtLink
+        >
+      </div>
     </BaseDialog>
   </section>
 </template>

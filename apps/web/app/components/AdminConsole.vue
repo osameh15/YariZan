@@ -63,6 +63,8 @@ watch(notesOpen, (v) => {
 const route = useRoute(),
   api = useApi(true),
   busy = ref(true),
+  // False until the session check finishes: no console is shown to a signed-out visitor.
+  ready = ref(false),
   message = ref(''),
   permissions = ref<string[]>([]),
   rows = ref<Row[]>([]),
@@ -140,6 +142,7 @@ async function load() {
   try {
     const session = await api.get('/api/v2/admin/auth/session');
     permissions.value = session.permissions;
+    ready.value = true;
     if (section.value === 'dashboard') {
       if (allowed('audit.read')) reports.value = (await api.get('/api/v2/admin/reports')) as Row;
     } else if (!allowed(sections.find((s) => s[0] === section.value)?.[2] ?? '')) {
@@ -158,9 +161,13 @@ async function load() {
       next.value = result.next_offset;
     }
   } catch (e) {
-    message.value = errorMessage(e);
     rows.value = [];
-    if ((e as { status?: number }).status === 401) await navigateTo('/zanyari/login');
+    if ((e as { status?: number }).status === 401) {
+      await navigateTo('/zanyari/login', { replace: true });
+      return;
+    }
+    message.value = errorMessage(e);
+    ready.value = true;
   } finally {
     busy.value = false;
   }
@@ -365,7 +372,11 @@ const navigationGroups: { title: string; ids: string[] }[] = [
 ];
 </script>
 <template>
-  <section class="wrap section portal admin-portal">
+  <section v-if="!ready" class="wrap section portal-loader" role="status">
+    <img src="/brand/logo.webp" alt="" width="118" height="78" />
+    <span>در حال بررسی ورود مدیریت…</span>
+  </section>
+  <section v-else class="wrap section portal admin-portal">
     <aside class="portal-sidebar">
       <p class="eyebrow">مدیریت یاریزان</p>
       <h2>میز کار شما</h2>
