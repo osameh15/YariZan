@@ -10,10 +10,10 @@
     <RootNamespace>YariZan.App</RootNamespace>
     <!-- Single source of the Windows release version. build-installer.bat passes it to Inno Setup,
          and tools/release/windows-version.test.mjs fails on any mismatch. -->
-    <Version>2.0.0</Version>
-    <AssemblyVersion>2.0.0.0</AssemblyVersion>
-    <FileVersion>2.0.0.0</FileVersion>
-    <InformationalVersion>2.0.0</InformationalVersion>
+    <Version>2.0.1</Version>
+    <AssemblyVersion>2.0.1.0</AssemblyVersion>
+    <FileVersion>2.0.1.0</FileVersion>
+    <InformationalVersion>2.0.1</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Copyright>Copyright (C) 2026 OAR NOVA GAMES STUDIO</Copyright>
     <Company>OAR NOVA GAMES STUDIO</Company>

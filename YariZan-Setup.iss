@@ -11,7 +11,7 @@
 ; The version comes from src/YariZan.App/YariZan.App.csproj (build-installer.bat passes /DMyAppVersion).
 ; This default must stay equal to it: tools/release/windows-version.test.mjs fails otherwise.
 #ifndef MyAppVersion
-#define MyAppVersion     "2.0.0"
+#define MyAppVersion     "2.0.1"
 #endif
 #define MyAppPublisher   "OAR NOVA GAMES STUDIO"
 #define MyAppURL         "https://yarizan.oarnova.games/"
@@ -28,6 +28,9 @@
 #endif
 #ifndef MyPublishDir
 #define MyPublishDir     "publish\YariZan-G" + Grade + "-win-x64"
+#endif
+#ifndef MyPublishDirX86
+#define MyPublishDirX86  "publish\YariZan-G" + Grade + "-win-x86"
 #endif
 
 [Setup]
@@ -66,8 +69,10 @@ PrivilegesRequiredOverridesAllowed=dialog
 
 WizardStyle=modern
 
-ArchitecturesAllowed=x64compatible
+; 64-bit and 32-bit Windows 10/11: one installer carries both launchers and installs the matching one.
+ArchitecturesAllowed=x86compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+MinVersion=10.0.14393
 
 VersionInfoVersion={#MyAppVersion}.0
 VersionInfoCompany={#MyAppPublisher}
@@ -93,7 +98,10 @@ Name: "{app}"
 
 [Files]
 ; Self-contained .NET 9 publish + games_encrypted/ ride along (Content / CopyToOutputDirectory).
-Source: "{#MyPublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; The games (32-bit) are shared; only the launcher differs between 64-bit and 32-bit Windows.
+Source: "{#MyPublishDir}\*"; DestDir: "{app}"; Excludes: "{#MyAppExeName}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyPublishDir}\{#MyAppExeName}"; DestDir: "{app}"; Check: Is64BitInstallMode; Flags: ignoreversion
+Source: "{#MyPublishDirX86}\{#MyAppExeName}"; DestDir: "{app}"; Check: not Is64BitInstallMode; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Comment: "یاریزان — مجموعه بازی‌های آموزشی"
