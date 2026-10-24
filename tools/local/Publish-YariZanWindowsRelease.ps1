@@ -180,7 +180,7 @@ $record = [ordered]@{
 }
 $out = "$($file.FullName).release.json"
 $record | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $out -Encoding utf8
-$publish = '/opt/oarnova/infrastructure/apps/yarizan/host/yarizan-release-publish.sh'
+$publish = '/opt/oarnova/apps/yarizan/host/yarizan-release-publish.sh'
 Write-Host "[OK] Uploaded and verified on the server: $name ($size bytes, SHA-256 $sha)."
 Write-Host "Release record: $out"
 Write-Host ''

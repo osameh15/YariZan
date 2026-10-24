@@ -123,7 +123,7 @@ It then:
 
 1. uploads with scp to private staging, verifying the server host key;
 2. re-hashes on the server and keeps the file only on an exact match;
-3. prints the owner's privileged command `sudo bash /opt/oarnova/infrastructure/apps/yarizan/host/yarizan-release-publish.sh publish …`. That command copies into the immutable versions tree, re-verifies, switches `latest` atomically and reverts automatically if the live check fails.
+3. prints the owner's privileged command `sudo bash /opt/oarnova/apps/yarizan/host/yarizan-release-publish.sh publish …`. That command copies into the immutable versions tree, re-verifies, switches `latest` atomically and reverts automatically if the live check fails.
 
 Afterwards, `-Stage verify` checks HEAD, GET, Range (206), Content-Length, Content-Disposition, the `latest` redirect and the full-download SHA-256 through the CDN.
 
