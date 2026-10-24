@@ -1,6 +1,6 @@
 @echo off
 REM YariZan - Build & Create Installer
-REM Publishes the WPF launcher self-contained for win-x64, generates an ICO
+REM Publishes the WPF launcher self-contained for win-x64 and win-x86, generates an ICO
 REM from the PNG icon, then runs Inno Setup.
 
 setlocal enableextensions
@@ -63,7 +63,12 @@ set "PUBLISH_DIR=publish\YariZan-G%GRADE%-win-x64"
 if exist "%PUBLISH_DIR%" (
     set "PUBLISH_DIR=publish\YariZan-G%GRADE%-win-x64-build-%RANDOM%-%RANDOM%"
 )
-echo Publishing to %PUBLISH_DIR%
+REM 32-bit launcher for 32-bit Windows 10/11; the installer picks the matching one.
+set "PUBLISH_DIR_X86=publish\YariZan-G%GRADE%-win-x86"
+if exist "%PUBLISH_DIR_X86%" (
+    set "PUBLISH_DIR_X86=publish\YariZan-G%GRADE%-win-x86-build-%RANDOM%-%RANDOM%"
+)
+echo Publishing to %PUBLISH_DIR% and %PUBLISH_DIR_X86%
 
 echo ========================================
 echo YariZan Installer Builder
@@ -178,6 +183,30 @@ if errorlevel 1 (
     echo [ERROR] The published application failed the release binary check.
     exit /b 1
 )
+echo [Step 4/5] Publishing self-contained win-x86 build (32-bit Windows 10/11) ...
+dotnet publish src\YariZan.App\YariZan.App.csproj ^
+    -c Release ^
+    -r win-x86 ^
+    --self-contained true ^
+    -p:PublishSingleFile=true ^
+    -p:IncludeNativeLibrariesForSelfExtract=true ^
+    -p:PublishReadyToRun=false ^
+    %BUILD_KIND% ^
+    "-p:AssemblyTitle=YariZan G%GRADE%" "-p:Product=YariZan G%GRADE%" ^
+    -p:DebugType=none -p:DebugSymbols=false ^
+    -o "%PUBLISH_DIR_X86%"
+if errorlevel 1 (
+    echo [ERROR] win-x86 publish failed.
+    if not defined NONINTERACTIVE pause
+    exit /b 1
+)
+powershell -NoProfile -Command "Rename-Item -LiteralPath (Join-Path $env:PUBLISH_DIR_X86 'YariZan.exe') -NewName ('YariZan-G' + $env:GRADE + '.exe')"
+if errorlevel 1 exit /b 1
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\release\Test-WindowsBinary.ps1" -Path "%PUBLISH_DIR_X86%\YariZan-G%GRADE%.exe" -Version "%VERSION%" -Kind app %CHECK_FLAG%
+if errorlevel 1 (
+    echo [ERROR] The published 32-bit application failed the release binary check.
+    exit /b 1
+)
 echo.
 
 REM ----- Step 5: compile installer -------------------------------------------
@@ -185,7 +214,7 @@ echo [Step 5/5] Compiling installer ...
 if not exist "publish" mkdir publish
 set "INNO_CANDIDATE="
 if defined CANDIDATE set "INNO_CANDIDATE=/DCandidate=1"
-"%INNO_PATH%" /DGrade=%GRADE% "/DMyAppVersion=%VERSION%" "/DMyPublishDir=%PUBLISH_DIR%" %INNO_CANDIDATE% "YariZan-Setup.iss"
+"%INNO_PATH%" /DGrade=%GRADE% "/DMyAppVersion=%VERSION%" "/DMyPublishDir=%PUBLISH_DIR%" "/DMyPublishDirX86=%PUBLISH_DIR_X86%" %INNO_CANDIDATE% "YariZan-Setup.iss"
 if errorlevel 1 (
     echo [ERROR] Installer compilation failed.
     if not defined NONINTERACTIVE pause

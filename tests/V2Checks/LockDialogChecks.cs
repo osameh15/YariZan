@@ -106,6 +106,8 @@ internal static partial class Program
             ((FrameworkElement)Keyboard.FocusedElement).MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
             Check(C<Grid>("ModalOverlay").IsKeyboardFocusWithin, "Tab traversal stays within manual modal " + i);
         }
+        Check(C<Button>("MinimizeModalButton").IsVisible && (string)C<Button>("MinimizeModalButton").Content == "کوچک نمایی",
+            "lock dialogs offer minimize next to close");
         C<Button>("CloseModalButton").Focus();
         C<Button>("CloseModalButton").MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
         Check(Keyboard.FocusedElement == input, "last modal control Tab cycles back to input");

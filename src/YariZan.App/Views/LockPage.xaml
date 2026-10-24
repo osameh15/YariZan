@@ -215,9 +215,14 @@
                         <TextBlock x:Name="ModalFeedback" Style="{StaticResource DialogFeedback}" AutomationProperties.LiveSetting="Polite" />
                     </StackPanel>
                 </ScrollViewer>
-                <Button x:Name="CloseModalButton" Grid.Row="2" Content="بستن" Style="{StaticResource SecondaryAction}"
-                        HorizontalAlignment="Center" Margin="0,12,0,0" Click="CloseModal_Click" KeyboardNavigation.TabIndex="2"
-                        AutomationProperties.Name="بستن پنجره" />
+                <!-- Minimize keeps the dialog and its work (for example the pairing wait) running. -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+                    <Button x:Name="MinimizeModalButton" Style="{StaticResource MinimizeButton}" Margin="4"
+                            Click="Minimize_Click" KeyboardNavigation.TabIndex="2" AutomationProperties.Name="کوچک نمایی" />
+                    <Button x:Name="CloseModalButton" Content="بستن" Style="{StaticResource SecondaryAction}"
+                            Click="CloseModal_Click" KeyboardNavigation.TabIndex="2"
+                            AutomationProperties.Name="بستن پنجره" />
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>
