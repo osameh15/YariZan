@@ -3,33 +3,52 @@
 
 # YariZan — یاریزان
 
-Grade-specific Persian RTL educational mini-game launcher by **OAR NOVA GAMES STUDIO** for Windows, with a book interface, encrypted game bundles, and a PHP/MySQL licensing panel.
+Persian RTL educational mini-games for primary school by **OAR NOVA GAMES STUDIO**: a Windows game-book launcher, one package per grade, sold and activated through [yarizan.oarnova.games](https://yarizan.oarnova.games).
 </div>
 
-## App features
+## Status (2.0.0)
 
-Download the Windows installer for your grade from the official download page, [yarizan.oarnova.games/download](https://yarizan.oarnova.games/download), and compare its SHA-256 with the value shown there. The legacy 1.1.0 GitHub release is historical and not a V2 build.
+| Grade | Windows | Price |
+|---|---|---|
+| 1 | **2.0.0 released** | 12,990,000 IRR |
+| 2–6 | Coming soon | — |
 
-- One grade per package, named **YariZan G1**, **G2**, etc.; the Persian cover title follows the selected grade.
-- Portrait game artwork in three columns and two rows per page, with book page-turn animation.
-- Direct page navigation using Persian, Arabic, or English digits.
-- Game titles come from filenames; descriptions show instructions without repeating the title.
-- Animated YariZan-logo loading while a selected game is prepared and opened. Background preparation keeps the interface responsive and prevents duplicate launches.
+- **Download:** [yarizan.oarnova.games/download](https://yarizan.oarnova.games/download). Compare the installer's SHA-256 with the value shown there (or in the GitHub Release `2.0.0`). The installer has no Authenticode signature, so SmartScreen may show "Unknown publisher"; licenses are still protected by YariZan's own ES256 signatures.
+- **Customer journey:** install, connect the device to a YariZan account, use the two trial sessions, buy on the website through ZarinPal, get the license activated automatically, then play offline.
+- **Production:** live ZarinPal payments, MeliPayamak SMS (OTP and Admin MFA), and an offline license root `yarizan-license-2026-01`. The legacy 1.1.0 release and its PHP licensing panel are historical and are not used by V2.
+
+## Desktop app
+
+- One grade per package, named **YariZan G1**, **G2**, and so on; the Persian cover title follows the grade.
+- Portrait game artwork, three columns and two rows per page, with a book page-turn animation and direct page navigation in Persian, Arabic or English digits.
+- Encrypted game bundles; titles come from filenames and descriptions show instructions only.
+- Device connection through a browser pairing code, two trial sessions per device and grade (internet is needed only to start each trial), and a grade-bound perpetual offline license after purchase.
+- Animated YariZan-logo loading while a game is prepared, with duplicate launches blocked.
+
+## Web and backend
+
+| Part | Stack | Guide |
+|---|---|---|
+| Storefront, customer account, Admin console (`/zanyari`) | Nuxt 4, Persian RTL | [apps/web/README.md](apps/web/README.md) |
+| API, orders, payments, licenses, SMS | NestJS, PostgreSQL | [backend/README.md](backend/README.md) |
+| Hosting, deploy, egress relays, downloads mirror | Docker Compose on the OAR NOVA VPS | `OAR-NOVA-Games/oarnova-infrastructure` |
+
+Production features are enabled by capability (`PRODUCTION_CORE`, `CUSTOMER_AUTH`, `ADMIN_AUTH`, `DESKTOP_PROVISIONING`, `TRIALS_AND_LICENSES`, `LIVE_COMMERCE`). The API refuses to start unless each enabled capability is approved in source and its prerequisites validate. See [production capabilities](docs/YARIZAN-PRODUCTION-CAPABILITIES.md).
 
 ## Screenshots
 
-Fresh captures of the current WPF views using the local G1 catalog. Activation/trial screens illustrate UI states; device identifiers are masked. Click an image to open it at full resolution.
+Click an image to open it at full resolution. Device identifiers are masked.
 
 <table>
   <tr><th>Cover and studio branding</th><th>Activation and trial</th></tr>
   <tr>
     <td><a href="docs/Images/cover-page.png"><img src="docs/Images/cover-page.png" width="440" alt="Persian grade-specific cover with transparent OAR NOVA GAMES STUDIO logo" /></a></td>
-    <td><a href="docs/Images/lock-page.png"><img src="docs/Images/lock-page.png" width="440" alt="Activation screen with masked HWID and two trial entries" /></a></td>
+    <td><a href="docs/Images/lock-page.png"><img src="docs/Images/lock-page.png" width="440" alt="Activation screen with masked device identifier and two trial entries" /></a></td>
   </tr>
   <tr><th>Information and credits</th><th>Portrait game book</th></tr>
   <tr>
     <td><a href="docs/Images/info-page.png"><img src="docs/Images/info-page.png" width="440" alt="YariZan logo, dynamic grade title and studio credits" /></a></td>
-    <td><a href="docs/Images/game-book.png"><img src="docs/Images/game-book.png" width="440" alt="Real G1 catalog with Persian filenames, centered logo, portrait tiles and page-number input" /></a></td>
+    <td><a href="docs/Images/game-book.png"><img src="docs/Images/game-book.png" width="440" alt="G1 catalog with Persian filenames, portrait tiles and page-number input" /></a></td>
   </tr>
   <tr><th>Game details</th><th>Game-start loading</th></tr>
   <tr>
@@ -56,42 +75,15 @@ Fresh captures of the current WPF views using the local G1 catalog. Activation/t
   </tr>
 </table>
 
-Regenerate the images with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/Capture-AppScreenshots.ps1` after packing the local catalog. See [screenshot notes](docs/Images/README.md).
+Regenerate the app images with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/Capture-AppScreenshots.ps1` after packing the local catalog. See [screenshot notes](docs/Images/README.md).
 
-## V2 Phase 1 desktop foundations (feature branch; review required)
+## Build the Windows app
 
-Desktop access now uses a shared versioned device username, grade-bound signed perpetual offline licenses and online-to-start trials. Active trials have no heartbeat, per-game authorization or expiry. Paid sync is asynchronous; revocation affects the next launch. See [Phase 1 report](docs/YARIZAN-PHASE-1-REPORT.md) and [artifact profile](docs/adr/0004-phase-1-desktop-artifact-profile.md).
+Run commands from the repository root in Windows PowerShell with the .NET 9 SDK (`net9.0-windows`) and Inno Setup 6 or 7.
 
-**Not release-ready:** secure NestJS enrollment/credential issuance and production public-key provisioning are blocked. The stock build grants no access through test keys or legacy PHP. Tests inject disposable trust roots and a transactional fake server. Run `tests/Run-V2Checks.ps1` on Windows with .NET 9 runtime and Node. Close the report's release gates before distribution.
-
-## Approved V2 platform target (backend not implemented)
-
-Phase 2 backend core is now available for isolated development and review under [`backend/`](backend/README.md). See the [Phase 2 report](docs/YARIZAN-PHASE-2-REPORT.md), [implemented API snapshot](docs/YARIZAN-OPENAPI-BACKEND-V2.json) and [ADR-0005](docs/adr/0005-backend-enrollment-and-transaction-authority.md). Production startup and the stock desktop commercial enrollment gate remain closed; no checkout, SMS or deployment is implemented. The older design status text below is historical context.
-
-Commercial YariZan V2 will use a Nuxt 4 storefront/customer/Admin portal, NestJS/PostgreSQL backend, per-device common customer username, six independent grade entitlements, ZarinPal checkout, discount campaigns, and **per-product perpetual offline paid licenses**. Two trial entries **per device and grade** require internet **only to start each trial process session**; once entered, an open trial process continues without internet or a heartbeat. Password-based onboarding uses confirmed device pairing; MeliPayamak is planned for a later reset-link stage. **Phase 1 desktop foundations are under review; no V2 backend, database or deployment has been shipped.** Refer to the [V2 specification](docs/YARIZAN-TECHNICAL-SPEC-V2.md), [data model](docs/YARIZAN-DATA-MODEL-V2.md), [API contracts](docs/YARIZAN-API-CONTRACTS-V2.md), and [roadmap](docs/YARIZAN-IMPLEMENTATION-ROADMAP-V2.md).
-
-### Phase 0 security and implementation handoff (design baseline; untested)
-
-- [Phase 0 baseline and readiness gates](docs/YARIZAN-PHASE-0-BASELINE.md)
-- [Architecture decisions — device, license/trial, commerce](docs/adr/0001-device-identity-and-account-claim.md)
-- [Threat model and security acceptance](docs/YARIZAN-THREAT-MODEL-V2.md)
-- [Machine-readable design OpenAPI](docs/YARIZAN-OPENAPI-V2.yaml)
-- [Phase 1 desktop implementation agent brief](docs/YARIZAN-PHASE-1-AGENT-BRIEF.md)
-
-## Historical access policy (legacy 1.1.0 release only)
-
-The cover appears first on every launch. Opening the book requires internet: the app validates the saved paid serial or shows the activation/trial screen. New devices register their HWID and PC name with two trial entries; viewing status does not consume an entry. Only pressing the trial entry button consumes one.
-
-Paid and trial sessions check access before each game launch and every 60 seconds. Connection failures return to Lock and stop games launched by the app. Reconnecting and pressing Retry automatically validates a saved paid serial; users do not enter it again after an ordinary outage. Removing a device blocks it; regenerating its serial invalidates the old serial. Trial counts are stored in MySQL and reset from the panel.
-
-## Start here
-
-Run commands from the repository root in Windows PowerShell. Use a .NET SDK that builds `net9.0-windows`; workflows use .NET 9. Install Inno Setup 6 or 7 for installer builds. PHP 8.2+ and MySQL/InnoDB run the licensing service.
-
-1. Restore the existing `secrets/private.pem`, `secrets/public.pem`, and `secrets/master.key` from your secure backup. For a completely new product key set, follow [key setup](docs/build-and-pack.md#keys).
-2. Add local games following [miniApps/README.md](miniApps/README.md). The public repository contains no game payloads or private configuration.
-3. Set up licensing using [the hosting guide](web/licensing/README.md). Compilation can succeed without the service; protected access cannot.
-4. Pack, build, and run:
+1. Restore the private inputs into `secrets/` from secure backup: `master.key` (game key), `v2-license-public-keys.json` (public license root) and `v2-activation.json` (production API). They are never committed. See [keys](docs/build-and-pack.md#keys).
+2. Add the grade's games under `miniApps/<grade>/` following [miniApps/README.md](miniApps/README.md). The repository contains no game payloads.
+3. Pack, build and run:
 
 ```powershell
 dotnet restore src/YariZan.sln
@@ -100,86 +92,58 @@ dotnet build src/YariZan.sln -c Release
 dotnet run --project src/YariZan.App
 ```
 
-The grade is detected automatically from the only source folder containing games. Empty folders are ignored; with several populated grades, pass `--grade 2` (or another grade) to both packer and installer builder. Each package contains one grade and is named **YariZan G1**, **YariZan G2**, etc. The book uses portrait tiles and an editable page number.
-
-Create the setup executable:
+4. Build the installer. With several populated grades, pass `--grade N`:
 
 ```powershell
-.\build-installer.bat --noninteractive
+.\build-installer.bat --noninteractive --grade 1
 ```
 
 | Output | Use |
 |---|---|
-| `publish/YariZan-G1-win-x64/YariZan-G1.exe` | Self-contained launcher; keep adjacent `games_encrypted/` |
-| `publish/YariZan-G1-Setup-v2.0.0.exe` | Installer containing launcher and games (version from the app project) |
+| `publish/YariZan-G1-win-x64/YariZan-G1.exe` | Self-contained launcher; keep the adjacent `games_encrypted/` |
+| `publish/YariZan-G1-Setup-v2.0.0.exe` | Installer with launcher and games (version from the app project) |
 | `publish/YariZan-G1-Setup-v2.0.0.exe.sha256` | Installer SHA-256 checksum |
-| `publish/installer-about.rtf` | Generated build input; disposable after compilation |
 
-If the standard publish directory already exists, the builder preserves it and prints the new directory with a build suffix.
-
-See [build-and-pack.md](docs/build-and-pack.md) for portable publishing, installer options, troubleshooting, and release checks. Never distribute source games, keys, private hosting ZIPs, or credentials with a release.
-
-## Operator workflow
-
-Log in to `https://yarizan.osameh.dev/` using private admin credentials. Search by name, description, HWID, or serial; use Add with HWID if needed. Edit name/description and generate the serial once. Copy it to the customer. Metadata edits retain it. Regenerate issues a replacement, Reset trial restores two entries, and Remove blocks the HWID. Styled confirmation dialogs protect these actions.
-
-The current serial can reactivate after an OS reinstall only if the HWID matches. Hardware/WMI changes can alter it. Uninstall retains saved activation and never resets server trials.
+Commercial builds run `YariZan.ReleaseCheck`, which refuses test keys, private keys or a missing activation configuration. The release procedure (approval record, GitHub tag and Release, verified transfer to the VPS, publication, website registry) is in [Windows release](docs/YARIZAN-WINDOWS-RELEASE.md). Never distribute source games, keys or credentials with a release.
 
 ## Repository map
 
 | Path | Responsibility |
 |---|---|
-| `src/YariZan.App/` | WPF views, online client, branding/fonts |
-| `src/YariZan.Core/` | HWID, crypto, activation/session state, games and sorting |
-| `src/YariZan.Packer/` | Encrypts local games and writes manifest |
-| `src/YariZan.SerialGen/` | Key setup/diagnostics; customer serials come from panel |
-| `web/licensing/` | Public panel/API and private implementation/schema |
-| `miniApps/` | Ignored local games directly in grade folders `1`–`6` |
-| `games_encrypted/` | Ignored generated catalog; README tracked |
-| `secrets/` | Keys; private/master keys ignored |
-| `tools/`, `tests/` | Packaging/deployment and isolated checks |
-| `docs/Images/`, `docs/YariZan_Brand_Kit_v1/` | App screenshots, supplied images and original brand resources |
-| `publish/` | Ignored app, installer, upload bundles |
+| `src/YariZan.App/` | WPF views, device connection, trials and activation UI |
+| `src/YariZan.Core/` | Device identity, license verification, crypto, games and sorting |
+| `src/YariZan.Packer/` | Encrypts local games and writes the manifest |
+| `src/YariZan.ReleaseCheck/` | Commercial build checks |
+| `apps/web/` | Nuxt 4 storefront, customer account and Admin console |
+| `backend/` | NestJS API and PostgreSQL migrations |
+| `miniApps/`, `games_encrypted/` | Ignored local games and generated catalog |
+| `secrets/`, `release/` | Ignored private inputs; reviewed public root approvals |
+| `tools/`, `tests/` | Packaging, release tooling and checks |
+| `docs/` | Specifications, ADRs, runbooks, evidence and screenshots |
+| `web/licensing/`, `src/YariZan.SerialGen/` | Legacy 1.1.0 PHP panel and serial tooling (historical) |
 
 ## Documentation
 
 | Guide | Contents |
 |---|---|
-| [Phase 0 baseline](docs/YARIZAN-PHASE-0-BASELINE.md) | ADRs, threat model, verification gates; not runtime-tested |
-| [Phase 1 implementation brief](docs/YARIZAN-PHASE-1-AGENT-BRIEF.md) | Reviewable desktop-only agent scope |
-| [V2 design OpenAPI](docs/YARIZAN-OPENAPI-V2.yaml) | Pre-implementation API schema baseline, needs lint |
-| [V2 threat model](docs/YARIZAN-THREAT-MODEL-V2.md) | Assets, attack boundaries, expected tests |
-| [V2 commercial specification](docs/YARIZAN-TECHNICAL-SPEC-V2.md) | Approved target behavior; **not yet implemented** |
-| [V2 database model](docs/YARIZAN-DATA-MODEL-V2.md) | PostgreSQL entities and concurrency invariants |
-| [V2 HTTP contracts](docs/YARIZAN-API-CONTRACTS-V2.md) | API, offline license and trial contracts |
-| [V2 delivery roadmap](docs/YARIZAN-IMPLEMENTATION-ROADMAP-V2.md) | Engineering phases and acceptance gates |
-| [Build and pack](docs/build-and-pack.md) | Setup, keys, games, portable EXE, installer, cleanup |
-| [Hosting and panel](web/licensing/README.md) | Database, private files, admin, FTP/CDN, deployment, API |
-| [Architecture](docs/architecture.md) | Modules/runtime flow |
-| [Security](docs/security.md) | Signed access, revocation, limitations |
-| [UI flow](docs/ui-flow.md) | Screens, retry and modals |
-| [CI](docs/ci.md) | Checks, secrets, public-only deployment |
-| [Licensing decisions](docs/online-licensing-plan.md) | Current policy and future improvements |
+| [Technical specification](docs/YARIZAN-TECHNICAL-SPEC-V2.md) | Product behavior: devices, trials, licenses, commerce |
+| [Activation and lifecycle](docs/YARIZAN-ACTIVATION-AND-LIFECYCLE-V2.md) | Pairing, trials, automatic activation, revocation |
+| [API contracts](docs/YARIZAN-API-CONTRACTS-V2.md) · [OpenAPI](docs/YARIZAN-OPENAPI-BACKEND-V2.json) | HTTP, offline license and trial contracts |
+| [Data model](docs/YARIZAN-DATA-MODEL-V2.md) | PostgreSQL entities and invariants |
+| [Commerce](docs/YARIZAN-COMMERCE-CONTRACTS.md) · [ZarinPal](docs/YARIZAN-ZARINPAL-CONTRACT-AND-READINESS.md) | Orders, coupons, payments, fulfillment |
+| [Auth and SMS](docs/YARIZAN-AUTH-AND-SMS-CONTRACTS.md) | OTP login, Admin MFA, SMS templates |
+| [Pricing and catalog](docs/YARIZAN-PRICING-AND-CATALOG-CONTRACT.md) · [Promotions](docs/YARIZAN-PROMOTIONAL-PRICING.md) | Prices, publication, discounts |
+| [Admin enrollment](docs/YARIZAN-OWNER-ADMIN-ENROLLMENT.md) | Provisioning Admin accounts on the server |
+| [License signing custody](docs/YARIZAN-LICENSE-SIGNING-CUSTODY.md) | Production key ceremony and custody |
+| [Release and rollback](docs/YARIZAN-RELEASE-AND-ROLLBACK.md) · [Windows release](docs/YARIZAN-WINDOWS-RELEASE.md) | Image and installer release, rollback |
+| [Threat model](docs/YARIZAN-THREAT-MODEL-V2.md) · [Security](docs/security.md) | Assets, boundaries, limitations |
+| [Build and pack](docs/build-and-pack.md) · [CI](docs/ci.md) | Local build, installer, workflows |
+| [ADRs](docs/adr/) | Architecture decisions |
+
+Phase reports (`docs/YARIZAN-PHASE-*-REPORT.md`) record how V2 was built and reviewed; they are historical.
 
 ## License and contact
 
-Proprietary; see [LICENSE.txt](LICENSE.txt) for the bilingual EULA. Game/font distribution must respect their respective licenses. Local encryption and signed checks do not make a customer-controlled binary impossible to modify; see [security limits](docs/security.md#limitations).
+Proprietary; see [LICENSE.txt](LICENSE.txt) for the bilingual EULA. Game and font distribution must respect their licenses. Local encryption and signed checks do not make a customer-controlled binary impossible to modify; see [security limits](docs/security.md#limitations).
 
 Website: [osameh.dev](https://osameh.dev) · Support: [support@osameh.dev](mailto:support@osameh.dev) · Telegram: [@osameh_ir](https://t.me/osameh_ir)
-
-## V2 Phase 3 web and provisioning review
-
-The isolated [Nuxt 4 storefront and portals](apps/web/README.md) use the real NestJS/PostgreSQL contracts. Browser pairing returns only an approval receipt; a fresh Windows CNG proof picks up enrollment and the short-lived credential. See [ADR-0006](docs/adr/0006-web-and-desktop-provisioning.md), [Phase 3 engineering report](docs/YARIZAN-PHASE-3-REPORT.md), and [web screenshots](docs/Images/web/). Commercial startup remains closed. Payments and deployment are not implemented or authorized; SMS authentication is implemented for review with a fake local provider and a gated vendor adapter. Existing legacy services remain separate.
-
-## Phase 3.1 authentication, UX, SMS and notes
-
-The same Draft PR includes mobile OTP first claim/login/reset, optional passwords and mobile management, SMS Admin MFA, shared Persian validation, and revisioned searchable internal notes. [Auth/SMS contracts](docs/YARIZAN-AUTH-AND-SMS-CONTRACTS.md) and the [Phase 3.1 report](docs/YARIZAN-PHASE-3-1-REPORT.md) distinguish tested local behavior from missing live provider credentials/template and commercial ownership/signing gates. Desktop credential pickup remains desktop-only; paid/trial offline guarantees are unchanged.
-
-
-## V2 production readiness (Draft PR #5)
-
-The owner approved a staged launch. **Stage A** is a brochure-only public website: a separately built web image (`YARIZAN_BUILD_PROFILE=brochure`, `YARIZAN_SITE_MODE=brochure`) that needs no API, database or secret and refuses every account, commerce, Admin and API route. **Stage B**, the full application, stays blocked by the closed production gates. See the [readiness report](docs/YARIZAN-PRODUCTION-READINESS-REPORT.md), [infrastructure handoff](docs/YARIZAN-INFRASTRUCTURE-HANDOFF-V2.md) and [release and rollback](docs/YARIZAN-RELEASE-AND-ROLLBACK.md). Nothing has been published or deployed.
-
-## V2 Phase 4 synthetic commerce review
-
-[Phase 4 report](docs/YARIZAN-PHASE-4-REPORT.md), [commerce contracts](docs/YARIZAN-COMMERCE-CONTRACTS.md) and [web screenshots](docs/Images/web/) cover authoritative orders/coupons, a labeled payment simulator, durable reconciliation, exactly-once perpetual license fulfillment and customer/Admin finance pages. Existing PostgreSQL commerce tables are extended by migration 009. Enable COMMERCE_MODE=fake only for isolated development; disabled remains the default. Real ZarinPal selection and production startup refuse to run. No live charge, refund, SMS or deployment is authorized; commercial [release gates](docs/YARIZAN-COMMERCIAL-RELEASE-CHECKLIST.md) remain closed.

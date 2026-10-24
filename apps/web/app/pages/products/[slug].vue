@@ -84,10 +84,7 @@ const commerce = publicOnly.value
               راهنمای تهیهٔ این نسخه ↗
             </button>
             <p v-else class="notice">فروش این نسخه فعلاً متوقف است.</p>
-            <p class="muted">
-              پرداخت اینترنتی هنوز فعال نیست؛ مبلغی در سایت دریافت نمی‌شود.
-            </p></template
-          >
+          </template>
           <div class="detail-facts">
             <p>✓ مجوز همیشگی، ویژهٔ همین پایه و دستگاه تأییدشده</p>
             <p>✓ اجرای آفلاین پس از فعال‌سازی مجوز معتبر</p>
@@ -117,14 +114,10 @@ const commerce = publicOnly.value
       </details>
     </div>
     <BaseDialog v-model="assistance" title="راهنمای تهیهٔ یاریزان"
-      ><p>
-        پرداخت اینترنتی هنوز آماده نیست. برای دریافت برنامه و راهنمای تهیهٔ پایهٔ موردنظر با
-        پشتیبانی تماس بگیرید.
-      </p>
+      ><p>برای دریافت برنامه و راهنمای تهیهٔ پایهٔ موردنظر با پشتیبانی تماس بگیرید.</p>
       <a class="button primary phone" :href="'tel:' + PRIMARY_SUPPORT_PHONE.tel" dir="ltr">{{
         PRIMARY_SUPPORT_PHONE.display
       }}</a>
-      <p class="muted">این صفحه هیچ خرید یا پرداختی ثبت نمی‌کند.</p></BaseDialog
-    >
+    </BaseDialog>
   </section>
 </template>

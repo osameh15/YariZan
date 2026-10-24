@@ -3,7 +3,6 @@ import {
   assertValidRelease,
   formatSizeMb,
   gradeStatus,
-  grades,
   latestForGrade,
   latestPath,
   parseGrade,
@@ -35,11 +34,21 @@ const sample: WindowsRelease = {
 };
 
 describe('Windows release list', () => {
-  it('lists no release for any grade until the owner approves a V2 installer', () => {
-    expect(windowsReleases).toEqual([]);
-    for (const grade of grades) expect(latestForGrade(grade)).toBeNull();
-    expect(gradeStatus(1)).toBe('content-ready');
-    for (const grade of [2, 3, 4, 5, 6] as const) expect(gradeStatus(grade)).toBe('coming-soon');
+  it('lists only the owner-approved Grade 1 2.0.0 installer', () => {
+    expect(windowsReleases).toHaveLength(1);
+    for (const release of windowsReleases) assertValidRelease(release);
+    expect(latestForGrade(1)).toMatchObject({
+      version: '2.0.0',
+      filename: 'YariZan-G1-Setup-v2.0.0.exe',
+      sizeBytes: 1042426854,
+      sha256: 'd01bb66afebe125ed8ce259c9f091c5e63820aad42048c08488557c6263642b7',
+      approval: { signature: 'unsigned-owner-approved' },
+    });
+    expect(gradeStatus(1)).toBe('available');
+    for (const grade of [2, 3, 4, 5, 6] as const) {
+      expect(latestForGrade(grade)).toBeNull();
+      expect(gradeStatus(grade)).toBe('coming-soon');
+    }
   });
   it('serves downloads from the first-party mirror, per grade, never from GitHub', () => {
     expect(latestPath(3)).toBe('/downloads/windows/grade-3/latest');

@@ -30,13 +30,15 @@ async function load() {
     licenses.value = d[1] as Record<string, unknown>[];
     owned.value = d[2] as Record<string, unknown>[];
   } catch (e) {
-    message.value = errorMessage(e);
     account.value = undefined;
-    if ((e as { status?: number }).status === 401)
-      await navigateTo('/login?return=' + encodeURIComponent(route.path));
-  } finally {
-    busy.value = false;
+    // Signed out: go straight to the login page and keep the loading state, so no portal shows first.
+    if ((e as { status?: number }).status === 401) {
+      await navigateTo('/login?return=' + encodeURIComponent(route.path), { replace: true });
+      return;
+    }
+    message.value = errorMessage(e);
   }
+  busy.value = false;
 }
 async function logout() {
   try {
@@ -59,8 +61,12 @@ async function rotate() {
 onMounted(load);
 </script>
 <template>
-  <section class="wrap section portal">
-    <aside class="portal-sidebar">
+  <section v-if="busy" class="wrap section portal-loader" role="status">
+    <img src="/brand/logo.webp" alt="" width="118" height="78" />
+    <span>در حال دریافت حساب…</span>
+  </section>
+  <section v-else class="wrap section portal">
+    <aside v-if="account" class="portal-sidebar">
       <p class="eyebrow">خانهٔ یادگیری شما</p>
       <h2>حساب من</h2>
       <nav aria-label="حساب مشتری">
@@ -74,10 +80,9 @@ onMounted(load);
       </nav>
       <button class="button secondary" @click="logout">خروج از حساب</button>
     </aside>
-    <div class="portal-main" :aria-busy="busy">
-      <div v-if="busy" role="status" class="notice">در حال دریافت حساب…</div>
+    <div class="portal-main">
       <div v-if="message" class="notice" role="status">{{ message }}</div>
-      <template v-if="account && !busy"
+      <template v-if="account"
         ><header class="portal-heading">
           <div>
             <p class="eyebrow">خوش آمدید</p>
@@ -158,7 +163,7 @@ onMounted(load);
         >
         <CommerceOrders v-else
       /></template>
-      <div v-else-if="!busy" class="panel">
+      <div v-else class="panel">
         <NuxtLink to="/login" class="button primary">ورود به حساب</NuxtLink
         ><button class="button secondary" @click="load">تلاش دوباره</button>
       </div>

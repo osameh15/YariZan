@@ -97,7 +97,7 @@ public partial class LockPage : UserControl
             DesktopAccessState.TrialExhausted => "فرصت‌های آزمایشی این نسخه به پایان رسیده است.",
             DesktopAccessState.ProductBlocked => BlockMessage,
             DesktopAccessState.ConnectionUnavailable => "ارتباط با سرور برقرار نشد. برای فعال‌سازی اولیه یا شروع آزمایش به اینترنت نیاز دارید.",
-            DesktopAccessState.EnrollmentRequired => "اتصال امن این دستگاه هنوز آماده نیست. لطفاً با پشتیبانی تماس بگیرید.",
+            DesktopAccessState.EnrollmentRequired => "اتصال امن این دستگاه کامل نشده است. لطفاً با پشتیبانی تماس بگیرید.",
             _ => ""
         }, _access.State is DesktopAccessState.ProductBlocked or DesktopAccessState.ConnectionUnavailable);
         if (_access.LocalLicenseState == DesktopAccessState.Revoked)
@@ -298,7 +298,7 @@ public partial class LockPage : UserControl
     {
         string text = ex switch
         {
-            EnrollmentRequiredException => "اتصال امن این دستگاه هنوز آماده نیست. لطفاً با پشتیبانی تماس بگیرید.",
+            EnrollmentRequiredException => "اتصال امن این دستگاه کامل نشده است. لطفاً با پشتیبانی تماس بگیرید.",
             V2ApiException { Code: "PRODUCT_BLOCKED" } => BlockMessage,
             V2ApiException { Code: "ACCOUNT_RESTRICTED" } => "دسترسی حساب محدود شده است. لطفاً با پشتیبانی تماس بگیرید.",
             V2ApiException { Code: "RATE_LIMITED" } => "تعداد درخواست‌ها زیاد است. کمی بعد دوباره تلاش کنید.",

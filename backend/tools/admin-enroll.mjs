@@ -31,15 +31,21 @@ const rl = readline.createInterface({
 let muted = false;
 const original = rl._writeToOutput;
 rl._writeToOutput = (text) => original.call(rl, muted ? "" : text);
+// Readline owns the terminal in raw mode: without this, Ctrl+C only pauses input and the tool hangs.
+rl.on("SIGINT", () => {
+  process.stdout.write("\nCancelled; nothing more was written.\n");
+  process.exit(130);
+});
 const ask = (question, hidden) =>
   new Promise((resolve) => {
-    process.stdout.write(question);
-    muted = hidden;
-    rl.question("", (answer) => {
+    // Readline writes the prompt itself (a prompt written beforehand is cleared by its line refresh);
+    // the answer is muted only after the prompt is on screen.
+    rl.question(question, (answer) => {
       muted = false;
       if (hidden) process.stdout.write("\n");
       resolve(answer);
     });
+    muted = hidden;
   });
 const actor = () => ({ type: "SYSTEM", correlationId: randomUUID() });
 const app = await NestFactory.createApplicationContext(AppModule, {
