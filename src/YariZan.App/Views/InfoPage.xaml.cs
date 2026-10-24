@@ -11,9 +11,14 @@ public partial class InfoPage : UserControl
     public event EventHandler? NextRequested;
     public event EventHandler? BackRequested;
 
-    public InfoPage(int? trialRemaining = null, bool isActivated = false, int grade = 1)
+    public InfoPage(int? trialRemaining = null, bool isActivated = false, int grade = 1, string? username = null)
     {
         InitializeComponent();
+        if (!string.IsNullOrWhiteSpace(username))
+        {
+            IdentityText.Text = username;
+            IdentityPanel.Visibility = Visibility.Visible;
+        }
         AppTitle.Text = AppBranding.PersianTitle(grade);
         IntroductionText.Text = $"یاریزان مجموعه‌ای از بازی‌های آموزشی ویژهٔ پایه {AppBranding.GradeName(grade)} دبستان است. هر صفحه از کتاب شامل ۶ تصویر از صفحه‌های کتاب درسی است؛ اگر صفحه‌ای چند بازی داشته باشد، با کلیک روی آن بازی دلخواه را انتخاب کنید. با ورق زدن یا وارد کردن شمارهٔ صفحه به صفحه‌های دیگر دسترسی پیدا می‌کنید.";
         var ver = Assembly.GetExecutingAssembly().GetName().Version!.ToString(3);
@@ -34,6 +39,13 @@ public partial class InfoPage : UserControl
 
     private void Back_Click(object sender, RoutedEventArgs e) =>
         BackRequested?.Invoke(this, EventArgs.Empty);
+
+    private void CopyIdentity_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(IdentityText.Text); IdentityFeedback.Text = "شناسه کاربری کپی شد."; }
+        catch { IdentityFeedback.Text = "کپی نشد؛ دوباره تلاش کنید."; }
+        IdentityFeedback.Visibility = Visibility.Visible;
+    }
 
     private void Exit_Click(object sender, RoutedEventArgs e) =>
         Application.Current.Shutdown();
