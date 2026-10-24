@@ -5,8 +5,10 @@ import {
   gradeStatus,
   latestForGrade,
   latestPath,
+  latestUrl,
   parseGrade,
   releasePath,
+  releaseUrl,
   releasesForGrade,
   windowsReleases,
   type WindowsRelease,
@@ -53,6 +55,10 @@ describe('Windows release list', () => {
   it('serves downloads from the first-party mirror, per grade, never from GitHub', () => {
     expect(latestPath(3)).toBe('/downloads/windows/grade-3/latest');
     expect(releasePath(sample)).toBe('/downloads/windows/grade-1/2.0.0/YariZan-G1-Setup-2.0.0.exe');
+    expect(latestUrl(1)).toBe('https://dl.oarnova.games/downloads/windows/grade-1/latest');
+    expect(releaseUrl(sample)).toBe(
+      'https://dl.oarnova.games/downloads/windows/grade-1/2.0.0/YariZan-G1-Setup-2.0.0.exe',
+    );
     expect(JSON.stringify(windowsReleases)).not.toMatch(/github|https?:/i);
   });
   it('a grade becomes available only through a complete approved record', () => {

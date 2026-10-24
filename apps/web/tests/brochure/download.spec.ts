@@ -32,8 +32,8 @@ test('six grade cards are shown, grade 1 is preselected and only grade 1 is down
     .locator('a[href]')
     .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));
   expect(downloads).toEqual([
-    '/downloads/windows/grade-1/latest',
-    '/downloads/windows/grade-1/2.0.0/YariZan-G1-Setup-v2.0.0.exe',
+    'https://dl.oarnova.games/downloads/windows/grade-1/latest',
+    'https://dl.oarnova.games/downloads/windows/grade-1/2.0.0/YariZan-G1-Setup-v2.0.0.exe',
   ]);
   const hrefs = await page
     .locator('a[href]')
