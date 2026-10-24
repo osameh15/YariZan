@@ -50,6 +50,19 @@ export class Identity {
       (input.purpose === "CONFIRM") === !!input.pairing_id,
       "INVALID_REQUEST",
     );
+    // A pairing id this server never issued (for example one left on the device by another backend)
+    // is an invalid pairing, which the desktop client clears before starting a new one. Without this
+    // check the foreign key below fails and the request ends as a generic 503.
+    if (input.pairing_id)
+      requireCondition(
+        (
+          await this.db.query("SELECT 1 FROM pairings WHERE id=$1", [
+            input.pairing_id,
+          ])
+        ).rowCount,
+        "PAIRING_INVALID",
+        410,
+      );
     const id = randomUUID(),
       nonce = token(),
       expires = new Date(Date.now() + 120000);
