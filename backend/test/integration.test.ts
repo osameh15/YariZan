@@ -410,6 +410,23 @@ test("Wrong public key cannot use challenge", async () => {
   p.device_public_key = candidate().publicKey;
   await denied("/device-pairings", p, "INVALID_PROOF");
 });
+test("CONFIRM challenge for a pairing this server never issued is PAIRING_INVALID, not 503", async () => {
+  const key = candidate();
+  const r = await denied(
+    "/devices/challenges",
+    {
+      fingerprint_version: 2,
+      fingerprint_digest: key.fingerprint,
+      device_public_key: key.publicKey,
+      purpose: "CONFIRM",
+      pairing_id: randomUUID(),
+    },
+    "PAIRING_INVALID",
+  );
+  assert.equal(r.status, 410);
+  // The device then starts a fresh pairing as usual.
+  await ok("/device-pairings", await proof(key, "PAIR"));
+});
 test("Challenge replay rejected", async () => {
   const p = await proof(candidate(), "PAIR");
   await ok("/device-pairings", p);
