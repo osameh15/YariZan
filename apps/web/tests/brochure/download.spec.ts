@@ -3,12 +3,12 @@ import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
-// Grade selector on /download. No installer is approved yet, so every grade must show a clear
-// unavailable state and must never expose a usable download link.
+// Grade selector on /download. Only Grade 1 has an approved installer (2.0.0, unsigned under the
+// owner's recorded exception); every other grade must show a clear unavailable state.
 const profile = process.env.YARIZAN_PUBLIC_PROFILE === 'storefront' ? 'storefront' : 'brochure';
 const images = path.resolve('.local/screenshots/' + profile);
 
-test('six grade cards are shown, grade 1 is preselected and nothing is downloadable', async ({
+test('six grade cards are shown, grade 1 is preselected and only grade 1 is downloadable', async ({
   page,
 }) => {
   await page.goto('/download');
@@ -17,13 +17,32 @@ test('six grade cards are shown, grade 1 is preselected and nothing is downloada
   await expect(page.getByRole('radiogroup')).toHaveCount(0); // native radios in a fieldset
   await expect(page.getByRole('group', { name: 'پایهٔ موردنظر را انتخاب کنید' })).toBeVisible();
   await expect(radios.first()).toBeChecked();
-  await expect(page.locator('.grade-card[data-grade="1"] .grade-chip')).toHaveText(
-    'محتوا آماده است',
-  );
+  await expect(page.locator('.grade-card[data-grade="1"] .grade-chip')).toHaveText('آمادهٔ دریافت');
   for (const grade of [2, 3, 4, 5, 6])
     await expect(page.locator(`.grade-card[data-grade="${grade}"] .grade-chip`)).toHaveText(
       'به‌زودی',
     );
+  const panel = page.getByTestId('download-available');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText(
+    'd01bb66afebe125ed8ce259c9f091c5e63820aad42048c08488557c6263642b7',
+  );
+  await expect(page.getByTestId('download-unsigned-notice')).toBeVisible();
+  const downloads = await panel
+    .locator('a[href]')
+    .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));
+  expect(downloads).toEqual([
+    '/downloads/windows/grade-1/latest',
+    '/downloads/windows/grade-1/2.0.0/YariZan-G1-Setup-v2.0.0.exe',
+  ]);
+  const hrefs = await page
+    .locator('a[href]')
+    .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));
+  for (const href of hrefs) expect(href).not.toMatch(/github/i);
+});
+
+test('a grade without an approved installer exposes no download link', async ({ page }) => {
+  await page.goto('/download?grade=2');
   await expect(page.getByTestId('download-unavailable')).toBeVisible();
   await expect(page.getByTestId('download-available')).toHaveCount(0);
   const hrefs = await page
@@ -35,9 +54,6 @@ test('six grade cards are shown, grade 1 is preselected and nothing is downloada
     expect(href).not.toMatch(/\.(exe|msi|zip)(?:$|\?)/i);
   }
   await expect(page.locator('.button.is-disabled')).toHaveAttribute('aria-disabled', 'true');
-  expect(
-    (await page.request.get('/downloads/windows/grade-1/latest', { maxRedirects: 0 })).status(),
-  ).toBe(404);
 });
 
 test('choosing a grade updates the panel, the address and the history', async ({ page }) => {
@@ -112,11 +128,13 @@ test('grade selector fits a phone and a tablet without horizontal scrolling', as
   ]) {
     const context = await browser.newContext({ viewport });
     const page = await context.newPage();
-    await page.goto('/download?grade=3');
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow, JSON.stringify(viewport)).toBeLessThanOrEqual(0);
+    for (const grade of [1, 3]) {
+      await page.goto('/download?grade=' + grade);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, JSON.stringify(viewport) + ' grade ' + grade).toBeLessThanOrEqual(0);
+    }
     const boxes = await page
       .locator('.grade-card')
       .evaluateAll((cards) => cards.map((card) => card.getBoundingClientRect().height));

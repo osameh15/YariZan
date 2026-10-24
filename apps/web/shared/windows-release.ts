@@ -60,7 +60,35 @@ export interface WindowsRelease {
   approval: ReleaseApproval;
 }
 
-export const windowsReleases: readonly WindowsRelease[] = [];
+export const windowsReleases: readonly WindowsRelease[] = [
+  {
+    grade: 1,
+    version: '2.0.0',
+    releasedAt: '2026-10-24',
+    filename: 'YariZan-G1-Setup-v2.0.0.exe',
+    sizeBytes: 1042426854,
+    sha256: 'd01bb66afebe125ed8ce259c9f091c5e63820aad42048c08488557c6263642b7',
+    format: 'exe',
+    notes: [
+      'نخستین نسخهٔ تجاری یاریزان پایهٔ اول برای ویندوز.',
+      'اتصال دستگاه به حساب، دو فرصت تجربه، خرید از سایت و فعال‌سازی خودکار.',
+      'اجرای آفلاین بازی‌ها پس از فعال‌سازی.',
+    ],
+    requirements: [
+      'ویندوز ۱۰ یا ۱۱ (۶۴ بیتی)',
+      'حدود ۲ گیگابایت فضای خالی دیسک',
+      'اینترنت برای اتصال حساب، شروع فرصت تجربه و فعال‌سازی؛ پس از فعال‌سازی، بازی‌ها آفلاین اجرا می‌شوند.',
+    ],
+    approval: {
+      approvedBy: 'OAR NOVA GAMES STUDIO (owner)',
+      approvedAt: '2026-10-24',
+      productionTrustRoots: true,
+      signature: 'unsigned-owner-approved',
+      scanned: true,
+      provenance: 'release-2.0.0@55939c3960cf7f772d1d2ca74c1473629206baf9',
+    },
+  },
+];
 
 export type GradeStatus = 'available' | 'content-ready' | 'coming-soon';
 
