@@ -36,5 +36,5 @@ useSeoMeta({
 });
 </script>
 <template>
-  <NuxtLayout><NuxtPage /></NuxtLayout>
+  <PageLoader /><NuxtLayout><NuxtPage /></NuxtLayout>
 </template>
