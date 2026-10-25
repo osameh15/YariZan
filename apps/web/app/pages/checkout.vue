@@ -18,15 +18,15 @@ const sku = String(route.query.sku ?? 'YARIZAN-G1');
 if (!/^YARIZAN-G[1-6]$/.test(sku)) throw createError({ statusCode: 404 });
 const requestId = ref('');
 let quoteGeneration = 0;
-const canCreate = computed(
-  () => !busy.value && !!quote.value && coupon.value.trim() === quoted.value,
-);
-// Editing invalidates even an A -> B -> A request; only a fresh quote can authorize checkout.
+// The order always uses the last server-validated coupon (`quoted`), which is exactly the price
+// shown. Typing in the coupon box changes nothing until the customer asks for a check; a rejected
+// code leaves the validated price and the payment button as they were.
+const canCreate = computed(() => !busy.value && !!quote.value);
+// Editing makes any in-flight check obsolete, so a late answer for older text is ignored.
 watch(
   coupon,
   () => {
     quoteGeneration++;
-    quote.value = undefined;
     message.value = '';
     loading.value = false;
   },
@@ -41,7 +41,6 @@ async function load() {
   const submittedCoupon = coupon.value.trim();
   const current = () => generation === quoteGeneration && coupon.value.trim() === submittedCoupon;
   loading.value = true;
-  quote.value = undefined;
   message.value = '';
   try {
     const result = await api.post('/api/v2/discounts/quote', {
@@ -54,7 +53,6 @@ async function load() {
     quoted.value = submittedCoupon;
   } catch (e) {
     if (!current()) return;
-    quote.value = undefined;
     message.value = errorMessage(e);
     if ((e as { status?: number }).status === 401)
       await navigateTo('/login?return=' + encodeURIComponent('/checkout?sku=' + sku));
@@ -137,7 +135,7 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
             </button>
           </FormShell>
           <ApiNotice :message="message" />
-          <template v-if="quote && quote.discount_irr > 0">
+          <template v-if="quote && quote.discount_irr > 0 && !message">
             <ApiNotice
               kind="success"
               message="کد تخفیف قابل استفاده است؛ سهمیه هنگام ثبت سفارش رزرو می‌شود."
@@ -234,8 +232,8 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
           <button class="button primary checkout-submit" :disabled="!canCreate" @click="create">
             ثبت سفارش و بررسی پرداخت <span aria-hidden="true">←</span>
           </button>
-          <p v-if="coupon.trim() !== quoted" class="muted" role="status">
-            برای ادامه، تغییر کد تخفیف را بررسی کنید.
+          <p v-if="coupon.trim() && coupon.trim() !== quoted" class="muted" role="status">
+            برای اعمال این کد، «بررسی کد تخفیف» را بزنید؛ مبلغ بالا با کد بررسی‌شدهٔ قبلی است.
           </p>
           <p class="summary-footnote">
             قیمت و تخفیف را سرور محاسبه می‌کند. مبلغ نهایی را پیش از شروع پرداخت دوباره خواهید دید.
