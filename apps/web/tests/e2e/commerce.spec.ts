@@ -545,7 +545,9 @@ test('Coupon input edits and reverse-order quotes never authorize a mismatched o
   await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
   await enteredA.promise;
   await page.getByLabel('کد تخفیف', { exact: true }).fill(b);
-  await expect(page.locator('.checkout-submit')).toHaveCount(0);
+  // Typing changes nothing: the last validated (coupon-free) price and the button stay.
+  await expect(page.locator('.checkout-submit')).toBeEnabled();
+  await expect(page.locator('.payable-total')).toContainText('۱٬۲۹۹٬۰۰۰');
   await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
   await enteredB.promise;
   releaseB.release();
@@ -600,11 +602,39 @@ for (const lateError of [false, true]) {
       await expect(page.locator('.checkout-submit')).toBeEnabled();
       await expect(page.getByRole('alert')).toHaveCount(0);
     } else {
-      await expect(page.locator('.checkout-submit')).toHaveCount(0);
+      // A rejected code keeps the last validated price and the payment button.
+      await expect(page.locator('.checkout-submit')).toBeEnabled();
+      await expect(page.locator('.payable-total')).toContainText('۱٬۲۹۹٬۰۰۰');
       await expect(page.getByRole('alert')).toContainText('قابل استفاده نیست');
     }
   });
 }
+test('Typing a coupon never hides the payment; a rejected code keeps the validated price', async ({
+  page,
+}) => {
+  const e = await customer(),
+    a = await discount();
+  await login(page, e);
+  await page.goto('/checkout');
+  await expect(page.locator('.checkout-submit')).toBeEnabled();
+  await page.getByLabel('کد تخفیف', { exact: true }).fill(a);
+  await expect(page.locator('.checkout-submit')).toBeEnabled();
+  await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
+  await expect(page.locator('.discount-applied')).toBeVisible();
+  await expect(page.locator('.payable-total')).toContainText('۱٬۱۶۹٬۱۰۰');
+  await page.getByLabel('کد تخفیف', { exact: true }).fill('NOT-A-REAL-CODE');
+  await expect(page.locator('.checkout-submit')).toBeEnabled();
+  await expect(page.locator('.payable-total')).toContainText('۱٬۱۶۹٬۱۰۰');
+  await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('قابل استفاده نیست');
+  await expect(page.locator('.payable-total')).toContainText('۱٬۱۶۹٬۱۰۰');
+  await expect(page.locator('.checkout-submit')).toBeEnabled();
+  const created = page.waitForRequest(
+    (r) => r.method() === 'POST' && r.url().endsWith('/api/v2/orders'),
+  );
+  await page.locator('.checkout-submit').click();
+  expect((await created).postDataJSON().coupon).toBe(a);
+});
 test('Admin old payments completion cannot finish a newer orders load', async ({ page }) => {
   await manager(page);
   await expect(page.locator('.portal-main')).toHaveAttribute('aria-busy', 'false');
