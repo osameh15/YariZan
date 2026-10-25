@@ -621,13 +621,13 @@ test('Typing a coupon never hides the payment; a rejected code keeps the validat
   await expect(page.locator('.checkout-submit')).toBeEnabled();
   await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
   await expect(page.locator('.discount-applied')).toBeVisible();
-  const validated = await page.locator('.payable-total').innerText();
+  await expect(page.locator('.payable-total')).toContainText('۱٬۱۶۹٬۱۰۰');
   await page.getByLabel('کد تخفیف', { exact: true }).fill('NOT-A-REAL-CODE');
   await expect(page.locator('.checkout-submit')).toBeEnabled();
-  await expect(page.locator('.payable-total')).toHaveText(validated);
+  await expect(page.locator('.payable-total')).toContainText('۱٬۱۶۹٬۱۰۰');
   await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('قابل استفاده نیست');
-  await expect(page.locator('.payable-total')).toHaveText(validated);
+  await expect(page.locator('.payable-total')).toContainText('۱٬۱۶۹٬۱۰۰');
   await expect(page.locator('.checkout-submit')).toBeEnabled();
   const created = page.waitForRequest(
     (r) => r.method() === 'POST' && r.url().endsWith('/api/v2/orders'),
