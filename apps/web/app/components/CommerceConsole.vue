@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { persianDigits } from '#shared/digits';
 import { errorMessage } from '#shared/domain';
-import { financialToman, commerceState } from '#shared/commerce';
+import { financialToman, commerceState, commerceTone, closedReasons } from '#shared/commerce';
+import { gradeNames } from '#shared/domain';
 import type { paths } from '#shared/api.generated';
 type CommerceSection =
   paths['/api/v2/admin/commerce/{section}']['get']['parameters']['path']['section'];
@@ -19,7 +20,10 @@ const api = useApi(true),
   from = ref(''),
   to = ref(''),
   offset = ref(0),
-  next = ref<number | null>(null);
+  next = ref<number | null>(null),
+  limit = ref(20),
+  total = ref<number | null>(null),
+  archived = ref<'active' | 'archived' | 'all'>('active');
 const sections = [
   ['orders', 'سفارش‌ها'],
   ['payments', 'پرداخت‌ها'],
@@ -47,7 +51,7 @@ function invalidateLoad() {
   next.value = null;
   message.value = '';
 }
-watch([search, state, from, to, offset], invalidateLoad, { flush: 'sync' });
+watch([search, state, from, to, offset, limit, archived], invalidateLoad, { flush: 'sync' });
 onBeforeUnmount(invalidateLoad);
 async function load() {
   const generation = ++loadGeneration;
@@ -58,6 +62,8 @@ async function load() {
     from: from.value,
     to: to.value,
     offset: offset.value,
+    limit: limit.value,
+    archived: archived.value,
   };
   const current = () => generation === loadGeneration && section.value === snapshot.section;
   busy.value = true;
@@ -80,6 +86,8 @@ async function load() {
       {
         search: snapshot.search,
         offset: snapshot.offset,
+        limit: snapshot.limit,
+        ...(snapshot.section === 'orders' ? { archived: snapshot.archived } : {}),
         ...(snapshot.state ? { state: snapshot.state } : {}),
         ...(snapshot.from ? { from: new Date(snapshot.from + 'T00:00:00').toISOString() } : {}),
         ...(snapshot.to ? { to: new Date(snapshot.to + 'T00:00:00').toISOString() } : {}),
@@ -90,6 +98,7 @@ async function load() {
     else {
       rows.value = r.items as Record<string, unknown>[];
       next.value = r.next_offset as number | null;
+      total.value = typeof r.total === 'number' ? r.total : null;
     }
   } catch (e) {
     if (!current()) return;
@@ -105,10 +114,67 @@ watch(
     offset.value = 0;
     search.value = '';
     state.value = '';
+    archived.value = 'active';
     load();
   },
   { flush: 'sync' },
 );
+function page(to: number) {
+  offset.value = to;
+  load();
+}
+function pageSize(n: number) {
+  limit.value = n;
+  offset.value = 0;
+  load();
+}
+function filterArchived(mode: 'active' | 'archived' | 'all') {
+  archived.value = mode;
+  offset.value = 0;
+  load();
+}
+type Column = { key: string; label: string; width?: string; truncate?: boolean; align?: 'end' };
+const columns = computed<Column[]>(() => {
+  const actions: Column = {
+    key: 'actions',
+    label: 'عملیات',
+    width: ['campaigns', 'coupons'].includes(section.value) ? '190px' : '150px',
+    align: 'end',
+  };
+  if (section.value === 'orders')
+    return [
+      { key: 'customer', label: 'شناسهٔ دستگاه', width: '24%' },
+      { key: 'sku', label: 'پایه', width: '11%' },
+      { key: 'amount', label: 'مبلغ', width: '14%' },
+      { key: 'status', label: 'وضعیت', width: '22%' },
+      { key: 'created_at', label: 'تاریخ ثبت', width: '15%' },
+      actions,
+    ];
+  if (section.value === 'payments')
+    return [
+      { key: 'customer', label: 'شناسهٔ دستگاه', width: '22%' },
+      { key: 'amount', label: 'مبلغ', width: '14%' },
+      { key: 'status', label: 'وضعیت تلاش پرداخت', width: '18%' },
+      { key: 'gateway', label: 'پاسخ درگاه', width: '18%' },
+      { key: 'created_at', label: 'زمان', width: '14%' },
+      actions,
+    ];
+  return [
+    { key: 'record', label: 'عنوان / شناسه', width: '26%' },
+    { key: 'info', label: 'اطلاعات', width: '30%' },
+    { key: 'status', label: 'وضعیت', width: '14%' },
+    { key: 'note', label: 'یادداشت داخلی', width: '16%', truncate: true },
+    actions,
+  ];
+});
+const grade = (sku: unknown) =>
+  'پایهٔ ' + (gradeNames[Number(String(sku ?? '').slice(-1)) - 1] ?? String(sku ?? '—'));
+const dateTime = (v: unknown) =>
+  v
+    ? new Date(String(v)).toLocaleString('fa-IR', { dateStyle: 'medium', timeStyle: 'short' })
+    : '—';
+const returnLabel = (v: unknown) =>
+  v === 'OK' ? 'بازگشت موفق' : v === 'NOK' ? 'لغو یا ناموفق در درگاه' : 'بازنگشته';
 onMounted(load);
 const dialog = ref(false),
   kind = ref(''),
@@ -173,11 +239,11 @@ async function open(action: string, row: Record<string, unknown> = {}) {
         skus: (row.skus ?? ['YARIZAN-G1']) as string[],
       });
     }
-    if (action === 'detail' || action === 'reconcile') {
+    if (['detail', 'reconcile', 'void', 'reopen', 'archive', 'unarchive'].includes(action)) {
       detail.value = await api.get('/api/v2/admin/commerce/orders/{id}', {
         id: String(row.order_id ?? row.id),
       });
-      if (action === 'reconcile') selected.value = detail.value;
+      if (action !== 'detail') selected.value = { ...row, ...detail.value };
     }
     dialog.value = true;
   } catch (e) {
@@ -203,6 +269,16 @@ async function save() {
       );
     } else if (kind.value === 'reconcile') {
       await api.post('/api/v2/admin/commerce/orders/{id}/reconcile', base, { id });
+    } else if (kind.value === 'void') {
+      await api.post('/api/v2/admin/commerce/orders/{id}/void', base, { id });
+    } else if (kind.value === 'reopen') {
+      await api.post('/api/v2/admin/commerce/orders/{id}/reopen', base, { id });
+    } else if (kind.value === 'archive' || kind.value === 'unarchive') {
+      await api.post(
+        '/api/v2/admin/commerce/orders/{id}/archive',
+        { ...base, archived: kind.value === 'archive' },
+        { id },
+      );
     } else if (kind.value === 'refund') {
       await api.post(
         '/api/v2/admin/commerce/refunds/{id}/review',
@@ -274,7 +350,20 @@ const stateLabel = (row: Record<string, unknown>) =>
     state: String(row.state),
     paid_at: row.paid_at,
     exception_code: row.exception_code,
+    closed_reason: row.closed_reason,
   });
+const orderActionTitles: Record<string, string> = {
+  detail: 'جزئیات سفارش',
+  note: 'یادداشت داخلی',
+  reconcile: 'بررسی دوبارهٔ سفارش',
+  void: 'باطل کردن فاکتور پرداخت‌نشده',
+  reopen: 'بازگرداندن فاکتور به پرداخت',
+  archive: 'بایگانی سفارش',
+  unarchive: 'خروج از بایگانی',
+  campaigns: 'تنظیم طرح تخفیف',
+  refund: 'بررسی درخواست بازپرداخت',
+  coupons: 'تنظیم کد تخفیف',
+};
 const navigationGroups: { title: string; ids: string[] }[] = [
   { title: 'سفارش و پرداخت', ids: ['orders', 'payments'] },
   { title: 'تخفیف‌ها', ids: ['campaigns', 'coupons', 'reservations', 'redemptions'] },
@@ -426,140 +515,148 @@ const navigationGroups: { title: string; ids: string[] }[] = [
             </ul>
           </div></template
         >
-        <div v-else class="table-scroll">
-          <table>
-            <caption>
-              {{
-                title
-              }}
-            </caption>
-            <thead>
-              <tr>
-                <th>شناسه / عنوان</th>
-                <th>اطلاعات</th>
-                <th>وضعیت</th>
-                <th>یادداشت داخلی</th>
-                <th>عملیات</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in rows" :key="String(row.id)">
-                <td>
-                  <b>{{ row.name ?? row.code ?? row.username ?? row.sku ?? 'رکورد' }}</b
-                  ><small class="record-id" dir="ltr">{{ persianDigits(row.id) }}</small>
-                </td>
-                <td>
-                  <p v-if="row.total_irr ?? row.amount_irr">
-                    {{ financialToman(row.total_irr ?? row.amount_irr) }} تومان
-                  </p>
-                  <p v-if="row.type">
-                    {{ row.type === 'percent' ? 'درصدی' : 'مبلغ ثابت' }}:
-                    {{ persianDigits(row.value) }}
-                  </p>
-                  <p v-if="row.max_redemptions">
-                    سقف کل: {{ persianDigits(row.max_redemptions) }} · سقف مشتری:
-                    {{ persianDigits(row.max_per_customer ?? 'بدون سقف') }}
-                  </p>
-                  <p v-if="row.held !== undefined">
-                    رزروشده: {{ persianDigits(row.held) }} · استفاده‌شده:
-                    {{ persianDigits(row.redeemed) }} · باقی‌مانده:
-                    {{
-                      row.max_redemptions
-                        ? persianDigits(
-                            Math.max(
-                              0,
-                              Number(row.max_redemptions) - Number(row.held) - Number(row.redeemed),
-                            ),
-                          )
-                        : 'بدون سقف کل'
-                    }}
-                  </p>
-                  <small v-if="row.provider_ref" dir="ltr">{{
-                    persianDigits(row.provider_ref)
-                  }}</small
-                  ><small v-if="row.starts_at"
-                    >{{ new Date(String(row.starts_at)).toLocaleDateString('fa-IR') }} تا
-                    {{ new Date(String(row.ends_at)).toLocaleDateString('fa-IR') }}</small
-                  >
-                  <p v-if="row.exception_code">این مورد نیاز به بررسی مالی دارد.</p>
-                </td>
-                <td>
-                  <span class="status-chip" :data-state="row.state">
-                    {{
-                      row.enabled === undefined ? stateLabel(row) : row.enabled ? 'فعال' : 'غیرفعال'
-                    }}</span
-                  >
-                </td>
-                <td class="note-preview">{{ row.note ?? '—' }}</td>
-                <td>
-                  <div class="table-actions">
-                    <button
-                      v-if="
-                        ['campaigns', 'coupons'].includes(section) && allowed('commerce.manage')
-                      "
-                      class="button secondary"
-                      @click="open(section, row)"
-                    >
-                      ویرایش</button
-                    ><button
-                      v-if="['orders', 'payments'].includes(section)"
-                      class="button secondary"
-                      @click="open('detail', row)"
-                    >
-                      جزئیات سفارش</button
-                    ><button
-                      v-if="
-                        ['orders', 'payments', 'exceptions', 'jobs'].includes(section) &&
-                        allowed('finance.reconcile')
-                      "
-                      class="button secondary"
-                      @click="open('reconcile', row)"
-                    >
-                      بررسی دوبارهٔ سفارش</button
-                    ><button
-                      v-if="
-                        ['orders', 'payments', 'campaigns', 'coupons'].includes(section) &&
-                        allowed('notes.manage')
-                      "
-                      class="button secondary"
-                      @click="open('note', row)"
-                    >
-                      یادداشت داخلی</button
-                    ><button
-                      v-if="section === 'refunds' && allowed('refunds.review')"
-                      class="button secondary"
-                      @click="open('refund', row)"
-                    >
-                      شروع بررسی درخواست
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <p v-if="!busy && !rows.length">رکوردی با این شرایط پیدا نشد.</p>
-        </div>
-        <div v-if="section !== 'finance'" class="actions">
-          <button
-            v-if="offset"
-            class="button secondary"
-            @click="
-              offset = Math.max(0, offset - 20);
-              load();
-            "
+        <template v-else>
+          <div v-if="section === 'orders'" class="toolbar-row">
+            <div class="segmented" role="group" aria-label="نمایش سفارش‌ها">
+              <button
+                v-for="[mode, label] in [
+                  ['active', 'سفارش‌های جاری'],
+                  ['archived', 'بایگانی‌شده'],
+                  ['all', 'همه'],
+                ] as const"
+                :key="mode"
+                type="button"
+                :aria-pressed="archived === mode"
+                @click="filterArchived(mode)"
+              >
+                {{ label }}
+              </button>
+            </div>
+          </div>
+          <DataTable
+            :columns="columns"
+            :rows="rows"
+            :caption="title"
+            :loading="busy"
+            :total="total"
+            :offset="offset"
+            :limit="limit"
+            :has-next="next !== null"
+            empty="رکوردی با این شرایط پیدا نشد."
+            @page="page"
+            @limit="pageSize"
           >
-            صفحهٔ قبل</button
-          ><button
-            v-if="next !== null"
-            class="button secondary"
-            @click="
-              offset = next!;
-              load();
-            "
-          >
-            صفحهٔ بعد
-          </button>
-        </div>
+            <template #cell-customer="{ row }"
+              ><b dir="ltr">{{ row.username ?? '—' }}</b
+              ><small dir="ltr" :title="String(row.id)">{{
+                persianDigits(row.id)
+              }}</small></template
+            >
+            <template #cell-sku="{ row }">{{ grade(row.sku) }}</template>
+            <template #cell-amount="{ row }"
+              >{{ financialToman(row.total_irr ?? row.amount_irr) }} تومان<small
+                v-if="Number(row.discount_irr ?? 0) > 0"
+                >تخفیف {{ financialToman(row.discount_irr) }}</small
+              ></template
+            >
+            <template #cell-status="{ row }"
+              ><span
+                class="pill"
+                :data-tone="
+                  section === 'orders'
+                    ? commerceTone({
+                        state: String(row.state),
+                        paid_at: row.paid_at,
+                        exception_code: row.exception_code,
+                      })
+                    : ['VERIFIED', 'DONE', 'REDEEMED', 'FULFILLED'].includes(String(row.state)) ||
+                        row.enabled === true
+                      ? 'ok'
+                      : ['FAILED', 'CANCELLED', 'REJECTED', 'RELEASED'].includes(
+                            String(row.state),
+                          ) || row.enabled === false
+                        ? 'bad'
+                        : 'warn'
+                "
+                >{{
+                  row.enabled === undefined ? stateLabel(row) : row.enabled ? 'فعال' : 'غیرفعال'
+                }}</span
+              ><small v-if="row.archived_at">بایگانی‌شده</small
+              ><small v-else-if="row.exception_code">نیازمند بررسی مالی</small></template
+            >
+            <template #cell-gateway="{ row }"
+              >{{ returnLabel(row.customer_return)
+              }}<small v-if="row.provider_ref" dir="ltr"
+                >کد پیگیری {{ persianDigits(row.provider_ref) }}</small
+              ></template
+            >
+            <template #cell-created_at="{ row }">{{ dateTime(row.created_at) }}</template>
+            <template #cell-record="{ row }"
+              ><b>{{ row.name ?? row.code ?? row.username ?? row.sku ?? 'رکورد' }}</b
+              ><small class="record-id" dir="ltr" :title="String(row.id)">{{
+                persianDigits(row.id)
+              }}</small></template
+            >
+            <template #cell-info="{ row }"
+              ><small v-if="row.total_irr ?? row.amount_irr"
+                >{{ financialToman(row.total_irr ?? row.amount_irr) }} تومان</small
+              ><small v-if="row.type"
+                >{{ row.type === 'percent' ? 'درصدی' : 'مبلغ ثابت' }}:
+                {{ persianDigits(row.value) }}</small
+              ><small v-if="row.held !== undefined"
+                >رزروشده {{ persianDigits(row.held) }} · استفاده‌شده
+                {{ persianDigits(row.redeemed) }} · سقف
+                {{ row.max_redemptions ? persianDigits(row.max_redemptions) : 'ندارد' }}</small
+              ><small v-if="row.starts_at"
+                >{{ new Date(String(row.starts_at)).toLocaleDateString('fa-IR') }} تا
+                {{ new Date(String(row.ends_at)).toLocaleDateString('fa-IR') }}</small
+              ><small v-if="row.kind">{{ row.kind }} · تلاش {{ persianDigits(row.attempts) }}</small
+              ><small v-if="row.code && section === 'exceptions'" dir="ltr">{{
+                row.code
+              }}</small></template
+            >
+            <template #cell-note="{ row }">{{ row.note ?? '—' }}</template>
+            <template #cell-actions="{ row }"
+              ><div class="row-actions">
+                <button
+                  v-if="['orders', 'payments'].includes(section)"
+                  class="button secondary"
+                  @click="open('detail', row)"
+                >
+                  جزئیات سفارش</button
+                ><template v-else-if="['campaigns', 'coupons'].includes(section)"
+                  ><button
+                    v-if="allowed('commerce.manage')"
+                    class="button secondary"
+                    @click="open(section, row)"
+                  >
+                    ویرایش</button
+                  ><button
+                    v-if="allowed('notes.manage')"
+                    class="button secondary"
+                    @click="open('note', row)"
+                  >
+                    یادداشت
+                  </button></template
+                ><button
+                  v-else-if="section === 'refunds' && allowed('refunds.review')"
+                  class="button secondary"
+                  @click="open('refund', row)"
+                >
+                  شروع بررسی درخواست</button
+                ><button
+                  v-else-if="
+                    ['exceptions', 'jobs'].includes(section) && allowed('finance.reconcile')
+                  "
+                  class="button secondary"
+                  @click="open('reconcile', row)"
+                >
+                  بررسی دوبارهٔ سفارش
+                </button>
+              </div></template
+            >
+          </DataTable>
+        </template>
       </template>
       <NuxtLink v-else class="button secondary" to="/zanyari/commerce">بازگشت به سفارش‌ها</NuxtLink>
     </div>
@@ -567,34 +664,147 @@ const navigationGroups: { title: string; ids: string[] }[] = [
       class="commerce-dialog"
       :class="{ 'commerce-dialog-editor': kind !== 'detail' }"
       v-model="dialog"
-      :title="
-        kind === 'detail'
-          ? 'جزئیات سفارش'
-          : kind === 'note'
-            ? 'یادداشت داخلی'
-            : kind === 'reconcile'
-              ? 'بررسی دوبارهٔ سفارش'
-              : kind === 'campaigns'
-                ? 'تنظیم طرح تخفیف'
-                : kind === 'refund'
-                  ? 'بررسی درخواست بازپرداخت'
-                  : 'تنظیم کد تخفیف'
-      "
+      :title="orderActionTitles[kind] ?? 'تنظیم کد تخفیف'"
     >
       <template v-if="kind === 'detail'"
-        ><p>
-          وضعیت:
-          {{
-            commerceState({
-              state: String(detail.state),
-              paid_at: detail.paid_at,
-              exception_code: detail.exception_code,
-            })
-          }}
+        ><p class="device-username" dir="ltr">
+          {{ (detail.snapshot as { username?: string } | undefined)?.username ?? '' }}
         </p>
-        <p dir="ltr">{{ persianDigits(detail.id) }}</p>
-        <p>مبلغ: {{ financialToman(detail.total_irr) }} تومان</p>
-        <p>تخفیف: {{ financialToman(detail.discount_irr) }} تومان</p>
+        <dl class="detail-grid">
+          <div>
+            <dt>وضعیت</dt>
+            <dd>
+              <span
+                class="pill"
+                :data-tone="
+                  commerceTone({
+                    state: String(detail.state),
+                    paid_at: detail.paid_at,
+                    exception_code: detail.exception_code,
+                  })
+                "
+                >{{
+                  commerceState({
+                    state: String(detail.state),
+                    paid_at: detail.paid_at,
+                    exception_code: detail.exception_code,
+                    closed_reason: detail.closed_reason,
+                  })
+                }}</span
+              >
+            </dd>
+          </div>
+          <div>
+            <dt>شمارهٔ سفارش</dt>
+            <dd dir="ltr">{{ persianDigits(detail.id) }}</dd>
+          </div>
+          <div>
+            <dt>پایه</dt>
+            <dd>{{ grade(detail.sku) }}</dd>
+          </div>
+          <div>
+            <dt>مبلغ نهایی</dt>
+            <dd>{{ financialToman(detail.total_irr) }} تومان</dd>
+          </div>
+          <div>
+            <dt>تخفیف</dt>
+            <dd>{{ financialToman(detail.discount_irr) }} تومان</dd>
+          </div>
+          <div>
+            <dt>تاریخ ثبت</dt>
+            <dd>{{ dateTime(detail.created_at) }}</dd>
+          </div>
+          <div v-if="detail.state === 'PENDING'">
+            <dt>مهلت پرداخت</dt>
+            <dd>{{ dateTime(detail.expires_at) }}</dd>
+          </div>
+          <div v-if="detail.closed_reason">
+            <dt>علت پایان فاکتور</dt>
+            <dd>{{ closedReasons[String(detail.closed_reason)] ?? detail.closed_reason }}</dd>
+          </div>
+          <div v-if="detail.exception_code">
+            <dt>نیازمند بررسی</dt>
+            <dd dir="ltr">{{ detail.exception_code }}</dd>
+          </div>
+        </dl>
+        <section class="detail-section">
+          <h3>تلاش‌های پرداخت</h3>
+          <p v-if="!(detail.payments as unknown[] | undefined)?.length" class="muted">
+            مشتری هنوز به درگاه نرفته است.
+          </p>
+          <table v-else class="mini-table">
+            <thead>
+              <tr>
+                <th>زمان</th>
+                <th>وضعیت</th>
+                <th>بازگشت از درگاه</th>
+                <th>کد پیگیری</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="p in detail.payments as Record<string, unknown>[]" :key="String(p.id)">
+                <td>{{ dateTime(p.created_at) }}</td>
+                <td>{{ stateLabel({ state: p.state }) }}</td>
+                <td>{{ returnLabel(p.customer_return) }}</td>
+                <td dir="ltr">{{ p.provider_ref ? persianDigits(p.provider_ref) : '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+        <section class="detail-section">
+          <h3>عملیات</h3>
+          <div class="action-grid">
+            <button
+              v-if="allowed('finance.reconcile') && detail.state === 'PENDING' && !detail.paid_at"
+              class="button destructive"
+              @click="open('void', detail)"
+            >
+              باطل کردن فاکتور</button
+            ><button
+              v-if="
+                allowed('finance.reconcile') &&
+                ['FAILED', 'CANCELLED'].includes(String(detail.state)) &&
+                !detail.paid_at &&
+                !rows.find((r) => r.id === detail.id)?.archived_at
+              "
+              class="button primary"
+              @click="open('reopen', detail)"
+            >
+              بازگرداندن به پرداخت</button
+            ><button
+              v-if="
+                allowed('finance.reconcile') &&
+                ['FAILED', 'CANCELLED'].includes(String(detail.state)) &&
+                !detail.paid_at
+              "
+              class="button secondary"
+              @click="
+                open(rows.find((r) => r.id === detail.id)?.archived_at ? 'unarchive' : 'archive', {
+                  ...detail,
+                })
+              "
+            >
+              {{
+                rows.find((r) => r.id === detail.id)?.archived_at
+                  ? 'خروج از بایگانی'
+                  : 'بایگانی (پنهان از فهرست)'
+              }}</button
+            ><button
+              v-if="allowed('finance.reconcile')"
+              class="button secondary"
+              @click="open('reconcile', detail)"
+            >
+              بررسی دوبارهٔ سفارش</button
+            ><button
+              v-if="allowed('notes.manage')"
+              class="button secondary"
+              @click="open('note', rows.find((r) => r.id === detail.id) ?? detail)"
+            >
+              یادداشت داخلی
+            </button>
+          </div>
+        </section>
+        <h3>تاریخچهٔ وضعیت پرداخت</h3>
         <ul class="record-list">
           <li v-for="(t, i) in detail.transitions as Record<string, unknown>[]" :key="i">
             {{ stateLabel({ state: t.next_state }) }} ·
@@ -697,6 +907,19 @@ const navigationGroups: { title: string; ids: string[] }[] = [
             <p v-if="kind === 'reconcile'">
               فقط بررسی و آماده‌سازی دوباره زمان‌بندی می‌شود؛ پرداخت تازه‌ای ساخته نمی‌شود و محدودیت
               دستگاه یا نسل حساب دور زده نخواهد شد.
+            </p>
+            <p v-else-if="kind === 'void'" class="danger-copy">
+              فاکتور پرداخت‌نشده بسته می‌شود و مشتری می‌تواند فاکتور تازه صادر کند. پرداخت ناتمام
+              این فاکتور دیگر تأیید نمی‌شود و اگر مبلغی کسر شده باشد، بانک آن را برمی‌گرداند.
+            </p>
+            <p v-else-if="kind === 'reopen'">
+              فاکتور با همان مبلغ قبلی برای ۱۵ دقیقهٔ دیگر قابل پرداخت می‌شود و در «سفارش‌های من»
+              مشتری نمایش داده می‌شود. اگر کد تخفیف داشته باشد و سهمیهٔ آن تمام شده باشد، عملیات
+              انجام نمی‌شود.
+            </p>
+            <p v-else-if="kind === 'archive'">
+              سفارش پرداخت‌نشده از فهرست اصلی مدیریت و از «سفارش‌های من» مشتری پنهان می‌شود. هیچ
+              سابقهٔ مالی پاک نمی‌شود و هر زمان می‌توانید آن را از بایگانی خارج کنید.
             </p>
             <AppSelect
               v-if="kind === 'refund'"

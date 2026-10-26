@@ -71,7 +71,127 @@ const route = useRoute(),
   reports = ref<Row>({}),
   offset = ref(0),
   next = ref<number | null>(null),
-  search = ref('');
+  search = ref(''),
+  limit = ref(20),
+  total = ref<number | null>(null),
+  archived = ref<'active' | 'archived' | 'all'>('active');
+// Row details (Windows profiles, restrictions, notes, every operation) open in one modal, so the
+// table keeps fixed columns and its buttons never move.
+const detailOpen = ref(false),
+  detail = ref<Row>({});
+function showDetail(row: Row) {
+  detail.value = row;
+  detailOpen.value = true;
+}
+function act(action: string, row: Row) {
+  detailOpen.value = false;
+  open(action, row);
+}
+function note(row: Row) {
+  detailOpen.value = false;
+  editNote(row);
+}
+function page(to: number) {
+  offset.value = to;
+  load();
+}
+function pageSize(n: number) {
+  limit.value = n;
+  offset.value = 0;
+  load();
+}
+function filterArchived(mode: 'active' | 'archived' | 'all') {
+  archived.value = mode;
+  offset.value = 0;
+  load();
+}
+const fa = new Intl.NumberFormat('fa-IR');
+const date = (v: unknown) => (v ? new Date(String(v)).toLocaleDateString('fa-IR') : '—');
+const dateTime = (v: unknown) =>
+  v
+    ? new Date(String(v)).toLocaleString('fa-IR', { dateStyle: 'medium', timeStyle: 'short' })
+    : '—';
+const grade = (sku: unknown) =>
+  'پایهٔ ' + (gradeNames[Number(String(sku ?? '').slice(-1)) - 1] ?? String(sku ?? '—'));
+type Column = { key: string; label: string; width?: string; truncate?: boolean; align?: 'end' };
+const actions: Column = { key: 'actions', label: 'عملیات', width: '132px', align: 'end' };
+const columns = computed<Column[]>(
+  () =>
+    (
+      ({
+        products: [
+          { key: 'title_fa', label: 'محصول', width: '24%' },
+          { key: 'price_irr', label: 'قیمت فهرست', width: '16%' },
+          { key: 'publication_status', label: 'وضعیت عرضه', width: '13%' },
+          { key: 'switches', label: 'فروش، آزمایش و فعال‌سازی', width: '22%' },
+          { key: 'promotion', label: 'قیمت ویژه', width: '15%' },
+          actions,
+        ],
+        customers: [
+          { key: 'username', label: 'شناسهٔ دستگاه', width: '26%' },
+          { key: 'mobile_masked', label: 'شمارهٔ همراه', width: '15%' },
+          { key: 'state', label: 'وضعیت حساب', width: '13%' },
+          { key: 'claimed_at', label: 'تاریخ اتصال', width: '14%' },
+          { key: 'note', label: 'یادداشت داخلی', width: '18%', truncate: true },
+          actions,
+        ],
+        devices: [
+          { key: 'username', label: 'شناسهٔ دستگاه', width: '22%' },
+          { key: 'customer_state', label: 'حساب متصل', width: '14%' },
+          { key: 'profiles', label: 'پروفایل فعال', width: '10%' },
+          { key: 'active_licenses', label: 'مجوز فعال', width: '9%' },
+          { key: 'restrictions', label: 'پایهٔ محدود', width: '10%' },
+          { key: 'note', label: 'یادداشت داخلی', width: '13%', truncate: true },
+          { key: 'created_at', label: 'تاریخ ثبت', width: '10%' },
+          actions,
+        ],
+        licenses: [
+          { key: 'username', label: 'شناسهٔ دستگاه', width: '24%' },
+          { key: 'sku', label: 'پایه', width: '13%' },
+          { key: 'state', label: 'وضعیت مجوز', width: '13%' },
+          { key: 'issued_at', label: 'تاریخ صدور', width: '14%' },
+          { key: 'id', label: 'شناسهٔ مجوز', width: '22%', truncate: true },
+          actions,
+        ],
+        trials: [
+          { key: 'username', label: 'شناسهٔ دستگاه', width: '28%' },
+          { key: 'sku', label: 'پایه', width: '15%' },
+          { key: 'used', label: 'فرصت باقی‌مانده', width: '17%' },
+          { key: 'allocation_epoch', label: 'دورهٔ آزمایشی', width: '14%' },
+          { key: 'note', label: 'یادداشت داخلی', width: '16%', truncate: true },
+          actions,
+        ],
+        'activation-codes': [
+          { key: 'username', label: 'شناسهٔ دستگاه', width: '26%' },
+          { key: 'sku', label: 'پایه', width: '14%' },
+          { key: 'status', label: 'وضعیت کد', width: '13%' },
+          { key: 'created_at', label: 'تاریخ ساخت', width: '15%' },
+          { key: 'expires_at', label: 'پایان اعتبار', width: '15%' },
+          actions,
+        ],
+        audit: [
+          { key: 'created_at', label: 'زمان', width: '18%' },
+          { key: 'action', label: 'رویداد', width: '30%', truncate: true },
+          { key: 'actor_type', label: 'انجام‌دهنده', width: '14%' },
+          { key: 'entity_id', label: 'شناسهٔ مورد', width: '38%', truncate: true },
+        ],
+      }) as Record<string, Column[]>
+    )[section.value] ?? [],
+);
+const detailTitles: Record<string, string> = {
+  products: 'جزئیات محصول',
+  customers: 'جزئیات حساب مشتری',
+  devices: 'جزئیات دستگاه',
+  licenses: 'جزئیات مجوز خرید',
+  trials: 'جزئیات فرصت آزمایشی',
+  'activation-codes': 'جزئیات کد فعال‌سازی',
+};
+const tone = (value: unknown) =>
+  ['ACTIVE', 'REDEEMED', 'published'].includes(String(value))
+    ? 'ok'
+    : ['REVOKED', 'CANCELLED', 'RESET', 'hidden'].includes(String(value))
+      ? 'bad'
+      : 'warn';
 const section = computed(() => String(route.params.section ?? 'dashboard'));
 const sections = [
   ['dashboard', 'نمای کلی', 'audit.read'],
@@ -131,6 +251,8 @@ const operationTitles: Record<string, string> = {
   cancel: 'لغو کد فعال‌سازی',
   revoke: 'لغو اعتبار مجوز',
   reissue: 'بازیابی مجوز خرید',
+  remove: 'حذف دستگاه',
+  restore: 'بازگرداندن دستگاه بایگانی‌شده',
 };
 const needsEvidence = computed(() =>
   ['password-reset', 'issue', 'code', 'reissue'].includes(kind.value),
@@ -149,16 +271,22 @@ async function load() {
       message.value = 'اجازهٔ مشاهدهٔ این بخش را ندارید.';
       rows.value = [];
     } else if (section.value === 'audit') {
-      rows.value = (await api.get('/api/v2/admin/audit', undefined, { limit: 30 })) as Row[];
-      next.value = null;
+      rows.value = (await api.get('/api/v2/admin/audit', undefined, {
+        limit: limit.value,
+        offset: offset.value,
+      })) as Row[];
+      total.value = null;
+      next.value = rows.value.length === limit.value ? offset.value + limit.value : null;
     } else {
       const result = (await api.get(('/api/v2/admin/' + section.value) as ApiPath, undefined, {
-        limit: 20,
+        limit: limit.value,
         offset: offset.value,
         search: search.value,
-      })) as { items: Row[]; next_offset: number | null };
+        ...(section.value === 'devices' ? { archived: archived.value } : {}),
+      })) as { items: Row[]; next_offset: number | null; total?: number };
       rows.value = result.items;
       next.value = result.next_offset;
+      total.value = result.total ?? null;
     }
   } catch (e) {
     rows.value = [];
@@ -307,13 +435,27 @@ async function commit() {
           { id: String(row.id) },
         )) as Row;
         break;
+      case 'remove':
+      case 'restore':
+        result = (await api.post(
+          kind.value === 'remove'
+            ? '/api/v2/admin/devices/{id}/remove'
+            : '/api/v2/admin/devices/{id}/restore',
+          body,
+          { id: String(row.id) },
+        )) as Row;
+        break;
     }
     if (!alive || !dialog.value || requestId.value !== viewId) return;
     submitted.value = true;
     secret.value = String(result.activation_code ?? result.code ?? result.reset_grant ?? '');
     feedback.value = result.secret_already_delivered
       ? 'مجوز محرمانه قبلاً تحویل شده و دوباره نمایش داده نمی‌شود.'
-      : 'عملیات ثبت شد. برای مشاهدهٔ وضعیت تازه، پنجره را ببندید.';
+      : result.removed === 'DELETED'
+        ? 'عملیات ثبت شد. دستگاه سابقه‌ای نداشت و کامل حذف شد.'
+        : result.removed === 'ARCHIVED'
+          ? 'عملیات ثبت شد. دستگاه سابقه دارد؛ بایگانی شد و از فهرست اصلی پنهان است.'
+          : 'عملیات ثبت شد. برای مشاهدهٔ وضعیت تازه، پنجره را ببندید.';
     await load();
   } catch (e) {
     feedback.value =
@@ -454,7 +596,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
       ><template v-else-if="permissions.length"
         ><FormShell
           v-if="section !== 'audit'"
-          class="data-toolbar"
+          class="toolbar-row"
           @submit.prevent="
             offset = 0;
             load();
@@ -470,246 +612,353 @@ const navigationGroups: { title: string; ids: string[] }[] = [
             :placeholder="
               section === 'products'
                 ? 'نام محصول، شناسه یا یادداشت'
-                : 'شناسه، نام کاربری، شمارهٔ کامل همراه یا یادداشت'
+                : 'شناسهٔ دستگاه، شمارهٔ کامل همراه، شناسه یا یادداشت'
             "
             class="search-input"
             maxlength="128"
           /><button class="button secondary">جست‌وجو</button
           ><button type="button" class="button secondary" @click="load">تازه‌سازی</button>
+          <div
+            v-if="section === 'devices'"
+            class="segmented"
+            role="group"
+            aria-label="نمایش دستگاه‌ها"
+          >
+            <button
+              v-for="[mode, label] in [
+                ['active', 'فعال'],
+                ['archived', 'بایگانی‌شده'],
+                ['all', 'همه'],
+              ] as const"
+              :key="mode"
+              type="button"
+              :aria-pressed="archived === mode"
+              @click="filterArchived(mode)"
+            >
+              {{ label }}
+            </button>
+          </div>
         </FormShell>
-        <div v-if="!rows.length && !busy" class="panel empty">موردی برای نمایش پیدا نشد.</div>
-        <div
-          v-else-if="rows.length && !busy"
-          class="table-scroll"
-          tabindex="0"
-          aria-label="جدول مدیریت"
+        <DataTable
+          :columns="columns"
+          :rows="rows"
+          :caption="title"
+          :loading="busy"
+          :total="total"
+          :offset="offset"
+          :limit="limit"
+          :has-next="next !== null"
+          :row-key="
+            (row, index) => String(row.id ?? row.sku ?? index) + ':' + String(row.generation ?? '')
+          "
+          @page="page"
+          @limit="pageSize"
         >
-          <table>
-            <caption class="sr-only">
-              {{
-                title
-              }}
-            </caption>
+          <template #cell-title_fa="{ row }"
+            ><b>{{ row.title_fa }}</b
+            ><small dir="ltr">{{ persianDigits(row.sku) }}</small></template
+          >
+          <template #cell-price_irr="{ row }">{{ toman(Number(row.price_irr)) }} تومان</template>
+          <template #cell-publication_status="{ row }"
+            ><span class="pill" :data-tone="tone(row.publication_status)">{{
+              state(row.publication_status)
+            }}</span></template
+          >
+          <template #cell-switches="{ row }"
+            ><small
+              >فروش {{ row.sale_enabled ? 'فعال' : 'خاموش' }} · آزمایش
+              {{ row.trial_enabled ? 'فعال' : 'خاموش' }} · فعال‌سازی
+              {{ row.activation_enabled ? 'فعال' : 'خاموش' }}</small
+            ></template
+          >
+          <template #cell-promotion="{ row }"
+            ><span
+              v-if="row.promotion"
+              :data-testid="'row-promotion-' + String((row.promotion as Row).status).toLowerCase()"
+              :title="promotionStatus[String((row.promotion as Row).status)]"
+              >{{ toman(Number((row.promotion as Row).promo_price_irr)) }} تومان ({{
+                persianDigits((row.promotion as Row).discount_percent)
+              }}٪)<small>{{ promotionStatus[String((row.promotion as Row).status)] }}</small></span
+            ><span v-else class="muted">ندارد</span></template
+          >
+          <template #cell-username="{ row }"
+            ><b dir="ltr">{{ row.username ?? '—' }}</b
+            ><small v-if="row.archived_at"
+              >بایگانی‌شده در {{ date(row.archived_at) }}</small
+            ></template
+          >
+          <template #cell-mobile_masked="{ row }"
+            ><span dir="ltr">{{
+              row.mobile_masked ? persianDigits(row.mobile_masked) : '—'
+            }}</span></template
+          >
+          <template #cell-state="{ row }"
+            ><span class="pill" :data-tone="tone(row.state)">{{ state(row.state) }}</span></template
+          >
+          <template #cell-status="{ row }"
+            ><span class="pill" :data-tone="tone(row.status)">{{
+              state(row.status)
+            }}</span></template
+          >
+          <template #cell-claimed_at="{ row }">{{ date(row.claimed_at) }}</template>
+          <template #cell-created_at="{ row }">{{
+            section === 'audit' ? dateTime(row.created_at) : date(row.created_at)
+          }}</template>
+          <template #cell-issued_at="{ row }">{{ date(row.issued_at) }}</template>
+          <template #cell-expires_at="{ row }">{{ dateTime(row.expires_at) }}</template>
+          <template #cell-customer_state="{ row }"
+            ><span class="pill" :data-tone="row.customer_state ? 'ok' : 'warn'">{{
+              row.customer_state ? 'متصل' : 'بدون حساب'
+            }}</span
+            ><small v-if="row.mobile_masked" dir="ltr">{{
+              persianDigits(row.mobile_masked)
+            }}</small></template
+          >
+          <template #cell-profiles="{ row }">{{ fa.format(Number(row.profiles ?? 0)) }}</template>
+          <template #cell-active_licenses="{ row }">{{
+            fa.format(Number(row.active_licenses ?? 0))
+          }}</template>
+          <template #cell-restrictions="{ row }">{{
+            (row.restrictions as { blocked: boolean }[])?.some((r) => r.blocked)
+              ? fa.format(
+                  (row.restrictions as { blocked: boolean }[]).filter((r) => r.blocked).length,
+                ) + ' پایه'
+              : 'ندارد'
+          }}</template>
+          <template #cell-sku="{ row }">{{ grade(row.sku) }}</template>
+          <template #cell-used="{ row }"
+            >{{ fa.format(2 - Number(row.used)) }} از {{ fa.format(2) }}</template
+          >
+          <template #cell-allocation_epoch="{ row }">{{
+            fa.format(Number(row.allocation_epoch))
+          }}</template>
+          <template #cell-id="{ row }"
+            ><span dir="ltr">{{ row.id }}</span></template
+          >
+          <template #cell-note="{ row }">{{ String(row.note ?? '') || '—' }}</template>
+          <template #cell-action="{ row }"
+            ><span dir="ltr">{{ row.action }}</span></template
+          >
+          <template #cell-entity_id="{ row }"
+            ><span dir="ltr">{{ row.entity_id }}</span></template
+          >
+          <template #cell-actions="{ row }"
+            ><div class="row-actions">
+              <button type="button" class="button secondary" @click="showDetail(row)">
+                مدیریت
+              </button>
+            </div></template
+          >
+        </DataTable></template
+      >
+    </div>
+    <BaseDialog v-model="detailOpen" :title="detailTitles[section] ?? 'جزئیات'" class="dialog-wide">
+      <template v-if="detailOpen">
+        <p class="device-username" dir="ltr">
+          {{ detail.username ?? detail.title_fa ?? detail.sku ?? detail.id }}
+        </p>
+        <dl class="detail-grid">
+          <div v-if="detail.id">
+            <dt>شناسه</dt>
+            <dd dir="ltr">{{ detail.id }}</dd>
+          </div>
+          <div v-if="detail.sku">
+            <dt>پایه</dt>
+            <dd>{{ grade(detail.sku) }}</dd>
+          </div>
+          <div v-if="detail.state ?? detail.status">
+            <dt>وضعیت</dt>
+            <dd>{{ state(detail.state ?? detail.status) }}</dd>
+          </div>
+          <div v-if="detail.mobile_masked">
+            <dt>شمارهٔ همراه</dt>
+            <dd dir="ltr">{{ persianDigits(detail.mobile_masked) }}</dd>
+          </div>
+          <div v-if="detail.generation">
+            <dt>نسل حساب</dt>
+            <dd>{{ fa.format(Number(detail.generation)) }}</dd>
+          </div>
+          <div v-if="detail.decision_version">
+            <dt>نسخهٔ تصمیم مجوز</dt>
+            <dd>{{ persianDigits(detail.decision_version) }}</dd>
+          </div>
+          <div v-if="detail.customer_id">
+            <dt>شناسهٔ حساب</dt>
+            <dd dir="ltr">{{ detail.customer_id }}</dd>
+          </div>
+          <div v-if="detail.device_id">
+            <dt>شناسهٔ داخلی دستگاه</dt>
+            <dd dir="ltr">{{ detail.device_id }}</dd>
+          </div>
+          <div v-if="detail.created_at ?? detail.claimed_at ?? detail.issued_at">
+            <dt>تاریخ</dt>
+            <dd>{{ dateTime(detail.created_at ?? detail.claimed_at ?? detail.issued_at) }}</dd>
+          </div>
+          <div v-if="detail.expires_at">
+            <dt>پایان اعتبار</dt>
+            <dd>{{ dateTime(detail.expires_at) }}</dd>
+          </div>
+          <div v-if="section === 'products'">
+            <dt>قیمت فهرست</dt>
+            <dd>{{ toman(Number(detail.price_irr)) }} تومان</dd>
+          </div>
+          <div v-if="section === 'products'">
+            <dt>فروش، آزمایش و فعال‌سازی</dt>
+            <dd>
+              {{ detail.sale_enabled ? 'فروش فعال' : 'فروش خاموش' }} ·
+              {{ detail.trial_enabled ? 'آزمایش فعال' : 'آزمایش خاموش' }} ·
+              {{ detail.activation_enabled ? 'فعال‌سازی فعال' : 'فعال‌سازی خاموش' }}
+            </dd>
+          </div>
+        </dl>
+        <section v-if="section === 'devices'" class="detail-section">
+          <h3>پروفایل‌های ویندوز این دستگاه</h3>
+          <p class="muted">
+            هر کاربر ویندوز روی این رایانه یک پروفایل جدا دارد. خرید و فرصت آزمایشی میان پروفایل‌های
+            فعال یک دستگاه مشترک است.
+          </p>
+          <table v-if="(detail.profile_details as Row[])?.length" class="mini-table">
             <thead>
               <tr>
-                <th>{{ section === 'products' ? 'محصول' : 'دستگاه / شناسه' }}</th>
-                <th v-if="section === 'products'">قیمت و عرضه</th>
-                <th v-else-if="section === 'audit'">فعالیت</th>
-                <th v-else>وضعیت</th>
-                <th>جزئیات</th>
-                <th v-if="section !== 'audit'">یادداشت داخلی</th>
-                <th v-if="section !== 'audit'">عملیات</th>
+                <th style="width: 52%">شناسهٔ پروفایل</th>
+                <th>وضعیت</th>
+                <th>تاریخ تأیید</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(row, index) in rows" :key="String(row.id ?? index)">
+              <tr v-for="profile in detail.profile_details as Row[]" :key="String(profile.id)">
+                <td dir="ltr" :title="String(profile.id)">{{ profile.id }}</td>
                 <td>
-                  <template v-if="section === 'products'"
-                    ><b>{{ row.title_fa }}</b
-                    ><small dir="ltr">{{ persianDigits(row.sku) }}</small></template
-                  ><template v-else
-                    ><b dir="ltr">{{ row.username ?? row.entity_id ?? row.device_id }}</b
-                    ><small dir="ltr">{{ row.id }}</small></template
-                  >
+                  <span class="pill" :data-tone="tone(profile.status)">{{
+                    state(profile.status)
+                  }}</span>
                 </td>
-                <td>
-                  <template v-if="section === 'products'"
-                    ><b>{{ toman(Number(row.price_irr)) }} تومان</b
-                    ><small>{{ state(row.publication_status) }}</small
-                    ><small
-                      v-if="row.promotion"
-                      :data-testid="
-                        'row-promotion-' + String((row.promotion as Row).status).toLowerCase()
-                      "
-                      >{{ promotionStatus[String((row.promotion as Row).status)] }}:
-                      {{ toman(Number((row.promotion as Row).promo_price_irr)) }} تومان ({{
-                        persianDigits((row.promotion as Row).discount_percent)
-                      }}٪)</small
-                    ></template
-                  ><template v-else-if="section === 'audit'"
-                    ><b dir="ltr">{{ row.action }}</b
-                    ><small>{{ row.actor_type }}</small></template
-                  ><template v-else-if="section === 'trials'"
-                    ><b
-                      >{{ new Intl.NumberFormat('fa-IR').format(2 - Number(row.used)) }} فرصت
-                      باقی‌مانده</b
-                    ><small
-                      >دورهٔ آزمایشی
-                      {{
-                        new Intl.NumberFormat('fa-IR').format(Number(row.allocation_epoch))
-                      }}</small
-                    ></template
-                  ><template v-else-if="section === 'devices'"
-                    ><b
-                      >{{ new Intl.NumberFormat('fa-IR').format(Number(row.profiles)) }} پروفایل
-                      فعال</b
-                    ><small>{{
-                      row.customer_state ? 'حساب متصل' : 'بدون حساب متصل'
-                    }}</small></template
-                  ><span v-else class="badge">{{ state(row.state ?? row.status) }}</span>
-                </td>
-                <td>
-                  <template v-if="section === 'products'"
-                    ><small>فروش: {{ row.sale_enabled ? 'فعال' : 'غیرفعال' }}</small
-                    ><small>آزمایش: {{ row.trial_enabled ? 'فعال' : 'غیرفعال' }}</small
-                    ><small
-                      >فعال‌سازی: {{ row.activation_enabled ? 'فعال' : 'غیرفعال' }}</small
-                    ></template
-                  ><template v-else-if="section === 'devices'"
-                    ><small
-                      v-for="restriction in row.restrictions as { sku: string; blocked: boolean }[]"
-                      :key="restriction.sku"
-                      ><span dir="ltr">{{ persianDigits(restriction.sku) }}</span
-                      >: {{ restriction.blocked ? 'مسدود' : 'آزاد' }}</small
-                    >
-                    <details v-if="(row.profile_details as Row[])?.length">
-                      <summary>پروفایل‌های ویندوز</summary>
-                      <small
-                        v-for="profile in row.profile_details as Row[]"
-                        :key="String(profile.id)"
-                        dir="ltr"
-                        >{{ profile.id }} · {{ state(profile.status) }}</small
-                      >
-                    </details></template
-                  ><template v-else
-                    ><span v-if="row.sku" dir="ltr">{{ persianDigits(row.sku) }}</span
-                    ><small v-if="row.generation"
-                      >نسل حساب:
-                      {{ new Intl.NumberFormat('fa-IR').format(Number(row.generation)) }}</small
-                    ><small v-if="row.decision_version"
-                      >نسخهٔ تصمیم: {{ persianDigits(row.decision_version) }}</small
-                    ><small v-if="row.created_at">{{
-                      new Date(String(row.created_at)).toLocaleDateString('fa-IR')
-                    }}</small></template
-                  >
-                </td>
-                <td v-if="section !== 'audit'">
-                  <p class="note-preview">
-                    {{ String(row.note ?? '').slice(0, 100) || 'یادداشتی ثبت نشده' }}
-                  </p>
-                  <button type="button" class="button secondary" @click="editNote(row)">
-                    {{
-                      allowed('notes.manage') ? 'مشاهده و ویرایش یادداشت' : 'مشاهدهٔ یادداشت'
-                    }}</button
-                  ><small v-if="row.mobile_masked" dir="ltr">{{
-                    persianDigits(row.mobile_masked)
-                  }}</small>
-                </td>
-                <td v-if="section !== 'audit'">
-                  <div class="table-actions">
-                    <button
-                      v-if="section === 'products' && allowed('products.manage')"
-                      class="button secondary"
-                      @click="open('product', row)"
-                    >
-                      ویرایش محصول</button
-                    ><button
-                      v-if="section === 'products' && allowed('products.manage')"
-                      class="button secondary"
-                      data-testid="open-promotions"
-                      @click="openPromotions(row)"
-                    >
-                      قیمت ویژه و تخفیف محصول</button
-                    ><template v-if="section === 'customers' && row.state === 'ACTIVE'"
-                      ><button
-                        v-if="allowed('customers.reset')"
-                        class="button secondary"
-                        @click="open('reset', row)"
-                      >
-                        بازنشانی حساب</button
-                      ><button
-                        v-if="allowed('support.password_reset')"
-                        class="button secondary"
-                        @click="open('password-reset', row)"
-                      >
-                        بازیابی رمز عبور
-                      </button></template
-                    ><template v-if="section === 'devices'"
-                      ><button
-                        v-if="allowed('device_products.block')"
-                        class="button secondary"
-                        @click="open('block', row)"
-                      >
-                        محدود کردن پایه</button
-                      ><button
-                        v-if="allowed('device_products.unblock')"
-                        class="button secondary"
-                        @click="open('unblock', row)"
-                      >
-                        رفع محدودیت</button
-                      ><button
-                        v-if="allowed('licenses.issue') && row.customer_id"
-                        class="button secondary"
-                        @click="open('issue', row)"
-                      >
-                        ثبت مجوز خرید</button
-                      ><button
-                        v-if="allowed('activation_codes.issue') && row.customer_id"
-                        class="button secondary"
-                        @click="open('code', row)"
-                      >
-                        ساخت کد فعال‌سازی
-                      </button></template
-                    ><template v-if="section === 'licenses'"
-                      ><button
-                        v-if="allowed('licenses.revoke') && row.state === 'ACTIVE'"
-                        class="button secondary"
-                        @click="open('revoke', row)"
-                      >
-                        لغو اعتبار مجوز</button
-                      ><button
-                        v-if="allowed('licenses.reissue')"
-                        class="button secondary"
-                        @click="open('reissue', row)"
-                      >
-                        بازیابی مجوز خرید
-                      </button></template
-                    ><button
-                      v-if="section === 'trials' && allowed('trials.reset')"
-                      class="button secondary"
-                      @click="open('trial', row)"
-                    >
-                      دو فرصت تازه</button
-                    ><button
-                      v-if="
-                        section === 'activation-codes' &&
-                        allowed('activation_codes.cancel') &&
-                        row.status === 'ISSUED'
-                      "
-                      class="button secondary"
-                      @click="open('cancel', row)"
-                    >
-                      لغو کد
-                    </button>
-                  </div>
-                </td>
+                <td>{{ date(profile.created_at) }}</td>
               </tr>
             </tbody>
           </table>
-        </div>
-        <div v-if="section !== 'audit'" class="pagination">
-          <button
-            :disabled="offset === 0"
-            class="button secondary"
-            @click="
-              offset = Math.max(0, offset - 20);
-              load();
-            "
-          >
-            صفحهٔ قبل</button
-          ><button
-            :disabled="next === null"
-            class="button secondary"
-            @click="
-              offset = next ?? offset;
-              load();
-            "
-          >
-            صفحهٔ بعد
-          </button>
-        </div></template
-      >
-    </div>
+          <p v-else class="muted">هنوز پروفایلی برای این دستگاه تأیید نشده است.</p>
+          <h3>محدودیت پایه‌ها</h3>
+          <p v-if="!(detail.restrictions as Row[])?.length" class="muted">
+            هیچ پایه‌ای برای این دستگاه محدود نشده است.
+          </p>
+          <ul v-else class="record-list">
+            <li v-for="r in detail.restrictions as Row[]" :key="String(r.sku)">
+              <span>{{ grade(r.sku) }}</span
+              ><span class="pill" :data-tone="r.blocked ? 'bad' : 'ok'">{{
+                r.blocked ? 'محدود' : 'آزاد'
+              }}</span>
+            </li>
+          </ul>
+        </section>
+        <section class="detail-section">
+          <h3>یادداشت داخلی</h3>
+          <p class="note-preview">{{ String(detail.note ?? '') || 'یادداشتی ثبت نشده است.' }}</p>
+        </section>
+        <section class="detail-section">
+          <h3>عملیات</h3>
+          <div class="action-grid">
+            <button type="button" class="button secondary" @click="note(detail)">
+              {{ allowed('notes.manage') ? 'مشاهده و ویرایش یادداشت' : 'مشاهدهٔ یادداشت' }}</button
+            ><template v-if="section === 'products' && allowed('products.manage')"
+              ><button class="button secondary" @click="act('product', detail)">ویرایش محصول</button
+              ><button
+                class="button secondary"
+                data-testid="open-promotions"
+                @click="
+                  detailOpen = false;
+                  openPromotions(detail);
+                "
+              >
+                قیمت ویژه و تخفیف محصول
+              </button></template
+            ><template v-if="section === 'customers' && detail.state === 'ACTIVE'"
+              ><button
+                v-if="allowed('customers.reset')"
+                class="button secondary"
+                @click="act('reset', detail)"
+              >
+                بازنشانی حساب</button
+              ><button
+                v-if="allowed('support.password_reset')"
+                class="button secondary"
+                @click="act('password-reset', detail)"
+              >
+                بازیابی رمز عبور
+              </button></template
+            ><template v-if="section === 'devices'"
+              ><button
+                v-if="allowed('device_products.block')"
+                class="button secondary"
+                @click="act('block', detail)"
+              >
+                محدود کردن پایه</button
+              ><button
+                v-if="allowed('device_products.unblock')"
+                class="button secondary"
+                @click="act('unblock', detail)"
+              >
+                رفع محدودیت</button
+              ><button
+                v-if="allowed('licenses.issue') && detail.customer_id"
+                class="button secondary"
+                @click="act('issue', detail)"
+              >
+                ثبت مجوز خرید</button
+              ><button
+                v-if="allowed('activation_codes.issue') && detail.customer_id"
+                class="button secondary"
+                @click="act('code', detail)"
+              >
+                ساخت کد فعال‌سازی</button
+              ><button
+                v-if="allowed('devices.manage') && !detail.archived_at"
+                class="button destructive"
+                @click="act('remove', detail)"
+              >
+                حذف دستگاه</button
+              ><button
+                v-if="allowed('devices.manage') && detail.archived_at"
+                class="button secondary"
+                @click="act('restore', detail)"
+              >
+                بازگرداندن از بایگانی
+              </button></template
+            ><template v-if="section === 'licenses'"
+              ><button
+                v-if="allowed('licenses.revoke') && detail.state === 'ACTIVE'"
+                class="button secondary"
+                @click="act('revoke', detail)"
+              >
+                لغو اعتبار مجوز</button
+              ><button
+                v-if="allowed('licenses.reissue')"
+                class="button secondary"
+                @click="act('reissue', detail)"
+              >
+                بازیابی مجوز خرید
+              </button></template
+            ><button
+              v-if="section === 'trials' && allowed('trials.reset')"
+              class="button secondary"
+              @click="act('trial', detail)"
+            >
+              دو فرصت تازه</button
+            ><button
+              v-if="
+                section === 'activation-codes' &&
+                allowed('activation_codes.cancel') &&
+                detail.status === 'ISSUED'
+              "
+              class="button secondary"
+              @click="act('cancel', detail)"
+            >
+              لغو کد
+            </button>
+          </div>
+        </section>
+      </template>
+    </BaseDialog>
     <BaseDialog v-model="promoOpen" title="قیمت ویژه و تخفیف محصول"
       ><PromotionEditor
         v-if="promoOpen"
@@ -759,6 +1008,11 @@ const navigationGroups: { title: string; ids: string[] }[] = [
         </p>
         <p v-else-if="kind === 'unblock'" class="notice">
           رفع محدودیت، مالکیت حذف‌شده یا فرصت آزمایشی تازه ایجاد نمی‌کند.
+        </p>
+        <p v-else-if="kind === 'remove'" class="danger-copy">
+          دستگاهی که هیچ سابقه‌ای ندارد کامل حذف می‌شود. دستگاهی با سابقه (حساب، سفارش، فرصت آزمایشی
+          یا مجوز) فقط بایگانی و از فهرست اصلی پنهان می‌شود؛ سوابق مالی و تاریخچه هرگز پاک نمی‌شوند.
+          دستگاه دارای پروفایل یا مجوز فعال حذف نمی‌شود.
         </p>
         <p v-else-if="kind === 'reissue'" class="notice">
           فقط بازیابی مجوز همان شناسه با نسخهٔ تصمیم تازه ممکن است. جایگزینی میان شناسه‌های متفاوت
@@ -820,7 +1074,11 @@ const navigationGroups: { title: string; ids: string[] }[] = [
         <p class="muted">این عملیات ثبت می‌شود. تعارض نسخه بدون تأیید دوباره تکرار نخواهد شد.</p>
         <button
           class="button"
-          :class="['reset', 'block', 'revoke', 'cancel'].includes(kind) ? 'destructive' : 'primary'"
+          :class="
+            ['reset', 'block', 'revoke', 'cancel', 'remove'].includes(kind)
+              ? 'destructive'
+              : 'primary'
+          "
           :disabled="saving"
         >
           {{ saving ? 'در حال ثبت…' : 'تأیید و ثبت عملیات' }}

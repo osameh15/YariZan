@@ -14,9 +14,15 @@ const username = ref(''),
   message = ref(''),
   done = ref(false),
   cooldown = ref(0),
+  // A number that owns several devices: the customer picks one after the code is checked.
+  choices = ref<{ username: string; created_at: string }[]>([]),
+  chosen = ref(''),
+  checkedCode = ref(''),
   api = useApi(props.mode === 'admin'),
   proofOfWork = useProofOfWork(),
   route = useRoute();
+// SMS login needs only the mobile number; the device ID is asked for password login and reset.
+const needsUsername = computed(() => props.mode !== 'customer' || method.value === 'password');
 const digits = (s: string) =>
   s
     .replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 1776))
@@ -32,11 +38,22 @@ onBeforeUnmount(() => {
   password.value = '';
   code.value = '';
   confirm.value = '';
+  checkedCode.value = '';
 });
 async function submit() {
   busy.value = true;
   message.value = '';
   try {
+    if (choices.value.length) {
+      await api.post('/api/v2/auth/otp/verify', {
+        challenge_id: challenge.value,
+        code: checkedCode.value,
+        username: chosen.value,
+      });
+      checkedCode.value = '';
+      await navigateTo(safeReturn(route.query.return));
+      return;
+    }
     if (props.mode === 'customer' && method.value === 'password') {
       await api.post('/api/v2/auth/login', {
         username: username.value.trim(),
@@ -53,7 +70,7 @@ async function submit() {
               password: password.value,
             })
           : await api.post('/api/v2/auth/otp/request', {
-              username: username.value.trim(),
+              ...(needsUsername.value ? { username: username.value.trim() } : {}),
               mobile: digits(mobile.value),
               purpose: props.mode === 'reset' ? 'RESET' : 'LOGIN',
               pow: await proofOfWork(
@@ -75,7 +92,13 @@ async function submit() {
       api.clear();
       done.value = true;
     } else {
-      await api.post('/api/v2/auth/otp/verify', proof);
+      const r = await api.post('/api/v2/auth/otp/verify', proof);
+      if ('select' in r && r.select.length) {
+        choices.value = r.select;
+        chosen.value = r.select[0]!.username;
+        checkedCode.value = proof.code;
+        return;
+      }
       await navigateTo(safeReturn(route.query.return));
     }
   } catch (e) {
@@ -87,6 +110,9 @@ async function submit() {
 }
 function restart() {
   challenge.value = '';
+  choices.value = [];
+  chosen.value = '';
+  checkedCode.value = '';
   message.value = '';
   code.value = '';
   password.value = '';
@@ -105,7 +131,11 @@ function restart() {
               : 'خوش آمدید'
         }}
       </h1>
-      <p v-if="mode !== 'admin'">
+      <p v-if="mode === 'customer'">
+        با شمارهٔ همراهی که هنگام اتصال برنامه تأیید کردید و کد پیامکی وارد شوید. برای ورود با رمز
+        عبور، شناسهٔ دستگاه را از صفحهٔ اطلاعات برنامهٔ ویندوز وارد کنید.
+      </p>
+      <p v-else-if="mode !== 'admin'">
         نام کاربری همان شناسه‌ای است که در برنامهٔ ویندوز می‌بینید. شمارهٔ همراه باید قبلاً برای
         همین حساب تأیید شده باشد.
       </p>
@@ -123,16 +153,22 @@ function restart() {
         kind="success"
       /><NuxtLink class="button primary" to="/login">ورود به حساب</NuxtLink>
     </div>
-    <FormShell v-else :key="method + '-' + !!challenge" class="panel auth-card" @submit="submit"
+    <FormShell
+      v-else
+      :key="method + '-' + !!challenge + '-' + choices.length"
+      class="panel auth-card"
+      @submit="submit"
       ><h2>
         {{
-          challenge
-            ? 'کد پیامک را وارد کنید'
-            : mode === 'admin'
-              ? 'ورود مدیریت'
-              : mode === 'reset'
-                ? 'تأیید شمارهٔ همراه'
-                : 'ورود به حساب'
+          choices.length
+            ? 'دستگاه را انتخاب کنید'
+            : challenge
+              ? 'کد پیامک را وارد کنید'
+              : mode === 'admin'
+                ? 'ورود مدیریت'
+                : mode === 'reset'
+                  ? 'تأیید شمارهٔ همراه'
+                  : 'ورود به حساب'
         }}
       </h2>
       <div
@@ -166,8 +202,17 @@ function restart() {
           ورود با رمز عبور
         </button>
       </div>
-      <template v-if="!challenge"
-        ><label
+      <fieldset v-if="choices.length" class="device-choices">
+        <legend>این شماره به چند دستگاه متصل است. حساب کدام دستگاه را باز کنیم؟</legend>
+        <label v-for="c in choices" :key="c.username" class="device-choice"
+          ><input v-model="chosen" type="radio" name="device" :value="c.username" /><span
+            dir="ltr"
+            >{{ c.username }}</span
+          ><small>اتصال: {{ new Date(c.created_at).toLocaleDateString('fa-IR') }}</small></label
+        >
+      </fieldset>
+      <template v-else-if="!challenge"
+        ><label v-if="needsUsername"
           >نام کاربری{{ mode === 'admin' ? ' مدیریت' : ' دستگاه'
           }}<input
             v-model="username"
@@ -199,7 +244,7 @@ function restart() {
             data-label="شمارهٔ همراه"
             placeholder="۰۹۱۲۳۴۵۶۷۸۹" /></label
       ></template>
-      <template v-else
+      <template v-else-if="!choices.length"
         ><p class="otp-help">
           اگر اطلاعات با حساب مطابقت داشته باشد، کد پیامک می‌شود. کد سه دقیقه اعتبار دارد و فقط یک
           بار قابل استفاده است. کد را به دیگران ندهید.
@@ -242,13 +287,15 @@ function restart() {
         {{
           busy
             ? 'در حال بررسی…'
-            : challenge
-              ? mode === 'reset'
-                ? 'ثبت رمز عبور جدید'
-                : 'تأیید کد و ورود'
-              : mode === 'admin' || method === 'otp' || mode === 'reset'
-                ? 'ارسال کد تأیید'
-                : 'ورود به حساب'
+            : choices.length
+              ? 'ورود به حساب این دستگاه'
+              : challenge
+                ? mode === 'reset'
+                  ? 'ثبت رمز عبور جدید'
+                  : 'تأیید کد و ورود'
+                : mode === 'admin' || method === 'otp' || mode === 'reset'
+                  ? 'ارسال کد تأیید'
+                  : 'ورود به حساب'
         }}
       </button>
       <button

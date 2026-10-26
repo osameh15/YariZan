@@ -1,18 +1,38 @@
+/** Why an unpaid invoice ended (orders.closed_reason), in the customer's words. */
+export const closedReasons: Record<string, string> = {
+  customer_cancelled: 'پرداخت لغو شد',
+  payment_unsuccessful: 'پرداخت ناموفق بود',
+  invoice_expired: 'مهلت ۱۵ دقیقه‌ای پرداخت تمام شد',
+  admin_voided: 'فاکتور توسط پشتیبانی باطل شد',
+  provider_confirmed_failed: 'درگاه ناموفق بودن پرداخت را تأیید کرد',
+};
 export function commerceState(order: {
   state: string;
   paid_at?: unknown;
   exception_code?: unknown;
+  closed_reason?: unknown;
   payments?: PaymentEvidence[];
 }) {
   if (order.exception_code) return 'نیازمند بررسی پشتیبانی';
   if (order.state === 'FULFILLED') return 'مجوز خرید آماده است';
   if (order.paid_at) return 'پرداخت تأیید شد؛ مجوز خرید در حال آماده‌سازی است';
+  if (order.closed_reason && closedReasons[String(order.closed_reason)])
+    return closedReasons[String(order.closed_reason)]!;
   if (order.state === 'FAILED') return 'پرداخت ناموفق بود';
   if (order.state === 'CANCELLED') return 'پرداخت لغو شد';
-  const unknown = order.payments?.find((p) => p.state === 'UNKNOWN');
-  if (unknown?.customer_return === 'NOK') return 'لغو پرداخت گزارش شد؛ نتیجهٔ مالی هنوز قطعی نیست';
-  if (unknown) return 'نتیجهٔ پرداخت هنوز مشخص نیست؛ در حال بررسی';
+  if (order.payments?.some((p) => p.state === 'UNKNOWN')) return 'در حال بررسی نتیجهٔ پرداخت';
   return order.payments?.length ? 'در انتظار پرداخت و تأیید نهایی' : 'در انتظار پرداخت';
+}
+/** Tone for a status pill: ok (done), warn (waiting) or bad (ended without payment). */
+export function commerceTone(order: {
+  state: string;
+  paid_at?: unknown;
+  exception_code?: unknown;
+}) {
+  if (order.exception_code) return 'warn';
+  if (order.state === 'FULFILLED' || order.paid_at) return 'ok';
+  if (['FAILED', 'CANCELLED'].includes(order.state)) return 'bad';
+  return 'warn';
 }
 export type PaymentEvidence = {
   state: string;
@@ -25,13 +45,12 @@ export type PaymentEvidence = {
  */
 export function paymentNotice(payments: PaymentEvidence[]): string | null {
   const unknown = payments.find((p) => p.state === 'UNKNOWN');
-  if (unknown?.customer_return === 'NOK')
-    return 'بازگشت از درگاه با لغو یا ناموفق بودن پرداخت همراه بود، اما درگاه هنوز نتیجهٔ مالی را قطعی نکرده است. دوباره پرداخت نکنید. اگر مبلغی از حساب شما کم شده باشد، بررسی خودکار ادامه دارد و نتیجه همین‌جا نمایش داده می‌شود.';
-  if (unknown) return 'نتیجه هنوز قطعی نیست. دوباره پرداخت نکنید؛ بررسی سرور ادامه دارد.';
-  if (
-    payments.some((p) => p.state === 'FAILED' && p.terminal_reason === 'provider_confirmed_failed')
-  )
-    return 'درگاه پرداخت ناموفق بودن این تراکنش را تأیید کرد و این سفارش پرداخت نشد. اگر مبلغی از حساب شما کم شده بود، بازگرداندن آن را بانک یا درگاه انجام می‌دهد؛ اگر برنگشت، با شمارهٔ سفارش با پشتیبانی تماس بگیرید. برای خرید می‌توانید سفارش تازه ثبت کنید.';
+  if (unknown?.customer_return === 'OK')
+    return 'درگاه پرداخت را موفق اعلام کرد و تأیید نهایی در حال انجام است. دوباره پرداخت نکنید.';
+  if (unknown)
+    return 'نتیجهٔ پرداخت هنوز مشخص نیست. اگر پرداخت را کامل نکرده‌اید، می‌توانید این فاکتور را لغو و فاکتور تازه صادر کنید.';
+  if (payments.some((p) => ['FAILED', 'CANCELLED'].includes(p.state)))
+    return 'این پرداخت انجام نشد. اگر مبلغی از حساب شما کم شده باشد، بانک آن را حداکثر تا ۷۲ ساعت به حساب شما برمی‌گرداند. برای خرید، فاکتور تازه صادر کنید.';
   return null;
 }
 export function financialToman(irr: unknown) {

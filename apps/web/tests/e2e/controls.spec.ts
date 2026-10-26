@@ -47,6 +47,8 @@ test('Support copy, action spacing and YZ username examples remain readable', as
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   for (const route of ['/login', '/reset-password']) {
     await page.goto(route);
+    if (route === '/login')
+      await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
     await expect(page.getByLabel('نام کاربری دستگاه', { exact: true })).toHaveAttribute(
       'placeholder',
       'YZ-...',
@@ -55,6 +57,7 @@ test('Support copy, action spacing and YZ username examples remain readable', as
   await page.goto('/login');
   await page.getByLabel('شمارهٔ همراه', { exact: true }).fill('09369642754');
   await expect(page.getByLabel('شمارهٔ همراه', { exact: true })).toHaveValue('۰۹۳۶۹۶۴۲۷۵۴');
+  await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
   await page.getByLabel('نام کاربری دستگاه', { exact: true }).fill('YZ-123456');
   await expect(page.getByLabel('نام کاربری دستگاه', { exact: true })).toHaveValue('YZ-123456');
   await page.goto('/zanyari/login');

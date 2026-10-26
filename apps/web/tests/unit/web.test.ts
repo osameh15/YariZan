@@ -180,28 +180,53 @@ describe('Commerce financial and navigation boundaries', () => {
   it('keeps unknown results distinct from paid and fulfilled states', async () => {
     const { commerceState } = await import('../../shared/commerce');
     expect(commerceState({ state: 'PENDING', payments: [{ state: 'UNKNOWN' }] })).toContain(
-      'مشخص نیست',
+      'در حال بررسی',
     );
     expect(commerceState({ state: 'FULFILLMENT_PENDING', paid_at: 'now' })).toContain('آماده‌سازی');
     expect(commerceState({ state: 'FULFILLED' })).toContain('آماده است');
   });
-  it('never presents a browser cancellation as a final payment result', async () => {
+  it('ends a cancelled or failed invoice with its reason and invites a new invoice (2.1.0)', async () => {
     const { commerceState, paymentNotice } = await import('../../shared/commerce');
-    const cancelled = [{ state: 'UNKNOWN', customer_return: 'NOK' as const }];
-    expect(commerceState({ state: 'PENDING', payments: cancelled })).toContain('قطعی نیست');
-    const notice = paymentNotice(cancelled)!;
-    expect(notice).toContain('دوباره پرداخت نکنید');
-    expect(notice).not.toContain('سفارش تازه');
-    expect(paymentNotice([{ state: 'UNKNOWN' }])).toContain('دوباره پرداخت نکنید');
-    // Only a provider-confirmed failure invites a new order.
     expect(
-      paymentNotice([{ state: 'FAILED', terminal_reason: 'provider_confirmed_failed' }]),
-    ).toContain('سفارش تازه');
+      commerceState({ state: 'CANCELLED', closed_reason: 'customer_cancelled', payments: [] }),
+    ).toBe('پرداخت لغو شد');
+    expect(commerceState({ state: 'FAILED', closed_reason: 'payment_unsuccessful' })).toBe(
+      'پرداخت ناموفق بود',
+    );
+    expect(commerceState({ state: 'CANCELLED', closed_reason: 'invoice_expired' })).toContain(
+      '۱۵ دقیقه',
+    );
+    const ended = paymentNotice([{ state: 'CANCELLED', terminal_reason: 'customer_cancelled' }])!;
+    expect(ended).toContain('فاکتور تازه');
+    expect(ended).toContain('۷۲ ساعت');
+    // The bank said OK and verification is running: never invite a second payment.
+    expect(paymentNotice([{ state: 'UNKNOWN', customer_return: 'OK' }])).toContain(
+      'دوباره پرداخت نکنید',
+    );
+    expect(paymentNotice([{ state: 'UNKNOWN' }])).toContain('لغو');
     expect(paymentNotice([{ state: 'PENDING' }])).toBeNull();
     expect(paymentNotice([{ state: 'VERIFIED' }])).toBeNull();
   });
   it('only retains the exact eligible checkout return path', () => {
     expect(safeReturn('/checkout?sku=YARIZAN-G1')).toBe('/checkout?sku=YARIZAN-G1');
     expect(safeReturn('/checkout?sku=YARIZAN-G1&next=https://example.com')).toBe('/account');
+  });
+});
+describe('2.1.0 invoice and device management routes', () => {
+  const id = '10000000-0000-4000-8000-000000000001';
+  it('proxies invoice cancel, Admin void/reopen/archive and device remove/restore only by POST', () => {
+    for (const path of [
+      `orders/${id}/cancel`,
+      `admin/commerce/orders/${id}/void`,
+      `admin/commerce/orders/${id}/reopen`,
+      `admin/commerce/orders/${id}/archive`,
+      `admin/devices/${id}/remove`,
+      `admin/devices/${id}/restore`,
+    ]) {
+      expect(allowedBrowserRoute('POST', path)).toBe(true);
+      expect(allowedBrowserRoute('GET', path)).toBe(false);
+    }
+    expect(allowedBrowserRoute('POST', 'admin/devices/not-a-uuid/remove')).toBe(false);
+    expect(allowedBrowserRoute('POST', `admin/commerce/orders/${id}/delete`)).toBe(false);
   });
 });

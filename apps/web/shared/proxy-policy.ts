@@ -2,7 +2,7 @@ export const browserRoutes = [
   ['GET', /^commerce\/capabilities$/],
   ['POST', /^discounts\/quote$/],
   ['GET', /^orders(?:\/[0-9a-f-]{36})?$/],
-  ['POST', /^orders(?:\/[0-9a-f-]{36}\/(?:payments|simulate|refund-request))?$/],
+  ['POST', /^orders(?:\/[0-9a-f-]{36}\/(?:payments|simulate|refund-request|cancel))?$/],
   ['GET', /^account\/orders$/],
   ['GET', /^payments\/zarinpal\/return$/],
   [
@@ -11,7 +11,7 @@ export const browserRoutes = [
   ],
   [
     'POST',
-    /^admin\/commerce\/(?:campaigns|coupons|orders\/[0-9a-f-]{36}\/reconcile|refunds\/[0-9a-f-]{36}\/review)$/,
+    /^admin\/commerce\/(?:campaigns|coupons|orders\/[0-9a-f-]{36}\/(?:reconcile|void|reopen|archive)|refunds\/[0-9a-f-]{36}\/review)$/,
   ],
   ['PATCH', /^admin\/commerce\/(?:campaigns|coupons)\/[0-9a-f-]{36}$/],
   ['GET', /^products(?:\/YARIZAN-G[1-6])?$/],
@@ -39,7 +39,7 @@ export const browserRoutes = [
   ['POST', /^admin\/promotions\/[0-9a-f-]{36}\/(?:deactivate|restore)$/],
   [
     'POST',
-    /^admin\/(?:customers\/[0-9a-f-]{36}\/(?:reset|password-reset)|devices\/[0-9a-f-]{36}\/products\/YARIZAN-G[1-6]\/(?:block|unblock)|trials\/[0-9a-f-]{36}\/YARIZAN-G[1-6]\/reset|licenses(?:\/issue|\/[0-9a-f-]{36}\/(?:revoke|reissue))|activation-codes(?:\/[0-9a-f-]{36}\/cancel)?)$/,
+    /^admin\/(?:customers\/[0-9a-f-]{36}\/(?:reset|password-reset)|devices\/[0-9a-f-]{36}\/(?:products\/YARIZAN-G[1-6]\/(?:block|unblock)|remove|restore)|trials\/[0-9a-f-]{36}\/YARIZAN-G[1-6]\/reset|licenses(?:\/issue|\/[0-9a-f-]{36}\/(?:revoke|reissue))|activation-codes(?:\/[0-9a-f-]{36}\/cancel)?)$/,
   ],
 ] as const;
 export function allowedBrowserRoute(method: string, path: string) {
