@@ -72,7 +72,7 @@ internal static partial class Program
                 "finished startup check leaves the normal Lock choices without an error");
             Click(page, "ConnectButton"); Pump(() => C<StackPanel>(page, "PairingPanel").IsVisible);
             C<TextBox>(page, "PairingCodeText").Text = "[masked temporary pairing code]";
-            Check(C<TextBlock>(page, "PairingFeedback").Text.StartsWith("در حال اتصال امن دستگاه…"), "pairing dialog announces secure connection in progress");
+            Check(C<TextBlock>(page, "PairingFeedback").Text.StartsWith("در انتظار تأیید در مرورگر…") && C<ProgressBar>(page, "PairingProgress").IsVisible && !C<FrameworkElement>(page, "ConnectingOverlay").IsVisible, "pairing dialog shows it is waiting for the browser; the connecting card is gone");
             Save(page, shots, "01-pairing-in-progress.png");
             server.PendingEntitlements = new(TaskCreationOptions.RunContinuationsAsynchronously);
             provisioning.Ready = true;
@@ -81,7 +81,8 @@ internal static partial class Program
                 && activation.Mode == PaidActivationMode.Waiting && !C<Button>(page, "ActivateButton").IsVisible,
                 "pairing completion closes the dialog and enters the automatic waiting state without another click");
             Check(C<Button>(page, "TrialButton").IsEnabled && C<Button>(page, "SupportButton").IsEnabled && C<Button>(page, "CancelWaitButton").IsEnabled
-                && C<Button>(page, "WaitPurchaseButton").IsEnabled, "trial, support, purchase and cancel stay available while waiting");
+                && C<Button>(page, "PurchaseButton").IsEnabled && !C<Button>(page, "WaitPurchaseButton").IsVisible,
+                "trial, support, purchase guide and cancel stay available while waiting, with no duplicate purchase guide");
             Check(AutomationProperties.GetLiveSetting(C<TextBlock>(page, "ActivationPhaseText")) == AutomationLiveSetting.Polite,
                 "activation status is a polite live region");
             Save(page, shots, "02-pairing-completed.png");

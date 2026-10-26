@@ -8,6 +8,8 @@ public partial class GameLoadingOverlay : UserControl
 {
     public GameLoadingOverlay() => InitializeComponent();
     public string GameName { set => LoadingGameName.Text = Services.PersianText.Digits(value); }
+    /// <summary>Heading of the card; the same YariZan loading card is reused for account connection.</summary>
+    public string Title { set => LoadingTitle.Text = value; }
 
     private void VisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
     {

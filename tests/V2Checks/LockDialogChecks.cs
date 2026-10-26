@@ -74,18 +74,23 @@ internal static partial class Program
         Click("PurchaseButton");
         Check(ModalOpen() && C<TextBlock>("ModalTitle").Text == "راهنمای خرید — پایه اول" && desktop.BrowserCalls == 0,
             "purchase click opens actionable selected-grade dialog instead of unavailable website");
-        Check(!C<ScrollViewer>("LockScroll").IsEnabled && C<StackPanel>("ContactPanel").IsVisible, "purchase dialog disables background while exposing support actions");
-        Click("CopyPhoneButton");
-        Check(desktop.Copied == "0918-876-4024" && C<TextBlock>("ModalFeedback").Text == "شماره پشتیبانی کپی شد.", "purchase copy phone action writes number and visible success");
-        Click("CopyPreparedButton");
-        Check(desktop.Copied == $"سلام\nدرخواست خرید یاریزان — پایه اول\nشناسه کاربری: {identity.Username}\nسپاسگزارم",
-            "purchase request action copies selected grade and only public identity");
+        Check(!C<ScrollViewer>("LockScroll").IsEnabled && !C<StackPanel>("ContactPanel").IsVisible, "purchase dialog disables background and points to support instead of repeating it");
+        Check(C<StackPanel>("PurchaseGuidePanel").IsVisible && C<TextBlock>("ModalDescription").Text.Contains("چهار قدم"),
+            "2.1.0: the purchase guide explains connecting, buying and automatic activation, unlike the support dialog");
+        Check(Math.Abs(C<Button>("MinimizeModalButton").ActualHeight - C<Button>("CloseModalButton").ActualHeight) < 0.5,
+            $"2.1.0: minimize and close share one height ({C<Button>("MinimizeModalButton").ActualHeight}/{C<Button>("CloseModalButton").ActualHeight})");
         Capture("lock-final-purchase.png");
         KeyPress(Key.Escape, C<Button>("CloseModalButton"));
         Check(!ModalOpen() && C<ScrollViewer>("LockScroll").IsEnabled && Keyboard.FocusedElement == C<Button>("PurchaseButton"),
             "Escape closes purchase dialog and restores trigger keyboard focus");
         Click("SupportButton");
         Check(ModalOpen() && C<TextBlock>("ModalTitle").Text == "پشتیبانی یاریزان — پایه اول", "support click opens real support dialog");
+        Check(C<StackPanel>("ContactPanel").IsVisible && !C<StackPanel>("PurchaseGuidePanel").IsVisible
+            && Math.Abs(C<Button>("CopyPhoneButton").ActualHeight - C<Button>("CopyPreparedButton").ActualHeight) < 0.5
+            && C<TextBlock>("PreparedMessageText").Text.Contains("\u202A" + identity.Username + "\u202C"),
+            "2.1.0: support holds the contact actions at one height and shows the device ID left to right");
+        Click("CopyPhoneButton");
+        Check(desktop.Copied == "0918-876-4024" && C<TextBlock>("ModalFeedback").Text == "شماره پشتیبانی کپی شد.", "support copy phone action writes number and visible success");
         Click("CopyPreparedButton");
         Check(desktop.Copied == $"سلام\nدرخواست پشتیبانی یاریزان — پایه اول\nشناسه کاربری: {identity.Username}\nسپاسگزارم"
             && C<TextBlock>("ModalFeedback").Text == "پیام آماده کپی شد.", "support message action copies grade/public username with feedback");

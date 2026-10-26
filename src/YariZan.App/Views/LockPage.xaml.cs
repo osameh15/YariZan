@@ -173,6 +173,8 @@ public partial class LockPage : UserControl
     {
         if (_dialog != DialogKind.None || _access.Provisioning is null || _busy) return;
         SetBusy(true);
+        // The YariZan loading card shows that a connection is being prepared until the dialog opens.
+        ConnectingOverlay.Visibility = Visibility.Visible;
         _pairingCancellation?.Dispose();
         _pairingCancellation=CancellationTokenSource.CreateLinkedTokenSource(_visible?.Token ?? CancellationToken.None);
         var cancellation=_pairingCancellation.Token;
@@ -180,14 +182,17 @@ public partial class LockPage : UserControl
         {
             if(await _access.Provisioning.ResumeAsync(cancellation))
             {
+                ConnectingOverlay.Visibility = Visibility.Collapsed;
                 await _access.ReloadProvisionedIdentityAsync(cancellation); SetBusy(false); await RefreshTrialAsync();
                 Message("اتصال امن دستگاه آماده است."); BeginWaitingAfterConnect(); return;
             }
             var pair=await _access.Provisioning.BeginAsync(cancellation);
             cancellation.ThrowIfCancellationRequested();
+            ConnectingOverlay.Visibility = Visibility.Collapsed;
             OpenDialog(DialogKind.Pairing,ConnectButton);
             PairingIdText.Text=pair.Id; PairingCodeText.Text=pair.BrowserCode;
-            PairingFeedback.Text="در حال اتصال امن دستگاه… پس از تأیید در مرورگر، اتصال خودکار بررسی می‌شود. کد پنج دقیقه اعتبار دارد.";
+            PairingProgress.Visibility = Visibility.Visible;
+            PairingFeedback.Text="در انتظار تأیید در مرورگر… پس از تأیید، اتصال خودکار کامل می‌شود. کد پنج دقیقه اعتبار دارد.";
             while(DateTimeOffset.UtcNow<pair.ExpiresAt)
             {
                 await Task.Delay(TimeSpan.FromSeconds(5),cancellation);
@@ -201,7 +206,11 @@ public partial class LockPage : UserControl
         }
         catch(OperationCanceledException) { }
         catch(Exception ex) { if(_dialog==DialogKind.Pairing)PairingFeedback.Text="اتصال کامل نشد. پنجره را ببندید و دوباره تلاش کنید؛ مجوز آفلاین موجود تغییر نمی‌کند."; else ShowFailure(ex,false); }
-        finally { SetBusy(false); if(_dialog==DialogKind.None && _visible is not null)ConnectButton.Focus(); }
+        finally
+        {
+            ConnectingOverlay.Visibility = Visibility.Collapsed; PairingProgress.Visibility = Visibility.Collapsed;
+            SetBusy(false); if(_dialog==DialogKind.None && _visible is not null)ConnectButton.Focus();
+        }
     }
     private void CopyPairingId_Click(object sender,RoutedEventArgs e) { try { _desktopActions.CopyText(PairingIdText.Text); PairingFeedback.Text="شناسه کپی شد."; } catch { PairingFeedback.Text="کپی ممکن نشد؛ متن را انتخاب کنید."; } }
     private void CopyPairingCode_Click(object sender,RoutedEventArgs e) { try { _desktopActions.CopyText(PairingCodeText.Text); PairingFeedback.Text="کد کپی شد؛ فقط در صفحهٔ اتصال وارد کنید."; } catch { PairingFeedback.Text="کپی ممکن نشد؛ متن را انتخاب کنید."; } }
@@ -217,15 +226,18 @@ public partial class LockPage : UserControl
         {
             DialogKind.Pairing => "شناسه و کد را فقط در صفحهٔ اتصال وارد کنید. مرورگر دستگاه را تأیید می‌کند؛ مجوز فقط در همین برنامه دریافت می‌شود.",
             DialogKind.ManualCode => "کد این نسخه را وارد کنید. ثبت کد به اتصال اینترنت نیاز دارد.",
-            DialogKind.Purchase => "برای خرید این نسخه، پیام آماده را کپی کنید و با پشتیبانی تماس بگیرید.",
+            DialogKind.Purchase => "خرید و فعال‌سازی این نسخه در چهار قدم:",
             _ => "برای دریافت راهنمایی، شماره یا پیام آماده را کپی کنید و با پشتیبانی تماس بگیرید."
         };
         _preparedMessage = $"سلام\n{(kind == DialogKind.Purchase ? "درخواست خرید" : "درخواست پشتیبانی")} یاریزان — پایه {grade}\nشناسه کاربری: {_access.Username}\nسپاسگزارم";
-        // Isolate only the public username for readable mixed RTL/LTR presentation.
-        PreparedMessageText.Text = _preparedMessage.Replace(_access.Username, "\u2066" + _access.Username + "\u2069");
+        // Embed only the public username left-to-right (LRE ... PDF): WPF does not apply the newer
+        // isolate marks, which showed the ID reversed in the right-to-left message.
+        PreparedMessageText.Text = _preparedMessage.Replace(_access.Username, "\u202a" + _access.Username + "\u202c");
         ModalFeedback.Text = CodeFeedback.Text = "";
         ManualCodePanel.Visibility = kind == DialogKind.ManualCode ? Visibility.Visible : Visibility.Collapsed;
-        ContactPanel.Visibility = kind is DialogKind.ManualCode or DialogKind.Pairing ? Visibility.Collapsed : Visibility.Visible;
+        // Contact details live only in the support dialog; the purchase guide points to it.
+        ContactPanel.Visibility = kind == DialogKind.Support ? Visibility.Visible : Visibility.Collapsed;
+        PurchaseGuidePanel.Visibility = kind == DialogKind.Purchase ? Visibility.Visible : Visibility.Collapsed;
         PairingPanel.Visibility = kind == DialogKind.Pairing ? Visibility.Visible : Visibility.Collapsed;
         ModalOverlay.Visibility = Visibility.Visible;
         LockScroll.IsEnabled = false;
@@ -245,7 +257,7 @@ public partial class LockPage : UserControl
         PairingCodeText.Clear(); PairingIdText.Clear();
         ActivationCodeInput.Clear();
         _dialog = DialogKind.None;
-        ModalOverlay.Visibility = ManualCodePanel.Visibility = ContactPanel.Visibility = PairingPanel.Visibility = Visibility.Collapsed;
+        ModalOverlay.Visibility = ManualCodePanel.Visibility = ContactPanel.Visibility = PairingPanel.Visibility = PurchaseGuidePanel.Visibility = Visibility.Collapsed;
         LockScroll.IsEnabled = true;
         if (_renderAfterDialog && _visible is not null) { _renderAfterDialog = false; RenderState(); }
         if (restoreFocus) _dialogTrigger?.Focus();
@@ -264,7 +276,8 @@ public partial class LockPage : UserControl
             ModalCard.Padding = new Thickness(compact ? 12 : 20);
             ModalTitle.FontSize = compact ? 20 : 22;
             ModalTitle.Margin = new Thickness(0, 0, 0, compact ? 8 : 12);
-            CloseModalButton.Margin = new Thickness(0, compact ? 8 : 12, 0, 0);
+            // Space above the whole footer row, so minimize and close stay on one line.
+            ModalFooter.Margin = new Thickness(0, compact ? 8 : 12, 0, 0);
         }
     }
 
@@ -444,7 +457,8 @@ public partial class LockPage : UserControl
         ActivationProgressPanel.Background = new SolidColorBrush(final ? Color.FromArgb(24, 139, 0, 0) : Color.FromArgb(38, 0xC9, 0xA4, 0x5C));
         ActivationPhaseText.Foreground = final ? new SolidColorBrush(Color.FromRgb(139, 0, 0)) : (Brush)FindResource("LeatherDarkBrush");
         ActivationActions.Visibility = _entering ? Visibility.Collapsed : Visibility.Visible;
-        WaitPurchaseButton.Visibility = busy || recoverable ? Visibility.Visible : Visibility.Collapsed;
+        // Without an operational store page the bottom «راهنمای خرید» is the only purchase action (no duplicate here).
+        WaitPurchaseButton.Visibility = (busy || recoverable) && _storeDestinations.ForGrade(_access.Grade) is not null ? Visibility.Visible : Visibility.Collapsed;
         CheckNowButton.Visibility = final || startup ? Visibility.Collapsed : Visibility.Visible;
         CheckNowButton.IsEnabled = phase is not (PaidActivationPhase.Checking or PaidActivationPhase.RetrievingLicense);
         CancelWaitButton.Visibility = startup ? Visibility.Collapsed : Visibility.Visible;
