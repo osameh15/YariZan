@@ -169,6 +169,8 @@ A second Grade 1 test order (100,000 IRR) was taken to `https://sandbox.zarinpal
 
 ## 10. Cancellation and reconciliation policy (2026-10-22)
 
+> **Replaced in release 2.1.0 (owner decision 2026-10-26).** A browser `Status=NOK` now ends the invoice at once. So does an `OK` return that verify and inquiry show as unpaid, and so does the end of the 15-minute invoice window, after one last verify call. The customer can then pay again. An ended attempt is never verified later, and the bank returns unverified money. Capture rules are unchanged. See [YARIZAN-2.1.0-RELEASE.md](YARIZAN-2.1.0-RELEASE.md). The text below records the 2.0.0 policy.
+
 Owner decisions: a browser `Status=NOK`, a verify error such as `-51` or an elapsed timer never marks a payment cancelled. Financial uncertainty stays until an authoritative provider answer establishes a terminal result. No new paid order or entitlement can come from `Status=NOK`.
 
 ### 10.1 Official inquiry method
