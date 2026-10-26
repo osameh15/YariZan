@@ -25,7 +25,7 @@ test('six grade cards are shown, grade 1 is preselected and only grade 1 is down
   const panel = page.getByTestId('download-available');
   await expect(panel).toBeVisible();
   await expect(panel).toContainText(
-    '85cf8e1fc147c85d8ff6ff8e29a637774b5b0901f2c860efdd380a9e32a48ecb',
+    '2663655fe3661c26bb2caa9dd0b9f3050ad3e2f3a9cd9562ec934c32c234149f',
   );
   await expect(page.getByTestId('download-unsigned-notice')).toBeVisible();
   const downloads = await panel

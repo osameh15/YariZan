@@ -67,8 +67,8 @@ export const windowsReleases: readonly WindowsRelease[] = [
     version: '2.1.0',
     releasedAt: '2026-10-26',
     filename: 'YariZan-G1-Setup-v2.1.0.exe',
-    sizeBytes: 1081403001,
-    sha256: '85cf8e1fc147c85d8ff6ff8e29a637774b5b0901f2c860efdd380a9e32a48ecb',
+    sizeBytes: 1081402869,
+    sha256: '2663655fe3661c26bb2caa9dd0b9f3050ad3e2f3a9cd9562ec934c32c234149f',
     format: 'exe',
     notes: [
       'صفحهٔ فعال‌سازی اکنون اولین صفحهٔ برنامه است و در پنجره‌ای کوچک و جابه‌جاشدنی باز می‌شود.',
@@ -86,7 +86,7 @@ export const windowsReleases: readonly WindowsRelease[] = [
       productionTrustRoots: true,
       signature: 'unsigned-owner-approved',
       scanned: true,
-      provenance: 'release-2.1.0@8cf313c',
+      provenance: 'release-2.1.0@fix-activation-dialogs',
     },
   },
   {
