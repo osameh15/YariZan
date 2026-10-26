@@ -11,7 +11,7 @@
 ; The version comes from src/YariZan.App/YariZan.App.csproj (build-installer.bat passes /DMyAppVersion).
 ; This default must stay equal to it: tools/release/windows-version.test.mjs fails otherwise.
 #ifndef MyAppVersion
-#define MyAppVersion     "2.0.1"
+#define MyAppVersion     "2.1.0"
 #endif
 #define MyAppPublisher   "OAR NOVA GAMES STUDIO"
 #define MyAppURL         "https://yarizan.oarnova.games/"

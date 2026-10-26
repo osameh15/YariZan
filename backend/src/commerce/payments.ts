@@ -17,10 +17,19 @@ interface Attempt extends PaymentRequest {
   id: string;
   state: string;
   redirect_url: string | null;
+  customer_return: string | null;
 }
 const system = (): Actor => ({ type: "SYSTEM", correlationId: randomUUID() });
 /** Spacing between the first FAILED inquiry answer and the one that confirms it (sandbox session: 10 min). */
 export const FAILED_CONFIRMATION_SECONDS = 900;
+/** A payment started near the end of the invoice window keeps the bank page this long before the invoice ends. */
+export const PAYMENT_GRACE_SECONDS = 900;
+export type ClosedReason =
+  | "customer_cancelled"
+  | "payment_unsuccessful"
+  | "invoice_expired"
+  | "admin_voided"
+  | "provider_confirmed_failed";
 @Injectable()
 export class Payments
   implements OnApplicationBootstrap, BeforeApplicationShutdown
@@ -220,15 +229,119 @@ export class Payments
     };
   }
   /**
-   * Provider inquiry after a documented non-success verify answer. Every observation is kept. Only a
-   * FAILED answer that repeats after FAILED_CONFIRMATION_SECONDS, with no other status in between,
-   * ends the attempt as FAILED. Elapsed time alone, a browser NOK or a verify error never does.
+   * Ends an unpaid invoice: every open attempt and the order become terminal with one reason, the coupon
+   * allocation is released and no verify call is ever made for these attempts again (the bank returns
+   * unverified money to the payer). A captured order is never touched. Returns false when nothing changed.
+   */
+  async close(
+    c: PoolClient,
+    o: OrderRow,
+    state: "FAILED" | "CANCELLED",
+    reason: ClosedReason,
+    actor: Actor,
+  ) {
+    if (o.accepted_payment_id || o.state !== "PENDING") return false;
+    const open = (
+      await c.query<{ id: string }>(
+        "SELECT id FROM payment_attempts WHERE order_id=$1 AND state IN ('CREATED','PENDING','UNKNOWN') ORDER BY created_at,id FOR UPDATE",
+        [o.id],
+      )
+    ).rows;
+    for (const a of open) await this.transition(c, a.id, state, reason, actor);
+    await c.query(
+      "UPDATE commerce_jobs SET state='DONE',lease_until=NULL,lease_token=NULL,last_error=NULL WHERE order_id=$1 AND kind IN ('VERIFY','EXPIRE') AND state<>'DONE' AND (lease_until IS NULL OR lease_until<now())",
+      [o.id],
+    );
+    const reservation = await this.reservation(c, o.id);
+    if (reservation)
+      await c.query(
+        "UPDATE discount_reservations SET state='RELEASED' WHERE id=$1 AND state IN ('RESERVED','UNKNOWN')",
+        [reservation.id],
+      );
+    await c.query(
+      "UPDATE orders SET state=$2,closed_reason=$3,closed_at=now(),revision=revision+1 WHERE id=$1",
+      [o.id, state, reason],
+    );
+    await this.orders.audit.append(c, actor, "order.closed", o.id, {
+      state,
+      reason,
+    });
+    return true;
+  }
+  /**
+   * A new invoice replaces the customer's unpaid one for the same product once that one went to the bank,
+   * so leaving the bank page never blocks a new purchase. An invoice the bank reported as paid is kept.
+   */
+  async supersede(
+    u: CustomerContext,
+    sku: string,
+    requestId: string,
+    actor: Actor,
+  ) {
+    this.orders.gateway.available();
+    await this.orders.db.transaction(async (c) => {
+      await this.orders.scope(c, u);
+      const open = (
+        await c.query<{ id: string }>(
+          "SELECT o.id FROM orders o WHERE o.device_id=$1 AND o.generation=$2 AND o.sku=$3 AND o.customer_id=$4 AND o.state='PENDING' AND o.accepted_payment_id IS NULL AND o.request_id<>$5 AND EXISTS(SELECT 1 FROM payment_attempts p WHERE p.order_id=o.id) AND NOT EXISTS(SELECT 1 FROM payment_attempts p WHERE p.order_id=o.id AND p.customer_return='OK' AND p.state IN ('CREATED','PENDING','UNKNOWN'))",
+          [u.device_id, u.generation, sku, u.id, requestId],
+        )
+      ).rows;
+      for (const row of open)
+        await this.close(
+          c,
+          await this.orderLock(c, row.id),
+          "CANCELLED",
+          "customer_cancelled",
+          actor,
+        );
+    });
+  }
+  /** Customer ends their own unpaid invoice so they can issue a new one. */
+  async cancel(u: CustomerContext, id: string, actor: Actor) {
+    this.orders.gateway.available();
+    return this.orders.db.transaction(async (c) => {
+      await this.orders.scope(c, u);
+      const o = await this.orderLock(c, id);
+      requireCondition(o.customer_id === u.id, "NOT_FOUND", 404);
+      requireCondition(
+        o.state === "PENDING" && !o.accepted_payment_id,
+        "ORDER_NOT_CANCELLABLE",
+        409,
+      );
+      // The bank sent the customer back with success: wait for verification instead of dropping a payment.
+      requireCondition(
+        !(
+          await c.query(
+            "SELECT 1 FROM payment_attempts WHERE order_id=$1 AND customer_return='OK' AND state IN ('CREATED','PENDING','UNKNOWN')",
+            [id],
+          )
+        ).rowCount,
+        "PAYMENT_VERIFICATION_PENDING",
+        409,
+      );
+      await this.close(c, o, "CANCELLED", "customer_cancelled", actor);
+      return this.orders.view(c, id, u.id);
+    });
+  }
+  /**
+   * Provider inquiry after a documented non-success verify answer. Every observation is kept. A FAILED
+   * answer that repeats after FAILED_CONFIRMATION_SECONDS, with no other status in between, ends the
+   * attempt as FAILED. Once the customer is back from the bank, a non-success answer ends it at once
+   * unless the provider reports that money moved (VERIFIED, PAID or REVERSED).
    */
   private async reconcile(
     a: Attempt,
     verified: PaymentResult,
+    returned: boolean,
   ): Promise<PaymentResult> {
+    const unsuccessful: PaymentResult = {
+      state: "FAILED",
+      answered: true,
+      terminal_reason: "payment_unsuccessful",
+    };
     const provider = this.orders.gateway.provider;
+    // Without a documented provider answer nothing ends: only the provider can say the money did not move.
     if (!provider.inquire) return verified;
     const status = await provider.inquire(a);
     if (!status) return verified;
@@ -268,12 +381,14 @@ export class Payments
         await this.exception(c, o, a.id, "PROVIDER_STATE_CONFLICT");
       if (status === "REVERSED")
         await this.exception(c, o, a.id, "PROVIDER_REVERSED");
-      return confirmed
-        ? {
-            state: "FAILED",
-            answered: true,
-            terminal_reason: "provider_confirmed_failed",
-          }
+      if (confirmed)
+        return {
+          state: "FAILED",
+          answered: true,
+          terminal_reason: "provider_confirmed_failed",
+        };
+      return returned && ["IN_BANK", "FAILED"].includes(status)
+        ? unsuccessful
         : verified;
     });
   }
@@ -286,20 +401,37 @@ export class Payments
       )
     ).rows[0];
     requireCondition(a, "NOT_FOUND", 404);
-    await this.orders.db.transaction(async (c) => {
-      // What the browser reported is kept for display only (first report wins) and never settles.
+    const ended = await this.orders.db.transaction(async (c) => {
+      const o = await this.orderLock(c, a.order_id);
+      // What the browser reported first is kept and never settles a payment.
       if (status === "OK" || status === "NOK")
         await c.query(
           "UPDATE payment_attempts SET customer_return=$2,customer_return_at=now() WHERE id=$1 AND customer_return IS NULL",
           [a.id, status],
         );
+      await this.orders.audit.append(c, system(), "payment.return_hint", a.id);
+      const current = (
+        await c.query(
+          "SELECT state,customer_return FROM payment_attempts WHERE id=$1",
+          [a.id],
+        )
+      ).rows[0];
+      // Cancelled or failed at the bank: the invoice ends now and the customer may pay again.
+      if (
+        current.customer_return === "NOK" &&
+        ["CREATED", "PENDING", "UNKNOWN"].includes(current.state)
+      )
+        return this.close(c, o, "CANCELLED", "customer_cancelled", system());
       await c.query(
         "UPDATE commerce_jobs SET due_at=now(),state=CASE WHEN state='REVIEW' THEN state ELSE 'PENDING' END WHERE kind='VERIFY' AND target_id=$1 AND (lease_until IS NULL OR lease_until<now()) AND state<>'DONE'",
         [a.id],
       );
-      await this.orders.audit.append(c, system(), "payment.return_hint", a.id);
+      return false;
     });
-    return { order_id: a.order_id as string, status: "VERIFICATION_PENDING" };
+    return {
+      order_id: a.order_id as string,
+      status: ended ? "CANCELLED" : "VERIFICATION_PENDING",
+    };
   }
   async simulate(
     u: CustomerContext,
@@ -459,7 +591,7 @@ export class Payments
         if (reused) {
           await this.exception(c, o, id, "REFERENCE_REUSED");
           await c.query(
-            "UPDATE orders SET paid_at=COALESCE(paid_at,now()),state=CASE WHEN state='FULFILLED' THEN state ELSE 'FULFILLMENT_PENDING' END WHERE id=$1",
+            "UPDATE orders SET paid_at=COALESCE(paid_at,now()),state=CASE WHEN state='FULFILLED' THEN state ELSE 'FULFILLMENT_PENDING' END,closed_reason=NULL,closed_at=NULL,archived_at=NULL WHERE id=$1",
             [o.id],
           );
           return;
@@ -469,7 +601,7 @@ export class Payments
           return;
         }
         await c.query(
-          "UPDATE orders SET accepted_payment_id=$2,paid_at=now(),state='FULFILLMENT_PENDING',revision=revision+1 WHERE id=$1",
+          "UPDATE orders SET accepted_payment_id=$2,paid_at=now(),state='FULFILLMENT_PENDING',closed_reason=NULL,closed_at=NULL,archived_at=NULL,revision=revision+1 WHERE id=$1",
           [o.id, id],
         );
         if (reservation?.state === "RELEASED") {
@@ -498,17 +630,17 @@ export class Payments
           result.terminal_reason ?? "provider_terminal",
           actor,
         );
-        if (!o.accepted_payment_id) {
-          await c.query(
-            "UPDATE orders SET state=$2,revision=revision+1 WHERE id=$1",
-            [o.id, result.state],
-          );
-          if (reservation)
-            await c.query(
-              "UPDATE discount_reservations SET state='RELEASED' WHERE id=$1 AND state IN ('RESERVED','UNKNOWN')",
-              [reservation.id],
-            );
-        }
+        await this.close(
+          c,
+          o,
+          result.state as "FAILED" | "CANCELLED",
+          result.terminal_reason === "provider_confirmed_failed"
+            ? "provider_confirmed_failed"
+            : result.state === "CANCELLED"
+              ? "customer_cancelled"
+              : "payment_unsuccessful",
+          actor,
+        );
       } else {
         await this.transition(c, id, "UNKNOWN", "provider_ambiguous", actor);
         if (reservation)
@@ -598,6 +730,105 @@ export class Payments
       });
     });
   }
+  /**
+   * One verify call for an open attempt, with the code-101 evidence rule and the inquiry follow-up,
+   * then settlement. Returns whether the provider gave a documented answer.
+   */
+  private async verifyAttempt(a: Attempt) {
+    let result: PaymentResult;
+    // Evidence for provider code 101 (already verified): an earlier verify call for this
+    // attempt that never received an answer. Written before the call, so a lost response
+    // leaves proof that our own call may have captured the payment.
+    const had = async (kind: string) =>
+      Boolean(
+        (
+          await this.orders.db.query(
+            "SELECT 1 FROM payment_events WHERE provider='zarinpal' AND external_event_id=$1",
+            [kind + ":" + a.id],
+          )
+        ).rowCount,
+      );
+    const mark = (kind: string) =>
+      this.orders.db.query(
+        "INSERT INTO payment_events(id,payment_attempt_id,provider,external_event_id,payload_digest) VALUES($1,$2,'zarinpal',$3,$4) ON CONFLICT DO NOTHING",
+        [randomUUID(), a.id, kind + ":" + a.id, hash(kind)],
+      );
+    const priorUnanswered =
+      (await had("verify_requested")) && !(await had("verify_answered"));
+    await mark("verify_requested");
+    try {
+      result = await this.orders.gateway.provider.query(a);
+    } catch {
+      result = { state: "UNKNOWN" };
+    }
+    const answered = Boolean(result.answered);
+    if (answered) await mark("verify_answered");
+    if (result.previously_verified && !priorUnanswered) {
+      // Never treat an unexplained 101 as a new capture; leave it for reconciliation.
+      await this.orders.db.transaction(async (c) => {
+        const o = await this.orderLock(c, a.order_id);
+        await this.exception(c, o, a.id, "ALREADY_VERIFIED_UNPROVEN");
+      });
+      result = { state: "UNKNOWN" };
+    }
+    // A documented non-success verify answer (for example -51) while the customer is still at
+    // the bank is not a result: an unpaid authority answers the same way. Ask the provider.
+    if (result.state === "UNKNOWN" && result.answered)
+      result = await this.reconcile(a, result, a.customer_return === "OK");
+    await this.settle(a.id, result);
+    return answered;
+  }
+  /**
+   * Ends an unpaid invoice whose window has passed. A payment started near the end keeps the bank page
+   * for PAYMENT_GRACE_SECONDS. Before ending, every open attempt gets one last verify call, so a customer
+   * who paid but never came back still receives the product. An attempt the bank reported as successful
+   * (customer return OK) is left to verification and the Admin.
+   */
+  private async expire(id: string): Promise<{ done: boolean; later?: Date }> {
+    const early = await this.orders.db.transaction(async (c) => {
+      const o = await this.orderLock(c, id);
+      if (o.state !== "PENDING" || o.accepted_payment_id) return { done: true };
+      const latest = (
+        await c.query<{ until: Date | null }>(
+          "SELECT max(created_at)+($2::integer*interval '1 second') until FROM payment_attempts WHERE order_id=$1 AND state IN ('CREATED','PENDING','UNKNOWN')",
+          [id, PAYMENT_GRACE_SECONDS],
+        )
+      ).rows[0].until;
+      const until = latest && latest > o.expires_at ? latest : o.expires_at;
+      if (until.getTime() > Date.now()) return { done: false, later: until };
+      if (
+        (
+          await c.query(
+            "SELECT 1 FROM payment_attempts WHERE order_id=$1 AND customer_return='OK' AND state IN ('CREATED','PENDING','UNKNOWN')",
+            [id],
+          )
+        ).rowCount
+      )
+        return { done: true };
+      return undefined;
+    });
+    if (early) return early;
+    const open = (
+      await this.orders.db.query<{ id: string }>(
+        "SELECT id FROM payment_attempts WHERE order_id=$1 AND state IN ('CREATED','PENDING','UNKNOWN') AND authority IS NOT NULL ORDER BY created_at,id",
+        [id],
+      )
+    ).rows;
+    let unanswered = false;
+    for (const row of open) {
+      const a = await this.attempt(row.id);
+      if (["CREATED", "PENDING", "UNKNOWN"].includes(a.state))
+        unanswered = !(await this.verifyAttempt(a)) || unanswered;
+    }
+    return this.orders.db.transaction(async (c) => {
+      const o = await this.orderLock(c, id);
+      if (o.state !== "PENDING" || o.accepted_payment_id) return { done: true };
+      // No documented answer (provider outage): try again later rather than drop a payment.
+      if (unanswered) return { done: false };
+      await this.close(c, o, "CANCELLED", "invoice_expired", system());
+      return { done: true };
+    });
+  }
   async work(limit = 10) {
     this.orders.gateway.available();
     requireCondition(
@@ -627,53 +858,14 @@ export class Payments
     });
     for (const job of jobs) {
       let done = false,
-        error = "PENDING";
+        error = "PENDING",
+        later: Date | undefined;
       try {
         if (job.kind === "VERIFY") {
           const a = await this.attempt(job.target_id);
-          if (a.state !== "VERIFIED") {
-            let result: PaymentResult;
-            // Evidence for provider code 101 (already verified): an earlier verify call for this
-            // attempt that never received an answer. Written before the call, so a lost response
-            // leaves proof that our own call may have captured the payment.
-            const had = async (kind: string) =>
-              Boolean(
-                (
-                  await this.orders.db.query(
-                    "SELECT 1 FROM payment_events WHERE provider='zarinpal' AND external_event_id=$1",
-                    [kind + ":" + a.id],
-                  )
-                ).rowCount,
-              );
-            const mark = (kind: string) =>
-              this.orders.db.query(
-                "INSERT INTO payment_events(id,payment_attempt_id,provider,external_event_id,payload_digest) VALUES($1,$2,'zarinpal',$3,$4) ON CONFLICT DO NOTHING",
-                [randomUUID(), a.id, kind + ":" + a.id, hash(kind)],
-              );
-            const priorUnanswered =
-              (await had("verify_requested")) &&
-              !(await had("verify_answered"));
-            await mark("verify_requested");
-            try {
-              result = await this.orders.gateway.provider.query(a);
-            } catch {
-              result = { state: "UNKNOWN" };
-            }
-            if (result.answered) await mark("verify_answered");
-            if (result.previously_verified && !priorUnanswered) {
-              // Never treat an unexplained 101 as a new capture; leave it for reconciliation.
-              await this.orders.db.transaction(async (c) => {
-                const o = await this.orderLock(c, a.order_id);
-                await this.exception(c, o, a.id, "ALREADY_VERIFIED_UNPROVEN");
-              });
-              result = { state: "UNKNOWN" };
-            }
-            // A documented non-success verify answer (for example -51) is not a terminal result on its
-            // own: an unpaid, cancelled or abandoned authority answers the same way. Ask the provider.
-            if (result.state === "UNKNOWN" && result.answered)
-              result = await this.reconcile(a, result);
-            await this.settle(a.id, result);
-          }
+          // An ended attempt is never verified again (see close).
+          if (["CREATED", "PENDING", "UNKNOWN"].includes(a.state))
+            await this.verifyAttempt(a);
           done = ["VERIFIED", "FAILED", "CANCELLED"].includes(
             (await this.attempt(a.id)).state,
           );
@@ -688,36 +880,10 @@ export class Payments
           done = o.state === "FULFILLED";
           error = o.exception_code ?? "SIGNING_PENDING";
         } else if (job.kind === "EXPIRE") {
-          await this.orders.db.transaction(async (c) => {
-            const o = await this.orderLock(c, job.order_id);
-            if (
-              o.state === "PENDING" &&
-              o.expires_at.getTime() <= Date.now() &&
-              !(
-                await c.query(
-                  "SELECT 1 FROM payment_attempts WHERE order_id=$1",
-                  [o.id],
-                )
-              ).rowCount
-            ) {
-              await this.reservation(c, o.id);
-              await c.query(
-                "UPDATE orders SET state='CANCELLED',revision=revision+1 WHERE id=$1",
-                [o.id],
-              );
-              await c.query(
-                "UPDATE discount_reservations SET state='RELEASED' WHERE order_id=$1 AND state='RESERVED'",
-                [o.id],
-              );
-              await this.orders.audit.append(
-                c,
-                system(),
-                "order.expired_uninitiated",
-                o.id,
-              );
-            }
-          });
-          done = true;
+          const r = await this.expire(job.order_id);
+          done = r.done;
+          later = r.later;
+          error = "EXPIRY_CHECK_UNANSWERED";
         } else {
           await this.orders.db.transaction(async (c) => {
             const o = await this.orderLock(c, job.order_id);
@@ -745,18 +911,20 @@ export class Payments
         error = "RECOVERY_REQUIRED";
       }
       await this.orders.db.transaction(async (c) => {
-        const review = !done && job.attempts >= 8;
+        // A rescheduled expiry is waiting for the invoice or bank-page window, not failing.
+        const review = !done && !later && job.attempts >= 8;
         const reviewOrder = review
           ? await this.orderLock(c, job.order_id)
           : undefined;
         const completed = await c.query(
-          "UPDATE commerce_jobs SET state=$2,lease_until=NULL,lease_token=NULL,due_at=now()+($3::integer*interval '1 second'),last_error=$4 WHERE id=$1 AND lease_token=$5",
+          "UPDATE commerce_jobs SET state=$2,lease_until=NULL,lease_token=NULL,due_at=COALESCE($6,now()+($3::integer*interval '1 second')),last_error=$4 WHERE id=$1 AND lease_token=$5",
           [
             job.id,
             done ? "DONE" : review ? "REVIEW" : "PENDING",
             Math.min(3600, 5 * 2 ** Math.min(job.attempts, 10)),
-            done ? null : error,
+            done || later ? null : error,
             job.lease_token,
+            later ?? null,
           ],
         );
         if (completed.rowCount)

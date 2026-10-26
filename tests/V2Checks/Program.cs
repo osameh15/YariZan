@@ -597,7 +597,7 @@ internal static partial class Program
         var store = Store("ui"); var server = new FakeServer(signing, identity);
         using var access = Access(identity, signing, store, server);
         byte[] gameKey = RandomNumberGenerator.GetBytes(32);
-        var window = new MainWindow(access, () => gameKey.ToArray(), new PaidActivationCoordinator(access)) { ShowInTaskbar = false, Left = -32000, Top = -32000 };
+        var window = new MainWindow(access, () => gameKey.ToArray(), new PaidActivationCoordinator(access)) { ShowInTaskbar = false, AdaptiveWindowSize = false, Left = -32000, Top = -32000 };
         window.Show(); window.ShowLock();
         var host = (ContentControl)window.FindName("PageHost");
         Pump(() => access.State == DesktopAccessState.TrialAvailable);
@@ -641,7 +641,7 @@ internal static partial class Program
         Check(!restart.CanEnter, "WPF restart has no retained trial");
         var paidStore = Store("ui-paid"); paidStore.WriteLicense(G1, signing.License(identity));
         using var paid = Access(identity, signing, paidStore, server);
-        var paidWindow = new MainWindow(paid, null, new PaidActivationCoordinator(paid)) { ShowInTaskbar = false, Left = -32000, Top = -32000 }; paidWindow.Show(); paidWindow.ShowInfo();
+        var paidWindow = new MainWindow(paid, null, new PaidActivationCoordinator(paid)) { ShowInTaskbar = false, AdaptiveWindowSize = false, Left = -32000, Top = -32000 }; paidWindow.Show(); paidWindow.ShowInfo();
         Check(((ContentControl)paidWindow.FindName("PageHost")).Content is InfoPage && paid.CanEnter, "WPF purchased entry succeeds offline");
         paidWindow.Close();
         AutoActivationUiChecks(signing, identity, screenshots);

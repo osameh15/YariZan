@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { persianDigits } from '#shared/digits';
 import { errorMessage, toman } from '#shared/domain';
-import { commerceState, paymentNotice } from '#shared/commerce';
+import { commerceState, commerceTone, paymentNotice } from '#shared/commerce';
 import type { ApiResult } from '#shared/api';
 import { startPayPattern } from '#shared/payment-return';
 const props = defineProps<{ id: string }>(),
@@ -13,7 +13,35 @@ const props = defineProps<{ id: string }>(),
   refund = ref(''),
   noticeSuccess = ref(false),
   copied = ref(false),
+  now = ref(Date.now()),
   capabilities = ref<ApiResult<'/api/v2/commerce/capabilities', 'get'> | null>(null);
+const route = useRoute();
+const existing = route.query.existing === '1';
+const open = computed(() => order.value?.state === 'PENDING' && !order.value.paid_at);
+// Seconds left in the 15-minute invoice window (0 once it has passed).
+const secondsLeft = computed(() =>
+  order.value && open.value
+    ? Math.max(0, Math.floor((new Date(order.value.expires_at).getTime() - now.value) / 1000))
+    : 0,
+);
+const countdown = computed(() => {
+  const f = new Intl.NumberFormat('fa-IR', { minimumIntegerDigits: 2 });
+  return f.format(Math.floor(secondsLeft.value / 60)) + ':' + f.format(secondsLeft.value % 60);
+});
+const inFlight = computed(
+  () =>
+    order.value?.payments.some((p) => ['CREATED', 'PENDING', 'UNKNOWN'].includes(p.state)) ?? false,
+);
+const bankSaidPaid = computed(
+  () =>
+    order.value?.payments.some((p) => p.state === 'UNKNOWN' && p.customer_return === 'OK') ?? false,
+);
+const canPay = computed(() => open.value && secondsLeft.value > 0 && !inFlight.value);
+const canCancel = computed(() => open.value && !bankSaidPaid.value);
+const ended = computed(
+  () =>
+    !!order.value && ['FAILED', 'CANCELLED'].includes(order.value.state) && !order.value.paid_at,
+);
 const sandbox = computed(() => !!capabilities.value?.sandbox);
 const simulated = computed(() => capabilities.value?.mode === 'fake');
 const live = computed(() => capabilities.value?.real_payments_enabled === true);
@@ -35,6 +63,7 @@ const statusTone = computed(() => {
   if (order.value.license_id) return 'ready';
   if (order.value.payments.some((p) => p.state === 'UNKNOWN')) return 'unknown';
   if (['FAILED', 'CANCELLED'].includes(order.value.state)) return 'failed';
+  if (order.value.payments.some((p) => p.state === 'UNKNOWN')) return 'unknown';
   return order.value.paid_at ? 'confirmed' : 'pending';
 });
 async function copyOrderId() {
@@ -93,6 +122,20 @@ async function pay() {
     busy.value = false;
   }
 }
+async function cancelInvoice() {
+  busy.value = true;
+  message.value = '';
+  try {
+    order.value = await api.post('/api/v2/orders/{id}/cancel', {} as never, { id: props.id });
+    message.value = 'فاکتور لغو شد. می‌توانید فاکتور تازه صادر کنید.';
+    noticeSuccess.value = true;
+  } catch (e) {
+    message.value = errorMessage(e);
+    noticeSuccess.value = false;
+  } finally {
+    busy.value = false;
+  }
+}
 async function requestRefund() {
   busy.value = true;
   try {
@@ -110,7 +153,9 @@ async function requestRefund() {
     busy.value = false;
   }
 }
+let clock: ReturnType<typeof setInterval> | undefined;
 onMounted(async () => {
+  clock = setInterval(() => (now.value = Date.now()), 1000);
   try {
     capabilities.value = await api.get('/api/v2/commerce/capabilities');
   } catch {
@@ -121,6 +166,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   alive = false;
   clearTimeout(timer);
+  clearInterval(clock);
 });
 </script>
 <template>
@@ -139,6 +185,11 @@ onBeforeUnmount(() => {
     <p v-if="testPrice" class="notice" data-testid="order-test-price">
       این سفارش با قیمت آزمایشی محلی ثبت شده است و قیمت رسمی نیست.
     </p>
+    <ApiNotice
+      v-if="existing && open"
+      kind="info"
+      message="برای این پایه یک فاکتور پرداخت‌نشده دارید. همین فاکتور را پرداخت کنید یا آن را لغو و فاکتور تازه صادر کنید."
+    />
     <ApiNotice :message="message" :kind="noticeSuccess ? 'success' : 'error'" />
     <div v-if="order" class="panel order-receipt" :data-tone="statusTone">
       <div class="order-status-symbol" aria-hidden="true">
@@ -152,7 +203,15 @@ onBeforeUnmount(() => {
                 : '…'
         }}
       </div>
-      <h2 class="order-state" aria-live="polite">{{ commerceState(order) }}</h2>
+      <h2 class="order-state" aria-live="polite">
+        <span class="pill" :data-tone="commerceTone(order)">{{ commerceState(order) }}</span>
+      </h2>
+      <p v-if="open && secondsLeft > 0" class="invoice-timer" data-testid="invoice-timer">
+        مهلت پرداخت این فاکتور: <span class="countdown">{{ countdown }}</span>
+      </p>
+      <p v-else-if="open && !inFlight" class="notice">
+        مهلت پرداخت این فاکتور تمام شده است و به‌زودی بسته می‌شود. فاکتور تازه صادر کنید.
+      </p>
       <p>{{ order.snapshot.title_fa }}</p>
       <p class="device-username" dir="ltr">{{ order.snapshot.username }}</p>
       <dl class="commerce-totals">
@@ -190,12 +249,7 @@ onBeforeUnmount(() => {
         کنید.
       </p>
       <div class="actions">
-        <button
-          v-if="order.state === 'PENDING' && !order.payments.length"
-          class="button primary"
-          :disabled="busy"
-          @click="pay"
-        >
+        <button v-if="canPay" class="button primary" :disabled="busy" @click="pay">
           {{
             live
               ? 'پرداخت در درگاه زرین‌پال'
@@ -219,6 +273,21 @@ onBeforeUnmount(() => {
           class="button primary"
           :to="'/payment/simulate?order=' + order.id"
           >ادامهٔ پرداخت آزمایشی</NuxtLink
+        ><NuxtLink
+          v-if="ended"
+          class="button primary"
+          :to="'/checkout?sku=' + order.sku"
+          data-testid="new-invoice"
+          >صدور فاکتور تازه</NuxtLink
+        ><button
+          v-if="canCancel"
+          type="button"
+          class="button secondary"
+          :disabled="busy"
+          data-testid="cancel-invoice"
+          @click="cancelInvoice"
+        >
+          لغو این فاکتور</button
         ><button class="button secondary" :disabled="busy" @click="load">تازه‌سازی وضعیت</button
         ><NuxtLink v-if="order.license_id" to="/account/licenses" class="text-link"
           >مشاهدهٔ مجوزهای خرید</NuxtLink

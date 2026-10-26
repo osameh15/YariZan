@@ -23,7 +23,7 @@ internal static partial class Program
     private static MainWindow Window(DesktopAccessController access, PaidActivationCoordinator activation, double width = 1216, double height = 779)
     {
         var window = new MainWindow(access, null, activation)
-        { ShowInTaskbar = false, Left = -32000, Top = -32000, WindowState = WindowState.Normal, Width = width, Height = height,
+        { ShowInTaskbar = false, AdaptiveWindowSize = false, Left = -32000, Top = -32000, WindowState = WindowState.Normal, Width = width, Height = height,
           ActivationEntryDelay = TimeSpan.FromMilliseconds(600) };
         return window;
     }
@@ -59,9 +59,12 @@ internal static partial class Program
             var activation = UiCoordinator(access);
             var window = Window(access, activation);
             window.Show();
-            Pump(() => Page(window) is CoverPage && activation.Mode == PaidActivationMode.StartupRecovery && !activation.IsRunning);
+            Pump(() => Page(window) is LockPage && activation.Mode == PaidActivationMode.StartupRecovery && !activation.IsRunning);
             Check(activation.Phase == PaidActivationPhase.WaitingForPurchase && activation.Mode == PaidActivationMode.StartupRecovery && server.EntitlementRequests == 1,
-                "launch of an enrolled unpaid device performs one bounded pickup check and stays on the cover");
+                "launch of an enrolled unpaid device performs one bounded pickup check and stays on the activation page");
+            var first = (LockPage)Page(window)!;
+            Check(window.IsCompact && !C<Button>(first, "BackButton").IsVisible && C<Button>(first, "ConnectButton").IsVisible,
+                "2.1.0: the activation page opens first in the compact window, without a back button");
             window.ShowLock(animate: false);
             var page = (LockPage)Page(window)!;
             Pump(() => access.State == DesktopAccessState.TrialAvailable && C<Button>(page, "TrialButton").IsEnabled);
@@ -134,9 +137,10 @@ internal static partial class Program
             window = Window(access, activation);
             seen.Clear();
             window.Show();
-            Pump(() => { if (Page(window) is { } current) seen.Add(current.GetType()); return Page(window) is InfoPage; });
-            Check(access.IsPurchased && server.PickupRequests == 1 && !seen.Contains(typeof(LockPage)) && closedStore.ReadLicense(G1).Status == StoreReadStatus.Present,
-                "purchase completed while closed is picked up at launch and opens the information page without the Lock page");
+            Pump(() => { if (Page(window) is { } current && !seen.Contains(current.GetType())) seen.Add(current.GetType()); return Page(window) is InfoPage; });
+            Check(access.IsPurchased && server.PickupRequests == 1 && seen.SequenceEqual(new[] { typeof(LockPage), typeof(InfoPage) })
+                && closedStore.ReadLicense(G1).Status == StoreReadStatus.Present && !window.IsCompact,
+                "purchase completed while closed: the activation page checks at launch, activates and opens the information page full screen");
             window.Close();
 
             var intent = new MemoryActivationIntentStore(); intent.MarkPending(G1);
@@ -160,8 +164,8 @@ internal static partial class Program
             window = Window(access, activation);
             window.Show();
             Pump(() => !activation.IsRunning);
-            Check(Page(window) is CoverPage && activation.Phase == PaidActivationPhase.NetworkUnavailable && !access.CanEnter,
-                "unpaid launch offline fails closed on the cover");
+            Check(Page(window) is LockPage && activation.Phase == PaidActivationPhase.NetworkUnavailable && !access.CanEnter,
+                "unpaid launch offline fails closed on the activation page");
             window.ShowLock(animate: false); page = (LockPage)Page(window)!;
             Pump(() => access.State == DesktopAccessState.ConnectionUnavailable && C<Button>(page, "TrialButton").IsEnabled);
             Check(C<TextBlock>(page, "StatusText").Text.Contains("برای فعال‌سازی اولیه") && !access.CanEnter,
@@ -236,8 +240,8 @@ internal static partial class Program
             activation = UiCoordinator(access);
             window = Window(access, activation);
             window.Show(); Pump(() => Page(window) is not null);
-            Check(Page(window) is CoverPage && !access.CanEnter && server.EntitlementRequests == 0 && server.PickupRequests == 0,
-                "cached signed revocation starts locked with no automatic pickup");
+            Check(Page(window) is LockPage && !access.CanEnter && server.EntitlementRequests == 0 && server.PickupRequests == 0,
+                "cached signed revocation starts on the activation page with no automatic pickup");
             window.Close();
         }
     }

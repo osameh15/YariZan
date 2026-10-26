@@ -59,7 +59,8 @@ async function openEditor(page: Page) {
   await page.goto('/zanyari/products');
   const row = page.locator('tr', { hasText: /YARIZAN-G[1۱]/ });
   await expect(row).toBeVisible();
-  await row.getByTestId('open-promotions').click();
+  await row.getByRole('button', { name: 'مدیریت', exact: true }).click();
+  await page.getByTestId('open-promotions').click();
   await expect(page.getByTestId('promotion-editor')).toBeVisible();
 }
 async function pickEndNextMonth(page: Page) {

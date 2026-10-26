@@ -356,6 +356,8 @@ export class Orders {
       paid_at: r.paid_at,
       expires_at: r.expires_at,
       exception_code: r.exception_code,
+      closed_reason: r.closed_reason,
+      closed_at: r.closed_at,
       license_id: r.license_id,
       snapshot: r.snapshot,
       subtotal_irr: Number(r.subtotal_irr),
@@ -373,15 +375,18 @@ export class Orders {
   async read(u: CustomerContext, id: string) {
     return this.db.transaction((c) => this.view(c, id, u.id));
   }
-  async list(u: CustomerContext, offset: number) {
+  /** The customer's own invoices, newest first. Orders an Admin archived are not shown. */
+  async list(u: CustomerContext, offset: number, limit = 20) {
+    const rows = (
+      await this.db.query(
+        "SELECT o.id,o.sku,o.state,o.total_irr,o.created_at,o.paid_at,o.expires_at,o.closed_reason,o.exception_code,i.snapshot->>'title_fa' title_fa,count(*) OVER()::integer total_count FROM orders o JOIN order_items i ON i.order_id=o.id WHERE o.customer_id=$1 AND o.archived_at IS NULL ORDER BY o.created_at DESC,o.id LIMIT $2 OFFSET $3",
+        [u.id, limit, offset],
+      )
+    ).rows;
     return {
-      items: (
-        await this.db.query(
-          "SELECT id,sku,state,total_irr,created_at,paid_at,exception_code FROM orders WHERE customer_id=$1 ORDER BY created_at DESC,id LIMIT 20 OFFSET $2",
-          [u.id, offset],
-        )
-      ).rows.map((r) => ({ ...r, total_irr: Number(r.total_irr) })),
-      next_offset: offset + 20,
+      items: rows.map((r) => ({ ...r, total_irr: Number(r.total_irr) })),
+      total: rows[0]?.total_count ?? 0,
+      next_offset: rows.length === limit ? offset + limit : null,
     };
   }
 }

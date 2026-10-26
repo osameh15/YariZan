@@ -64,6 +64,33 @@ export interface WindowsRelease {
 export const windowsReleases: readonly WindowsRelease[] = [
   {
     grade: 1,
+    version: '2.1.0',
+    releasedAt: '2026-10-26',
+    filename: 'YariZan-G1-Setup-v2.1.0.exe',
+    sizeBytes: 1081403001,
+    sha256: '85cf8e1fc147c85d8ff6ff8e29a637774b5b0901f2c860efdd380a9e32a48ecb',
+    format: 'exe',
+    notes: [
+      'صفحهٔ فعال‌سازی اکنون اولین صفحهٔ برنامه است و در پنجره‌ای کوچک و جابه‌جاشدنی باز می‌شود.',
+      'پشتیبانی از ویندوز ۳۲ بیتی در کنار ۶۴ بیتی.',
+      'نمایش شناسهٔ دستگاه در صفحهٔ اطلاعات پس از فعال‌سازی.',
+    ],
+    requirements: [
+      'ویندوز ۱۰ یا ۱۱ (۶۴ یا ۳۲ بیتی)',
+      'حدود ۲ گیگابایت فضای خالی دیسک',
+      'اینترنت برای اتصال حساب، شروع فرصت تجربه و فعال‌سازی؛ پس از فعال‌سازی، بازی‌ها آفلاین اجرا می‌شوند.',
+    ],
+    approval: {
+      approvedBy: 'OAR NOVA GAMES STUDIO (owner)',
+      approvedAt: '2026-10-26',
+      productionTrustRoots: true,
+      signature: 'unsigned-owner-approved',
+      scanned: true,
+      provenance: 'release-2.1.0@8cf313c',
+    },
+  },
+  {
+    grade: 1,
     version: '2.0.0',
     releasedAt: '2026-10-24',
     filename: 'YariZan-G1-Setup-v2.0.0.exe',

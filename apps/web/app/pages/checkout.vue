@@ -74,6 +74,18 @@ async function create() {
     });
     await navigateTo('/account/orders/' + o.id);
   } catch (e) {
+    // An unpaid invoice for this grade that never went to the bank: continue with it instead.
+    if ((e as { data?: { error?: { code?: string } } }).data?.error?.code === 'ORDER_ALREADY_OPEN')
+      try {
+        const mine = await api.get('/api/v2/account/orders', undefined, { limit: 50 });
+        const open = mine.items.find((r) => r.sku === sku && r.state === 'PENDING');
+        if (open) {
+          await navigateTo('/account/orders/' + String(open.id) + '?existing=1');
+          return;
+        }
+      } catch {
+        /* Fall through to the message. */
+      }
     message.value = errorMessage(e);
   } finally {
     creating.value = false;

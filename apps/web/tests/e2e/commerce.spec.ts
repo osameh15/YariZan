@@ -168,9 +168,9 @@ test('Real checkout, coupon quote, simulated payment and one desktop license', a
   );
   expect(count.rows[0].count).toBe('1');
   await page.goto('/account/orders');
-  await expect(page.getByRole('link', { name: 'جزئیات سفارش و مجوز' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'جزئیات', exact: true })).toBeVisible();
   await shot(page, '08-customer-orders');
-  await page.getByRole('link', { name: 'جزئیات سفارش و مجوز' }).click();
+  await page.getByRole('link', { name: 'جزئیات', exact: true }).click();
   await expect(page.locator('.order-state')).toContainText('مجوز خرید آماده است');
   await shot(page, '09-order-detail-license');
 });
@@ -187,7 +187,7 @@ test('Unknown outcome is not failure or another charge; safe callback and mobile
   await expect(page).toHaveURL(/\/payment\/simulate\?order=/);
   const id = new URL(page.url()).searchParams.get('order')!;
   await page.getByRole('button', { name: 'شبیه‌سازی نتیجهٔ نامشخص' }).click();
-  await expect(page.locator('.order-state')).toContainText('هنوز مشخص نیست', { timeout: 15000 });
+  await expect(page.locator('.order-state')).toContainText('در حال بررسی', { timeout: 15000 });
   await expect(page.getByRole('button', { name: 'ادامه در شبیه‌ساز پرداخت' })).toHaveCount(0);
   await shot(page, '06-payment-verification-pending');
   await page.setViewportSize({ width: 390, height: 844 });
@@ -276,6 +276,33 @@ test('Cancelled synthetic payment never presents a successful purchase', async (
   await expect(
     page.getByText('مجوز این پایه آمادهٔ دریافت در برنامهٔ ویندوز است.', { exact: false }),
   ).toHaveCount(0);
+});
+
+test('An unpaid invoice can be cancelled; a cancelled payment invites a new invoice and My orders shows both', async ({
+  page,
+}) => {
+  const e = await customer();
+  await login(page, e);
+  await page.goto('/checkout?sku=YARIZAN-G1');
+  await page.getByRole('button', { name: 'ثبت سفارش و بررسی پرداخت' }).click();
+  await expect(page.getByTestId('invoice-timer')).toBeVisible();
+  // A second checkout for the same grade continues the open invoice instead of failing.
+  await page.goto('/checkout?sku=YARIZAN-G1');
+  await page.getByRole('button', { name: 'ثبت سفارش و بررسی پرداخت' }).click();
+  await expect(page).toHaveURL(/existing=1/);
+  await page.getByTestId('cancel-invoice').click();
+  await expect(page.locator('.order-state')).toContainText('پرداخت لغو شد');
+  await page.getByTestId('new-invoice').click();
+  await expect(page).toHaveURL(/\/checkout\?sku=YARIZAN-G1/);
+  await page.getByRole('button', { name: 'ثبت سفارش و بررسی پرداخت' }).click();
+  await page.getByRole('button', { name: 'ادامه در شبیه‌ساز پرداخت' }).click();
+  await page.getByRole('button', { name: 'لغو پرداخت آزمایشی' }).click();
+  await expect(page.locator('.order-state')).toContainText('پرداخت لغو شد', { timeout: 15000 });
+  await expect(page.getByTestId('new-invoice')).toBeVisible();
+  await page.goto('/account/orders');
+  await expect(page.locator('tbody tr')).toHaveCount(2);
+  await expect(page.locator('tbody')).toContainText('پرداخت لغو شد');
+  await shot(page, '34-customer-orders-table');
 });
 
 test('Every visible commerce section loads its real API and unsupported sections fail clearly', async ({

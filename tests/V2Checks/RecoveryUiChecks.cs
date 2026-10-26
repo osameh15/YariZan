@@ -175,7 +175,7 @@ internal static partial class Program
             var access = Access(identity, signing, store, server);
             var activation = UiCoordinator(access, intent);
             var (window, pages) = Launch(access, activation);
-            Check(pages.SequenceEqual(new[] { typeof(CoverPage) }) && !access.CanEnter && server.EntitlementRequests == 0 && server.PickupRequests == 0,
+            Check(pages.SequenceEqual(new[] { typeof(LockPage) }) && !access.CanEnter && server.EntitlementRequests == 0 && server.PickupRequests == 0,
                 "cached signed revocation is never bypassed by a wait marker or recovery");
             window.Close();
         }

@@ -40,19 +40,73 @@ export class AuthFlows {
       );
     return { session, csrf };
   }
+  /** Active accounts (one per device) that share a verified mobile number, oldest first. */
+  private async mobileAccounts(lookup: string, c?: PoolClient) {
+    const sql =
+      "SELECT c.* FROM customers c JOIN devices d ON d.id=c.device_id AND d.generation=c.generation WHERE c.state='ACTIVE' AND c.mobile_lookup=$1 ORDER BY c.claimed_at,c.id";
+    type Row = Customer & { username: string; claimed_at: Date };
+    return (
+      c
+        ? await c.query<Row>(sql, [lookup])
+        : await this.db.query<Row>(sql, [lookup])
+    ).rows;
+  }
+  /** Binds a mobile-only login to the exact set of accounts (and their credentials) at request time. */
+  private mobileStamp(accounts: Customer[]) {
+    return hash(
+      "mobile-login\n" +
+        accounts
+          .map(
+            (r) =>
+              r.id +
+              ":" +
+              r.generation +
+              ":" +
+              hash((r.password_hash ?? "") + r.mobile_lookup),
+          )
+          .join("\n"),
+    );
+  }
+  /**
+   * SMS login. With a username (device ID) the code is bound to that one account. Without one, the
+   * mobile number alone is enough: ownership of each device was proved with this number when it was
+   * connected. When the number owns several devices the customer picks one after the code is checked.
+   */
   async requestLogin(
-    username: string,
+    username: string | undefined,
     mobile: string,
     purpose: "LOGIN" | "RESET",
     actor: Actor,
   ) {
-    const lookup = this.otp.lookup(mobile),
-      r = (
-        await this.db.query<Customer>(
-          "SELECT * FROM customers WHERE username=$1 AND state='ACTIVE' AND mobile_lookup=$2",
-          [username, lookup],
-        )
-      ).rows[0];
+    const lookup = this.otp.lookup(mobile);
+    if (!username) {
+      requireCondition(purpose === "LOGIN", "INVALID_REQUEST", 400);
+      const accounts = await this.mobileAccounts(lookup);
+      const only = accounts.length === 1 ? accounts[0] : undefined;
+      return this.otp.issue(
+        purpose,
+        mobile,
+        actor,
+        only
+          ? {
+              principal_id: only.id,
+              generation: only.generation,
+              principal_stamp: hash(
+                (only.password_hash ?? "") + only.mobile_lookup,
+              ),
+            }
+          : accounts.length
+            ? { principal_stamp: this.mobileStamp(accounts) }
+            : {},
+        accounts.length > 0,
+      );
+    }
+    const r = (
+      await this.db.query<Customer>(
+        "SELECT * FROM customers WHERE username=$1 AND state='ACTIVE' AND mobile_lookup=$2",
+        [username, lookup],
+      )
+    ).rows[0];
     return this.otp.issue(
       purpose,
       mobile,
@@ -66,6 +120,71 @@ export class AuthFlows {
         : {},
       !!r,
     );
+  }
+  /** Whether a LOGIN challenge belongs to a number with several devices (no single account bound). */
+  async mobileChallenge(id: string) {
+    return Boolean(
+      (
+        await this.db.query(
+          "SELECT 1 FROM otp_challenges WHERE id=$1 AND purpose='LOGIN' AND principal_id IS NULL AND pairing_id IS NULL AND principal_stamp IS NOT NULL",
+          [id],
+        )
+      ).rowCount,
+    );
+  }
+  /**
+   * Second step of a mobile-only login for a number that owns several devices. Without a username the
+   * code is checked (one of its five attempts) and the device IDs are listed; with one, the code is
+   * consumed and that account is signed in.
+   */
+  async verifyMobileLogin(
+    id: string,
+    code: string,
+    username: string | undefined,
+    actor: Actor,
+  ) {
+    const admitted = await this.otp.admit(id, "LOGIN", code);
+    requireCondition(
+      !admitted.principal_id && admitted.principal_stamp,
+      "OTP_INVALID",
+      401,
+    );
+    return this.db.transaction(async (c) => {
+      const accounts = await this.mobileAccounts(admitted.mobile_lookup, c);
+      requireCondition(
+        accounts.length > 1 &&
+          this.mobileStamp(accounts) === admitted.principal_stamp,
+        "OTP_INVALID",
+        401,
+      );
+      if (!username)
+        return {
+          select: accounts.map((a) => ({
+            username: a.username,
+            created_at: a.claimed_at,
+          })),
+        };
+      const r = accounts.find((a) => a.username === username);
+      requireCondition(r, "OTP_INVALID", 401);
+      await c.query("SELECT id FROM customers WHERE id=$1 FOR UPDATE", [r.id]);
+      await this.otp.consume(c, id, "LOGIN", code, actor);
+      const session = await this.session(c, r.id);
+      await this.audit.append(
+        c,
+        { ...actor, type: "CUSTOMER", id: r.id },
+        "customer.login_otp",
+        r.id,
+        { mobile_only: true },
+      );
+      return {
+        ...session,
+        trust: this.abuse.trustToken(
+          "customer",
+          r.id,
+          hash(r.password_hash ?? ""),
+        ),
+      };
+    });
   }
   async verifyLogin(
     id: string,

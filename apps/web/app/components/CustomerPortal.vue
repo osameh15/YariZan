@@ -14,7 +14,7 @@ const nav = [
   ['devices', 'دستگاه و پروفایل‌ها', '/account/devices'],
   ['licenses', 'محصولات و مجوزها', '/account/licenses'],
   ['security', 'امنیت حساب', '/account/security'],
-  ['orders', 'سفارش‌ها', '/account/orders'],
+  ['orders', 'سفارش‌های من', '/account/orders'],
 ];
 async function load() {
   busy.value = true;
@@ -122,15 +122,35 @@ onMounted(load);
         ><template v-else-if="section === 'devices'"
           ><div class="panel">
             <h2>یک دستگاه، چند پروفایلِ تأییدشده</h2>
-            <p>خریدها و فرصت‌های آزمایشی میان پروفایل‌های تأییدشدهٔ همین دستگاه مشترک‌اند.</p>
-            <p class="mono" dir="ltr">{{ account.device_id }}</p>
-            <ul class="record-list">
-              <li v-for="d in devices" :key="String(d.id)">
-                <span>پروفایل ویندوز</span
-                ><span class="badge">{{ d.status === 'ACTIVE' ? 'فعال' : 'غیرفعال' }}</span
-                ><small dir="ltr">{{ d.id }}</small>
-              </li>
-            </ul>
+            <p>
+              هر کاربر ویندوز روی این رایانه یک پروفایل جدا دارد. خریدها و فرصت‌های آزمایشی میان
+              پروفایل‌های تأییدشدهٔ همین دستگاه مشترک‌اند. اگر ویندوز را دوباره نصب کنید، شناسهٔ
+              دستگاه تغییر نمی‌کند؛ کافی است برنامه را دوباره به همین حساب متصل کنید تا مجوزها
+              برگردند.
+            </p>
+            <table class="mini-table">
+              <thead>
+                <tr>
+                  <th style="width: 52%">شناسهٔ پروفایل</th>
+                  <th>وضعیت</th>
+                  <th>تاریخ تأیید</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="d in devices" :key="String(d.id)">
+                  <td dir="ltr" :title="String(d.id)">{{ d.id }}</td>
+                  <td>
+                    <span class="pill" :data-tone="d.status === 'ACTIVE' ? 'ok' : 'bad'">{{
+                      d.status === 'ACTIVE' ? 'فعال' : 'غیرفعال'
+                    }}</span>
+                  </td>
+                  <td>{{ new Date(String(d.created_at)).toLocaleDateString('fa-IR') }}</td>
+                </tr>
+                <tr v-if="!devices.length">
+                  <td colspan="3">هنوز پروفایلی تأیید نشده است.</td>
+                </tr>
+              </tbody>
+            </table>
             <NuxtLink to="/connect" class="button secondary">تأیید پروفایل جدید</NuxtLink>
           </div></template
         ><template v-else-if="section === 'licenses'"
@@ -144,14 +164,27 @@ onMounted(load);
           </div>
           <article v-for="o in owned" :key="String(o.id)" class="panel owned-card">
             <h2>یاریزان پایهٔ {{ gradeNames[Number(String(o.sku).slice(-1)) - 1] }}</h2>
-            <span class="badge">{{ o.state === 'ACTIVE' ? 'مالکیت فعال' : 'مالکیت غیرفعال' }}</span>
-            <p>مجوزهای این پایه</p>
-            <ul class="record-list">
-              <li v-for="l in licenses.filter((l) => l.sku === o.sku)" :key="String(l.id)">
-                <b>{{ l.state === 'ACTIVE' ? 'مجوز فعال' : 'مجوز لغوشده' }}</b
-                ><small dir="ltr">{{ l.id }}</small>
-              </li>
-            </ul>
+            <span class="pill" :data-tone="o.state === 'ACTIVE' ? 'ok' : 'bad'">{{
+              o.state === 'ACTIVE' ? 'مالکیت فعال' : 'مالکیت غیرفعال'
+            }}</span>
+            <table class="mini-table">
+              <thead>
+                <tr>
+                  <th style="width: 60%">شناسهٔ مجوز</th>
+                  <th>وضعیت</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="l in licenses.filter((l) => l.sku === o.sku)" :key="String(l.id)">
+                  <td dir="ltr" :title="String(l.id)">{{ l.id }}</td>
+                  <td>
+                    <span class="pill" :data-tone="l.state === 'ACTIVE' ? 'ok' : 'bad'">{{
+                      l.state === 'ACTIVE' ? 'مجوز فعال' : 'مجوز لغوشده'
+                    }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
             <p class="muted">
               مجوز از خود برنامه دریافت می‌شود؛ این صفحه فقط وضعیت حساب را نمایش می‌دهد.
             </p>

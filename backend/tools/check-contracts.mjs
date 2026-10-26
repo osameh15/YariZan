@@ -96,13 +96,19 @@ const requests = {
     mobile: schemas.mobile,
     pow: powProof,
   }),
+  // The device ID is optional for LOGIN (mobile-only SMS login) and required for RESET.
   "/api/v2/auth/otp/request": z.strictObject({
-    username: z.string().min(1).max(64),
+    username: z.string().min(1).max(64).optional(),
     mobile: schemas.mobile,
     purpose: z.enum(["LOGIN", "RESET"]),
     pow: powProof,
   }),
-  "/api/v2/auth/otp/verify": schemas.otpProofSchema,
+  "/api/v2/auth/otp/verify": schemas.otpProofSchema.extend({
+    username: z.string().min(1).max(64).optional(),
+  }),
+  "/api/v2/admin/commerce/orders/{id}/archive": schemas.mutationSchema.extend({
+    archived: z.boolean(),
+  }),
   "/api/v2/auth/password-reset/otp": schemas.otpProofSchema.extend({
     password: schemas.password,
   }),
@@ -181,6 +187,9 @@ const receipt = z.strictObject({
 const metadata = z.record(z.string(), z.unknown());
 const page = z.strictObject({
   items: z.array(metadata),
+  total: z.number().int(),
+  offset: z.number().int(),
+  limit: z.number().int(),
   next_offset: z.number().int().nullable(),
 });
 const otpReceipt = z.strictObject({
@@ -248,8 +257,9 @@ const responses = {
   }),
   "/api/v2/payments/zarinpal/return": z.object({
     order_id: schemas.uuid,
-    status: z.literal("VERIFICATION_PENDING"),
+    status: z.enum(["VERIFICATION_PENDING", "CANCELLED"]),
   }),
+  "/api/v2/orders/{id}/cancel": commerce.orderView,
   "/api/v2/admin/commerce/{section}": z.record(z.string(), z.unknown()),
   "/api/v2/admin/payment-readiness": z.strictObject({
     real_payments_possible: z.boolean(),
@@ -330,7 +340,18 @@ const responses = {
   "/api/v2/admin/auth/sms/verify": z.strictObject({
     csrf_token: schemas.secret,
   }),
-  "/api/v2/auth/otp/verify": z.strictObject({ csrf_token: schemas.secret }),
+  "/api/v2/auth/otp/verify": z.union([
+    z.strictObject({ csrf_token: schemas.secret }),
+    // A mobile number that owns several devices: pick one, then verify again with its username.
+    z.strictObject({
+      select: z.array(
+        z.strictObject({
+          username: z.string(),
+          created_at: z.iso.datetime(),
+        }),
+      ),
+    }),
+  ]),
   "/api/v2/auth/password-reset/otp": z.strictObject({
     password_changed: z.literal(true),
   }),

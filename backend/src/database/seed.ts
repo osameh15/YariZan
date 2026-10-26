@@ -29,6 +29,7 @@ export const permissions = [
   "audit.read",
   "support.password_reset",
   "enrollments.recover",
+  "devices.manage",
 ];
 export const adminRoles = ["owner", "support", "auditor", "catalog"];
 export const rolePermissions: [string, string][] = [

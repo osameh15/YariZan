@@ -482,13 +482,15 @@ export class AccountsController {
   ) {
     this.origin(req);
     // SMS requests are bounded inside Otp.issue (admission budget, proof of work, per-mobile).
+    // The device ID is optional for LOGIN (mobile-only SMS login) and required for RESET.
     const b = z
       .strictObject({
-        username: z.string().min(1).max(64),
+        username: z.string().min(1).max(64).optional(),
         mobile,
         purpose: z.enum(["LOGIN", "RESET"]),
         pow: powSchema,
       })
+      .refine((v) => v.purpose === "LOGIN" || v.username, "username")
       .parse(body);
     await this.abuse.verifyPow(b.purpose, this.otp.lookup(b.mobile), b.pow);
     return this.flows.requestLogin(b.username, b.mobile, b.purpose, actor(req));
@@ -500,7 +502,22 @@ export class AccountsController {
   ) {
     this.origin(req);
     await this.abuse.budget("otp-verify");
-    const b = otpProofSchema.parse(body);
+    const b = otpProofSchema
+      .extend({ username: z.string().min(1).max(64).optional() })
+      .parse(body);
+    // A number that owns several devices: list them, then sign in to the one the customer picks.
+    if (await this.flows.mobileChallenge(b.challenge_id)) {
+      const m = await this.flows.verifyMobileLogin(
+        b.challenge_id,
+        b.code,
+        b.username,
+        actor(req),
+      );
+      if ("select" in m) return m;
+      const out = this.sessionCookies(res, false, m);
+      trustCookie(res, this.security, "customer", m.trust);
+      return out;
+    }
     const r = await this.flows.verifyLogin(
       b.challenge_id,
       b.code,
@@ -700,11 +717,17 @@ export class AdminController {
   private async list(req: Request, permission: string, sql: string) {
     const q = z
       .strictObject({
-        limit: z.coerce.number().int().min(1).max(50).default(20),
+        limit: z.coerce.number().int().min(1).max(200).default(20),
         offset: z.coerce.number().int().min(0).max(100000).default(0),
         search: z.string().max(128).default(""),
+        archived: z.enum(["active", "archived", "all"]).default("active"),
       })
       .parse(req.query);
+    // Every row carries the total before LIMIT so the table can show page counts.
+    sql = sql.replace(
+      /^SELECT /,
+      "SELECT count(*) OVER()::integer total_count,",
+    );
     let phoneLookup: string | null = null;
     if (this.security.config.OTP_HMAC_KEY) {
       try {
@@ -728,11 +751,15 @@ export class AdminController {
             q.offset,
             "%" + q.search.replace(/[\\%_]/g, "\\$&") + "%",
             phoneLookup,
+            ...(sql.includes("$5") ? [q.archived] : []),
           ],
         )
       ).rows;
       return {
         items: rows.slice(0, q.limit),
+        total: Number(rows[0]?.total_count ?? 0),
+        offset: q.offset,
+        limit: q.limit,
         next_offset: rows.length > q.limit ? q.offset + q.limit : null,
       };
     });
@@ -768,18 +795,19 @@ export class AdminController {
     return this.list(
       req,
       "devices.read",
-      `SELECT d.id,d.username,d.generation,c.id customer_id,c.state customer_state,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision,
+      `SELECT d.id,d.username,d.generation,d.created_at,d.archived_at,c.id customer_id,c.state customer_state,CASE WHEN c.mobile_last4 IS NOT NULL THEN '09•••••'||c.mobile_last4 END mobile_masked,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision,
+  (SELECT count(*) FROM licenses l WHERE l.device_id=d.id AND l.state='ACTIVE') active_licenses,
   (SELECT count(*) FROM device_keys k WHERE k.device_id=d.id AND k.generation=d.generation AND k.status='ACTIVE') profiles,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('id',k.id,'status',k.status,'created_at',k.created_at)) FROM device_keys k WHERE k.device_id=d.id AND k.generation=d.generation),'[]') profile_details,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('sku',r.sku,'blocked',r.blocked,'revision',r.revision)) FROM device_product_restrictions r WHERE r.device_id=d.id),'[]') restrictions
-  FROM devices d LEFT JOIN customers c ON c.device_id=d.id AND c.generation=d.generation AND c.state='ACTIVE' LEFT JOIN entity_notes n ON n.entity_type='devices' AND n.entity_id=d.id::text WHERE d.username ILIKE $3 OR d.id::text ILIKE $3 OR c.id::text ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 OR EXISTS(SELECT 1 FROM device_keys k WHERE k.device_id=d.id AND k.id::text ILIKE $3) ORDER BY d.created_at DESC,d.id LIMIT $1 OFFSET $2`,
+  FROM devices d LEFT JOIN customers c ON c.device_id=d.id AND c.generation=d.generation AND c.state='ACTIVE' LEFT JOIN entity_notes n ON n.entity_type='devices' AND n.entity_id=d.id::text WHERE ($5::text='all' OR (d.archived_at IS NULL)=($5::text='active')) AND (d.username ILIKE $3 OR d.id::text ILIKE $3 OR c.id::text ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 OR EXISTS(SELECT 1 FROM device_keys k WHERE k.device_id=d.id AND k.id::text ILIKE $3)) ORDER BY d.created_at DESC,d.id LIMIT $1 OFFSET $2`,
     );
   }
   @Get("licenses") licenses(@Req() req: Request) {
     return this.list(
       req,
       "licenses.read",
-      `SELECT l.id,l.device_id,e.customer_id,e.generation,l.sku,l.state,l.license_revision,l.decision_version,e.state entitlement_state,d.username,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM licenses l JOIN entitlements e ON e.id=l.entitlement_id JOIN devices d ON d.id=l.device_id JOIN customers c ON c.id=e.customer_id LEFT JOIN entity_notes n ON n.entity_type='licenses' AND n.entity_id=l.id::text WHERE d.username ILIKE $3 OR l.id::text ILIKE $3 OR l.device_id::text ILIKE $3 OR l.sku ILIKE $3 OR e.customer_id::text ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 ORDER BY l.issued_at DESC,l.id LIMIT $1 OFFSET $2`,
+      `SELECT l.id,l.device_id,l.issued_at,e.customer_id,e.generation,l.sku,l.state,l.license_revision,l.decision_version,e.state entitlement_state,d.username,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM licenses l JOIN entitlements e ON e.id=l.entitlement_id JOIN devices d ON d.id=l.device_id JOIN customers c ON c.id=e.customer_id LEFT JOIN entity_notes n ON n.entity_type='licenses' AND n.entity_id=l.id::text WHERE d.username ILIKE $3 OR l.id::text ILIKE $3 OR l.device_id::text ILIKE $3 OR l.sku ILIKE $3 OR e.customer_id::text ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 ORDER BY l.issued_at DESC,l.id LIMIT $1 OFFSET $2`,
     );
   }
   @Get("trials") trials(@Req() req: Request) {
@@ -793,7 +821,7 @@ export class AdminController {
     return this.list(
       req,
       "activation_codes.read",
-      `SELECT a.id,a.device_id,a.customer_id,a.generation,a.sku,a.status,a.expires_at,d.username,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM activation_codes a JOIN devices d ON d.id=a.device_id JOIN customers c ON c.id=a.customer_id LEFT JOIN entity_notes n ON n.entity_type='activation-codes' AND n.entity_id=a.id::text WHERE d.username ILIKE $3 OR a.id::text ILIKE $3 OR a.device_id::text ILIKE $3 OR a.sku ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 ORDER BY a.created_at DESC,a.id LIMIT $1 OFFSET $2`,
+      `SELECT a.id,a.device_id,a.customer_id,a.generation,a.sku,a.status,a.expires_at,a.created_at,d.username,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM activation_codes a JOIN devices d ON d.id=a.device_id JOIN customers c ON c.id=a.customer_id LEFT JOIN entity_notes n ON n.entity_type='activation-codes' AND n.entity_id=a.id::text WHERE d.username ILIKE $3 OR a.id::text ILIKE $3 OR a.device_id::text ILIKE $3 OR a.sku ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 ORDER BY a.created_at DESC,a.id LIMIT $1 OFFSET $2`,
     );
   }
   @Get("products") products(@Req() req: Request) {
@@ -815,6 +843,86 @@ export class AdminController {
       b,
       { id: uuid.parse(id) },
       (c, a) => this.admin.reset(c, id, b, a),
+    );
+  }
+  /**
+   * Removes a test or unused device. A device with no history at all is deleted; any other device is
+   * archived (hidden from the default list, history kept). A device with an active Windows profile or
+   * license is refused: revoke those first. `expected_revision` is the device generation.
+   */
+  @Post("devices/:id/remove") removeDevice(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = mutationSchema.parse(body),
+      device = uuid.parse(id);
+    return this.admin.operation(
+      req,
+      "devices.manage",
+      b,
+      { id: device, action: "remove" },
+      async (c) => {
+        const d = (
+          await c.query<{ generation: number }>(
+            "SELECT generation FROM devices WHERE id=$1 FOR UPDATE",
+            [device],
+          )
+        ).rows[0];
+        requireCondition(d, "NOT_FOUND", 404);
+        requireCondition(
+          d.generation === b.expected_revision,
+          "STALE_REVISION",
+          409,
+        );
+        requireCondition(
+          !(
+            await c.query(
+              "SELECT 1 FROM device_keys WHERE device_id=$1 AND status='ACTIVE' UNION ALL SELECT 1 FROM licenses WHERE device_id=$1 AND state='ACTIVE'",
+              [device],
+            )
+          ).rowCount,
+          "DEVICE_IN_USE",
+          409,
+        );
+        await c.query("SAVEPOINT device_remove");
+        try {
+          await c.query("DELETE FROM devices WHERE id=$1", [device]);
+          await c.query("RELEASE SAVEPOINT device_remove");
+          return { removed: "DELETED" };
+        } catch (e) {
+          // 23503: still referenced by history (account, pairings, trials, orders ...): archive instead.
+          if ((e as { code?: string }).code !== "23503") throw e;
+          await c.query("ROLLBACK TO SAVEPOINT device_remove");
+        }
+        await c.query(
+          "UPDATE devices SET archived_at=COALESCE(archived_at,now()) WHERE id=$1",
+          [device],
+        );
+        return { removed: "ARCHIVED" };
+      },
+    );
+  }
+  @Post("devices/:id/restore") restoreDevice(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = mutationSchema.parse(body),
+      device = uuid.parse(id);
+    return this.admin.operation(
+      req,
+      "devices.manage",
+      b,
+      { id: device, action: "restore" },
+      async (c) => {
+        const r = await c.query(
+          "UPDATE devices SET archived_at=NULL WHERE id=$1 AND generation=$2 AND archived_at IS NOT NULL",
+          [device, b.expected_revision],
+        );
+        requireCondition(r.rowCount, "STALE_REVISION", 409);
+        return { restored: true };
+      },
     );
   }
   @Post("devices/:id/products/:sku/block") block(
@@ -1042,13 +1150,19 @@ export class AdminController {
         .strictObject({
           action: z.string().max(128).optional(),
           entity_id: z.string().max(128).optional(),
-          limit: z.coerce.number().int().min(1).max(100).default(50),
+          limit: z.coerce.number().int().min(1).max(200).default(50),
+          offset: z.coerce.number().int().min(0).max(100000).default(0),
         })
         .parse(req.query);
       return (
         await c.query(
-          "SELECT * FROM audit_logs WHERE ($1::text IS NULL OR action=$1) AND ($2::text IS NULL OR entity_id=$2) ORDER BY created_at DESC,id LIMIT $3",
-          [query.action ?? null, query.entity_id ?? null, query.limit],
+          "SELECT * FROM audit_logs WHERE ($1::text IS NULL OR action=$1) AND ($2::text IS NULL OR entity_id=$2) ORDER BY created_at DESC,id LIMIT $3 OFFSET $4",
+          [
+            query.action ?? null,
+            query.entity_id ?? null,
+            query.limit,
+            query.offset,
+          ],
         )
       ).rows;
     });

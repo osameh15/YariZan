@@ -1,6 +1,6 @@
 ﻿END-USER LICENSE AGREEMENT (EULA)
 YariZan - Educational Game Collection for Windows
-Version 2.0.1
+Version 2.1.0
 
 ================================================================
 ENGLISH
@@ -78,7 +78,7 @@ DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
 
 توافق‌نامهٔ کاربر نهایی
 یاریزان — مجموعهٔ بازی‌های آموزشی برای ویندوز
-نسخهٔ ۲.۰.۱
+نسخهٔ ۲.۱.۰
 
 تمامی حقوق محفوظ است. © ۲۰۲۶ OAR NOVA GAMES STUDIO
 

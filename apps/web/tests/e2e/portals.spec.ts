@@ -225,6 +225,7 @@ test('MFA Admin dashboard, product edit and stale revision protection', async ({
   await page.goto('/zanyari/products');
   await expect(page.locator('tbody tr')).toHaveCount(6);
   await capture(page, '07-admin-products');
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'ویرایش محصول' }).first().click();
   await page.getByRole('spinbutton', { name: 'قیمت به تومان', exact: true }).fill('1300000');
   await page.getByLabel('دلیل عملیات').fill('اصلاح قیمت با تأیید مستقل');
@@ -232,6 +233,7 @@ test('MFA Admin dashboard, product edit and stale revision protection', async ({
   await expect(page.getByRole('dialog').getByRole('status')).toContainText('عملیات ثبت شد');
   await page.keyboard.press('Escape');
   await expect(page.locator('tbody tr').first()).toContainText('۱٬۳۰۰٬۰۰۰');
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'ویرایش محصول' }).first().click();
   await sql("UPDATE products SET revision=revision+1 WHERE sku='YARIZAN-G1'");
   await page.getByLabel('دلیل عملیات').fill('بررسی تعارض نسخهٔ محصول');
@@ -252,6 +254,7 @@ test('Admin device block/unblock and activation codes display once', async ({ pa
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await capture(page, '08-admin-devices');
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'محدود کردن پایه', exact: true }).click();
   await page.getByLabel('دلیل عملیات').fill('محدودیت آزمایشی با بررسی مستقل');
   await page.getByRole('button', { name: 'تأیید و ثبت عملیات' }).click();
@@ -260,11 +263,13 @@ test('Admin device block/unblock and activation codes display once', async ({ pa
   expect(
     (await call('/desktop/trials/YARIZAN-G1/status', undefined, e.credential)).body.error.code,
   ).toBe('PRODUCT_BLOCKED');
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'رفع محدودیت', exact: true }).click();
   await page.getByLabel('دلیل عملیات').fill('رفع محدودیت پس از بررسی');
   await page.getByRole('button', { name: 'تأیید و ثبت عملیات' }).click();
   await expect(page.getByRole('dialog').getByRole('status')).toContainText('عملیات ثبت شد');
   await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'ساخت کد فعال‌سازی', exact: true }).click();
   await page.getByLabel('دلیل عملیات').fill('صدور دستی پس از بررسی مالکیت');
   await page
@@ -277,6 +282,7 @@ test('Admin device block/unblock and activation codes display once', async ({ pa
   expect(await page.locator('body').textContent()).not.toContain(secret);
   await page.goto('/zanyari/activation-codes');
   expect(await page.locator('body').textContent()).not.toContain(secret);
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'لغو کد', exact: true }).first().click();
   await page.getByLabel('دلیل عملیات').fill('لغو کد آزمایشی صادرشده');
   await page.getByRole('button', { name: 'تأیید و ثبت عملیات' }).click();
@@ -387,6 +393,7 @@ test('Admin trial allocation reset and customer reset preserve historical device
     .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'دو فرصت تازه' }).click();
   await confirmOperation(page, 'تخصیص دو فرصت با تأیید مستقل');
   await page.keyboard.press('Escape');
@@ -406,6 +413,7 @@ test('Admin trial allocation reset and customer reset preserve historical device
     .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'محدود کردن پایه', exact: true }).click();
   await confirmOperation(page, 'محدودیت پایه پیش از بازنشانی');
   await page.keyboard.press('Escape');
@@ -415,6 +423,7 @@ test('Admin trial allocation reset and customer reset preserve historical device
     .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'بازنشانی حساب', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('تاریخچه حفظ می‌شوند');
   await confirmOperation(page, 'بازنشانی حساب با تأیید مستقل');
@@ -447,6 +456,7 @@ test('Admin manual ownership, revoke and same-ID recovery use real revisioned op
     .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'ثبت مجوز خرید', exact: true }).click();
   await confirmOperation(
     page,
@@ -462,10 +472,12 @@ test('Admin manual ownership, revoke and same-ID recovery use real revisioned op
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await capture(page, '11-admin-licenses');
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'لغو اعتبار مجوز', exact: true }).click();
   await confirmOperation(page, 'لغو اعتبار مجوز به درخواست بررسی مستقل');
   await page.keyboard.press('Escape');
   await expect(page.locator('tbody tr')).toContainText('لغوشده');
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'بازیابی مجوز خرید', exact: true }).click();
   await confirmOperation(page, 'بازیابی همان مجوز پس از بررسی', 'synthetic-ownership-recover-004');
   await page.keyboard.press('Escape');
@@ -488,6 +500,7 @@ test('Support reset grant is shown once and completes a forced password change',
     .fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await expect(page.getByRole('button', { name: 'بازنشانی حساب', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'بازیابی رمز عبور', exact: true }).click();
   await confirmOperation(
@@ -739,6 +752,7 @@ test('A delayed one-time code response cannot populate a different Admin dialog'
       /* Closing/navigating may abort delivery; no plaintext is retained by the view. */
     }
   });
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'ساخت کد فعال‌سازی', exact: true }).click();
   await page.getByLabel('دلیل عملیات').fill('آزمایش پاسخ دیرهنگام ساخت کد فعال‌سازی');
   await page
@@ -747,6 +761,7 @@ test('A delayed one-time code response cannot populate a different Admin dialog'
   await page.getByRole('button', { name: 'تأیید و ثبت عملیات' }).click();
   await captured;
   await page.getByRole('dialog').getByRole('button', { name: 'بستن پنجره' }).click();
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'ثبت مجوز خرید', exact: true }).click();
   release();
   await expect(page.getByRole('dialog', { name: 'ثبت مجوز خرید برای دستگاه' })).toBeVisible();
@@ -755,4 +770,33 @@ test('A delayed one-time code response cannot populate a different Admin dialog'
   ).toBeEnabled();
   await expect(page.getByTestId('one-time-secret')).toHaveCount(0);
   expect(await page.locator('body').textContent()).not.toContain(secret);
+});
+
+test('Admin removes an unused test device: archived with history, then shown only in the archive', async ({
+  page,
+}) => {
+  const e = await customer();
+  await sql("UPDATE device_keys SET status='REVOKED' WHERE device_id=$1", [e.device_id]);
+  await adminLogin(page);
+  await page.goto('/zanyari/devices');
+  const search = page.getByRole('textbox', {
+    name: 'جست‌وجوی شناسه، نام کاربری، شماره یا یادداشت',
+  });
+  await search.fill(e.username);
+  await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
+  await expect(page.locator('tbody tr')).toHaveCount(1);
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'جزئیات دستگاه' })).toContainText(
+    'پروفایل‌های ویندوز این دستگاه',
+  );
+  await capture(page, '09-admin-device-detail');
+  await page.getByRole('button', { name: 'حذف دستگاه', exact: true }).click();
+  await page.getByLabel('دلیل عملیات').fill('دستگاه آزمایشی بدون استفاده');
+  await page.getByRole('button', { name: 'تأیید و ثبت عملیات' }).click();
+  await expect(page.getByRole('dialog').getByRole('status')).toContainText('بایگانی شد');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('tbody tr')).toHaveCount(0);
+  await page.getByRole('button', { name: 'بایگانی‌شده', exact: true }).click();
+  await expect(page.locator('tbody tr')).toHaveCount(1);
+  await expect(page.locator('tbody tr')).toContainText('بایگانی‌شده');
 });

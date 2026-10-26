@@ -92,7 +92,7 @@ test("Release migration count matches the reviewed migration directory", () => {
       .length,
     SCHEMA_MIGRATION_COUNT,
   );
-  assert.equal(SCHEMA_MIGRATION_COUNT, 13);
+  assert.equal(SCHEMA_MIGRATION_COUNT, 14);
 });
 test("Migration configuration requires a separate production migration login", () => {
   const runtime = "postgresql://yarizan_api:x@db:5432/yarizan";

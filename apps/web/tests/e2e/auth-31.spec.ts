@@ -63,12 +63,13 @@ async function send(page: Page, route: string) {
   expect(r.status()).toBe(201);
   return (await r.json()).challenge_id;
 }
+// SMS login needs only the mobile number (2.1.0); the device ID is asked only for password login.
 async function otpLogin(page: Page, username: string, mobile: string) {
   await page.goto('/login');
   await expect(
     page.getByRole('button', { name: 'ورود با کد یک‌بارمصرف', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
-  await page.getByLabel('نام کاربری دستگاه', { exact: true }).fill(username);
+  await expect(page.getByLabel('نام کاربری دستگاه', { exact: true })).toHaveCount(0);
   await page.getByLabel('شمارهٔ همراه', { exact: true }).fill(mobile);
   const id = await send(page, '/api/v2/auth/otp/request');
   await page.getByLabel('کد تأیید پیامکی').fill(await smsCode(id));
@@ -201,7 +202,6 @@ test('Password and OTP login designs, self-service reset and mobile validation',
   await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
   await shot(page, '17-login-password');
   await page.getByRole('button', { name: 'ورود با کد یک‌بارمصرف' }).click();
-  await page.getByLabel('نام کاربری دستگاه').fill(e.username);
   await page.getByLabel('شمارهٔ همراه').fill('123');
   await page.getByRole('button', { name: 'ارسال کد تأیید' }).click();
   await expect(page.locator('.field-error').filter({ hasText: 'شمارهٔ همراه را' })).toBeVisible();
@@ -229,18 +229,20 @@ test('Admin SMS MFA, internal note edits/search and stale revision error dialog'
   await search.fill(e.username);
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'مشاهده و ویرایش یادداشت' }).click();
   await page
     .getByRole('textbox', { name: 'یادداشت داخلی', exact: true })
     .fill('پیگیری خانواده — پروندهٔ گل آفتاب');
   await page.getByRole('button', { name: 'ذخیرهٔ یادداشت' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.locator('.note-preview')).toContainText('گل آفتاب');
+  await expect(page.locator('tbody tr').first()).toContainText('گل آفتاب');
   await shot(page, '19-admin-note-list');
   await search.fill('گل آفتاب');
   await page.getByRole('button', { name: 'جست‌وجو', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await shot(page, '20-admin-note-search');
+  await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'مشاهده و ویرایش یادداشت' }).click();
   const bounds = await page.getByRole('dialog').boundingBox();
   expect(Math.abs(bounds!.x + bounds!.width / 2 - 720)).toBeLessThan(3);
