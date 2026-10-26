@@ -36,14 +36,14 @@ const sample: WindowsRelease = {
 };
 
 describe('Windows release list', () => {
-  it('lists only the owner-approved Grade 1 2.0.0 installer', () => {
-    expect(windowsReleases).toHaveLength(1);
+  it('lists the owner-approved Grade 1 installers, 2.1.0 newest', () => {
+    expect(windowsReleases).toHaveLength(2);
     for (const release of windowsReleases) assertValidRelease(release);
     expect(latestForGrade(1)).toMatchObject({
-      version: '2.0.0',
-      filename: 'YariZan-G1-Setup-v2.0.0.exe',
-      sizeBytes: 1042426854,
-      sha256: 'd01bb66afebe125ed8ce259c9f091c5e63820aad42048c08488557c6263642b7',
+      version: '2.1.0',
+      filename: 'YariZan-G1-Setup-v2.1.0.exe',
+      sizeBytes: 1081403001,
+      sha256: '85cf8e1fc147c85d8ff6ff8e29a637774b5b0901f2c860efdd380a9e32a48ecb',
       approval: { signature: 'unsigned-owner-approved' },
     });
     expect(gradeStatus(1)).toBe('available');

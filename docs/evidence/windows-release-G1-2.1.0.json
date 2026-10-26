@@ -1,0 +1,19 @@
+{
+  "grade": 1,
+  "version": "2.1.0",
+  "file": "YariZan-G1-Setup-v2.1.0.exe",
+  "sha256": "85cf8e1fc147c85d8ff6ff8e29a637774b5b0901f2c860efdd380a9e32a48ecb",
+  "size": 1081403001,
+  "source_commit": "8cf313c (branch feat/release-2.1.0, PR #81; Windows sources unchanged by the merge)",
+  "architectures": ["x64", "x86"],
+  "distribution": "unsigned-owner-approved",
+  "unsigned_approval": "docs/evidence/release-2.0.0-owner-acceptance.md",
+  "signature": "none",
+  "malware_scan": "clean",
+  "malware_scan_detail": "Microsoft Defender MpCmdRun custom scan of the installer, 2026-10-26, signatures 1.461.214.0: no threats",
+  "physical_acceptance": "pending owner install test on 64-bit and 32-bit Windows 10/11",
+  "production_api": "https://yarizan.oarnova.games/api/v2/",
+  "build": "build-installer.bat --noninteractive --grade 1 (CommercialRelease; win-x64 and win-x86 launchers)",
+  "replaces": "2.0.1 (never published)",
+  "owner_approved": true
+}

@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
-// Grade selector on /download. Only Grade 1 has an approved installer (2.0.0, unsigned under the
+// Grade selector on /download. Only Grade 1 has an approved installer (2.1.0, unsigned under the
 // owner's recorded exception); every other grade must show a clear unavailable state.
 const profile = process.env.YARIZAN_PUBLIC_PROFILE === 'storefront' ? 'storefront' : 'brochure';
 const images = path.resolve('.local/screenshots/' + profile);
@@ -25,7 +25,7 @@ test('six grade cards are shown, grade 1 is preselected and only grade 1 is down
   const panel = page.getByTestId('download-available');
   await expect(panel).toBeVisible();
   await expect(panel).toContainText(
-    'd01bb66afebe125ed8ce259c9f091c5e63820aad42048c08488557c6263642b7',
+    '85cf8e1fc147c85d8ff6ff8e29a637774b5b0901f2c860efdd380a9e32a48ecb',
   );
   await expect(page.getByTestId('download-unsigned-notice')).toBeVisible();
   const downloads = await panel
@@ -33,7 +33,7 @@ test('six grade cards are shown, grade 1 is preselected and only grade 1 is down
     .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));
   expect(downloads).toEqual([
     'https://dl.oarnova.games/downloads/windows/grade-1/latest',
-    'https://dl.oarnova.games/downloads/windows/grade-1/2.0.0/YariZan-G1-Setup-v2.0.0.exe',
+    'https://dl.oarnova.games/downloads/windows/grade-1/2.1.0/YariZan-G1-Setup-v2.1.0.exe',
   ]);
   const hrefs = await page
     .locator('a[href]')
