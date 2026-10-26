@@ -11,7 +11,7 @@
         FontFamily="{DynamicResource ShabnamFont}"
         Background="{StaticResource RoomBackgroundBrush}"
         WindowStartupLocation="CenterScreen"
-        WindowState="Maximized"
+
         WindowStyle="None"
         ResizeMode="CanMinimize">
 

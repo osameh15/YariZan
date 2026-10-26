@@ -470,6 +470,8 @@ public partial class LockPage : UserControl
         catch { if (_visible is not null) RenderState(); }
         finally { SetBusy(false); }
     }
+    /// <summary>The activation page opened at launch has no previous page; only minimize and exit remain.</summary>
+    public void HideBack() => BackButton.Visibility = Visibility.Collapsed;
     private void Cancel_Click(object sender, RoutedEventArgs e) { if (_dialog == DialogKind.None && !_entering) Cancelled?.Invoke(this, EventArgs.Empty); }
     private void Exit_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
     private void Minimize_Click(object sender, RoutedEventArgs e) { if (Window.GetWindow(this) is { } window) window.WindowState = WindowState.Minimized; }

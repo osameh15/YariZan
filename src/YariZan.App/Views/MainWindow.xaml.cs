@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private readonly Func<byte[]> _loadGameKey;
     private bool _launching;
     private bool _closed;
+    private bool _compact;
     private CancellationTokenSource? _launchCancellation;
 
     public MainWindow() : this(null) { }
@@ -26,6 +27,16 @@ public partial class MainWindow : Window
 
     /// <summary>Pause between the visible success message and entering the game library.</summary>
     public TimeSpan ActivationEntryDelay { get; set; } = TimeSpan.FromMilliseconds(1600);
+
+    /// <summary>
+    /// Activation and recovery screens use a centered, movable window (not full screen) so the customer
+    /// can switch to the browser and copy the device ID; the book pages use the whole screen. UI checks
+    /// that size the window themselves turn this off.
+    /// </summary>
+    public bool AdaptiveWindowSize { get; set; } = true;
+
+    /// <summary>Whether the window currently shows the compact activation layout.</summary>
+    public bool IsCompact => _compact;
 
     public MainWindow(DesktopAccessController? access, Func<byte[]>? loadGameKey = null, PaidActivationCoordinator? activation = null)
     {
@@ -41,6 +52,14 @@ public partial class MainWindow : Window
             + " — ACCEPTANCE CANDIDATE (not for distribution)"
 #endif
             ;
+        // Decide the first layout before the window appears, so a not-yet-activated copy never flashes full screen.
+        if (_access.IsPurchased) WindowState = WindowState.Maximized; else UseCompactWindow();
+        MouseLeftButtonDown += (_, e) =>
+        {
+            // The compact window has no title bar; any free area moves it.
+            if (_compact && e.ButtonState == System.Windows.Input.MouseButtonState.Pressed)
+                try { DragMove(); } catch (InvalidOperationException) { }
+        };
         Loaded += (_, _) => ShowStartPage();
         Closed += (_, _) =>
         {
@@ -54,13 +73,13 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Launch routing, in priority order:
-    /// 1. A locally verified paid license opens the cover at once, with no network wait; the
-    ///    customer continues cover, information, game book as usual and never sees Lock.
+    /// 1. A locally verified paid license opens the cover at once, full screen, with no network wait;
+    ///    the customer continues cover, information, game book as usual and never sees Lock.
     /// 2. An enrolled device whose customer was waiting for a purchase shows a neutral recovery
     ///    screen during one bounded check; success opens the information page without the Lock
     ///    page, anything else falls back to the visible Lock wait.
-    /// 3. Any other enrolled device starts at the cover with one bounded background check.
-    /// 4. Not enrolled, revoked or invalid: the cover and the existing fail-closed Lock behavior.
+    /// 3. Any other copy starts on the activation (Lock) page in the compact window; an enrolled device
+    ///    also gets one bounded background check, and a found purchase continues to the information page.
     /// The wait marker only selects the screen; it never grants access.
     /// </summary>
     private void ShowStartPage()
@@ -72,8 +91,26 @@ public partial class MainWindow : Window
             return;
         }
         if (_activation.CanCheckOnline && _activation.HasPendingIntent) { ShowRecovery(); return; }
-        ShowCover(animate: false);
+        ShowLock(animate: false, firstPage: true);
         if (_activation.CanCheckOnline) _ = _activation.StartStartupRecoveryAsync();
+    }
+
+    private void UseCompactWindow()
+    {
+        _compact = true;
+        if (!AdaptiveWindowSize) return;
+        WindowState = WindowState.Normal;
+        var area = SystemParameters.WorkArea;
+        Width = Math.Min(860, area.Width - 32);
+        Height = Math.Min(800, area.Height - 32);
+        Left = area.Left + (area.Width - Width) / 2;
+        Top = area.Top + (area.Height - Height) / 2;
+    }
+
+    private void UseFullWindow()
+    {
+        _compact = false;
+        if (AdaptiveWindowSize) WindowState = WindowState.Maximized;
     }
 
     private async void ShowRecovery()
@@ -86,6 +123,7 @@ public partial class MainWindow : Window
             _activation.Stop(clearIntent: false);
             ShowLock(animate: false, resumeWaiting: false);
         };
+        UseCompactWindow();
         SwapPage(page, animate: false);
         await _activation.StartStartupRecoveryAsync();
         // Stale completion: the window closed, the customer skipped, or success navigation owns it.
@@ -123,6 +161,7 @@ public partial class MainWindow : Window
 
     public void ShowCover(bool animate = true)
     {
+        UseFullWindow();
         var page = new CoverPage(_library.Manifest.SelectedGrade);
         page.OpenRequested += (_, _) =>
         {
@@ -131,9 +170,12 @@ public partial class MainWindow : Window
         SwapPage(page, animate);
     }
 
-    public void ShowLock(bool animate = true, bool resumeWaiting = true)
+    /// <param name="firstPage">The activation page opened at launch: there is no cover to go back to.</param>
+    public void ShowLock(bool animate = true, bool resumeWaiting = true, bool firstPage = false)
     {
+        UseCompactWindow();
         var page = new LockPage(_access, activation: _activation, resumeWaiting: resumeWaiting);
+        if (firstPage) page.HideBack();
         page.Activated    += (_, _) => ShowInfo();
         page.TrialStarted += (_, _) => ShowInfo();
         page.Cancelled    += (_, _) => ShowCover();
@@ -143,6 +185,7 @@ public partial class MainWindow : Window
     public void ShowInfo()
     {
         if (!_access.CanEnter) { ShowLock(); return; }
+        UseFullWindow();
         var page = new InfoPage(_access.TrialRemaining, _access.IsPurchased, _library.Manifest.SelectedGrade, _access.Username);
         page.NextRequested += (_, _) => ShowGames();
         page.BackRequested += (_, _) => ShowCover();
@@ -152,6 +195,7 @@ public partial class MainWindow : Window
     public void ShowGames(bool animate = true)
     {
         if (!_access.CanEnter) { ShowLock(); return; }
+        UseFullWindow();
         var page = new GamesBookPage(_library);
         page.GameLaunchRequested += OnGameLaunch;
         page.BackRequested += (_, _) => ShowInfo();
