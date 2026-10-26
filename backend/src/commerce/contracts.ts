@@ -45,7 +45,9 @@ export const filters = z.object({
   from: z.iso.datetime().optional(),
   to: z.iso.datetime().optional(),
   offset: z.coerce.number().int().min(0).max(100000).default(0),
-  limit: z.coerce.number().int().min(1).max(50).default(20),
+  limit: z.coerce.number().int().min(1).max(200).default(20),
+  /** Archived orders and devices are hidden unless asked for. */
+  archived: z.enum(["active", "archived", "all"]).default("active"),
 });
 export interface CouponRule {
   type: string;
@@ -85,6 +87,17 @@ export const orderView = z.object({
   paid_at: z.iso.datetime().nullable(),
   expires_at: z.iso.datetime(),
   exception_code: z.string().nullable(),
+  /** Set when an unpaid invoice ended; the customer may then issue a new one. */
+  closed_reason: z
+    .enum([
+      "customer_cancelled",
+      "payment_unsuccessful",
+      "invoice_expired",
+      "admin_voided",
+      "provider_confirmed_failed",
+    ])
+    .nullable(),
+  closed_at: z.iso.datetime().nullable(),
   license_id: uuid.nullable(),
   snapshot: z
     .object({ title_fa: z.string(), username: z.string() })
@@ -140,5 +153,7 @@ export const quoteView = z.strictObject({
 });
 export const commercePage = z.object({
   items: z.array(z.record(z.string(), z.unknown())),
+  /** Rows matching the filters before paging. */
+  total: z.number().int().optional(),
   next_offset: z.number().nullable(),
 });

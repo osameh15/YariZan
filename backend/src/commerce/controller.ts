@@ -86,14 +86,26 @@ export class CommerceController {
     );
   }
   @Post("orders") async create(@Body() body: unknown, @Req() req: Request) {
-    const u = await this.orders.security.customer(req);
-    return this.orders.create(u, orderInput.parse(body), this.actor(req, u.id));
+    const u = await this.orders.security.customer(req),
+      input = orderInput.parse(body),
+      actor = this.actor(req, u.id);
+    await this.payments.supersede(u, input.sku, input.request_id, actor);
+    return this.orders.create(u, input, actor);
   }
   @Get("orders") async list(@Query() query: unknown, @Req() req: Request) {
+    const f = filters.parse(query);
     return this.orders.list(
       await this.orders.security.customer(req),
-      filters.parse(query).offset,
+      f.offset,
+      Math.min(f.limit, 50),
     );
+  }
+  @Post("orders/:id/cancel") async cancel(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ) {
+    const u = await this.orders.security.customer(req);
+    return this.payments.cancel(u, uuid.parse(id), this.actor(req, u.id));
   }
   @Get("account/orders") async accountOrders(
     @Query() query: unknown,
@@ -314,6 +326,46 @@ export class CommerceController {
       b,
       { id: uuid.parse(id) },
       (c) => this.management.reconcile(c, id, b),
+    );
+  }
+  @Capabilities("ADMIN_AUTH", "LIVE_COMMERCE")
+  @Post("admin/commerce/orders/:id/void")
+  voidOrder(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const b = mutationSchema.parse(body);
+    return this.admin.operation(
+      req,
+      "finance.reconcile",
+      b,
+      { id: uuid.parse(id), action: "void" },
+      (c, a) => this.management.voidOrder(c, id, b, a),
+    );
+  }
+  @Capabilities("ADMIN_AUTH", "LIVE_COMMERCE")
+  @Post("admin/commerce/orders/:id/reopen")
+  reopen(@Param("id") id: string, @Body() body: unknown, @Req() req: Request) {
+    const b = mutationSchema.parse(body);
+    return this.admin.operation(
+      req,
+      "finance.reconcile",
+      b,
+      { id: uuid.parse(id), action: "reopen" },
+      (c, a) => this.management.reopen(c, id, b, a),
+    );
+  }
+  @Capabilities("ADMIN_AUTH", "LIVE_COMMERCE")
+  @Post("admin/commerce/orders/:id/archive")
+  archive(@Param("id") id: string, @Body() body: unknown, @Req() req: Request) {
+    const b = mutationSchema.extend({ archived: z.boolean() }).parse(body);
+    return this.admin.operation(
+      req,
+      "finance.reconcile",
+      b,
+      { id: uuid.parse(id), action: "archive" },
+      (c, a) => this.management.archive(c, id, b, a),
     );
   }
   @Capabilities("ADMIN_AUTH", "LIVE_COMMERCE")

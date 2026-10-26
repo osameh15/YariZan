@@ -125,6 +125,8 @@ export class FakeZarinPal implements PaymentGateway {
       amount_irr: Number(p.amount_irr),
       currency: p.currency,
       provider_config: p.merchant_config,
+      // Like the real provider: a definite "not paid yet" is an answer; UNKNOWN simulates an outage.
+      answered: p.outcome !== "UNKNOWN",
     };
   }
   verify(r: PaymentRequest) {

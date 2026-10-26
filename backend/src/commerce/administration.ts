@@ -3,13 +3,18 @@ import { PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { requireCondition } from "../common/errors";
-import { Orders } from "./orders";
+import { Orders, OrderRow } from "./orders";
+import { Payments } from "./payments";
+import { Actor } from "../audit/audit";
 import { campaignInput, codeInput, filters } from "./contracts";
 import { Mutation } from "../common/schemas";
 
 @Injectable()
 export class CommerceAdministration {
-  constructor(readonly orders: Orders) {}
+  constructor(
+    readonly orders: Orders,
+    private payments: Payments,
+  ) {}
   private async quota(
     c: PoolClient,
     scope: "campaign" | "code",
@@ -137,7 +142,7 @@ export class CommerceAdministration {
     let sql: string;
     if (type === "orders")
       sql =
-        "SELECT o.id,o.sku,o.state,o.total_irr,o.discount_irr,o.subtotal_irr,o.created_at,o.paid_at,o.revision,o.device_id,o.customer_id,c.username,o.exception_code FROM orders o JOIN customers c ON c.id=o.customer_id";
+        "SELECT o.id,o.sku,o.state,o.total_irr,o.discount_irr,o.subtotal_irr,o.created_at,o.paid_at,o.expires_at,o.closed_reason,o.closed_at,o.archived_at,o.accepted_payment_id IS NOT NULL paid,o.revision,o.device_id,o.customer_id,c.username,c.mobile_last4,o.exception_code,(SELECT count(*)::integer FROM payment_attempts p WHERE p.order_id=o.id) payment_count FROM orders o JOIN customers c ON c.id=o.customer_id";
     else if (type === "payments")
       sql =
         "SELECT p.id,p.order_id,p.state,p.provider_ref,p.authority,p.amount_irr,p.currency,p.created_at,p.verified_at,p.exception_code,p.customer_return,p.provider_status,p.provider_status_at,o.sku,o.device_id,c.username FROM payment_attempts p JOIN orders o ON o.id=p.order_id JOIN customers c ON c.id=o.customer_id";
@@ -170,7 +175,7 @@ export class CommerceAdministration {
       : "none";
     const rows = (
       await c.query(
-        `SELECT x.*,n.note,n.revision note_revision FROM (${sql}) x LEFT JOIN entity_notes n ON n.entity_type=$1 AND n.entity_id=x.id::text WHERE (to_jsonb(x)::text ILIKE $2 ESCAPE '\\' OR n.note ILIKE $2 ESCAPE '\\') AND ($3::text IS NULL OR COALESCE(to_jsonb(x)->>'state',to_jsonb(x)->>'enabled')=$3) AND ($4::timestamptz IS NULL OR (to_jsonb(x)->>'created_at')::timestamptz >=$4) AND ($5::timestamptz IS NULL OR (to_jsonb(x)->>'created_at')::timestamptz <$5) ORDER BY x.id DESC LIMIT $6 OFFSET $7`,
+        `SELECT x.*,n.note,n.revision note_revision,count(*) OVER()::integer total_count FROM (${sql}) x LEFT JOIN entity_notes n ON n.entity_type=$1 AND n.entity_id=x.id::text WHERE (to_jsonb(x)::text ILIKE $2 ESCAPE '\\' OR n.note ILIKE $2 ESCAPE '\\') AND ($3::text IS NULL OR COALESCE(to_jsonb(x)->>'state',to_jsonb(x)->>'enabled')=$3) AND ($4::timestamptz IS NULL OR (to_jsonb(x)->>'created_at')::timestamptz >=$4) AND ($5::timestamptz IS NULL OR (to_jsonb(x)->>'created_at')::timestamptz <$5) AND ($8::text='all' OR NOT (to_jsonb(x) ? 'archived_at') OR ((to_jsonb(x)->>'archived_at') IS NULL)=($8::text='active')) ORDER BY (to_jsonb(x)->>'created_at')::timestamptz DESC NULLS LAST,x.id DESC LIMIT $6 OFFSET $7`,
         [
           noteType,
           search,
@@ -179,11 +184,15 @@ export class CommerceAdministration {
           f.to ?? null,
           f.limit,
           f.offset,
+          f.archived,
         ],
       )
     ).rows;
     return {
       items: rows,
+      offset: f.offset,
+      limit: f.limit,
+      total: Number(rows[0]?.total_count ?? 0),
       next_offset: rows.length === f.limit ? f.offset + f.limit : null,
     };
   }
@@ -214,6 +223,143 @@ export class CommerceAdministration {
       [id],
     );
     return { scheduled: true, revision: Number(o.revision) + 1 };
+  }
+  /** Locks an order the same way payments do (device row first) and checks the Admin's revision. */
+  private async lockOrder(c: PoolClient, id: string, expected: number) {
+    const scope = (
+      await c.query("SELECT device_id FROM orders WHERE id=$1", [id])
+    ).rows[0];
+    requireCondition(scope, "NOT_FOUND", 404);
+    await c.query("SELECT id FROM devices WHERE id=$1 FOR UPDATE", [
+      scope.device_id,
+    ]);
+    const o = (
+      await c.query<OrderRow & { revision: string; archived_at: Date | null }>(
+        "SELECT * FROM orders WHERE id=$1 FOR UPDATE",
+        [id],
+      )
+    ).rows[0];
+    requireCondition(Number(o.revision) === expected, "STALE_REVISION", 409);
+    return o;
+  }
+  /** Ends an unpaid invoice for the customer; money that reaches the bank later is returned by the bank. */
+  async voidOrder(c: PoolClient, id: string, b: Mutation, actor: Actor) {
+    const o = await this.lockOrder(c, id, b.expected_revision);
+    requireCondition(
+      o.state === "PENDING" && !o.accepted_payment_id,
+      "ORDER_NOT_VOIDABLE",
+      409,
+    );
+    await this.payments.close(c, o, "CANCELLED", "admin_voided", actor);
+    return { state: "CANCELLED", revision: Number(o.revision) + 1 };
+  }
+  /**
+   * Sends an ended, unpaid invoice back to payment for another 15 minutes at its original price. The
+   * customer must still own nothing for this product, and a coupon must still be available.
+   */
+  async reopen(c: PoolClient, id: string, b: Mutation, actor: Actor) {
+    const o = await this.lockOrder(c, id, b.expected_revision);
+    requireCondition(
+      ["FAILED", "CANCELLED"].includes(o.state) &&
+        !o.accepted_payment_id &&
+        !o.archived_at,
+      "ORDER_NOT_REOPENABLE",
+      409,
+    );
+    requireCondition(
+      (
+        await c.query(
+          "SELECT 1 FROM customers a JOIN devices d ON d.id=a.device_id AND d.generation=a.generation WHERE a.id=$1 AND a.state='ACTIVE' AND d.id=$2 AND d.generation=$3",
+          [o.customer_id, o.device_id, o.generation],
+        )
+      ).rowCount,
+      "ACCOUNT_GENERATION_CHANGED",
+      409,
+    );
+    requireCondition(
+      !(
+        await c.query(
+          "SELECT 1 FROM entitlements WHERE device_id=$1 AND generation=$2 AND sku=$3",
+          [o.device_id, o.generation, o.sku],
+        )
+      ).rowCount,
+      "ALREADY_OWNED",
+      409,
+    );
+    requireCondition(
+      !(
+        await c.query(
+          "SELECT 1 FROM orders WHERE device_id=$1 AND generation=$2 AND sku=$3 AND id<>$4 AND state IN ('PENDING','PAID','FULFILLMENT_PENDING','FULFILLED')",
+          [o.device_id, o.generation, o.sku, o.id],
+        )
+      ).rowCount,
+      "ORDER_ALREADY_OPEN",
+      409,
+    );
+    const reservation = (
+      await c.query(
+        "SELECT r.id,d.code,i.unit_price_irr FROM discount_reservations r JOIN discount_codes d ON d.id=r.code_id JOIN order_items i ON i.order_id=r.order_id WHERE r.order_id=$1",
+        [o.id],
+      )
+    ).rows[0];
+    if (reservation) {
+      // The same quota checks as a new checkout; this order's released allocation is not counted.
+      await this.orders.coupon(
+        c,
+        reservation.code,
+        o.sku,
+        o.customer_id,
+        Number(reservation.unit_price_irr),
+      );
+      await c.query(
+        "UPDATE discount_reservations SET state='RESERVED',expires_at=now()+interval '15 minutes' WHERE id=$1",
+        [reservation.id],
+      );
+    }
+    const expires = (
+      await c.query<{ expires_at: Date }>(
+        "UPDATE orders SET state='PENDING',closed_reason=NULL,closed_at=NULL,expires_at=now()+interval '15 minutes',revision=revision+1 WHERE id=$1 RETURNING expires_at",
+        [o.id],
+      )
+    ).rows[0].expires_at;
+    const job = await c.query(
+      "UPDATE commerce_jobs SET state='PENDING',due_at=$2,lease_until=NULL,lease_token=NULL,last_error=NULL WHERE kind='EXPIRE' AND target_id=$1",
+      [o.id, expires],
+    );
+    if (!job.rowCount) await this.orders.job(c, "EXPIRE", o.id, o.id, expires);
+    await this.orders.audit.append(c, actor, "order.reopened", o.id, {
+      expires_at: expires.toISOString(),
+    });
+    return {
+      state: "PENDING",
+      expires_at: expires,
+      revision: Number(o.revision) + 1,
+    };
+  }
+  /** Hides (or shows again) an ended, unpaid order. Orders are never deleted. */
+  async archive(
+    c: PoolClient,
+    id: string,
+    b: Mutation & { archived: boolean },
+    actor: Actor,
+  ) {
+    const o = await this.lockOrder(c, id, b.expected_revision);
+    requireCondition(
+      ["FAILED", "CANCELLED"].includes(o.state) && !o.accepted_payment_id,
+      "ORDER_NOT_ARCHIVABLE",
+      409,
+    );
+    await c.query(
+      "UPDATE orders SET archived_at=CASE WHEN $2::boolean THEN COALESCE(archived_at,now()) END,revision=revision+1 WHERE id=$1",
+      [o.id, b.archived],
+    );
+    await this.orders.audit.append(
+      c,
+      actor,
+      b.archived ? "order.archived" : "order.unarchived",
+      o.id,
+    );
+    return { archived: b.archived, revision: Number(o.revision) + 1 };
   }
   async finance(c: PoolClient, f: z.infer<typeof filters>) {
     const totals = (

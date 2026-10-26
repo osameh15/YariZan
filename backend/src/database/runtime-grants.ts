@@ -13,4 +13,6 @@ REVOKE UPDATE ON audit_logs,license_decisions,trial_starts,activation_redemption
 GRANT DELETE ON discount_products TO yarizan_runtime;
 -- Expired rate counters only (Abuse.purge); TRUNCATE stays denied.
 GRANT DELETE ON rate_buckets TO yarizan_runtime;
+-- Devices with no history at all (Admin removal of test devices); every reference is ON DELETE RESTRICT.
+GRANT DELETE ON devices TO yarizan_runtime;
 `;

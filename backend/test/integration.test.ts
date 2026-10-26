@@ -1729,7 +1729,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 13 });
+    assert.deepEqual(await verifyMigrations(c), { total: 14 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,
@@ -5784,57 +5784,472 @@ const priorInquiry = (attempt: string, status: string, secondsAgo: number) =>
     [randomUUID(), attempt, status, randomUUID(), secondsAgo],
   );
 
-test("Reconciliation: browser NOK, verify -51 and elapsed time never end or settle a payment", async () => {
+test("Invoice lifecycle: browser NOK ends the invoice at once, the old authority is never verified and the customer pays again", async () => {
   await withSandbox(async (sandbox, authorityOf) => {
     const e = await buyer(),
       o = await saleOrder(e),
       p = await salePayment(e, o);
     const authority = await authorityOf(p.attempt_id);
     sandbox.payments.get(authority)!.unpaid = true;
-    // The customer pressed cancel at the bank page; the browser says NOK.
-    await ok(`/payments/zarinpal/return?Authority=${authority}&Status=NOK`);
-    // Duplicate and contradictory browser returns keep the first report and change nothing else.
-    await ok(`/payments/zarinpal/return?Authority=${authority}&Status=OK`);
-    await ok(`/payments/zarinpal/return?Authority=${authority}&Status=NOK`);
-    for (let n = 0; n < 3; n++) await runVerify(p.attempt_id);
-    let r = await reconciled(e, o.id);
-    assert.equal(r.order.state, "PENDING");
-    assert.equal(r.order.paid_at, null);
-    assert.deepEqual(
-      [r.payment.state, r.payment.customer_return, r.payment.provider_status],
-      ["UNKNOWN", "NOK", "IN_BANK"],
-    );
-    assert.equal(r.payment.terminal_reason, null);
-    assert.equal(r.fulfillments, 0);
-    // Every answered verify is followed by exactly one inquiry, and every observation is kept.
     const verifies = () =>
       sandbox.calls.filter(
         (c) => c.path.endsWith("verify.json") && c.body.authority === authority,
       ).length;
-    assert.ok(r.inquiries >= 1);
-    assert.equal(r.inquiries, verifies());
-    // Hours of unresolved answers are still not a cancellation.
-    await priorInquiry(p.attempt_id, "IN_BANK", 7200);
-    await runVerify(p.attempt_id);
+    const before = verifies();
+    // The customer pressed cancel (or the card failed) at the bank page; the browser says NOK.
+    const back = (
+      await ok<{ status: string }>(
+        `/payments/zarinpal/return?Authority=${authority}&Status=NOK`,
+      )
+    ).body;
+    assert.equal(back.status, "CANCELLED");
+    // Duplicate and contradictory browser returns keep the first report and change nothing else.
+    await ok(`/payments/zarinpal/return?Authority=${authority}&Status=OK`);
+    await ok(`/payments/zarinpal/return?Authority=${authority}&Status=NOK`);
+    for (let n = 0; n < 3; n++) await runVerify(p.attempt_id);
+    await recoverCommerce();
+    let r = await reconciled(e, o.id);
+    assert.equal(r.order.state, "CANCELLED");
+    assert.equal(
+      (r.order as unknown as { closed_reason: string }).closed_reason,
+      "customer_cancelled",
+    );
+    assert.equal(r.order.paid_at, null);
+    assert.deepEqual(
+      [r.payment.state, r.payment.customer_return, r.payment.terminal_reason],
+      ["CANCELLED", "NOK", "customer_cancelled"],
+    );
+    assert.equal(r.fulfillments, 0);
+    // An ended attempt is never verified: money that still reaches the bank goes back to the payer.
+    assert.equal(verifies(), before);
+    assert.equal(
+      (
+        await db.query(
+          "SELECT state FROM discount_reservations WHERE order_id=$1",
+          [o.id],
+        )
+      ).rowCount,
+      0,
+    );
+    // A new invoice for the same grade is accepted at once.
+    const again = await saleOrder(e);
+    assert.notEqual(again.id, o.id);
+    assert.equal(again.state, "PENDING");
+    const q = await salePayment(e, again);
+    sandbox.payments.get(await authorityOf(q.attempt_id))!.unpaid = false;
+    await ok(
+      `/payments/zarinpal/return?Authority=${await authorityOf(q.attempt_id)}&Status=OK`,
+    );
+    assert.equal((await settle(e, again.id)).state, "FULFILLED");
     r = await reconciled(e, o.id);
-    assert.equal(r.payment.state, "UNKNOWN");
-    assert.equal(r.order.state, "PENDING");
-    // Verify always carried the stored authority and the original amount.
-    for (const v of sandbox.calls.filter((c) => c.path.endsWith("verify.json")))
-      assert.deepEqual(
-        [v.body.authority, v.body.amount],
-        [authority, o.total_irr],
-      );
+    assert.equal(r.order.state, "CANCELLED");
+    assert.equal(r.fulfillments, 0);
+
+    // Back from the bank with OK but the provider says not paid (verify -51, inquiry IN_BANK): failed.
+    const f = await buyer(),
+      of = await saleOrder(f),
+      pf = await salePayment(f, of);
+    const failed = sandbox.payments.get(await authorityOf(pf.attempt_id))!;
+    failed.unpaid = true;
+    await ok(
+      `/payments/zarinpal/return?Authority=${await authorityOf(pf.attempt_id)}&Status=OK`,
+    );
+    await runVerify(pf.attempt_id);
+    r = await reconciled(f, of.id);
+    assert.deepEqual(
+      [r.order.state, r.payment.state, r.payment.terminal_reason],
+      ["FAILED", "FAILED", "payment_unsuccessful"],
+    );
+    assert.equal(r.entitlements, 0);
+
+    // Still at the bank (no return): -51 and IN_BANK are not a result while the invoice is open.
+    const s = await buyer(),
+      os = await saleOrder(s),
+      ps = await salePayment(s, os);
+    sandbox.payments.get(await authorityOf(ps.attempt_id))!.unpaid = true;
+    for (let n = 0; n < 2; n++) await runVerify(ps.attempt_id);
+    r = await reconciled(s, os.id);
+    assert.deepEqual([r.order.state, r.payment.state], ["PENDING", "UNKNOWN"]);
     // Inquiry history cannot be rewritten.
     await assert.rejects(
       db.query("UPDATE payment_inquiries SET status='FAILED' WHERE true"),
     );
-    // An inquiry outage records nothing and decides nothing.
-    sandbox.behavior.inquiryFailures = 1;
-    await runVerify(p.attempt_id);
-    // One inserted prior observation, and one verify whose inquiry hit the outage and recorded nothing.
-    assert.equal((await reconciled(e, o.id)).inquiries, verifies());
   });
+});
+
+test("Invoice lifecycle: the 15-minute window ends unpaid invoices after one last verify; a late payer still gets the product", async () => {
+  await withSandbox(async (sandbox, authorityOf) => {
+    // Rewind an invoice and its attempt past the window and the bank-page grace (fixture only).
+    const rewind = async (order: string) => {
+      await db.query("ALTER TABLE orders DISABLE TRIGGER order_snapshots");
+      try {
+        await db.query(
+          "UPDATE orders SET expires_at=now()-interval '1 minute',created_at=now()-interval '20 minutes' WHERE id=$1",
+          [order],
+        );
+      } finally {
+        await db.query("ALTER TABLE orders ENABLE TRIGGER order_snapshots");
+      }
+      await db.query(
+        "ALTER TABLE payment_attempts DISABLE TRIGGER payment_snapshots",
+      );
+      try {
+        await db.query(
+          "UPDATE payment_attempts SET created_at=now()-interval '16 minutes' WHERE order_id=$1",
+          [order],
+        );
+      } finally {
+        await db.query(
+          "ALTER TABLE payment_attempts ENABLE TRIGGER payment_snapshots",
+        );
+      }
+      await db.query(
+        "UPDATE commerce_jobs SET due_at=now(),lease_until=NULL WHERE order_id=$1 AND kind='EXPIRE'",
+        [order],
+      );
+      await app.get(Payments).work(50);
+    };
+    // Unpaid: the invoice ends as expired and the customer may start again.
+    const e = await buyer(),
+      o = await saleOrder(e),
+      p = await salePayment(e, o);
+    sandbox.payments.get(await authorityOf(p.attempt_id))!.unpaid = true;
+    // Inside the window the expiry job only reschedules itself.
+    await db.query(
+      "UPDATE commerce_jobs SET due_at=now() WHERE order_id=$1 AND kind='EXPIRE'",
+      [o.id],
+    );
+    await app.get(Payments).work(50);
+    assert.equal((await reconciled(e, o.id)).order.state, "PENDING");
+    await rewind(o.id);
+    let r = await reconciled(e, o.id);
+    assert.equal(r.order.state, "CANCELLED");
+    assert.equal(
+      (r.order as unknown as { closed_reason: string }).closed_reason,
+      "invoice_expired",
+    );
+    assert.equal(r.payment.state, "CANCELLED");
+    await ok(
+      `/orders/${o.id}/payments`,
+      { request_id: randomUUID() },
+      e.browser,
+    )
+      .then(() => assert.fail("an ended invoice cannot be paid"))
+      .catch((x: Error) => assert.match(x.message, /ORDER_NOT_PAYABLE/));
+
+    // Paid but never came back to the site: the last verify captures and fulfills once.
+    const l = await buyer(),
+      ol = await saleOrder(l),
+      pl = await salePayment(l, ol);
+    sandbox.payments.get(await authorityOf(pl.attempt_id))!.unpaid = false;
+    await rewind(ol.id);
+    assert.equal((await settle(l, ol.id)).state, "FULFILLED");
+    r = await reconciled(l, ol.id);
+    assert.deepEqual([r.fulfillments, r.entitlements], [1, 1]);
+  });
+});
+
+test("Invoice lifecycle: customer cancel, superseding invoice, Admin void, back to payment and archive", async () => {
+  const e = await buyer(),
+    d = await discountFixture({ max_redemptions: 1 }),
+    o = await saleOrder(e, d.body.code);
+  // An invoice that never went to the bank still blocks a duplicate click.
+  await denied(
+    "/orders",
+    { request_id: randomUUID(), sku: "YARIZAN-G1" },
+    "ORDER_ALREADY_OPEN",
+    e.browser,
+  );
+  // The customer ends it; the coupon allocation is released.
+  const cancelled = (
+    await ok<{ state: string; closed_reason: string }>(
+      `/orders/${o.id}/cancel`,
+      {},
+      e.browser,
+    )
+  ).body;
+  assert.deepEqual(
+    [cancelled.state, cancelled.closed_reason],
+    ["CANCELLED", "customer_cancelled"],
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT state FROM discount_reservations WHERE order_id=$1",
+        [o.id],
+      )
+    ).rows[0].state,
+    "RELEASED",
+  );
+  await denied(
+    `/orders/${o.id}/cancel`,
+    {},
+    "ORDER_NOT_CANCELLABLE",
+    e.browser,
+  );
+
+  // A new invoice replaces one that went to the bank and never came back.
+  const first = await saleOrder(e);
+  await salePayment(e, first);
+  const second = await saleOrder(e);
+  assert.notEqual(second.id, first.id);
+  const replaced = (
+    await ok<{ state: string; closed_reason: string }>(
+      `/orders/${first.id}`,
+      undefined,
+      e.browser,
+    )
+  ).body;
+  assert.deepEqual(
+    [replaced.state, replaced.closed_reason],
+    ["CANCELLED", "customer_cancelled"],
+  );
+
+  // Admin void ends the open one; stale revisions are refused.
+  const support = await adminLogin("support");
+  await denied(
+    `/admin/commerce/orders/${second.id}/void`,
+    mutation(second.revision),
+    "FORBIDDEN",
+    support,
+  );
+  await denied(
+    `/admin/commerce/orders/${second.id}/void`,
+    mutation(99),
+    "STALE_REVISION",
+    admin,
+  );
+  await ok(
+    `/admin/commerce/orders/${second.id}/void`,
+    mutation(second.revision),
+    admin,
+  );
+  let view = (
+    await ok<SaleOrder & { closed_reason: string }>(
+      `/orders/${second.id}`,
+      undefined,
+      e.browser,
+    )
+  ).body;
+  assert.deepEqual(
+    [view.state, view.closed_reason],
+    ["CANCELLED", "admin_voided"],
+  );
+
+  // Back to payment: the coupon is reserved again and a fresh 15-minute window starts.
+  await ok(`/admin/commerce/orders/${o.id}/reopen`, mutation(2), admin);
+  view = (
+    await ok<SaleOrder & { closed_reason: string | null; expires_at: string }>(
+      `/orders/${o.id}`,
+      undefined,
+      e.browser,
+    )
+  ).body as typeof view;
+  assert.equal(view.state, "PENDING");
+  assert.equal(view.closed_reason, null);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT state FROM discount_reservations WHERE order_id=$1",
+        [o.id],
+      )
+    ).rows[0].state,
+    "RESERVED",
+  );
+  // Only one open invoice per grade: the voided one cannot come back now.
+  await denied(
+    `/admin/commerce/orders/${second.id}/reopen`,
+    mutation(view.revision),
+    "STALE_REVISION",
+    admin,
+  );
+  const secondRevision = (
+    await db.query("SELECT revision FROM orders WHERE id=$1", [second.id])
+  ).rows[0].revision;
+  await denied(
+    `/admin/commerce/orders/${second.id}/reopen`,
+    mutation(Number(secondRevision)),
+    "ORDER_ALREADY_OPEN",
+    admin,
+  );
+  // The reopened invoice is paid normally.
+  await salePayment(e, view);
+  await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, e.browser);
+  assert.equal((await settle(e, o.id)).state, "FULFILLED");
+
+  // Archive hides an ended invoice from the customer and the default Admin list, never a paid one.
+  await ok(
+    `/admin/commerce/orders/${second.id}/archive`,
+    { ...mutation(Number(secondRevision)), archived: true },
+    admin,
+  );
+  const mine = (
+    await ok<{ items: { id: string }[]; total: number }>(
+      "/account/orders",
+      undefined,
+      e.browser,
+    )
+  ).body;
+  assert.ok(!mine.items.some((r) => r.id === second.id));
+  assert.ok(mine.items.some((r) => r.id === o.id));
+  const listed = async (archived: string) =>
+    (
+      await ok<{ items: { id: string }[] }>(
+        `/admin/commerce/orders?archived=${archived}&limit=200`,
+        undefined,
+        admin,
+      )
+    ).body.items.some((r) => r.id === second.id);
+  assert.deepEqual(
+    [await listed("active"), await listed("archived"), await listed("all")],
+    [false, true, true],
+  );
+  const paidRevision = (
+    await db.query("SELECT revision FROM orders WHERE id=$1", [o.id])
+  ).rows[0].revision;
+  await denied(
+    `/admin/commerce/orders/${o.id}/archive`,
+    { ...mutation(Number(paidRevision)), archived: true },
+    "ORDER_NOT_ARCHIVABLE",
+    admin,
+  );
+  await assert.rejects(
+    db.query("DELETE FROM orders WHERE id=$1", [second.id]),
+    /immutable/i,
+  );
+});
+
+test("Admin removes a test device: deleted without history, archived with history, refused while in use", async () => {
+  const owner = admin;
+  // A device row with no history at all (never paired) is deleted outright.
+  const bare = randomUUID(),
+    digest = randomBytes(32).toString("hex").toUpperCase();
+  await db.query(
+    "INSERT INTO devices(id,fingerprint_version,fingerprint_digest,username) VALUES($1,2,$2,$3)",
+    [
+      bare,
+      digest,
+      "YZ-" +
+        Array.from({ length: 6 }, (_, n) =>
+          digest.slice(n * 4, n * 4 + 4),
+        ).join("-"),
+    ],
+  );
+  const removed = (
+    await ok<{ removed: string }>(
+      `/admin/devices/${bare}/remove`,
+      mutation(1),
+      owner,
+    )
+  ).body;
+  assert.equal(removed.removed, "DELETED");
+  assert.equal(
+    (await db.query("SELECT 1 FROM devices WHERE id=$1", [bare])).rowCount,
+    0,
+  );
+  // An enrolled device with an active Windows profile is refused.
+  const e = await buyer();
+  await denied(
+    `/admin/devices/${e.device_id}/remove`,
+    mutation(1),
+    "DEVICE_IN_USE",
+    owner,
+  );
+  // Without active profiles or licenses it keeps its history and is only archived.
+  await db.query("UPDATE device_keys SET status='REVOKED' WHERE device_id=$1", [
+    e.device_id,
+  ]);
+  const archived = (
+    await ok<{ removed: string }>(
+      `/admin/devices/${e.device_id}/remove`,
+      mutation(1),
+      owner,
+    )
+  ).body;
+  assert.equal(archived.removed, "ARCHIVED");
+  const list = async (mode: string) =>
+    (
+      await ok<{ items: { id: string }[]; total: number }>(
+        `/admin/devices?archived=${mode}&search=${e.username}`,
+        undefined,
+        owner,
+      )
+    ).body;
+  assert.equal((await list("active")).items.length, 0);
+  assert.equal((await list("archived")).items.length, 1);
+  assert.equal((await list("archived")).total, 1);
+  await ok(`/admin/devices/${e.device_id}/restore`, mutation(1), owner);
+  assert.equal((await list("active")).items.length, 1);
+  // Support may read devices but never remove one.
+  const support = await adminLogin("support");
+  await denied(
+    `/admin/devices/${e.device_id}/remove`,
+    mutation(1),
+    "FORBIDDEN",
+    support,
+  );
+});
+
+test("Mobile-only SMS login: one device signs in directly; several devices are listed, then the chosen one signs in", async () => {
+  // One device: the code alone opens the account.
+  const one = await buyer();
+  const oneMobile = await mobileFor(one);
+  const oneIssued = await ok<{ challenge_id: string }>("/auth/otp/request", {
+    mobile: oneMobile,
+    purpose: "LOGIN",
+  });
+  const single = await ok<{ csrf_token: string }>("/auth/otp/verify", {
+    challenge_id: oneIssued.body.challenge_id,
+    code: await otpCode(oneIssued.body.challenge_id),
+  });
+  assert.ok(single.body.csrf_token);
+  // Two devices on the same number: verify lists both, then signs in to the chosen one.
+  const a = await buyer(),
+    b = await buyer(),
+    mobile = await mobileFor(a);
+  await db.query(
+    "UPDATE customers SET mobile_lookup=(SELECT mobile_lookup FROM customers WHERE id=$2),mobile_ciphertext=(SELECT mobile_ciphertext FROM customers WHERE id=$2),mobile_last4=(SELECT mobile_last4 FROM customers WHERE id=$2) WHERE id=$1",
+    [b.customer_id, a.customer_id],
+  );
+  const issued = await ok<{ challenge_id: string }>("/auth/otp/request", {
+    mobile,
+    purpose: "LOGIN",
+  });
+  const code = await otpCode(issued.body.challenge_id);
+  const listed = await ok<{ select: { username: string }[] }>(
+    "/auth/otp/verify",
+    { challenge_id: issued.body.challenge_id, code },
+  );
+  assert.deepEqual(
+    listed.body.select.map((s) => s.username).sort(),
+    [a.username, b.username].sort(),
+  );
+  assert.equal(listed.headers.get("set-cookie"), null);
+  // Another account's device ID cannot be chosen.
+  const other = await buyer();
+  await denied(
+    "/auth/otp/verify",
+    { challenge_id: issued.body.challenge_id, code, username: other.username },
+    "OTP_INVALID",
+  );
+  const chosen = await ok<{ csrf_token: string }>("/auth/otp/verify", {
+    challenge_id: issued.body.challenge_id,
+    code,
+    username: b.username,
+  });
+  assert.ok(chosen.body.csrf_token);
+  // The code is single-use.
+  await denied(
+    "/auth/otp/verify",
+    { challenge_id: issued.body.challenge_id, code, username: a.username },
+    "OTP_INVALID",
+  );
+  // Password reset still needs the device ID.
+  const reset = await request("/auth/otp/request", {
+    mobile,
+    purpose: "RESET",
+  });
+  assert.equal(reset.status, 400);
 });
 
 test("Reconciliation: only a repeated, spaced provider FAILED ends an attempt; the order fails once and grants nothing", async () => {
