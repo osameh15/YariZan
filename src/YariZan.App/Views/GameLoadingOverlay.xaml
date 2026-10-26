@@ -9,7 +9,7 @@
             <Image x:Name="LoadingLogo" Source="pack://application:,,,/YariZan;component/Resources/logo.png"
                    Width="170" Height="195" Stretch="Uniform" FlowDirection="LeftToRight"
                    HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
-            <TextBlock Text="در حال آماده‌سازی بازی…" FontSize="22"
+            <TextBlock x:Name="LoadingTitle" Text="در حال آماده‌سازی بازی…" FontSize="22"
                        FontFamily="{DynamicResource ShabnamBoldFont}"
                        Foreground="{StaticResource LeatherDarkBrush}" TextAlignment="Center" Margin="0,20,0,0" />
             <TextBlock x:Name="LoadingGameName" FontSize="16" Foreground="{StaticResource InkBrush}"
