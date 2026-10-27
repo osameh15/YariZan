@@ -449,6 +449,8 @@ async function commit() {
     if (!alive || !dialog.value || requestId.value !== viewId) return;
     submitted.value = true;
     secret.value = String(result.activation_code ?? result.code ?? result.reset_grant ?? '');
+    // Reload the list before reporting success, so the next operation starts from the new revision.
+    await load();
     feedback.value = result.secret_already_delivered
       ? 'مجوز محرمانه قبلاً تحویل شده و دوباره نمایش داده نمی‌شود.'
       : result.removed === 'DELETED'
@@ -456,7 +458,6 @@ async function commit() {
         : result.removed === 'ARCHIVED'
           ? 'عملیات ثبت شد. دستگاه سابقه دارد؛ بایگانی شد و از فهرست اصلی پنهان است.'
           : 'عملیات ثبت شد. برای مشاهدهٔ وضعیت تازه، پنجره را ببندید.';
-    await load();
   } catch (e) {
     feedback.value =
       errorMessage(e); /* Never automatically retry a destructive or stale operation. */
