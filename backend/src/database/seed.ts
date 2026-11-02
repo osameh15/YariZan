@@ -65,21 +65,22 @@ export async function seedAdminRoles(c: PoolClient) {
 export async function seed(db: Database) {
   await db.transaction(async (c) => {
     const names = ["اول", "دوم", "سوم", "چهارم", "پنجم", "ششم"];
-    for (let grade = 1; grade <= 6; grade++) {
-      const sku = `YARIZAN-G${grade}`;
+    for (const approved of approvedPricing.products) {
+      const { grade, sku } = approved;
       await c.query(
         `INSERT INTO products(sku,grade,title_fa,publication_status,sale_enabled,trial_enabled,activation_enabled)
         VALUES($1,$2,$3,$4,$5,$5,$5) ON CONFLICT DO NOTHING`,
         [
           sku,
           grade,
-          `یاریزان پایه ${names[grade - 1]} دبستان`,
-          grade === 1 ? "published" : "coming_soon",
-          grade === 1,
+          grade === 0
+            ? "عددساز کوچولو"
+            : `یاریزان پایه ${names[grade - 1]} دبستان`,
+          approved.launch === "launch-candidate" ? "published" : "coming_soon",
+          approved.launch === "launch-candidate",
         ],
       );
       // Development/test data mirrors the approved revision so local prices never drift.
-      const approved = approvedPricing.products.find((p) => p.sku === sku)!;
       await c.query(
         `INSERT INTO product_prices(id,sku,amount_irr,source,pricing_revision) SELECT $1,$2,$3,'BOOTSTRAP',$4
         WHERE NOT EXISTS(SELECT 1 FROM product_prices WHERE sku=$2)`,

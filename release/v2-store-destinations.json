@@ -1,6 +1,8 @@
 {
   "format": "YARIZAN-STORE-DESTINATIONS-V1",
-  "operational": false,
-  "review_reference": "",
-  "product_pages": {}
+  "operational": true,
+  "review_reference": "docs/YARIZAN-STANDALONE-PRODUCTS.md; owner request 2026-11-02",
+  "product_pages": {
+    "YARIZAN-S-NUMBER-BUILDER": "https://yarizan.oarnova.games/special-products/number-builder"
+  }
 }

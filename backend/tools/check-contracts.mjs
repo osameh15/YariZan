@@ -168,7 +168,7 @@ const envelope = (type) =>
   });
 const product = z.strictObject({
   sku: schemas.sku,
-  grade: z.number().int().min(1).max(6),
+  grade: z.number().int().min(0).max(6),
   title_fa: z.string(),
   publication_status: z.enum(["published", "coming_soon", "hidden"]),
   sale_enabled: z.boolean(),
@@ -544,6 +544,15 @@ for (const r of routes.sort(
               : schemas.uuid,
     ),
   }));
+  if (r.path === "/api/v2/desktop/entitlements")
+    parameters.push({
+      name: "X-YariZan-Product-Catalog",
+      in: "header",
+      required: false,
+      schema: { type: "string", enum: ["standalone-v1"] },
+      description:
+        "Opt in to independent game SKUs. Without this header, the response retains the six-grade catalog for existing desktop clients.",
+    });
   if (admin || (customer && r.method !== "get"))
     parameters.push({
       name: "X-CSRF-Token",

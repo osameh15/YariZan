@@ -9,9 +9,18 @@ namespace YariZan.Core.V2;
 public sealed record Product
 {
     public int Grade { get; }
-    public string Sku => $"YARIZAN-G{Grade}";
+    public string Sku { get; }
+    public bool IsStandalone => Grade == 0;
+    public static bool IsValidSku(string? sku) => sku is { Length: > 0 and <= 80 }
+        && Regex.IsMatch(sku, "\\AYARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)\\z", RegexOptions.CultureInvariant);
     public Product(int grade)
-    { if (grade is < 1 or > 6) throw new ArgumentOutOfRangeException(nameof(grade)); Grade = grade; }
+    { if (grade is < 1 or > 6) throw new ArgumentOutOfRangeException(nameof(grade)); Grade = grade; Sku = $"YARIZAN-G{grade}"; }
+    public Product(string sku)
+    {
+        if (!IsValidSku(sku)) throw new ArgumentException("Invalid product SKU.", nameof(sku));
+        Sku = sku;
+        Grade = sku.StartsWith("YARIZAN-S-", StringComparison.Ordinal) ? 0 : sku[^1] - '0';
+    }
 }
 
 public sealed record PaidLicense(string LicenseId, string CustomerId, string DeviceId, string Sku, int Grade,

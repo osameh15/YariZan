@@ -355,12 +355,14 @@ test("Actual PostgreSQL 17 and six exact products/prices", async () => {
     /PostgreSQL 17/,
   );
   const r = (await ok<Record<string, unknown>[]>("/products")).body;
-  assert.equal(r.length, 6);
-  assert.ok(r.every((p) => p.price_irr === 12990000));
+  assert.equal(r.length, 7);
+  assert.ok(
+    r.every((p) => p.price_irr === (p.grade === 0 ? 1990000 : 14990000)),
+  );
   assert.equal(r[0].sale_enabled, true);
   assert.ok(
     r
-      .slice(1)
+      .filter((p) => Number(p.grade) > 1)
       .every(
         (p) => !p.sale_enabled && !p.activation_enabled && !p.trial_enabled,
       ),
@@ -370,7 +372,7 @@ test("Seeds idempotent and preserve edited catalog", async () => {
   await seed(db);
   assert.equal(
     (await db.query("SELECT count(*) FROM products")).rows[0].count,
-    "6",
+    "7",
   );
 });
 test("Migration replay and hash drift detection", async () => {
@@ -815,7 +817,7 @@ test("Existing entitlement survives new activation/sales disable", async () => {
     "/admin/products/YARIZAN-G1",
     {
       ...mutation(),
-      price_irr: 12990000,
+      price_irr: 14990000,
       publication_status: "published",
       sale_enabled: false,
       trial_enabled: true,
@@ -838,7 +840,7 @@ test("Existing entitlement survives new activation/sales disable", async () => {
     "/admin/products/YARIZAN-G1",
     {
       ...mutation(2),
-      price_irr: 12990000,
+      price_irr: 14990000,
       publication_status: "published",
       sale_enabled: true,
       trial_enabled: true,
@@ -1729,7 +1731,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 14 });
+    assert.deepEqual(await verifyMigrations(c), { total: 15 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,
@@ -3403,7 +3405,7 @@ test("Commerce uses real snapshots, idempotency, ownership and disabled product 
       e.browser,
     )
   ).body;
-  assert.equal(quote.total_irr, 12990000);
+  assert.equal(quote.total_irr, 14990000);
   const o = (await ok<SaleOrder>("/orders", input, e.browser)).body;
   assert.equal(
     (await ok<SaleOrder>("/orders", input, e.browser)).body.id,
@@ -3440,10 +3442,10 @@ test("Commerce uses real snapshots, idempotency, ownership and disabled product 
     assert.equal(
       (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser)).body
         .total_irr,
-      12990000,
+      14990000,
     );
   } finally {
-    await changePrice(12990000);
+    await changePrice(14990000);
   }
   await assert.rejects(
     db.query("UPDATE order_items SET total_irr=total_irr WHERE order_id=$1", [
@@ -3462,7 +3464,7 @@ test("Disabled commerce and client-supplied prices cannot create an order over d
   for (const extra of [
     { price_irr: 1 },
     { total_irr: 0 },
-    { unit_price_irr: 12990000 },
+    { unit_price_irr: 14990000 },
     { pricing_revision: "pricing-2026-10-18-r1" },
   ])
     await denied(
@@ -3529,7 +3531,7 @@ test("Percent/fixed/capped coupons quote without reserving and reject zero total
       { sku: "YARIZAN-G1", coupon: d.body.code.toLowerCase() },
       e.browser,
     );
-  assert.equal((await quote()).body.discount_irr, 1299000);
+  assert.equal((await quote()).body.discount_irr, 1499000);
   assert.equal(
     (
       await db.query(
@@ -3688,6 +3690,7 @@ test("Forged callback cannot pay; verified synthetic capture fulfills exactly on
   ).body;
   assert.equal(license.payload.device_id, e.device_id);
   assert.equal(license.payload.expires_at, null);
+
   await denied(
     "/desktop/licenses/pickup",
     { sku: "YARIZAN-G2" },
@@ -6875,4 +6878,158 @@ test("G5: expired rate counters are purged and live ones kept", async () => {
   await security.bump("g5-live", 3600);
   assert.ok((await abuse.purge()) >= 1);
   assert.equal(await security.peek("g5-live", 3600), 1);
+});
+
+test("Standalone game: two independent trials, exact price, code and purchase license bindings", async () => {
+  const sku = "YARIZAN-S-NUMBER-BUILDER";
+  // Earlier catalog-policy tests deliberately disable products. This scenario owns its
+  // independent game's availability and must not depend on their final Admin state.
+  await db.query(
+    "UPDATE products SET publication_status='published',sale_enabled=true,trial_enabled=true,activation_enabled=true WHERE sku=$1",
+    [sku],
+  );
+  const e = await enroll(candidate());
+  const browser = await login(e);
+  const operator = await adminLogin();
+  const catalog = (
+    await ok<{ sku: string; price_irr: number; grade: number }[]>("/products")
+  ).body;
+  assert.deepEqual(
+    catalog.filter((p) => p.sku === sku).map((p) => [p.grade, p.price_irr]),
+    [[0, 1990000]],
+  );
+  const start = () => ({
+    device_id: e.device_id,
+    client_nonce: hash(randomBytes(32)),
+    client_process_session_id: randomUUID(),
+  });
+  const firstRequest = start();
+  const first = (
+    await ok<Trial>(`/desktop/trials/${sku}/start`, firstRequest, e.credential)
+  ).body;
+  assert.equal(first.remaining, 1);
+  assert.equal(first.grant.payload.grade, 0);
+  assert.equal(first.grant.payload.sku, sku);
+  assert.deepEqual(
+    (
+      await ok<Trial>(
+        `/desktop/trials/${sku}/start`,
+        firstRequest,
+        e.credential,
+      )
+    ).body,
+    first,
+  );
+  assert.equal(
+    (await ok<Trial>(`/desktop/trials/${sku}/start`, start(), e.credential))
+      .body.remaining,
+    0,
+  );
+  await denied(
+    `/desktop/trials/${sku}/start`,
+    start(),
+    "TRIAL_EXHAUSTED",
+    e.credential,
+  );
+  assert.equal(
+    (await ok("/desktop/trials/YARIZAN-G1/status", undefined, e.credential))
+      .body.remaining,
+    2,
+  );
+  const quote = (await ok("/discounts/quote", { sku }, browser)).body;
+  assert.equal(quote.total_irr, 1990000);
+  const code = (
+    await ok<{ activation_code: string }>(
+      "/admin/activation-codes",
+      {
+        ...mutation(),
+        device_id: e.device_id,
+        sku,
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      },
+      operator,
+    )
+  ).body;
+  const redeem = {
+    request_id: randomUUID(),
+    device_id: e.device_id,
+    sku,
+    activation_code: code.activation_code,
+  };
+  await denied(
+    "/desktop/activation-codes/redeem",
+    { ...redeem, sku: "YARIZAN-G1" },
+    "ACTIVATION_CODE_INVALID",
+    e.credential,
+  );
+  const license = (
+    await ok<Envelope>("/desktop/activation-codes/redeem", redeem, e.credential)
+  ).body;
+  assert.equal(license.payload.sku, sku);
+  assert.equal(license.payload.grade, 0);
+  assert.equal(license.payload.expires_at, null);
+  const legacyEntitlements = (
+    await ok<{ sku: string }[]>(
+      "/desktop/entitlements",
+      undefined,
+      e.credential,
+    )
+  ).body;
+  assert.ok(
+    legacyEntitlements.every((item) => /^YARIZAN-G[1-6]$/.test(item.sku)),
+    "Existing G1 clients never receive an unknown standalone SKU",
+  );
+  const modernEntitlements = await fetch(base + "/desktop/entitlements", {
+    headers: {
+      authorization: "Bearer " + e.credential,
+      "X-YariZan-Product-Catalog": "standalone-v1",
+    },
+  });
+  assert.equal(modernEntitlements.status, 200);
+  assert.ok(
+    ((await modernEntitlements.json()) as { sku: string }[]).some(
+      (item) => item.sku === sku,
+    ),
+    "New launchers receive standalone entitlements",
+  );
+  await denied(
+    "/desktop/licenses/pickup",
+    { sku: "YARIZAN-G1" },
+    "ENTITLEMENT_REQUIRED",
+    e.credential,
+  );
+  const purchaser = await buyer();
+  const order = (
+    await ok<SaleOrder>(
+      "/orders",
+      { request_id: randomUUID(), sku },
+      purchaser.browser,
+    )
+  ).body;
+  assert.equal(order.total_irr, 1990000);
+  await salePayment(purchaser, order);
+  await ok(
+    `/orders/${order.id}/simulate`,
+    { outcome: "SUCCESS" },
+    purchaser.browser,
+  );
+  await recoverCommerce();
+  const purchased = (
+    await ok<Envelope>(
+      "/desktop/licenses/pickup",
+      { sku },
+      purchaser.credential,
+    )
+  ).body;
+  assert.equal(purchased.payload.sku, sku);
+  assert.equal(purchased.payload.grade, 0);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM licenses WHERE device_id=$1 AND sku=$2",
+        [purchaser.device_id, sku],
+      )
+    ).rows[0].n,
+    1,
+  );
 });

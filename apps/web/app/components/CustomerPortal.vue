@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { errorMessage, gradeNames } from '#shared/domain';
+import { productTitle } from '#shared/products';
+import { errorMessage } from '#shared/domain';
 const route = useRoute(),
   api = useApi(),
   busy = ref(true),
@@ -163,7 +164,7 @@ onMounted(load);
             <NuxtLink class="text-link" to="/products">آشنایی با پایه‌ها ←</NuxtLink>
           </div>
           <article v-for="o in owned" :key="String(o.id)" class="panel owned-card">
-            <h2>یاریزان پایهٔ {{ gradeNames[Number(String(o.sku).slice(-1)) - 1] }}</h2>
+            <h2>{{ productTitle(o.sku) }}</h2>
             <span class="pill" :data-tone="o.state === 'ACTIVE' ? 'ok' : 'bad'">{{
               o.state === 'ACTIVE' ? 'مالکیت فعال' : 'مالکیت غیرفعال'
             }}</span>

@@ -14,6 +14,7 @@ secrets/master.key
 secrets/v2-local-acceptance-roots.json
 # Production public root written by the key ceremony; approval lives in release/
 secrets/v2-license-public-keys.json
+secrets/v2-activation.json
 publish/*-local-acceptance/
 
 # Encrypted game bundles are reproducible from miniApps/ + secrets/master.key

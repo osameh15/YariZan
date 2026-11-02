@@ -3,7 +3,10 @@ export const uuid = z
   .string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
 export const digest = z.string().regex(/^[A-F0-9]{64}$/);
-export const sku = z.string().regex(/^YARIZAN-G[1-6]$/);
+export const sku = z
+  .string()
+  .regex(/^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$/)
+  .max(80);
 export const secret = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 export const password = z.string().min(12).max(128);
 export const otpProofSchema = z.strictObject({

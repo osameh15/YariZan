@@ -85,6 +85,17 @@ internal static partial class Program
                 "pickup that races fulfillment keeps waiting and activates once the signed license exists");
         }
 
+        // 9b. A wait after connecting an account is not a purchase: the next launch must not open waiting.
+        {
+            var server = new FakeServer(signing, identity) { EntitlementState = "ACTIVE" };
+            using var access = Access(identity, signing, Store("auto-connect-no-intent"), server);
+            var intent = new MemoryActivationIntentStore();
+            var time = new VirtualTime();
+            using var activation = Coordinator(access, time, intent);
+            Run(activation.StartWaitingAsync(rememberIntent: false));
+            Check(!intent.IsPending(G1), "a wait started by connecting an account leaves no wait marker");
+        }
+
         // 10. Network timeout and transport failure while waiting: recoverable, never a revocation.
         {
             var server = new FakeServer(signing, identity) { PendingEntitlements = new(TaskCreationOptions.RunContinuationsAsynchronously) };

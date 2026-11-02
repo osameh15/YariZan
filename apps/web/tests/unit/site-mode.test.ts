@@ -104,7 +104,7 @@ describe('Brochure route allowlist', () => {
 
 describe('Reviewed brochure catalog snapshot', () => {
   it('lists six grades with nothing purchasable, activatable or trialable', () => {
-    expect(catalogSnapshot.products).toHaveLength(6);
+    expect(catalogSnapshot.products).toHaveLength(7);
     expect(catalogSnapshot.products.map((p) => p.sku)).toEqual([
       'YARIZAN-G1',
       'YARIZAN-G2',
@@ -112,6 +112,7 @@ describe('Reviewed brochure catalog snapshot', () => {
       'YARIZAN-G4',
       'YARIZAN-G5',
       'YARIZAN-G6',
+      'YARIZAN-S-NUMBER-BUILDER',
     ]);
     for (const p of catalogSnapshot.products) {
       expect(p.sale_enabled || p.trial_enabled || p.activation_enabled).toBe(false);
@@ -120,7 +121,9 @@ describe('Reviewed brochure catalog snapshot', () => {
     }
     expect(catalogSnapshot.products[0]!.publication_status).toBe('published');
     expect(
-      catalogSnapshot.products.slice(1).every((p) => p.publication_status === 'coming_soon'),
+      catalogSnapshot.products
+        .filter((p) => p.grade > 1)
+        .every((p) => p.publication_status === 'coming_soon'),
     ).toBe(true);
     expect(availability(catalogSnapshot.products[0]!)).toBe('معرفی محصول');
     expect(availability(catalogSnapshot.products[1]!)).toBe('به‌زودی');

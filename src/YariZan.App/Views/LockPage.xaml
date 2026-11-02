@@ -243,7 +243,7 @@
                   <StackPanel x:Name="PurchaseGuidePanel" Visibility="Collapsed" Margin="0,0,0,8">
                             <TextBlock Style="{StaticResource GuideStep}" Text="۱. «اتصال به حساب» را بزنید. شناسهٔ درخواست و کد موقت نمایش داده می‌شود؛ «باز کردن صفحهٔ اتصال» را بزنید." />
                             <TextBlock Style="{StaticResource GuideStep}" Text="۲. در مرورگر، شناسه و کد را وارد کنید و شمارهٔ همراه خود را با کد پیامکی تأیید کنید. این دستگاه به حساب شما متصل می‌شود." />
-                            <TextBlock Style="{StaticResource GuideStep}" Text="۳. در سایت یاریزان (yarizan.oarnova.games) همین پایه را انتخاب کنید و فاکتور را در درگاه زرین‌پال پرداخت کنید. هر فاکتور ۱۵ دقیقه مهلت پرداخت دارد؛ اگر پرداخت لغو یا ناموفق شد، فاکتور تازه صادر کنید." />
+                            <TextBlock Style="{StaticResource GuideStep}" Text="۳. در سایت یاریزان (yarizan.oarnova.games) همین محصول را انتخاب کنید و فاکتور را در درگاه زرین‌پال پرداخت کنید. هر فاکتور ۱۵ دقیقه مهلت پرداخت دارد؛ اگر پرداخت لغو یا ناموفق شد، فاکتور تازه صادر کنید." />
                             <TextBlock Style="{StaticResource GuideStep}" Text="۴. برنامه را باز نگه دارید. پس از تأیید پرداخت، مجوز خودکار دریافت و نسخه فعال می‌شود. از آن پس بازی‌ها بدون اینترنت اجرا می‌شوند." />
                             <TextBlock Style="{StaticResource GuideStep}" Text="اگر کد فعال‌سازی گرفته‌اید، «کد فعال‌سازی دارید؟» را بزنید. برای خرید تلفنی، شمارهٔ تماس و هر سؤال دیگر، لطفاً از بخش «پشتیبانی» اطلاعات بیشتر را مطالعه کنید." />
                   </StackPanel>

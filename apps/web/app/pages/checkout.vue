@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { productSkuPattern, standaloneProduct } from '#shared/products';
 import { persianDigits } from '#shared/digits';
 import { errorMessage, toman } from '#shared/domain';
 import { endsLabel } from '#shared/promotion';
@@ -15,7 +16,10 @@ const api = useApi(),
   message = ref('');
 const quote = ref<ApiResult<'/api/v2/discounts/quote', 'post'>>();
 const sku = String(route.query.sku ?? 'YARIZAN-G1');
-if (!/^YARIZAN-G[1-6]$/.test(sku)) throw createError({ statusCode: 404 });
+if (!productSkuPattern.test(sku)) throw createError({ statusCode: 404 });
+const special = standaloneProduct(sku);
+// Independent games have no grade: the wording and the cover follow the product type.
+const unit = special ? 'بازی' : 'پایه';
 const requestId = ref('');
 let quoteGeneration = 0;
 // The order always uses the last server-validated coupon (`quoted`), which is exactly the price
@@ -99,24 +103,28 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
 </script>
 <template>
   <section class="wrap section checkout-page">
-    <NuxtLink class="text-link" to="/products">بازگشت به پایه‌ها ←</NuxtLink>
+    <NuxtLink class="text-link" :to="special ? '/special-products' : '/products'"
+      >{{ special ? 'بازگشت به محصولات ویژه' : 'بازگشت به پایه‌ها' }} ←</NuxtLink
+    >
     <header class="checkout-heading">
       <p class="eyebrow">یک قدم تا دنیای بازی و یادگیری</p>
-      <h1>یک پایه، یک دنیای تازه</h1>
-      <p>سفارش را بررسی کنید؛ مجوز این پایه برای دستگاه شما ثبت می‌شود.</p>
+      <h1>یک {{ unit }}، یک دنیای تازه</h1>
+      <p>سفارش را بررسی کنید؛ مجوز این {{ unit }} برای دستگاه شما ثبت می‌شود.</p>
     </header>
     <div class="commerce-layout checkout-grid">
       <div class="checkout-main">
         <article class="checkout-product">
           <div class="checkout-cover" aria-hidden="true">
             <img src="/brand/symbol.webp" width="56" height="56" alt="" />
-            <strong>{{ new Intl.NumberFormat('fa-IR').format(Number(sku.slice(-1))) }}</strong>
+            <strong>{{
+              special?.symbol ?? new Intl.NumberFormat('fa-IR').format(Number(sku.slice(-1)))
+            }}</strong>
             <span>بازی و یادگیری</span>
           </div>
           <div>
             <span class="badge available">مجوز دائمی · ویژهٔ یک دستگاه</span>
             <h2>{{ productTitle }}</h2>
-            <p>پس از دریافت و فعال‌سازی مجوز معتبر، همین پایه همیشه آفلاین در دسترس است.</p>
+            <p>پس از دریافت و فعال‌سازی مجوز معتبر، همین {{ unit }} همیشه آفلاین در دسترس است.</p>
             <span class="muted"
               >نسخهٔ ویندوز <bdi>{{ persianDigits(sku) }}</bdi></span
             >
@@ -128,7 +136,7 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
             <span class="muted">اختیاری</span>
           </header>
           <p v-if="quote?.promotion" class="notice" role="status" data-testid="promotion-no-coupon">
-            این پایه با قیمت ویژه عرضه می‌شود؛ کد تخفیف روی قیمت ویژه قابل استفاده نیست.
+            این {{ unit }} با قیمت ویژه عرضه می‌شود؛ کد تخفیف روی قیمت ویژه قابل استفاده نیست.
           </p>
           <FormShell class="coupon-form" @submit="load">
             <label
@@ -170,8 +178,8 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
           <div>
             <span aria-hidden="true">۱</span>
             <div>
-              <h3>برای همین پایه و دستگاه</h3>
-              <p>هر پایه مجوز مستقل دارد. مجوز به دستگاه تأییدشدهٔ حساب شما متصل است.</p>
+              <h3>برای همین {{ unit }} و دستگاه</h3>
+              <p>هر {{ unit }} مجوز مستقل دارد. مجوز به دستگاه تأییدشدهٔ حساب شما متصل است.</p>
             </div>
           </div>
           <div>

@@ -62,7 +62,7 @@ test('Persian SSR homepage and real six-grade catalog', async ({ page, request }
   await page.goto('/products');
   await expect(page.locator('.product-card')).toHaveCount(6);
   await expect(page.locator('.product-card .badge').filter({ hasText: 'به‌زودی' })).toHaveCount(5);
-  await expect(page.locator('.price').first()).toContainText('۱٬۲۹۹٬۰۰۰');
+  await expect(page.locator('.price').first()).toContainText('۱٬۴۹۹٬۰۰۰');
   await capture(page, '02-catalog');
   await page.goto('/products/grade-1');
   await expect(page.getByRole('button', { name: 'راهنمای تهیهٔ این نسخه' })).toBeVisible();
@@ -87,7 +87,7 @@ test('Catalog reflects backend price updates without rebuilding', async ({ page 
     await page.goto('/products');
     await expect(page.locator('.price').first()).toContainText('۱٬۵۰۰٬۰۰۰');
   } finally {
-    await setPrice('YARIZAN-G1', '12990000');
+    await setPrice('YARIZAN-G1', '14990000');
   }
 });
 
@@ -223,7 +223,7 @@ test('MFA Admin dashboard, product edit and stale revision protection', async ({
   await adminLogin(page);
   await capture(page, '06-admin-dashboard');
   await page.goto('/zanyari/products');
-  await expect(page.locator('tbody tr')).toHaveCount(6);
+  await expect(page.locator('tbody tr')).toHaveCount(7);
   await capture(page, '07-admin-products');
   await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'ویرایش محصول' }).first().click();
@@ -240,7 +240,7 @@ test('MFA Admin dashboard, product edit and stale revision protection', async ({
   await page.getByRole('button', { name: 'تأیید و ثبت عملیات' }).click();
   await expect(page.getByRole('dialog').getByRole('status')).toContainText('اطلاعات تغییر کرده');
   await page.keyboard.press('Escape');
-  await setPrice('YARIZAN-G1', '12990000');
+  await setPrice('YARIZAN-G1', '14990000');
 });
 
 test('Admin device block/unblock and activation codes display once', async ({ page }) => {

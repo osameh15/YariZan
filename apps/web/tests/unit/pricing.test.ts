@@ -14,8 +14,9 @@ describe('approved pricing contract', () => {
   it('prices are integer IRR and display as exact Persian Toman', () => {
     for (const p of approvedPricing.products) {
       expect(Number.isSafeInteger(p.price_irr)).toBe(true);
-      expect(p.price_irr).toBe(12990000);
-      expect(toman(p.price_irr)).toBe('۱٬۲۹۹٬۰۰۰');
+      const expected = p.grade === 0 ? [1990000, '۱۹۹٬۰۰۰'] : [14990000, '۱٬۴۹۹٬۰۰۰'];
+      expect(p.price_irr).toBe(expected[0]);
+      expect(toman(p.price_irr)).toBe(expected[1]);
     }
     expect(toman(12990005)).toBe('۱٬۲۹۹٬۰۰۰٫۵');
     expect(() => toman(1.5)).toThrow();
@@ -28,7 +29,10 @@ describe('public storefront catalog', () => {
   const brochure = publicCatalog('brochure');
   it('storefront shows approved prices under the named revision; brochure shows none', () => {
     expect(storefront.id).toBe(approvedPricing.revision);
-    expect(storefront.products.map((p) => p.price_irr)).toEqual(Array(6).fill(12990000));
+    expect(storefront.products.map((p) => p.price_irr)).toEqual([
+      ...Array(6).fill(14990000),
+      1990000,
+    ]);
     expect(brochure.products.every((p) => p.price_irr === null)).toBe(true);
   });
   it('a visible price never makes anything purchasable, trialable or activatable', () => {
@@ -44,7 +48,7 @@ describe('public storefront catalog', () => {
   it('availability is independent of price: G1 launch, G2-G6 Coming Soon', () => {
     expect(storefront.products[0]!.publication_status).toBe('published');
     expect(availability(storefront.products[0]!, true)).toBe('تهیه از راه پشتیبانی');
-    for (const p of storefront.products.slice(1)) {
+    for (const p of storefront.products.filter((p) => p.grade > 1)) {
       expect(p.publication_status).toBe('coming_soon');
       expect(availability(p, true)).toBe('به‌زودی');
     }

@@ -4,6 +4,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FlowDirection="RightToLeft" FontFamily="{DynamicResource ShabnamFont}"
              Background="#D9160A04" IsVisibleChanged="VisibilityChanged">
+    <!-- The card keeps its size in normal windows and shrinks to fit the 400 px splash window. -->
+    <Viewbox StretchDirection="DownOnly" Margin="12">
     <Border Width="440" Padding="32" Style="{StaticResource BookModalCard}">
         <StackPanel>
             <Image x:Name="LoadingLogo" Source="pack://application:,,,/YariZan;component/Resources/logo.png"
@@ -21,4 +23,5 @@
                        TextAlignment="Center" Margin="0,14,0,0" />
         </StackPanel>
     </Border>
+    </Viewbox>
 </UserControl>

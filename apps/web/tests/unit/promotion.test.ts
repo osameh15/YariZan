@@ -92,7 +92,9 @@ describe('reviewed publication list for the public-only storefront', () => {
     for (const p of publicCatalog('brochure').products) expect(p.promotion).toBeNull();
   });
   it('validates entries against the approved list price', () => {
-    const products = approvedPricing.products;
+    const products = approvedPricing.products.map((p) =>
+      p.sku === 'YARIZAN-G1' ? { ...p, price_irr: list } : p,
+    );
     expect(() => assertPublishedPromotions([entry], products)).not.toThrow();
     const bad: [Partial<PublishedPromotion>, RegExp][] = [
       [{ sku: 'YARIZAN-G9' }, /SKU/],
@@ -117,19 +119,22 @@ describe('reviewed publication list for the public-only storefront', () => {
     ).toThrow(/OVERLAP/);
   });
   it('the storefront shows a published promotion only inside its window, only for the launch product', () => {
-    const during = publicCatalog('storefront', at('2026-11-03T00:00:00Z'), [entry]).products;
-    expect(during[0]!.promotion?.discount_percent).toBe(23);
+    const updatedEntry = { ...entry, original_price_irr: 14990000 };
+    const during = publicCatalog('storefront', at('2026-11-03T00:00:00Z'), [updatedEntry]).products;
+    expect(during[0]!.promotion?.discount_percent).toBe(33);
     expect(during[0]!.effective_price_irr).toBe(9990000);
-    expect(during[0]!.price_irr).toBe(list);
+    expect(during[0]!.price_irr).toBe(14990000);
     for (const p of during.slice(1)) expect(p.promotion).toBeNull();
     for (const when of ['2026-10-31T00:00:00Z', '2026-11-08T00:00:00Z'])
-      expect(publicCatalog('storefront', at(when), [entry]).products[0]!.promotion).toBeNull();
+      expect(
+        publicCatalog('storefront', at(when), [updatedEntry]).products[0]!.promotion,
+      ).toBeNull();
     // The brochure profile has no prices at all, so it never shows a promotion.
     expect(
-      publicCatalog('brochure', at('2026-11-03T00:00:00Z'), [entry]).products[0]!.promotion,
+      publicCatalog('brochure', at('2026-11-03T00:00:00Z'), [updatedEntry]).products[0]!.promotion,
     ).toBeNull();
     // A Coming Soon grade can carry no promotion through the public catalog.
-    const g2 = { ...entry, sku: 'YARIZAN-G2' };
+    const g2 = { ...updatedEntry, sku: 'YARIZAN-G2' };
     expect(
       publicCatalog('storefront', at('2026-11-03T00:00:00Z'), [g2]).products[1]!.promotion,
     ).toBeNull();

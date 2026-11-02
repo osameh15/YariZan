@@ -1,8 +1,8 @@
 <script setup lang="ts">
+import { productTitle, standaloneProducts } from '#shared/products';
 import { persianDigits } from '#shared/digits';
 import { errorMessage } from '#shared/domain';
 import { financialToman, commerceState, commerceTone, closedReasons } from '#shared/commerce';
-import { gradeNames } from '#shared/domain';
 import type { paths } from '#shared/api.generated';
 type CommerceSection =
   paths['/api/v2/admin/commerce/{section}']['get']['parameters']['path']['section'];
@@ -167,8 +167,7 @@ const columns = computed<Column[]>(() => {
     actions,
   ];
 });
-const grade = (sku: unknown) =>
-  'پایهٔ ' + (gradeNames[Number(String(sku ?? '').slice(-1)) - 1] ?? String(sku ?? '—'));
+const grade = productTitle;
 const dateTime = (v: unknown) =>
   v
     ? new Date(String(v)).toLocaleString('fa-IR', { dateStyle: 'medium', timeStyle: 'short' })
@@ -881,11 +880,16 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                 label="حداکثر تخفیف درصدی (ریال؛ صفر بدون سقف)"
               /><NumberStepper v-model="form.min_order_irr" min="0" label="حداقل خرید (ریال)" />
               <fieldset>
-                <legend>پایه‌های مجاز</legend>
+                <legend>محصولات مجاز</legend>
                 <label v-for="grade in 6" :key="grade" class="checkbox"
                   ><input v-model="form.skus" type="checkbox" :value="'YARIZAN-G' + grade" />پایهٔ
                   {{ persianDigits(grade) }}</label
                 >
+                <label v-for="product in standaloneProducts" :key="product.sku" class="checkbox">
+                  <input v-model="form.skus" type="checkbox" :value="product.sku" />{{
+                    product.title
+                  }}
+                </label>
               </fieldset></template
             ><template v-if="['campaigns', 'coupons'].includes(kind)"
               ><div class="editor-section-heading">

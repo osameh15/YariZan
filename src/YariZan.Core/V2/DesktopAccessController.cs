@@ -54,6 +54,7 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
     public IDesktopProvisioning? Provisioning { get; }
     public string Username => _device.Username;
     public int Grade => _product.Grade;
+    public string Sku => _product.Sku;
     public DesktopAccessState State { get; private set; } = DesktopAccessState.NoLicense;
     public DesktopAccessState LocalLicenseState { get; private set; } = DesktopAccessState.NoLicense;
     public string? LastError { get; private set; }
@@ -62,12 +63,29 @@ public sealed class DesktopAccessController : IAccessPolicy, IDisposable
     public bool CanEnter => !_closed && State is DesktopAccessState.Purchased or DesktopAccessState.TrialStarted;
 
     public DesktopAccessController(IDeviceIdentity device, Product product, ILicenseVerifier verifier,
-        ILicenseStore store, IDesktopV2Client client, ILocalDeviceEnrollmentProvider? enrollmentProvider = null, IDesktopProvisioning? provisioning = null)
+        ILicenseStore store, IDesktopV2Client client, ILocalDeviceEnrollmentProvider? enrollmentProvider = null, IDesktopProvisioning? provisioning = null,
+        bool deferLocalLicenseRead = false)
     {
         _device = device; _product = product; _verifier = verifier; _store = store; _client = client;
         _enrollmentProvider = enrollmentProvider ?? new UnprovisionedDeviceEnrollment();
         Provisioning = provisioning;
-        ReadLocalAccess();
+        if (!deferLocalLicenseRead) ReadLocalAccess();
+    }
+
+    /// <summary>Local-only startup verification; no server request is needed for a paid offline license.</summary>
+    public async Task VerifyStartupLicenseAsync(CancellationToken cancellation = default)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, _lifetime.Token);
+        await _operation.WaitAsync(linked.Token);
+        try
+        {
+            if (_closed || State == DesktopAccessState.TrialStarted) return;
+            _license = null;
+            _enrollment = null;
+            State = LocalLicenseState = DesktopAccessState.NoLicense;
+            ReadLocalAccess();
+        }
+        finally { _operation.Release(); }
     }
 
     private void ReadLocalAccess()

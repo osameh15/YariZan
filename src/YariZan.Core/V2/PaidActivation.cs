@@ -118,7 +118,7 @@ public sealed class PaidActivationCoordinator : IDisposable
         PaidActivationTiming? timing = null, Func<TimeSpan, CancellationToken, Task>? delay = null,
         Func<double>? random = null, Func<DateTimeOffset>? clock = null)
     {
-        _access = access; _product = new Product(access.Grade);
+        _access = access; _product = new Product(access.Sku);
         _intent = intent ?? new MemoryActivationIntentStore();
         _timing = timing ?? PaidActivationTiming.Default;
         _delay = delay ?? Task.Delay;
@@ -146,15 +146,19 @@ public sealed class PaidActivationCoordinator : IDisposable
         return _running = RunAsync(generation, token);
     }
 
-    /// <summary>Starts (or continues) the visible wait. A running startup check is promoted, not restarted.</summary>
-    public Task StartWaitingAsync()
+    /// <summary>
+    /// Starts (or continues) the visible wait. A running startup check is promoted, not restarted.
+    /// rememberIntent=false keeps the wait in this session only: connecting an account is not a
+    /// purchase, so the next launch must not open in a waiting state.
+    /// </summary>
+    public Task StartWaitingAsync(bool rememberIntent = true)
     {
         int generation;
         CancellationToken token;
         lock (_gate)
         {
             if (_disposed || _access.IsPurchased) return _running;
-            _intent.MarkPending(_product);
+            if (rememberIntent) _intent.MarkPending(_product);
             if (_session is not null) { Mode = PaidActivationMode.Waiting; _wake?.TrySetResult(); return _running; }
             (generation, token) = Begin(PaidActivationMode.Waiting);
         }

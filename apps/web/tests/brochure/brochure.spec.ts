@@ -147,7 +147,10 @@ test('catalog shows six grades, Grade 1 information and Coming Soon without live
   await expect(page.locator('.product-card.coming-soon')).toHaveCount(5);
   if (storefront) {
     // Every grade shows the approved price; availability is shown separately from price.
-    await expect(page.locator('.product-card .price')).toHaveText(Array(6).fill('۱٬۲۹۹٬۰۰۰ تومان'));
+    await expect(page.locator('.product-card .price')).toHaveText([
+      '۱٬۴۹۹٬۰۰۰ تومان',
+      ...Array(5).fill('۱٬۴۹۹٬۰۰۰ تومان'),
+    ]);
     await expect(page.locator('.product-card .badge').first()).toHaveText('تهیه از راه پشتیبانی');
     await expect(page.locator('.product-card.coming-soon .badge')).toHaveText(
       Array(5).fill('به‌زودی'),
@@ -159,12 +162,12 @@ test('catalog shows six grades, Grade 1 information and Coming Soon without live
   await page.goto('/products/grade-1');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('یاریزان پایه اول دبستان');
   await expect(page.getByText(storefront ? 'تهیه از راه پشتیبانی' : 'معرفی محصول')).toBeVisible();
-  if (storefront) await expect(page.locator('.detail-price')).toHaveText('۱٬۲۹۹٬۰۰۰ تومان');
+  if (storefront) await expect(page.locator('.detail-price')).toHaveText('۱٬۴۹۹٬۰۰۰ تومان');
   await expect(page.getByText('برای تهیه و فعال‌سازی این پایه')).toBeVisible();
   await expect(page.getByRole('link', { name: /خرید/ })).toHaveCount(0);
   await page.goto('/products/grade-3');
   await expect(page.getByText('این پایه هنوز عرضه نشده است.')).toBeVisible();
-  if (storefront) await expect(page.locator('.detail-price')).toHaveText('۱٬۲۹۹٬۰۰۰ تومان');
+  if (storefront) await expect(page.locator('.detail-price')).toHaveText('۱٬۴۹۹٬۰۰۰ تومان');
 });
 
 test('disabled pages return a Persian 503 page that is never cached', async ({ request }) => {

@@ -36,7 +36,7 @@ const { live } = useCommerceMode();
       @retry="refresh()"
       ><div class="product-grid">
         <ProductCard
-          v-for="p in products"
+          v-for="p in products?.filter((item) => item.grade > 0)"
           :key="p.sku"
           :product="p"
           :public-only="publicOnly"

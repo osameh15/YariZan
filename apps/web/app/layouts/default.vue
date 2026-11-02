@@ -31,6 +31,7 @@ watch(
       /></NuxtLink>
       <nav class="desktop-nav" aria-label="منوی اصلی">
         <NuxtLink to="/">خانه</NuxtLink><NuxtLink to="/products">دنیای پایه‌ها</NuxtLink
+        ><NuxtLink to="/special-products">محصولات ویژه</NuxtLink
         ><NuxtLink v-if="desktop" to="/connect">اتصال برنامه</NuxtLink
         ><NuxtLink to="/download">دانلود برنامه</NuxtLink
         ><NuxtLink to="/support">همراه شما</NuxtLink>
@@ -52,6 +53,7 @@ watch(
     <BaseDialog v-model="open" title="به یاریزان خوش آمدید"
       ><nav class="mobile-nav" aria-label="منوی همراه">
         <NuxtLink to="/">خانه</NuxtLink><NuxtLink to="/products">دنیای پایه‌ها</NuxtLink
+        ><NuxtLink to="/special-products">محصولات ویژه</NuxtLink
         ><NuxtLink v-if="desktop" to="/connect">اتصال برنامه</NuxtLink
         ><NuxtLink v-if="!publicOnly" to="/account">حساب من</NuxtLink
         ><NuxtLink to="/download">دانلود برنامه</NuxtLink
@@ -75,6 +77,7 @@ watch(
         </div>
         <nav aria-label="پیوندهای پایانی">
           <NuxtLink to="/products">محصولات</NuxtLink
+          ><NuxtLink to="/special-products">محصولات ویژه</NuxtLink
           ><NuxtLink v-if="desktop" to="/connect">اتصال امن برنامه</NuxtLink
           ><NuxtLink to="/download">دریافت برای ویندوز</NuxtLink
           ><NuxtLink to="/support">پرسش‌ها و پشتیبانی</NuxtLink
