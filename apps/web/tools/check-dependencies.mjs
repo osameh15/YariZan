@@ -33,6 +33,9 @@ const all = audit([]),
   known = new Set([
     'https://github.com/advisories/GHSA-86w9-cpqp-85rv',
     'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm',
+    // Low, no patched release. deepmerge is a build-time dependency of @rollup/plugin-node-resolve,
+    // merges only build configuration and is absent from the deployed server dependencies.
+    'https://github.com/advisories/GHSA-gcqx-w48m-w2h4',
   ]);
 const roots = [];
 for (const value of Object.values(all.vulnerabilities ?? {}))

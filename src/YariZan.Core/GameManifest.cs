@@ -6,7 +6,10 @@ namespace YariZan.Core;
 public sealed class GameManifest
 {
     public int Version { get; set; } = 1;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public int SelectedGrade { get; set; } = 1;
+    public string? ProductSku { get; set; }
+    public string? ProductTitle { get; set; }
     public List<GradeEntry> Grades { get; set; } = new();
 }
 

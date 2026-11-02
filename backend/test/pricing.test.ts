@@ -9,6 +9,7 @@ import {
   initializePricing,
   productionBootstrap,
   publishApprovedCatalog,
+  applyProductUpdate,
 } from "../src/database/production-bootstrap";
 
 // Each scenario uses its own disposable database next to yarizan_phase2_test.
@@ -74,12 +75,15 @@ test("Approved pricing contract: six SKUs, integer IRR, G1 launch candidate only
       p.price_irr,
       p.launch,
     ]),
-    [1, 2, 3, 4, 5, 6].map((g) => [
-      `YARIZAN-G${g}`,
-      g,
-      12990000,
-      g === 1 ? "launch-candidate" : "coming-soon",
-    ]),
+    [
+      ...[1, 2, 3, 4, 5, 6].map((g) => [
+        `YARIZAN-G${g}`,
+        g,
+        14990000,
+        g === 1 ? "launch-candidate" : "coming-soon",
+      ]),
+      ["YARIZAN-S-NUMBER-BUILDER", 0, 1990000, "launch-candidate"],
+    ],
   );
   for (const p of approvedPricing.products) {
     assert.ok(Number.isSafeInteger(p.price_irr));
@@ -88,7 +92,7 @@ test("Approved pricing contract: six SKUs, integer IRR, G1 launch candidate only
 });
 
 test("Fresh database: catalog bootstrap has no prices; pricing needs the exact revision", async () => {
-  assert.deepEqual(await productionBootstrap(fresh), { products_created: 6 });
+  assert.deepEqual(await productionBootstrap(fresh), { products_created: 7 });
   assert.equal(
     (await fresh.query("SELECT count(*)::int n FROM product_prices")).rows[0].n,
     0,
@@ -120,7 +124,7 @@ test("Fresh database: approved prices are recorded exactly, audited, and flags s
     rows,
     approvedPricing.products.map((p) => ({
       sku: p.sku,
-      amount: "12990000",
+      amount: String(p.price_irr),
       source: "BOOTSTRAP",
       changed_by: null,
       pricing_revision: revision,
@@ -145,13 +149,15 @@ test("Fresh database: approved prices are recorded exactly, audited, and flags s
       "SELECT actor_type,actor_id,entity_id,metadata_redacted FROM audit_logs WHERE action='price.initialized' ORDER BY entity_id",
     )
   ).rows;
-  assert.equal(audits.length, 6);
+  assert.equal(audits.length, 7);
   assert.ok(
     audits.every(
       (a) =>
         a.actor_type === "SYSTEM" &&
         a.actor_id === null &&
-        a.metadata_redacted.price_irr === 12990000 &&
+        a.metadata_redacted.price_irr ===
+          approvedPricing.products.find((p) => p.sku === a.entity_id)
+            ?.price_irr &&
         a.metadata_redacted.pricing_revision === revision,
     ),
   );
@@ -163,7 +169,7 @@ test("Duplicate pricing bootstrap changes nothing", async () => {
   ).rows;
   const result = await initializePricing(fresh, revision);
   assert.deepEqual(result.initialized, []);
-  assert.equal(result.unchanged.length, 6);
+  assert.equal(result.unchanged.length, 7);
   assert.deepEqual(
     (await fresh.query("SELECT * FROM product_prices ORDER BY sku")).rows,
     before,
@@ -174,7 +180,7 @@ test("Duplicate pricing bootstrap changes nothing", async () => {
         "SELECT count(*)::int n FROM audit_logs WHERE action='price.initialized'",
       )
     ).rows[0].n,
-    6,
+    7,
   );
 });
 
@@ -230,7 +236,7 @@ test("Price history is append-only with explicit provenance", async () => {
       )
     ).rows;
     assert.deepEqual(history, [
-      { a: "12990000", current: false },
+      { a: "14990000", current: false },
       { a: "13990000", current: true },
     ]);
   } finally {
@@ -293,8 +299,8 @@ test("Existing database upgraded from 009 keeps legacy prices as unattributed", 
   );
   await productionBootstrap(legacy);
   const result = await initializePricing(legacy, revision);
-  assert.deepEqual(result.unchanged, ["YARIZAN-G1"]);
-  assert.equal(result.initialized.length, 5);
+  assert.deepEqual(result.differing, ["YARIZAN-G1"]);
+  assert.equal(result.initialized.length, 6);
 });
 
 test("Approved catalog publication: G1 published, others coming soon, flags closed, never overwrites", async () => {
@@ -312,6 +318,7 @@ test("Approved catalog publication: G1 published, others coming soon, flags clos
   );
   await initializePricing(pool, revision);
   const result = await publishApprovedCatalog(pool, revision);
+  // The independent game stays hidden until applyProductUpdate, after the new web build runs.
   assert.deepEqual(result.published, ["YARIZAN-G1"]);
   assert.deepEqual(
     result.coming_soon,
@@ -319,14 +326,18 @@ test("Approved catalog publication: G1 published, others coming soon, flags clos
   );
   const rows = (
     await pool.query(
-      "SELECT sku,publication_status,sale_enabled,trial_enabled,activation_enabled FROM products ORDER BY grade",
+      "SELECT sku,publication_status,sale_enabled,trial_enabled,activation_enabled FROM products ORDER BY (grade=0),grade",
     )
   ).rows;
   assert.deepEqual(
     rows.map((r) => [r.sku, r.publication_status]),
     approvedPricing.products.map((p) => [
       p.sku,
-      p.launch === "launch-candidate" ? "published" : "coming_soon",
+      p.grade === 0
+        ? "hidden"
+        : p.launch === "launch-candidate"
+          ? "published"
+          : "coming_soon",
     ]),
   );
   assert.ok(
@@ -342,7 +353,7 @@ test("Approved catalog publication: G1 published, others coming soon, flags clos
     ).rows[0].n,
     6,
   );
-  // An Admin decision (here: G2 hidden again) is never overwritten by a repeated run.
+  // An Admin decision (G3 hidden, G2 published) is never overwritten by a repeated run.
   await pool.query(
     "UPDATE products SET publication_status='hidden' WHERE sku='YARIZAN-G3'",
   );
@@ -351,8 +362,16 @@ test("Approved catalog publication: G1 published, others coming soon, flags clos
   );
   const again = await publishApprovedCatalog(pool, revision);
   assert.deepEqual(again.published, []);
-  assert.deepEqual(again.coming_soon, ["YARIZAN-G3"]);
-  assert.equal(again.unchanged.length, 5);
+  assert.deepEqual(again.coming_soon, []);
+  assert.equal(again.unchanged.length, 7);
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT publication_status FROM products WHERE sku='YARIZAN-G3'",
+      )
+    ).rows[0].publication_status,
+    "hidden",
+  );
   assert.equal(
     (
       await pool.query(
@@ -360,5 +379,93 @@ test("Approved catalog publication: G1 published, others coming soon, flags clos
       )
     ).rows[0].publication_status,
     "published",
+  );
+});
+
+test("Approved product rollout appends G1 price, enables the independent game, and is idempotent", async () => {
+  const pool = await freshDatabase("yarizan_phase2_standalone_rollout");
+  await migrate(transactional(pool));
+  await productionBootstrap(pool);
+  await initializePricing(pool, revision);
+  await transactional(pool).transaction(async (c) => {
+    await c.query(
+      "UPDATE product_prices SET ended_at=transaction_timestamp() WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
+    );
+    await c.query(
+      "INSERT INTO product_prices(id,sku,amount_irr,effective_at,source,pricing_revision) VALUES($1,'YARIZAN-G1',12990000,transaction_timestamp(),'BOOTSTRAP','pricing-2026-10-18-r1')",
+      [randomUUID()],
+    );
+  });
+  await assert.rejects(
+    applyProductUpdate(pool, "latest"),
+    /PRICING_REVISION_MISMATCH/,
+  );
+  assert.deepEqual((await applyProductUpdate(pool, revision)).changed, [
+    "YARIZAN-G1",
+  ]);
+  const history = (
+    await pool.query(
+      "SELECT amount_irr::int amount,ended_at IS NULL current FROM product_prices WHERE sku='YARIZAN-G1' ORDER BY effective_at",
+    )
+  ).rows;
+  assert.deepEqual(
+    history.map((p) => p.amount),
+    [14990000, 12990000, 14990000],
+  );
+  assert.deepEqual(
+    history.map((p) => p.current),
+    [false, false, true],
+  );
+  const before = (await pool.query("SELECT * FROM product_prices ORDER BY id"))
+    .rows;
+  assert.deepEqual((await applyProductUpdate(pool, revision)).changed, []);
+  assert.deepEqual(
+    (await pool.query("SELECT * FROM product_prices ORDER BY id")).rows,
+    before,
+  );
+  const special = (
+    await pool.query(
+      "SELECT grade,sale_enabled,trial_enabled,activation_enabled,publication_status FROM products WHERE sku='YARIZAN-S-NUMBER-BUILDER'",
+    )
+  ).rows[0];
+  assert.deepEqual(special, {
+    grade: 0,
+    sale_enabled: true,
+    trial_enabled: true,
+    activation_enabled: true,
+    publication_status: "published",
+  });
+  // Later operator decisions must survive the next deployment of the same approved revision.
+  await transactional(pool).transaction(async (c) => {
+    await c.query(
+      "UPDATE product_prices SET ended_at=transaction_timestamp() WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
+    );
+    await c.query(
+      "INSERT INTO product_prices(id,sku,amount_irr,effective_at,source,pricing_revision) VALUES($1,'YARIZAN-G1',15990000,transaction_timestamp(),'BOOTSTRAP','pricing-2026-11-03-r1')",
+      [randomUUID()],
+    );
+    await c.query(
+      "UPDATE products SET sale_enabled=false WHERE sku='YARIZAN-S-NUMBER-BUILDER'",
+    );
+  });
+  assert.equal(
+    (await applyProductUpdate(pool, revision)).already_applied,
+    true,
+  );
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT amount_irr::int amount FROM product_prices WHERE sku='YARIZAN-G1' AND ended_at IS NULL",
+      )
+    ).rows[0].amount,
+    15990000,
+  );
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT sale_enabled FROM products WHERE sku='YARIZAN-S-NUMBER-BUILDER'",
+      )
+    ).rows[0].sale_enabled,
+    false,
   );
 });

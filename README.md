@@ -19,6 +19,12 @@ Persian RTL educational mini-games for primary school by **OAR NOVA GAMES STUDIO
 
 ## Desktop app
 
+Independent games are available under **محصولات ویژه**. The first, **عددساز کوچولو**,
+has its own license and two trial starts, with x86/x64 launchers and a combined installer.
+The prepared catalog revision prices it at **199,000 Toman** and Grade 1 at
+**1,499,000 Toman**; these take effect with the approved coordinated rollout. See
+[independent games and release steps](docs/YARIZAN-STANDALONE-PRODUCTS.md).
+
 - One grade per package, named **YariZan G1**, **G2**, and so on; the Persian cover title follows the grade.
 - Portrait game artwork, three columns and two rows per page, with a book page-turn animation and direct page navigation in Persian, Arabic or English digits.
 - Encrypted game bundles; titles come from filenames and descriptions show instructions only.

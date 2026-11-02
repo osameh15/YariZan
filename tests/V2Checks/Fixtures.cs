@@ -58,7 +58,7 @@ internal sealed class SigningFixture : IDisposable
     public string Trial(TrialStartRequest request) => Sign(new()
     {
         ["format"] = "YARIZAN-TRIAL-START-V2", ["device_id"] = request.DeviceId,
-        ["sku"] = request.Sku, ["grade"] = int.Parse(request.Sku[^1..]),
+        ["sku"] = request.Sku, ["grade"] = new Product(request.Sku).Grade,
         ["client_nonce"] = request.ClientNonce, ["process_session_id"] = request.ProcessSessionId
     }, SignedArtifactVerifier.TrialDomain);
     public void Dispose() => Key.Dispose();
@@ -79,6 +79,7 @@ internal sealed class FakeServer(SigningFixture signing, IDeviceIdentity identit
     public string? PickupResponse;
     public const string ValidCode = "YZ2-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA";
     public string? RedemptionResponse;
+    public string RedemptionSku = "YARIZAN-G1";
     public string? RedemptionError;
     public bool LoseRedemptionResponse;
     public bool ProductBlocked;
@@ -146,7 +147,7 @@ internal sealed class FakeServer(SigningFixture signing, IDeviceIdentity identit
         if (PendingRedemption is not null) return PendingRedemption.Task.WaitAsync(cancellation);
         lock (_transaction)
         {
-            if (request.DeviceId != DeviceId || request.Sku != "YARIZAN-G1" || request.Code != ValidCode)
+            if (request.DeviceId != DeviceId || request.Sku != RedemptionSku || request.Code != ValidCode)
                 throw new V2ApiException("ACTIVATION_CODE_INVALID", System.Net.HttpStatusCode.BadRequest);
             string response;
             if (_redemptions.TryGetValue(request.RequestId, out var saved))

@@ -12,7 +12,9 @@ public static class DesktopAccessFactory
     /// <summary>Per-profile wait marker beside the license store; a UX hint that never grants access.</summary>
     public static IActivationIntentStore CreateActivationIntentStore() => new FileActivationIntentStore();
 
-    public static DesktopAccessController Create(int grade)
+    public static DesktopAccessController Create(int grade) => Create(new Product(grade));
+
+    public static DesktopAccessController Create(Product product, bool deferLicenseCheck = false)
     {
         var identity = new DeviceIdentityV2(new WindowsFingerprintProvider());
         // Only a reviewed embedded public-key map may provision release trust roots.
@@ -32,7 +34,7 @@ public static class DesktopAccessFactory
             return deviceKey.ExportPublicKey();
         });
         var provisioning = new DesktopProvisioningClient(Http, identity, () => new CngDeviceKeyStore(), enrollment, new FilePendingPairingStore());
-        return new(identity, new Product(grade), verifier, new FileLicenseStore(),
-            new DesktopV2Client(Http, provisioning), enrollment, keys.Count > 0 ? provisioning : null);
+        return new(identity, product, verifier, new FileLicenseStore(),
+            new DesktopV2Client(Http, provisioning), enrollment, keys.Count > 0 ? provisioning : null, deferLocalLicenseRead: deferLicenseCheck);
     }
 }

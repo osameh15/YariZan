@@ -4,15 +4,14 @@ $fixture = Join-Path ([IO.Path]::GetTempPath()) ('YariZan-grade-' + [Guid]::NewG
 $project = Join-Path $fixture 'src/YariZan.Packer'
 New-Item -ItemType Directory -Path $project, (Join-Path $fixture 'tools'), (Join-Path $fixture 'secrets'), (Join-Path $fixture 'miniApps/2') -Force | Out-Null
 Copy-Item (Join-Path $repo 'src/YariZan.Packer/Program.cs') $project
-foreach ($name in 'GameManifest', 'GameCrypto', 'GameNameComparer', 'PersianPageNumber') {
-    Copy-Item (Join-Path $repo "src/YariZan.Core/$name.cs") $project
-}
 Copy-Item (Join-Path $repo 'tools/Get-GameGrade.ps1') (Join-Path $fixture 'tools')
-Set-Content -Encoding UTF8 (Join-Path $project 'Checks.csproj') @'
+$coreProject = Join-Path $repo 'src/YariZan.Core/YariZan.Core.csproj'
+Set-Content -Encoding UTF8 (Join-Path $project 'Checks.csproj') @"
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup><ProjectReference Include="$coreProject" /></ItemGroup>
 </Project>
-'@
+"@
 [IO.File]::WriteAllBytes((Join-Path $fixture 'secrets/master.key'), [byte[]](1..32))
 [IO.File]::WriteAllBytes((Join-Path $fixture 'miniApps/2/page7.exe'), [byte[]](1..50))
 dotnet build (Join-Path $project 'Checks.csproj') -c Release --nologo

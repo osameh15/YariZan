@@ -15,7 +15,7 @@
         WindowStyle="None"
         ResizeMode="CanMinimize">
 
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.Background>
             <RadialGradientBrush GradientOrigin="0.5,0.4" Center="0.5,0.4" RadiusX="0.9" RadiusY="0.9">
                 <GradientStop Color="#3A2010" Offset="0" />
@@ -25,7 +25,7 @@
 
         <ContentControl x:Name="PageHost" />
 
-        <TextBlock Text="یاریزان" FontFamily="{DynamicResource ShabnamBoldFont}" FontSize="14"
+        <TextBlock x:Name="BrandMark" Text="یاریزان" FontFamily="{DynamicResource ShabnamBoldFont}" FontSize="14"
                    Foreground="#80EAD08A" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                    Margin="0,0,16,10" />
         <views:GameLoadingOverlay x:Name="LoadingOverlay" Visibility="Collapsed" Panel.ZIndex="20" />

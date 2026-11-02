@@ -7,6 +7,9 @@ import {
   type PublishedPromotion,
 } from './promotion';
 import { publishedPromotions } from './published-promotions';
+import { standaloneProduct } from './products';
+
+const titles = ['اول', 'دوم', 'سوم', 'چهارم', 'پنجم', 'ششم'];
 
 // Reviewed, non-sensitive public catalog for the public-only profiles. It is static content, not
 // a live API response: nothing here can be bought, activated or trialled, and every capability
@@ -19,7 +22,6 @@ export type PublicProduct = Omit<Product, 'price_irr' | 'promotion' | 'effective
   promotion?: PromotionView | null;
 };
 export type PublicProfile = 'brochure' | 'storefront';
-const titles = ['اول', 'دوم', 'سوم', 'چهارم', 'پنجم', 'ششم'];
 
 // Only the storefront shows prices, so only it can show a promotion. A promotion is shown while its
 // reviewed window is active at the render instant; scheduled, expired and unpublished ones never are.
@@ -53,7 +55,7 @@ export function publicCatalog(
       return {
         sku: p.sku,
         grade: p.grade,
-        title_fa: `یاریزان پایه ${titles[p.grade - 1]} دبستان`,
+        title_fa: standaloneProduct(p.sku)?.title ?? `یاریزان پایه ${titles[p.grade - 1]} دبستان`,
         price_irr: profile === 'storefront' ? p.price_irr : null,
         effective_price_irr: profile === 'storefront' ? view.effective_irr : null,
         promotion: profile === 'storefront' ? view.promotion : null,

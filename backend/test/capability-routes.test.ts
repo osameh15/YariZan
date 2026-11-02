@@ -80,7 +80,7 @@ test("Core-only deployment serves health, readiness and the public catalog", asy
   const g1 = (
     products.body as unknown as { sku: string; price_irr: number }[]
   ).find((p) => p.sku === "YARIZAN-G1");
-  assert.equal(g1?.price_irr, 12990000);
+  assert.equal(g1?.price_irr, 14990000);
   const caps = await call("GET", "/api/v2/commerce/capabilities");
   assert.equal(caps.status, 200);
   assert.deepEqual(caps.body.enabled_capabilities, ["PRODUCTION_CORE"]);

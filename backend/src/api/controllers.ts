@@ -111,7 +111,7 @@ export class PublicController {
         `SELECT p.*,price.amount_irr price_irr,promo.id promo_id,promo.promo_price_irr,promo.discount_percent,promo.starts_at promo_starts_at,promo.ends_at promo_ends_at
         FROM products p JOIN product_prices price ON price.sku=p.sku AND price.ended_at IS NULL
         LEFT JOIN LATERAL (SELECT * FROM product_promotions q WHERE p.publication_status='published' AND ${activePromotionSql.replace(/q\.sku=r\.sku/g, "q.sku=price.sku").replace(/r\.amount_irr/g, "price.amount_irr")} ORDER BY q.starts_at DESC LIMIT 1) promo ON true
-        WHERE publication_status<>'hidden' ORDER BY grade`,
+        WHERE publication_status<>'hidden' ORDER BY (grade=0),grade`,
       )
     ).rows.map((row) => {
       const {
@@ -684,8 +684,12 @@ export class DesktopController {
       const d = await this.security.device(c, this.security.bearer(req));
       return (
         await c.query(
-          "SELECT sku,state FROM entitlements WHERE device_id=$1 AND generation=$2",
-          [d.device_id, d.generation],
+          "SELECT sku,state FROM entitlements WHERE device_id=$1 AND generation=$2 AND ($3::boolean OR sku ~ '^YARIZAN-G[1-6]$')",
+          [
+            d.device_id,
+            d.generation,
+            req.headers["x-yarizan-product-catalog"] === "standalone-v1",
+          ],
         )
       ).rows;
     });
@@ -828,7 +832,7 @@ export class AdminController {
     return this.list(
       req,
       "products.manage",
-      `SELECT p.*,price.amount_irr::float8 price_irr,CASE WHEN q.id IS NULL THEN NULL ELSE jsonb_build_object('id',q.id,'original_price_irr',q.original_price_irr::float8,'promo_price_irr',q.promo_price_irr::float8,'discount_percent',q.discount_percent,'starts_at',q.starts_at,'ends_at',q.ends_at,'state',q.state,'revision',q.revision::float8,'status',${statusSql}) END promotion,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM products p JOIN product_prices price ON price.sku=p.sku AND price.ended_at IS NULL LEFT JOIN LATERAL (SELECT * FROM product_promotions x WHERE x.sku=p.sku ORDER BY (x.state='ENABLED' AND x.ends_at>clock_timestamp()) DESC,(x.state='ENABLED') DESC,x.ends_at DESC LIMIT 1) q ON true LEFT JOIN entity_notes n ON n.entity_type='products' AND n.entity_id=p.sku WHERE ($4::text IS NULL OR $4::text IS NOT NULL) AND (p.sku ILIKE $3 OR p.title_fa ILIKE $3 OR n.note ILIKE $3) ORDER BY p.grade LIMIT $1 OFFSET $2`,
+      `SELECT p.*,price.amount_irr::float8 price_irr,CASE WHEN q.id IS NULL THEN NULL ELSE jsonb_build_object('id',q.id,'original_price_irr',q.original_price_irr::float8,'promo_price_irr',q.promo_price_irr::float8,'discount_percent',q.discount_percent,'starts_at',q.starts_at,'ends_at',q.ends_at,'state',q.state,'revision',q.revision::float8,'status',${statusSql}) END promotion,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM products p JOIN product_prices price ON price.sku=p.sku AND price.ended_at IS NULL LEFT JOIN LATERAL (SELECT * FROM product_promotions x WHERE x.sku=p.sku ORDER BY (x.state='ENABLED' AND x.ends_at>clock_timestamp()) DESC,(x.state='ENABLED') DESC,x.ends_at DESC LIMIT 1) q ON true LEFT JOIN entity_notes n ON n.entity_type='products' AND n.entity_id=p.sku WHERE ($4::text IS NULL OR $4::text IS NOT NULL) AND (p.sku ILIKE $3 OR p.title_fa ILIKE $3 OR n.note ILIKE $3) ORDER BY (p.grade=0),p.grade,p.sku LIMIT $1 OFFSET $2`,
     );
   }
   @Post("customers/:id/reset") reset(

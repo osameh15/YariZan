@@ -111,7 +111,7 @@ test('Real checkout, coupon quote, simulated payment and one desktop license', a
   await expect(page.getByRole('link', { name: 'خرید آزمایشی این پایه' })).toBeVisible();
   await shot(page, '01-grade-one-purchase');
   await page.getByRole('link', { name: 'خرید آزمایشی این پایه' }).click();
-  await expect(page.locator('.commerce-totals')).toContainText('۱٬۲۹۹٬۰۰۰');
+  await expect(page.locator('.commerce-totals')).toContainText('۱٬۴۹۹٬۰۰۰');
   await shot(page, '02-checkout-summary');
   const selectedTitle = await page.locator('.checkout-product h2').textContent();
   await page.getByLabel('کد تخفیف', { exact: true }).fill('INVALID-CODE');
@@ -122,17 +122,17 @@ test('Real checkout, coupon quote, simulated payment and one desktop license', a
   await shot(page, '04-coupon-rejected');
   await page.getByLabel('کد تخفیف', { exact: true }).fill(code);
   await page.getByRole('button', { name: 'بررسی کد تخفیف' }).click();
-  await expect(page.locator('.commerce-totals')).toContainText('۱٬۱۶۹٬۱۰۰');
+  await expect(page.locator('.commerce-totals')).toContainText('۱٬۳۴۹٬۱۰۰');
   await expect(
     page.getByText('کد تخفیف قابل استفاده است؛ سهمیه هنگام ثبت سفارش رزرو می‌شود.'),
   ).toBeVisible();
   await shot(page, '03-coupon-accepted');
   await page.getByRole('button', { name: 'حذف کد تخفیف' }).click();
-  await expect(page.locator('.payable-total')).toContainText('۱٬۲۹۹٬۰۰۰');
+  await expect(page.locator('.payable-total')).toContainText('۱٬۴۹۹٬۰۰۰');
   await expect(page.getByLabel('کد تخفیف', { exact: true })).toHaveValue('');
   await page.getByLabel('کد تخفیف', { exact: true }).fill(code);
   await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
-  await expect(page.locator('.payable-total')).toContainText('۱٬۱۶۹٬۱۰۰');
+  await expect(page.locator('.payable-total')).toContainText('۱٬۳۴۹٬۱۰۰');
   await page.setViewportSize({ width: 390, height: 844 });
   await shot(page, '15-mobile-checkout');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -445,7 +445,7 @@ test('Production browser renders exact large IRR in checkout, paid order and fin
         .locator('h2'),
     ).toContainText(expected);
   } finally {
-    await setPrice('YARIZAN-G1', '12990000');
+    await setPrice('YARIZAN-G1', '14990000');
   }
 });
 
@@ -574,16 +574,16 @@ test('Coupon input edits and reverse-order quotes never authorize a mismatched o
   await page.getByLabel('کد تخفیف', { exact: true }).fill(b);
   // Typing changes nothing: the last validated (coupon-free) price and the button stay.
   await expect(page.locator('.checkout-submit')).toBeEnabled();
-  await expect(page.locator('.payable-total')).toContainText('۱٬۲۹۹٬۰۰۰');
+  await expect(page.locator('.payable-total')).toContainText('۱٬۴۹۹٬۰۰۰');
   await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
   await enteredB.promise;
   releaseB.release();
-  await expect(page.locator('.payable-total')).toContainText('۱٬۰۳۹٬۲۰۰');
+  await expect(page.locator('.payable-total')).toContainText('۱٬۱۹۹٬۲۰۰');
   await expect(page.locator('.checkout-submit')).toBeEnabled();
   releaseA.release();
   await doneA.promise;
   await settleView(page);
-  await expect(page.locator('.payable-total')).toContainText('۱٬۰۳۹٬۲۰۰');
+  await expect(page.locator('.payable-total')).toContainText('۱٬۱۹۹٬۲۰۰');
   await expect(page.getByLabel('کد تخفیف', { exact: true })).toHaveValue(b);
   const created = page.waitForRequest(
     (r) => r.method() === 'POST' && r.url().endsWith('/api/v2/orders'),
@@ -631,7 +631,7 @@ for (const lateError of [false, true]) {
     } else {
       // A rejected code keeps the last validated price and the payment button.
       await expect(page.locator('.checkout-submit')).toBeEnabled();
-      await expect(page.locator('.payable-total')).toContainText('۱٬۲۹۹٬۰۰۰');
+      await expect(page.locator('.payable-total')).toContainText('۱٬۴۹۹٬۰۰۰');
       await expect(page.getByRole('alert')).toContainText('قابل استفاده نیست');
     }
   });
@@ -648,13 +648,13 @@ test('Typing a coupon never hides the payment; a rejected code keeps the validat
   await expect(page.locator('.checkout-submit')).toBeEnabled();
   await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
   await expect(page.locator('.discount-applied')).toBeVisible();
-  await expect(page.locator('.payable-total')).toContainText('۱٬۱۶۹٬۱۰۰');
+  await expect(page.locator('.payable-total')).toContainText('۱٬۳۴۹٬۱۰۰');
   await page.getByLabel('کد تخفیف', { exact: true }).fill('NOT-A-REAL-CODE');
   await expect(page.locator('.checkout-submit')).toBeEnabled();
-  await expect(page.locator('.payable-total')).toContainText('۱٬۱۶۹٬۱۰۰');
+  await expect(page.locator('.payable-total')).toContainText('۱٬۳۴۹٬۱۰۰');
   await page.getByRole('button', { name: 'بررسی کد تخفیف', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('قابل استفاده نیست');
-  await expect(page.locator('.payable-total')).toContainText('۱٬۱۶۹٬۱۰۰');
+  await expect(page.locator('.payable-total')).toContainText('۱٬۳۴۹٬۱۰۰');
   await expect(page.locator('.checkout-submit')).toBeEnabled();
   const created = page.waitForRequest(
     (r) => r.method() === 'POST' && r.url().endsWith('/api/v2/orders'),

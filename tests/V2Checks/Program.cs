@@ -44,6 +44,19 @@ internal static partial class Program
         {
             using var signing = new SigningFixture();
             var identity = new DeviceIdentityV2(new Signals());
+            if (args.FirstOrDefault() == "--standalone-only")
+            {
+                StandaloneChecks(signing, identity);
+                StandaloneUiChecks(signing, identity);
+                Console.WriteLine($"RESULT {_passed} standalone checks passed; 0 failed.");
+                return 0;
+            }
+            if (args.FirstOrDefault() == "--ui-only")
+            {
+                UiChecks(signing, identity, args.ElementAtOrDefault(1) ?? Path.Combine(_root, "screenshots"), null);
+                Console.WriteLine($"RESULT {_passed} UI checks passed; 0 failed.");
+                return 0;
+            }
             IdentityChecks(identity);
             CryptoChecks(signing, identity);
             EnrollmentChecks(signing, identity);
@@ -51,6 +64,7 @@ internal static partial class Program
             ReleaseIntegrationChecks(signing);
             PaidChecks(signing, identity);
             TrialChecks(signing, identity);
+            StandaloneChecks(signing, identity);
             NetworkChecks();
             HttpContractChecks(signing, identity);
             ActivationChecks(signing, identity);
@@ -678,10 +692,11 @@ internal static partial class Program
             string route = request.RequestUri!.AbsolutePath;
             object? body = null;
             string? signedBody = null;
-            if (route.EndsWith("/status")) body = new { remaining = await server.GetTrialStatusAsync(G1, cancellation) };
+            if (route.EndsWith("/status")) body = new { remaining = await server.GetTrialStatusAsync(new Product(route.Split('/')[^2]), cancellation) };
             else if (route.EndsWith("/desktop/entitlements"))
             {
                 if (request.Method != HttpMethod.Get || request.Content is not null) throw new Exception("Entitlement lookup must be a body-less GET");
+                if (!request.Headers.TryGetValues("X-YariZan-Product-Catalog", out var catalogs) || catalogs.Single() != "standalone-v1") throw new Exception("Desktop client must opt in to standalone entitlements");
                 try { body = (await server.GetEntitlementsAsync(cancellation)).Select(e => new { sku = e.Sku, state = e.State }).ToArray(); }
                 catch (V2ApiException ex) { return Error(ex); }
             }
@@ -692,7 +707,7 @@ internal static partial class Program
                 if (route.EndsWith("/start"))
                 {
                     StrictJson.Fields(p, "device_id", "client_nonce", "client_process_session_id");
-                    var start = new TrialStartRequest(p.GetProperty("device_id").GetString()!, G1.Sku, p.GetProperty("client_nonce").GetString()!, p.GetProperty("client_process_session_id").GetString()!);
+                    var start = new TrialStartRequest(p.GetProperty("device_id").GetString()!, route.Split('/')[^2], p.GetProperty("client_nonce").GetString()!, p.GetProperty("client_process_session_id").GetString()!);
                     var response = await server.StartTrialAsync(start, cancellation);
                     using var grant = StrictJson.Parse(response.Grant);
                     body = new { grant = grant.RootElement.Clone(), remaining = response.Remaining, server_time = response.ServerTime };
@@ -700,7 +715,7 @@ internal static partial class Program
                 else if (route.EndsWith("/pickup"))
                 {
                     StrictJson.Fields(p, "sku");
-                    try { signedBody = await server.PickupAsync(G1, cancellation); }
+                    try { signedBody = await server.PickupAsync(new Product(p.GetProperty("sku").GetString()!), cancellation); }
                     catch (V2ApiException ex) { return Error(ex); }
                 }
                 else if (route.EndsWith("/activation-codes/redeem"))

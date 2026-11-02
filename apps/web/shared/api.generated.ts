@@ -8518,7 +8518,10 @@ export interface operations {
   get__api_v2_desktop_entitlements: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description Opt in to independent game SKUs. Without this header, the response retains the six-grade catalog for existing desktop clients. */
+        'X-YariZan-Product-Catalog'?: 'standalone-v1';
+      };
       path?: never;
       cookie?: never;
     };

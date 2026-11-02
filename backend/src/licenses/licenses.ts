@@ -67,7 +67,14 @@ export class Licenses {
       return prior.signed_license;
     }
     const id = randomUUID();
-    const grade = Number(sku.slice(-1));
+    const product = (
+      await c.query<{ grade: number }>(
+        "SELECT grade FROM products WHERE sku=$1",
+        [sku],
+      )
+    ).rows[0];
+    requireCondition(product, "PRODUCT_NOT_AVAILABLE", 404);
+    const grade = product.grade;
     const artifact = this.signing.artifact("license", {
       license_id: id,
       customer_id: d.customer_id,

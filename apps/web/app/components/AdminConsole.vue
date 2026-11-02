@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { productTitle, standaloneProducts } from '#shared/products';
 import { persianDigits } from '#shared/digits';
 import { errorMessage, toman, gradeNames } from '#shared/domain';
 import type { ApiPath } from '#shared/api';
@@ -111,8 +112,7 @@ const dateTime = (v: unknown) =>
   v
     ? new Date(String(v)).toLocaleString('fa-IR', { dateStyle: 'medium', timeStyle: 'short' })
     : '—';
-const grade = (sku: unknown) =>
-  'پایهٔ ' + (gradeNames[Number(String(sku ?? '').slice(-1)) - 1] ?? String(sku ?? '—'));
+const grade = productTitle;
 type Column = { key: string; label: string; width?: string; truncate?: boolean; align?: 'end' };
 const actions: Column = { key: 'actions', label: 'عملیات', width: '132px', align: 'end' };
 const columns = computed<Column[]>(
@@ -1057,9 +1057,13 @@ const navigationGroups: { title: string; ids: string[] }[] = [
           v-if="['block', 'unblock', 'issue', 'code'].includes(kind)"
           v-model="targetSku"
           label="پایهٔ موردنظر"
-          :options="
-            gradeNames.map((name, i) => ({ value: 'YARIZAN-G' + (i + 1), label: 'پایهٔ ' + name }))
-          "
+          :options="[
+            ...gradeNames.map((name, i) => ({
+              value: 'YARIZAN-G' + (i + 1),
+              label: 'پایهٔ ' + name,
+            })),
+            ...standaloneProducts.map((p) => ({ value: p.sku, label: p.title })),
+          ]"
         /><label
           >دلیل عملیات<textarea v-model="reason" minlength="8" maxlength="512" required /></label
         ><label v-if="needsEvidence"

@@ -12,6 +12,8 @@ export const protectedRoute =
 export const sitemapPaths = [
   '/',
   '/products',
+  '/special-products',
+  '/special-products/number-builder',
   ...[1, 2, 3, 4, 5, 6].map((g) => `/products/grade-${g}`),
   '/support',
 ];

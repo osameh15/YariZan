@@ -1,3 +1,5 @@
+import { productSkuSource as sku } from './products';
+
 export const browserRoutes = [
   ['GET', /^commerce\/capabilities$/],
   ['POST', /^discounts\/quote$/],
@@ -14,7 +16,7 @@ export const browserRoutes = [
     /^admin\/commerce\/(?:campaigns|coupons|orders\/[0-9a-f-]{36}\/(?:reconcile|void|reopen|archive)|refunds\/[0-9a-f-]{36}\/review)$/,
   ],
   ['PATCH', /^admin\/commerce\/(?:campaigns|coupons)\/[0-9a-f-]{36}$/],
-  ['GET', /^products(?:\/YARIZAN-G[1-6])?$/],
+  ['GET', new RegExp(`^products(?:/${sku})?$`)],
   [
     'POST',
     /^auth\/(?:challenge|claim|login|logout|session\/rotate|password-reset\/(?:complete|otp)|otp\/(?:request|verify)|claim\/otp\/request)$/,
@@ -31,15 +33,17 @@ export const browserRoutes = [
   // Read-only payment readiness report; no write route exists.
   ['GET', /^admin\/payment-readiness$/],
   ['GET', /^admin\/(?:customers|devices|licenses|trials|activation-codes|products|audit|reports)$/],
-  ['PATCH', /^admin\/products\/YARIZAN-G[1-6]$/],
+  ['PATCH', new RegExp(`^admin/products/${sku}$`)],
   // Product promotions: list and create per product, update and deactivate/restore by id.
-  ['GET', /^admin\/products\/YARIZAN-G[1-6]\/promotions$/],
-  ['POST', /^admin\/products\/YARIZAN-G[1-6]\/promotions$/],
+  ['GET', new RegExp(`^admin/products/${sku}/promotions$`)],
+  ['POST', new RegExp(`^admin/products/${sku}/promotions$`)],
   ['PATCH', /^admin\/promotions\/[0-9a-f-]{36}$/],
   ['POST', /^admin\/promotions\/[0-9a-f-]{36}\/(?:deactivate|restore)$/],
   [
     'POST',
-    /^admin\/(?:customers\/[0-9a-f-]{36}\/(?:reset|password-reset)|devices\/[0-9a-f-]{36}\/(?:products\/YARIZAN-G[1-6]\/(?:block|unblock)|remove|restore)|trials\/[0-9a-f-]{36}\/YARIZAN-G[1-6]\/reset|licenses(?:\/issue|\/[0-9a-f-]{36}\/(?:revoke|reissue))|activation-codes(?:\/[0-9a-f-]{36}\/cancel)?)$/,
+    new RegExp(
+      `^admin/(?:customers/[0-9a-f-]{36}/(?:reset|password-reset)|devices/[0-9a-f-]{36}/(?:products/${sku}/(?:block|unblock)|remove|restore)|trials/[0-9a-f-]{36}/${sku}/reset|licenses(?:/issue|/[0-9a-f-]{36}/(?:revoke|reissue))|activation-codes(?:/[0-9a-f-]{36}/cancel)?)$`,
+    ),
   ],
 ] as const;
 export function allowedBrowserRoute(method: string, path: string) {

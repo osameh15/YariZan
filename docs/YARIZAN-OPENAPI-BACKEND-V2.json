@@ -298,7 +298,8 @@
                       },
                       "sku": {
                         "type": "string",
-                        "pattern": "^YARIZAN-G[1-6]$"
+                        "maxLength": 80,
+                        "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                       },
                       "state": {
                         "type": "string"
@@ -430,7 +431,8 @@
                       },
                       "sku": {
                         "type": "string",
-                        "pattern": "^YARIZAN-G[1-6]$"
+                        "maxLength": 80,
+                        "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                       },
                       "state": {
                         "type": "string"
@@ -1355,7 +1357,8 @@
                   },
                   "sku": {
                     "type": "string",
-                    "pattern": "^YARIZAN-G[1-6]$"
+                    "maxLength": 80,
+                    "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                   },
                   "expires_at": {
                     "type": "string",
@@ -1566,7 +1569,8 @@
                   },
                   "sku": {
                     "type": "string",
-                    "pattern": "^YARIZAN-G[1-6]$"
+                    "maxLength": 80,
+                    "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                   },
                   "expires_at": {
                     "type": "string",
@@ -3199,7 +3203,8 @@
                     "type": "array",
                     "items": {
                       "type": "string",
-                      "pattern": "^YARIZAN-G[1-6]$"
+                      "maxLength": 80,
+                      "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                     }
                   }
                 },
@@ -3450,7 +3455,8 @@
                     "type": "array",
                     "items": {
                       "type": "string",
-                      "pattern": "^YARIZAN-G[1-6]$"
+                      "maxLength": 80,
+                      "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                     }
                   }
                 },
@@ -3624,7 +3630,8 @@
                     },
                     "sku": {
                       "type": "string",
-                      "pattern": "^YARIZAN-G[1-6]$"
+                      "maxLength": 80,
+                      "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                     },
                     "state": {
                       "type": "string"
@@ -5512,7 +5519,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^YARIZAN-G[1-6]$"
+              "maxLength": 80,
+              "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
             }
           },
           {
@@ -5681,7 +5689,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^YARIZAN-G[1-6]$"
+              "maxLength": 80,
+              "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
             }
           },
           {
@@ -6676,7 +6685,8 @@
                   },
                   "sku": {
                     "type": "string",
-                    "pattern": "^YARIZAN-G[1-6]$"
+                    "maxLength": 80,
+                    "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                   }
                 },
                 "required": [
@@ -7522,7 +7532,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^YARIZAN-G[1-6]$"
+              "maxLength": 80,
+              "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
             }
           },
           {
@@ -7709,7 +7720,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^YARIZAN-G[1-6]$"
+              "maxLength": 80,
+              "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
             }
           },
           {
@@ -7791,7 +7803,8 @@
                         },
                         "sku": {
                           "type": "string",
-                          "pattern": "^YARIZAN-G[1-6]$"
+                          "maxLength": 80,
+                          "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                         },
                         "original_price_irr": {
                           "type": "integer",
@@ -7883,7 +7896,8 @@
                               },
                               "sku": {
                                 "type": "string",
-                                "pattern": "^YARIZAN-G[1-6]$"
+                                "maxLength": 80,
+                                "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                               },
                               "original_price_irr": {
                                 "type": "integer",
@@ -8081,7 +8095,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^YARIZAN-G[1-6]$"
+              "maxLength": 80,
+              "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
             }
           },
           {
@@ -8163,7 +8178,8 @@
                         },
                         "sku": {
                           "type": "string",
-                          "pattern": "^YARIZAN-G[1-6]$"
+                          "maxLength": 80,
+                          "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                         },
                         "original_price_irr": {
                           "type": "integer",
@@ -8255,7 +8271,8 @@
                               },
                               "sku": {
                                 "type": "string",
-                                "pattern": "^YARIZAN-G[1-6]$"
+                                "maxLength": 80,
+                                "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                               },
                               "original_price_irr": {
                                 "type": "integer",
@@ -8533,7 +8550,8 @@
                     },
                     "sku": {
                       "type": "string",
-                      "pattern": "^YARIZAN-G[1-6]$"
+                      "maxLength": 80,
+                      "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                     },
                     "original_price_irr": {
                       "type": "integer",
@@ -8776,7 +8794,8 @@
                     },
                     "sku": {
                       "type": "string",
-                      "pattern": "^YARIZAN-G[1-6]$"
+                      "maxLength": 80,
+                      "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                     },
                     "original_price_irr": {
                       "type": "integer",
@@ -9019,7 +9038,8 @@
                     },
                     "sku": {
                       "type": "string",
-                      "pattern": "^YARIZAN-G[1-6]$"
+                      "maxLength": 80,
+                      "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                     },
                     "original_price_irr": {
                       "type": "integer",
@@ -9482,7 +9502,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^YARIZAN-G[1-6]$"
+              "maxLength": 80,
+              "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
             }
           },
           {
@@ -11280,7 +11301,8 @@
                   },
                   "sku": {
                     "type": "string",
-                    "pattern": "^YARIZAN-G[1-6]$"
+                    "maxLength": 80,
+                    "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                   },
                   "request_id": {
                     "type": "string",
@@ -11335,11 +11357,12 @@
                         },
                         "sku": {
                           "type": "string",
-                          "pattern": "^YARIZAN-G[1-6]$"
+                          "maxLength": 80,
+                          "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                         },
                         "grade": {
                           "type": "integer",
-                          "minimum": 1,
+                          "minimum": 0,
                           "maximum": 6
                         },
                         "expires_at": {
@@ -11488,7 +11511,20 @@
             "DeviceBearer": []
           }
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-YariZan-Product-Catalog",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "standalone-v1"
+              ]
+            },
+            "description": "Opt in to independent game SKUs. Without this header, the response retains the six-grade catalog for existing desktop clients."
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful operation",
@@ -11603,7 +11639,8 @@
                 "properties": {
                   "sku": {
                     "type": "string",
-                    "pattern": "^YARIZAN-G[1-6]$"
+                    "maxLength": 80,
+                    "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                   }
                 },
                 "required": [
@@ -11651,11 +11688,12 @@
                         },
                         "sku": {
                           "type": "string",
-                          "pattern": "^YARIZAN-G[1-6]$"
+                          "maxLength": 80,
+                          "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                         },
                         "grade": {
                           "type": "integer",
-                          "minimum": 1,
+                          "minimum": 0,
                           "maximum": 6
                         },
                         "expires_at": {
@@ -11818,7 +11856,8 @@
                   },
                   "sku": {
                     "type": "string",
-                    "pattern": "^YARIZAN-G[1-6]$"
+                    "maxLength": 80,
+                    "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                   }
                 },
                 "required": [
@@ -11863,7 +11902,8 @@
                         },
                         "sku": {
                           "type": "string",
-                          "pattern": "^YARIZAN-G[1-6]$"
+                          "maxLength": 80,
+                          "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                         },
                         "decision_version": {
                           "type": "integer",
@@ -12021,7 +12061,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^YARIZAN-G[1-6]$"
+              "maxLength": 80,
+              "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
             }
           }
         ],
@@ -12079,11 +12120,12 @@
                             },
                             "sku": {
                               "type": "string",
-                              "pattern": "^YARIZAN-G[1-6]$"
+                              "maxLength": 80,
+                              "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                             },
                             "grade": {
                               "type": "integer",
-                              "minimum": 1,
+                              "minimum": 0,
                               "maximum": 6
                             },
                             "client_nonce": {
@@ -12253,7 +12295,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^YARIZAN-G[1-6]$"
+              "maxLength": 80,
+              "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
             }
           }
         ],
@@ -13612,7 +13655,8 @@
                 "properties": {
                   "sku": {
                     "type": "string",
-                    "pattern": "^YARIZAN-G[1-6]$"
+                    "maxLength": 80,
+                    "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                   },
                   "coupon": {
                     "type": "string",
@@ -13638,7 +13682,8 @@
                   "properties": {
                     "sku": {
                       "type": "string",
-                      "pattern": "^YARIZAN-G[1-6]$"
+                      "maxLength": 80,
+                      "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                     },
                     "title_fa": {
                       "type": "string"
@@ -13844,7 +13889,8 @@
                 "properties": {
                   "sku": {
                     "type": "string",
-                    "pattern": "^YARIZAN-G[1-6]$"
+                    "maxLength": 80,
+                    "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                   },
                   "coupon": {
                     "type": "string",
@@ -14012,7 +14058,8 @@
                 "properties": {
                   "sku": {
                     "type": "string",
-                    "pattern": "^YARIZAN-G[1-6]$"
+                    "maxLength": 80,
+                    "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                   },
                   "coupon": {
                     "type": "string",
@@ -14060,7 +14107,8 @@
                     },
                     "sku": {
                       "type": "string",
-                      "pattern": "^YARIZAN-G[1-6]$"
+                      "maxLength": 80,
+                      "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                     },
                     "state": {
                       "type": "string"
@@ -14458,7 +14506,8 @@
                     },
                     "sku": {
                       "type": "string",
-                      "pattern": "^YARIZAN-G[1-6]$"
+                      "maxLength": 80,
+                      "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                     },
                     "state": {
                       "type": "string"
@@ -14864,7 +14913,8 @@
                     },
                     "sku": {
                       "type": "string",
-                      "pattern": "^YARIZAN-G[1-6]$"
+                      "maxLength": 80,
+                      "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                     },
                     "state": {
                       "type": "string"
@@ -15822,11 +15872,12 @@
                     "properties": {
                       "sku": {
                         "type": "string",
-                        "pattern": "^YARIZAN-G[1-6]$"
+                        "maxLength": 80,
+                        "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                       },
                       "grade": {
                         "type": "integer",
-                        "minimum": 1,
+                        "minimum": 0,
                         "maximum": 6
                       },
                       "title_fa": {
@@ -15972,7 +16023,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^YARIZAN-G[1-6]$"
+              "maxLength": 80,
+              "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
             }
           }
         ],
@@ -15986,11 +16038,12 @@
                   "properties": {
                     "sku": {
                       "type": "string",
-                      "pattern": "^YARIZAN-G[1-6]$"
+                      "maxLength": 80,
+                      "pattern": "^YARIZAN-(?:G[1-6]|S-[A-Z0-9]+(?:-[A-Z0-9]+)*)$"
                     },
                     "grade": {
                       "type": "integer",
-                      "minimum": 1,
+                      "minimum": 0,
                       "maximum": 6
                     },
                     "title_fa": {

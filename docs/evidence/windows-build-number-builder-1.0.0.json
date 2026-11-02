@@ -1,0 +1,50 @@
+{
+    "status":  "local-review-build",
+    "product":  "عددساز کوچولو",
+    "sku":  "YARIZAN-S-NUMBER-BUILDER",
+    "version":  "1.0.0",
+    "published":  false,
+    "owner_installer_acceptance":  false,
+    "splash_logical_pixels":  [
+                                  400,
+                                  400
+                              ],
+    "minimum_splash_seconds":  2,
+    "license_verification":  "local signature, product/device binding and cached revocation during splash",
+    "artifacts":  [
+                      {
+                          "path":  "publish/YariZan-NumberBuilder-win-x64/YariZan-NumberBuilder.exe",
+                          "size_bytes":  137120909,
+                          "version":  "1.0.0",
+                          "machine":  "0x8664",
+                          "sha256":  "0980bddbe3d7f966318356ea4337de9d61876880713b47c820ac33b9616f613f"
+                      },
+                      {
+                          "path":  "publish/YariZan-NumberBuilder-win-x86/YariZan-NumberBuilder.exe",
+                          "size_bytes":  127745165,
+                          "version":  "1.0.0",
+                          "machine":  "0x014C",
+                          "sha256":  "e71353c4f1d2f456823959288c4ea28f9c77ba70694407942cbf0622a380ade3"
+                      },
+                      {
+                          "path":  "publish/YariZan-NumberBuilder-Setup-v1.0.0.exe",
+                          "size_bytes":  94518290,
+                          "version":  "1.0.0.0",
+                          "machine":  "0x014C",
+                          "sha256":  "e3c62a57511b0f53aa7f3df0a27683ecd54bd97f3af271db5b627ca19a77fb5f"
+                      }
+                  ],
+    "validation":  {
+                       "backend_suite_passed":  265,
+                       "backend_followup_compatibility_passed":  2,
+                       "web_unit_passed":  95,
+                       "web_e2e_initial_passed":  61,
+                       "web_e2e_rerun_passed":  5,
+                       "web_e2e_standalone_recheck_passed":  2,
+                       "desktop_standalone_passed":  34,
+                       "desktop_grade_ui_passed":  175,
+                       "release_tool_tests_passed":  45,
+                       "mirror_test":  "passed",
+                       "published_x64_window_size":  "verified 400x400 logical pixels, 500x500 physical pixels at workstation 125% scaling"
+                   }
+}

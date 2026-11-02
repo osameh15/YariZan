@@ -188,7 +188,7 @@ onBeforeUnmount(() => {
     <ApiNotice
       v-if="existing && open"
       kind="info"
-      message="برای این پایه یک فاکتور پرداخت‌نشده دارید. همین فاکتور را پرداخت کنید یا آن را لغو و فاکتور تازه صادر کنید."
+      message="برای این محصول یک فاکتور پرداخت‌نشده دارید. همین فاکتور را پرداخت کنید یا آن را لغو و فاکتور تازه صادر کنید."
     />
     <ApiNotice :message="message" :kind="noticeSuccess ? 'success' : 'error'" />
     <div v-if="order" class="panel order-receipt" :data-tone="statusTone">
@@ -241,8 +241,8 @@ onBeforeUnmount(() => {
         {{ paymentNotice(order.payments) }}
       </p>
       <p v-if="order.license_id">
-        مجوز این پایه آمادهٔ دریافت در برنامهٔ ویندوز است. اتصال اینترنت فقط برای دریافت نخستین مجوز
-        لازم است.
+        مجوز این محصول آمادهٔ دریافت در برنامهٔ ویندوز است. اتصال اینترنت فقط برای دریافت نخستین
+        مجوز لازم است.
       </p>
       <p v-if="order.exception_code">
         اطلاعات مالی محفوظ است. برای بررسی وضعیت با پشتیبانی تماس بگیرید و شمارهٔ سفارش را اعلام

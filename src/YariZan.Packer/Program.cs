@@ -1,18 +1,21 @@
 using YariZan.Core;
+using YariZan.Core.V2;
 
 // Build one grade, inferred from populated source folders unless explicitly selected.
 int selectedGrade = 0;
-if (args.Length != 0 && (args.Length != 2 || args[0] != "--grade"
+bool standalone = args.Length == 2 && args[0] == "--product" && args[1] == "number-builder";
+if (!standalone && args.Length != 0 && (args.Length != 2 || args[0] != "--grade"
     || !int.TryParse(args[1], out selectedGrade) || selectedGrade < 1 || selectedGrade > 6))
 {
-    Console.Error.WriteLine("Usage: YariZan.Packer [--grade 1..6]");
+    Console.Error.WriteLine("Usage: YariZan.Packer [--grade 1..6 | --product number-builder]");
     return 1;
 }
 
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
 var miniApps = Path.Combine(root, "miniApps");
 var secrets = Path.Combine(root, "secrets");
-var output = Path.Combine(root, "games_encrypted");
+// Standalone packing never overwrites the locally packed grade catalog.
+var output = standalone ? Path.Combine(root, "publish", "bundles", "number-builder") : Path.Combine(root, "games_encrypted");
 var masterPath = Path.Combine(secrets, "master.key");
 
 if (args.Length == 0)
@@ -46,11 +49,23 @@ if (masterKey.Length != 32)
     Console.Error.WriteLine("master.key must be 32 bytes (was " + masterKey.Length + ").");
     return 1;
 }
+if (standalone)
+{
+    var master = masterKey;
+    try { masterKey = ProductGameKey.Derive(master, new Product("YARIZAN-S-NUMBER-BUILDER")); }
+    finally { Array.Clear(master, 0, master.Length); }
+}
 
-var sourceGrade = Path.Combine(miniApps, selectedGrade.ToString());
+var sourceGrade = Path.Combine(miniApps, standalone ? "عددساز کوچولو" : selectedGrade.ToString());
 if (!Directory.Exists(sourceGrade) || !Directory.EnumerateFiles(sourceGrade, "*.exe").Any())
 {
     Console.Error.WriteLine($"No games in miniApps/{selectedGrade}/. Existing output was not changed.");
+    return 1;
+}
+
+if (standalone && Directory.EnumerateFiles(sourceGrade, "*.exe").Count() != 1)
+{
+    Console.Error.WriteLine("A standalone product must contain exactly one game executable. Existing output was not changed.");
     return 1;
 }
 
@@ -59,12 +74,14 @@ foreach (var file in Directory.EnumerateFiles(output))
     if (!Path.GetFileName(file).Equals("README.md", StringComparison.OrdinalIgnoreCase)) File.Delete(file);
 foreach (var directory in Directory.EnumerateDirectories(output)) Directory.Delete(directory, true);
 
-var manifest = new GameManifest { SelectedGrade = selectedGrade };
+var manifest = new GameManifest { SelectedGrade = selectedGrade,
+    ProductSku = standalone ? "YARIZAN-S-NUMBER-BUILDER" : null,
+    ProductTitle = standalone ? "عددساز کوچولو" : null };
 int total = 0;
 
 foreach (int g in new[] { selectedGrade })
 {
-    var gradeDir = Path.Combine(miniApps, g.ToString());
+    var gradeDir = sourceGrade;
     if (!Directory.Exists(gradeDir)) continue;
 
     var entry = new GradeEntry { Grade = g };

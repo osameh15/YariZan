@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { errorMessage, toman, gradeNames } from '#shared/domain';
+import { productTitle } from '#shared/products';
+import { errorMessage, toman } from '#shared/domain';
 import { commerceState, commerceTone } from '#shared/commerce';
 type Row = Record<string, unknown>;
 const api = useApi(),
@@ -35,8 +36,7 @@ async function load() {
     busy.value = false;
   }
 }
-const grade = (sku: unknown) =>
-  'یاریزان پایهٔ ' + (gradeNames[Number(String(sku ?? '').slice(-1)) - 1] ?? '');
+const grade = productTitle;
 /** Minutes:seconds left to pay an open invoice, or null when the window has passed. */
 function left(row: Row) {
   if (row.state !== 'PENDING' || !row.expires_at) return null;

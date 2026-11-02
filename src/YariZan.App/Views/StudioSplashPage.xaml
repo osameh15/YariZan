@@ -1,0 +1,14 @@
+<UserControl x:Class="YariZan.App.Views.StudioSplashPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Background="#160A04" AutomationProperties.Name="OAR NOVA Games">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
+            <Image Source="pack://application:,,,/YariZan;component/Resources/OAR_Nova_Game.png"
+                   Width="220" Height="200" Stretch="Uniform" />
+            <TextBlock Text="OAR NOVA Games" Foreground="#EAD08A" FontSize="20"
+                       HorizontalAlignment="Center" Margin="0,16,0,0" />
+            <TextBlock Text="در حال بررسی مجوز…" Foreground="#CDB98A" FontSize="14"
+                       FlowDirection="RightToLeft" HorizontalAlignment="Center" Margin="0,8,0,0" />
+        </StackPanel>
+    </Grid>
+</UserControl>

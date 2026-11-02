@@ -69,6 +69,8 @@ public sealed class DesktopV2Client : IDesktopV2Client, IDeviceRegistrationClien
         using var request = new HttpRequestMessage(method, new Uri(ApiBase, route));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credential);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        if (route == "desktop/entitlements")
+            request.Headers.Add("X-YariZan-Product-Catalog", "standalone-v1");
         if (body is not null)
         {
             string json = JsonSerializer.Serialize(body);
@@ -117,7 +119,7 @@ public sealed class DesktopV2Client : IDesktopV2Client, IDeviceRegistrationClien
         {
             StrictJson.Fields(item, "sku", "state");
             string? sku = item.GetProperty("sku").GetString(), state = item.GetProperty("state").GetString();
-            if (!Enumerable.Range(1, 6).Any(g => new Product(g).Sku == sku) || state is not ("ACTIVE" or "REVOKED" or "RESET"))
+            if (!Product.IsValidSku(sku) || state is not ("ACTIVE" or "REVOKED" or "RESET"))
                 throw new InvalidDataException("Invalid entitlement.");
             result.Add(new(sku!, state));
         }
@@ -133,7 +135,7 @@ public sealed class DesktopV2Client : IDesktopV2Client, IDeviceRegistrationClien
     }
     public async Task<TrialStartResponse> StartTrialAsync(TrialStartRequest request, CancellationToken cancellation)
     {
-        if (!Enumerable.Range(1, 6).Any(g => new Product(g).Sku == request.Sku)) throw new InvalidDataException("Unknown product.");
+        if (!Product.IsValidSku(request.Sku)) throw new InvalidDataException("Unknown product.");
         using var json = StrictJson.Parse(await RequestAsync(HttpMethod.Post, $"desktop/trials/{request.Sku}/start", new
         { device_id = request.DeviceId, client_nonce = request.ClientNonce, client_process_session_id = request.ProcessSessionId }, cancellation));
         var p = json.RootElement;
@@ -150,7 +152,7 @@ public sealed class DesktopV2Client : IDesktopV2Client, IDeviceRegistrationClien
         if (request.DeviceId != DeviceId || !Guid.TryParseExact(request.DeviceId, "D", out var device)
             || device.ToString("D") != request.DeviceId || !Guid.TryParseExact(request.RequestId, "D", out var id)
             || id.ToString("D") != request.RequestId
-            || !Enumerable.Range(1, 6).Any(g => new Product(g).Sku == request.Sku))
+            || !Product.IsValidSku(request.Sku))
             throw new ArgumentException("INVALID_REDEMPTION_REQUEST");
         return RequestAsync(HttpMethod.Post, "desktop/activation-codes/redeem", new
         { activation_code = code, device_id = request.DeviceId, sku = request.Sku, request_id = request.RequestId }, cancellation);

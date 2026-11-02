@@ -37,22 +37,25 @@ public partial class LockPage : UserControl
     private bool _connectedThisVisit;
     private bool _entering;
     private readonly bool _resumeWaiting;
+    private readonly string _productTitle;
 
     public LockPage(DesktopAccessController access, ILockDesktopActions? desktopActions = null, StoreDestinations? storeDestinations = null,
-        PaidActivationCoordinator? activation = null, bool resumeWaiting = true)
+        PaidActivationCoordinator? activation = null, bool resumeWaiting = true, string? productTitle = null)
     {
         _resumeWaiting = resumeWaiting;
         _access = access;
+        _productTitle = productTitle ?? $"یاریزان — پایه {AppBranding.GradeName(access.Grade)}";
         _desktopActions = desktopActions ?? new WindowsLockDesktopActions();
         _storeDestinations = storeDestinations ?? StoreDestinations.LoadEmbedded();
         // The window normally owns the coordinator; a standalone page gets a private, memory-only one.
         _activation = activation ?? new PaidActivationCoordinator(access);
         InitializeComponent();
-        WaitPurchaseButton.Content = _storeDestinations.ForGrade(access.Grade) is null ? "راهنمای خرید" : "باز کردن صفحه خرید";
+        if (access.Grade == 0) TrialButton.Content = "آزمایش نسخه";
+        WaitPurchaseButton.Content = _storeDestinations.ForProduct(access.Sku) is null ? "راهنمای خرید" : "باز کردن صفحه خرید";
         ConnectButton.IsEnabled = access.Provisioning is not null;
         ConnectButton.ToolTip = access.Provisioning is null ? "اتصال تجاری تا تأیید امنیت و کلیدهای رسمی بسته است." : "تأیید مرورگر؛ دریافت مجوز فقط در برنامه";
-        PurchaseButton.Content = _storeDestinations.ForGrade(access.Grade) is null ? "راهنمای خرید" : "خرید این نسخه";
-        ActivationTitle.Text = $"فعال‌سازی یاریزان — پایه {AppBranding.GradeName(access.Grade)}";
+        PurchaseButton.Content = _storeDestinations.ForProduct(access.Sku) is null ? "راهنمای خرید" : "خرید این نسخه";
+        ActivationTitle.Text = $"فعال‌سازی {_productTitle}";
         HwidText.Text = access.Username;
         TrialCountText.Text = "در حال بررسی فرصت‌های آزمایشی…";
         TrialButton.IsEnabled = false;
@@ -161,7 +164,7 @@ public partial class LockPage : UserControl
     private void Purchase_Click(object sender, RoutedEventArgs e)
     {
         if (_dialog != DialogKind.None) return;
-        if (_storeDestinations.ForGrade(_access.Grade) is { } destination)
+        if (_storeDestinations.ForProduct(_access.Sku) is { } destination)
         {
             try { _desktopActions.OpenProductPage(destination); Message("صفحه خرید این نسخه در مرورگر باز شد."); return; }
             catch { OpenDialog(DialogKind.Purchase, PurchaseButton); CopyFeedback("صفحه خرید باز نشد. می‌توانید از راهنمای زیر استفاده کنید.", true); return; }
@@ -220,8 +223,8 @@ public partial class LockPage : UserControl
     {
         _backgroundOffset = LockScroll.VerticalOffset;
         _dialog = kind; _dialogTrigger = trigger;
-        string grade = AppBranding.GradeName(_access.Grade);
-        ModalTitle.Text = kind switch { DialogKind.Pairing => "اتصال امن به حساب", DialogKind.ManualCode => "ثبت کد فعال‌سازی", DialogKind.Purchase => $"راهنمای خرید — پایه {grade}", _ => $"پشتیبانی یاریزان — پایه {grade}" };
+        string productLabel = _access.Grade == 0 ? _productTitle : $"پایه {AppBranding.GradeName(_access.Grade)}";
+        ModalTitle.Text = kind switch { DialogKind.Pairing => "اتصال امن به حساب", DialogKind.ManualCode => "ثبت کد فعال‌سازی", DialogKind.Purchase => $"راهنمای خرید — {productLabel}", _ => _access.Grade == 0 ? $"پشتیبانی — {_productTitle}" : $"پشتیبانی یاریزان — {productLabel}" };
         ModalDescription.Text = kind switch
         {
             DialogKind.Pairing => "شناسه و کد را فقط در صفحهٔ اتصال وارد کنید. مرورگر دستگاه را تأیید می‌کند؛ مجوز فقط در همین برنامه دریافت می‌شود.",
@@ -229,7 +232,7 @@ public partial class LockPage : UserControl
             DialogKind.Purchase => "خرید و فعال‌سازی این نسخه در چهار قدم:",
             _ => "برای دریافت راهنمایی، شماره یا پیام آماده را کپی کنید و با پشتیبانی تماس بگیرید."
         };
-        _preparedMessage = $"سلام\n{(kind == DialogKind.Purchase ? "درخواست خرید" : "درخواست پشتیبانی")} یاریزان — پایه {grade}\nشناسه کاربری: {_access.Username}\nسپاسگزارم";
+        _preparedMessage = $"سلام\n{(kind == DialogKind.Purchase ? "درخواست خرید" : "درخواست پشتیبانی")} {_productTitle}\nشناسه کاربری: {_access.Username}\nسپاسگزارم";
         // Embed only the public username left-to-right (LRE ... PDF): WPF does not apply the newer
         // isolate marks, which showed the ID reversed in the right-to-left message.
         PreparedMessageText.Text = _preparedMessage.Replace(_access.Username, "\u202a" + _access.Username + "\u202c");
@@ -375,7 +378,9 @@ public partial class LockPage : UserControl
     {
         if (_visible is null || _access.IsPurchased || !_activation.CanCheckOnline) return;
         _connectedThisVisit = true;
-        _ = _activation.StartWaitingAsync();
+        // An independent game opens on its activation page at every launch, and the startup check
+        // still finds a purchase, so a connect alone must not make the next launch open waiting.
+        _ = _activation.StartWaitingAsync(rememberIntent: _access.Grade != 0);
         RenderActivation();
         if (_dialog == DialogKind.None) CancelWaitButton.Focus();
     }
@@ -458,7 +463,7 @@ public partial class LockPage : UserControl
         ActivationPhaseText.Foreground = final ? new SolidColorBrush(Color.FromRgb(139, 0, 0)) : (Brush)FindResource("LeatherDarkBrush");
         ActivationActions.Visibility = _entering ? Visibility.Collapsed : Visibility.Visible;
         // Without an operational store page the bottom «راهنمای خرید» is the only purchase action (no duplicate here).
-        WaitPurchaseButton.Visibility = (busy || recoverable) && _storeDestinations.ForGrade(_access.Grade) is not null ? Visibility.Visible : Visibility.Collapsed;
+        WaitPurchaseButton.Visibility = (busy || recoverable) && _storeDestinations.ForProduct(_access.Sku) is not null ? Visibility.Visible : Visibility.Collapsed;
         CheckNowButton.Visibility = final || startup ? Visibility.Collapsed : Visibility.Visible;
         CheckNowButton.IsEnabled = phase is not (PaidActivationPhase.Checking or PaidActivationPhase.RetrievingLicense);
         CancelWaitButton.Visibility = startup ? Visibility.Collapsed : Visibility.Visible;

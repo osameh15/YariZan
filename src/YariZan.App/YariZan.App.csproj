@@ -18,10 +18,15 @@
     <Copyright>Copyright (C) 2026 OAR NOVA GAMES STUDIO</Copyright>
     <Company>OAR NOVA GAMES STUDIO</Company>
     <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
+    <GameBundleRoot Condition="'$(GameBundleRoot)' == ''">$(MSBuildThisFileDirectory)..\..\games_encrypted</GameBundleRoot>
   </PropertyGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="..\..\release\v2-store-destinations.json" Link="Config\v2-store-destinations.json" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'$(StandaloneProductSku)' != ''">
+      <_Parameter1>YariZanStandaloneProduct</_Parameter1>
+      <_Parameter2>$(StandaloneProductSku)</_Parameter2>
+    </AssemblyAttribute>
     <!-- Release gate: reviewed V2 verification keys only; no signing private keys. -->
     <EmbeddedResource Include="..\..\secrets\v2-license-public-keys.json" Link="Keys\v2-license-public-keys.json"
                       Condition="Exists('..\..\secrets\v2-license-public-keys.json') and '$(LocalAcceptanceBuild)' != 'true'" />
@@ -53,7 +58,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\games_encrypted\**\*.*" Exclude="..\..\games_encrypted\README.md" Link="games_encrypted\%(RecursiveDir)%(Filename)%(Extension)" Condition="'$(IncludeGameBundle)' != 'false'">
+    <None Include="$(GameBundleRoot)\**\*.*" Exclude="$(GameBundleRoot)\README.md" Link="games_encrypted\%(RecursiveDir)%(Filename)%(Extension)" Condition="'$(IncludeGameBundle)' != 'false'">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
@@ -62,7 +67,7 @@
 
   <!-- Ordinary builds are fixtures/review builds. Commercial builds and ordinary app publishes are gated. -->
   <Target Name="ValidateV2PublicRootInputs" BeforeTargets="PrepareForBuild"
-          Condition="Exists('$(MSBuildThisFileDirectory)..\..\secrets\v2-license-public-keys.json')">
+          Condition="Exists('$(MSBuildThisFileDirectory)..\..\secrets\v2-license-public-keys.json') and '$(LocalAcceptanceBuild)' != 'true'">
     <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --public-roots-only &quot;$(MSBuildThisFileDirectory)..\..\secrets\v2-license-public-keys.json&quot;" />
   </Target>
   <PropertyGroup Condition="'$(LocalAcceptanceBuild)' == 'true'">

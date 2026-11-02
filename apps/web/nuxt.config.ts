@@ -12,7 +12,10 @@ const brochure = buildProfile !== 'full';
 function keepBrochurePages(pages: NuxtPage[]) {
   for (let index = pages.length - 1; index >= 0; index--) {
     const page = pages[index]!;
-    const sample = page.path.replace(':slug()', 'grade-1');
+    const sample = page.path.replace(
+      ':slug()',
+      page.path.startsWith('/special-products/') ? 'number-builder' : 'grade-1',
+    );
     if (!brochurePageAllowed(sample)) pages.splice(index, 1);
   }
 }

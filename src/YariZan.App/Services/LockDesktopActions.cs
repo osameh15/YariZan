@@ -27,10 +27,11 @@ public sealed class WindowsLockDesktopActions : ILockDesktopActions
 /// <summary>Reviewed build configuration, never supplied by a license, server response or username.</summary>
 public sealed class StoreDestinations
 {
-    private readonly IReadOnlyDictionary<int, Uri> _pages;
-    private StoreDestinations(IReadOnlyDictionary<int, Uri> pages) => _pages = pages;
-    public static StoreDestinations Unavailable { get; } = new(new Dictionary<int, Uri>());
-    public Uri? ForGrade(int grade) => _pages.GetValueOrDefault(grade);
+    private readonly IReadOnlyDictionary<string, Uri> _pages;
+    private StoreDestinations(IReadOnlyDictionary<string, Uri> pages) => _pages = pages;
+    public static StoreDestinations Unavailable { get; } = new(new Dictionary<string, Uri>());
+    public Uri? ForGrade(int grade) => _pages.GetValueOrDefault($"YARIZAN-G{grade}");
+    public Uri? ForProduct(string sku) => _pages.GetValueOrDefault(sku);
     public static StoreDestinations Read(string json)
     {
         using var doc = StrictJson.Parse(json);
@@ -40,16 +41,17 @@ public sealed class StoreDestinations
             throw new InvalidDataException("Invalid store configuration.");
         bool operational = root.GetProperty("operational").GetBoolean();
         string? review = root.GetProperty("review_reference").GetString();
-        var pages = new Dictionary<int, Uri>();
+        var pages = new Dictionary<string, Uri>();
         foreach (var page in root.GetProperty("product_pages").EnumerateObject())
         {
-            int grade = Enumerable.Range(1, 6).SingleOrDefault(g => page.Name == new Product(g).Sku);
-            if (grade == 0 || !Uri.TryCreate(page.Value.GetString(), UriKind.Absolute, out var destination))
+            var product = new Product(page.Name);
+            if (!Uri.TryCreate(page.Value.GetString(), UriKind.Absolute, out var destination))
                 throw new InvalidDataException("Invalid store product.");
             ValidateDestination(destination);
-            if (destination.AbsolutePath != $"/products/yarizan-g{grade}")
+            var expectedPath = product.Sku == "YARIZAN-S-NUMBER-BUILDER" ? "/special-products/number-builder" : $"/products/yarizan-g{product.Grade}";
+            if (destination.AbsolutePath != expectedPath)
                 throw new InvalidDataException("Store grade mismatch.");
-            pages.Add(grade, destination);
+            pages.Add(product.Sku, destination);
         }
         if (operational && (string.IsNullOrWhiteSpace(review) || review.Length > 256 || pages.Count == 0))
             throw new InvalidDataException("Operational store requires reviewed product destinations.");
@@ -60,7 +62,8 @@ public sealed class StoreDestinations
         if (!destination.IsAbsoluteUri || destination.Scheme != Uri.UriSchemeHttps
             || destination.Host != "yarizan.oarnova.games" || !destination.IsDefaultPort
             || destination.UserInfo.Length != 0 || destination.Query.Length != 0 || destination.Fragment.Length != 0
-            || !Enumerable.Range(1, 6).Any(g => destination.AbsolutePath == $"/products/yarizan-g{g}"))
+            || !(Enumerable.Range(1, 6).Any(g => destination.AbsolutePath == $"/products/yarizan-g{g}")
+                || destination.AbsolutePath == "/special-products/number-builder"))
             throw new InvalidDataException("Unapproved store destination.");
     }
     public static StoreDestinations LoadEmbedded()

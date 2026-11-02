@@ -1,30 +1,39 @@
 import { z } from 'zod';
 import { financialToman } from './commerce';
-export const productSchema = z.object({
-  sku: z.string().regex(/^YARIZAN-G[1-6]$/),
-  grade: z.number().int().min(1).max(6),
-  title_fa: z.string(),
-  price_irr: z.number().int().nonnegative().safe(),
-  publication_status: z.enum(['published', 'coming_soon', 'hidden']),
-  sale_enabled: z.boolean(),
-  trial_enabled: z.boolean(),
-  activation_enabled: z.boolean(),
-  revision: z.number().int().positive(),
-  // The Backend decides which promotion is active (database time); absent for older responses.
-  effective_price_irr: z.number().int().nonnegative().safe().optional(),
-  // Local acceptance only: this price is a clearly labelled test price, never the official one.
-  test_price: z.boolean().optional(),
-  promotion: z
-    .object({
-      price_irr: z.number().int().positive().safe(),
-      original_price_irr: z.number().int().positive().safe(),
-      discount_percent: z.number().int().min(1).max(99),
-      starts_at: z.string(),
-      ends_at: z.string(),
-    })
-    .nullable()
-    .optional(),
-});
+import { productSkuPattern } from './products';
+export const productSchema = z
+  .object({
+    sku: z.string().regex(productSkuPattern).max(80),
+    grade: z.number().int().min(0).max(6),
+    title_fa: z.string(),
+    price_irr: z.number().int().nonnegative().safe(),
+    publication_status: z.enum(['published', 'coming_soon', 'hidden']),
+    sale_enabled: z.boolean(),
+    trial_enabled: z.boolean(),
+    activation_enabled: z.boolean(),
+    revision: z.number().int().positive(),
+    // The Backend decides which promotion is active (database time); absent for older responses.
+    effective_price_irr: z.number().int().nonnegative().safe().optional(),
+    // Local acceptance only: this price is a clearly labelled test price, never the official one.
+    test_price: z.boolean().optional(),
+    promotion: z
+      .object({
+        price_irr: z.number().int().positive().safe(),
+        original_price_irr: z.number().int().positive().safe(),
+        discount_percent: z.number().int().min(1).max(99),
+        starts_at: z.string(),
+        ends_at: z.string(),
+      })
+      .nullable()
+      .optional(),
+  })
+  .refine(
+    (product) =>
+      product.grade === 0
+        ? product.sku.startsWith('YARIZAN-S-')
+        : product.sku === `YARIZAN-G${product.grade}`,
+    'Product identity mismatch',
+  );
 export type Product = z.infer<typeof productSchema>;
 export const gradeNames = ['اول', 'دوم', 'سوم', 'چهارم', 'پنجم', 'ششم'];
 export function toman(irr: number) {
@@ -33,7 +42,9 @@ export function toman(irr: number) {
 }
 export function safeReturn(value: unknown, fallback = '/account') {
   return typeof value === 'string' &&
-    (/^\/account(?:\/[a-z-]+)?$/.test(value) || /^\/checkout\?sku=YARIZAN-G[1-6]$/.test(value))
+    (/^\/account(?:\/[a-z-]+)?$/.test(value) ||
+      (value.startsWith('/checkout?sku=') &&
+        productSkuPattern.test(value.slice('/checkout?sku='.length))))
     ? value
     : fallback;
 }

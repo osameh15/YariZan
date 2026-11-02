@@ -379,23 +379,23 @@ try {
     'dist/src/database/production-bootstrap.js',
     `--initialize-prices=${approvedPricing.revision}`,
   );
-  assert.match(bootstrap, /"products_created":6/);
+  assert.match(bootstrap, /"products_created":7/);
   assert.match(
     bootstrap,
-    /"initialized":\["YARIZAN-G1","YARIZAN-G2","YARIZAN-G3","YARIZAN-G4","YARIZAN-G5","YARIZAN-G6"\]/,
+    /"initialized":\["YARIZAN-G1","YARIZAN-G2","YARIZAN-G3","YARIZAN-G4","YARIZAN-G5","YARIZAN-G6","YARIZAN-S-NUMBER-BUILDER"\]/,
   );
   assert.equal(
     sql(
-      "SELECT count(*) FROM product_prices WHERE source='BOOTSTRAP' AND amount_irr=12990000 AND ended_at IS NULL",
+      "SELECT count(*) FROM product_prices WHERE source='BOOTSTRAP' AND ended_at IS NULL",
     ),
-    '6',
+    '7',
   );
   assert.equal(
     sql("SELECT count(*) FROM products WHERE publication_status='hidden' AND NOT sale_enabled"),
-    '6',
+    '7',
   );
   step(
-    'Migrations (10) and production bootstrap: six hidden products, six audited approved prices',
+    'Migrations (15) and production bootstrap: seven hidden products and audited approved prices',
   );
 
   docker(
@@ -505,8 +505,9 @@ try {
   assert.deepEqual(
     catalog.map((p) => [p.sku, p.price_irr, p.publication_status, p.sale_enabled]),
     [
-      ['YARIZAN-G1', 12990000, 'published', true],
-      ...[2, 3, 4, 5, 6].map((g) => [`YARIZAN-G${g}`, 12990000, 'coming_soon', false]),
+      ['YARIZAN-G1', 14990000, 'published', true],
+      ...[2, 3, 4, 5, 6].map((g) => [`YARIZAN-G${g}`, 14990000, 'coming_soon', false]),
+      ['YARIZAN-S-NUMBER-BUILDER', 1990000, 'published', true],
     ],
   );
   assert.equal(sql("SELECT count(*) FROM product_prices WHERE sku='YARIZAN-G1'"), '2');
@@ -639,7 +640,7 @@ try {
   );
   assert.deepEqual(
     [quote.subtotal_irr, quote.discount_irr, quote.total_irr].map(Number),
-    [12990000, 1299000, 11691000],
+    [14990000, 1499000, 13491000],
   );
   expectError(
     await web('orders', {
@@ -663,7 +664,7 @@ try {
     expectOk(await web('orders', { browser: buyer.browser, body: request }), 'order retry').id,
     order.id,
   );
-  assert.equal(Number(order.total_irr), 11691000);
+  assert.equal(Number(order.total_irr), 13491000);
   expectOk(
     await web(`orders/${order.id}/payments`, {
       browser: buyer.browser,
@@ -721,7 +722,7 @@ try {
   );
   assert.ok(adminOrder.transitions.length > 0 && adminOrder.reconciliation.length > 0);
   step(
-    'Coupon checkout (10%: 1,169,100 Toman), simulated verification, one signed license, order history and Admin finance',
+    'Coupon checkout (10%: 1,349,100 Toman), simulated verification, one signed license, order history and Admin finance',
   );
 
   writeFileSync(

@@ -78,12 +78,36 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
       @retry="refresh()"
       ><div class="product-grid home-products">
         <ProductCard
-          v-for="product in products?.slice(0, 3)"
+          v-for="product in products?.filter((p) => p.grade > 0).slice(0, 3)"
           :key="product.sku"
           :product="product"
           :public-only="publicOnly"
         /></div
     ></LoadState>
+  </section>
+  <section class="section wrap">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">هر بازی، یک کشف تازه</p>
+        <h2>محصولات ویژه</h2>
+      </div>
+      <NuxtLink class="text-link" to="/special-products">همهٔ بازی‌های ویژه ←</NuxtLink>
+    </div>
+    <LoadState
+      :loading="status === 'pending'"
+      :error="!!error"
+      :empty="products?.filter((p) => p.grade === 0).length === 0"
+      @retry="refresh()"
+    >
+      <div class="product-grid home-products">
+        <ProductCard
+          v-for="product in products?.filter((p) => p.grade === 0)"
+          :key="product.sku"
+          :product="product"
+          :public-only="publicOnly"
+        />
+      </div>
+    </LoadState>
   </section>
   <section class="learning-section">
     <div class="wrap learning-grid">

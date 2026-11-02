@@ -30,7 +30,7 @@ export const artifactClaims = {
   trial: z.strictObject({
     device_id: uuid,
     sku,
-    grade: z.number().int().min(1).max(6),
+    grade: z.number().int().min(0).max(6),
     client_nonce: digest,
     process_session_id: uuid,
   }),
@@ -39,7 +39,7 @@ export const artifactClaims = {
     license_id: uuid,
     customer_id: uuid,
     sku,
-    grade: z.number().int().min(1).max(6),
+    grade: z.number().int().min(0).max(6),
     expires_at: z.null(),
     license_revision: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
   }),
@@ -266,7 +266,10 @@ export class Signing {
     artifactClaims[type].parse(claims);
     if ("grade" in claims)
       requireCondition(
-        claims.sku === `YARIZAN-G${claims.grade}`,
+        claims.grade === 0
+          ? typeof claims.sku === "string" &&
+              claims.sku.startsWith("YARIZAN-S-")
+          : claims.sku === `YARIZAN-G${claims.grade}`,
         "ARTIFACT_PRODUCT",
       );
     const payload = {
