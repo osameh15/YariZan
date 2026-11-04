@@ -1,29 +1,39 @@
 #ifndef MyAppVersion
 #define MyAppVersion "1.0.0"
 #endif
-#define AppExe "YariZan-NumberBuilder.exe"
+; FileStem selects the product. Persian titles live here, not on the command line.
+#ifndef FileStem
+#define FileStem "YariZan-NumberBuilder"
+#endif
+#if FileStem == "YariZan-BundleBuilder"
+#define AppTitle "دسته‌ساز کوچک"
+#define EnglishName "YariZan Bundle Builder"
+#else
 #define AppTitle "عددساز کوچولو"
+#define EnglishName "YariZan Number Builder"
+#endif
+#define AppExe FileStem + ".exe"
 #ifndef MyPublishDir
-#define MyPublishDir "publish\YariZan-NumberBuilder-win-x64"
+#define MyPublishDir "publish\" + FileStem + "-win-x64"
 #endif
 #ifndef MyPublishDirX86
-#define MyPublishDirX86 "publish\YariZan-NumberBuilder-win-x86"
+#define MyPublishDirX86 "publish\" + FileStem + "-win-x86"
 #endif
 #ifndef OutputRoot
 #define OutputRoot "publish"
 #endif
 
 [Setup]
-AppId=YariZan-S-NumberBuilder
+AppId={#StringChange(FileStem, "YariZan-", "YariZan-S-")}
 AppName={#AppTitle}
 AppVersion={#MyAppVersion}
 AppPublisher=OAR NOVA GAMES STUDIO
 AppPublisherURL=https://oarnova.games/
 AppSupportURL=https://yarizan.oarnova.games/support
-DefaultDirName={autopf}\YariZan Number Builder
+DefaultDirName={autopf}\{#EnglishName}
 DefaultGroupName={#AppTitle}
 OutputDir={#OutputRoot}
-OutputBaseFilename=YariZan-NumberBuilder-Setup-v{#MyAppVersion}
+OutputBaseFilename={#FileStem}-Setup-v{#MyAppVersion}
 SetupIconFile=src\YariZan.App\Resources\icon.ico
 UninstallDisplayIcon={app}\{#AppExe}
 Compression=lzma2/max
@@ -36,7 +46,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.14393
 VersionInfoVersion={#MyAppVersion}.0
 VersionInfoProductVersion={#MyAppVersion}.0
-VersionInfoProductName=YariZan Number Builder
+VersionInfoProductName={#EnglishName}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

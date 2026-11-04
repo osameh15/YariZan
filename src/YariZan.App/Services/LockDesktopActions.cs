@@ -48,7 +48,9 @@ public sealed class StoreDestinations
             if (!Uri.TryCreate(page.Value.GetString(), UriKind.Absolute, out var destination))
                 throw new InvalidDataException("Invalid store product.");
             ValidateDestination(destination);
-            var expectedPath = product.Sku == "YARIZAN-S-NUMBER-BUILDER" ? "/special-products/number-builder" : $"/products/yarizan-g{product.Grade}";
+            var expectedPath = product.IsStandalone
+                ? StandaloneCatalog.BySku(product.Sku)?.StorePath ?? throw new InvalidDataException("Unreviewed standalone product.")
+                : $"/products/yarizan-g{product.Grade}";
             if (destination.AbsolutePath != expectedPath)
                 throw new InvalidDataException("Store grade mismatch.");
             pages.Add(product.Sku, destination);
@@ -63,7 +65,7 @@ public sealed class StoreDestinations
             || destination.Host != "yarizan.oarnova.games" || !destination.IsDefaultPort
             || destination.UserInfo.Length != 0 || destination.Query.Length != 0 || destination.Fragment.Length != 0
             || !(Enumerable.Range(1, 6).Any(g => destination.AbsolutePath == $"/products/yarizan-g{g}")
-                || destination.AbsolutePath == "/special-products/number-builder"))
+                || StandaloneCatalog.All.Any(p => destination.AbsolutePath == p.StorePath)))
             throw new InvalidDataException("Unapproved store destination.");
     }
     public static StoreDestinations LoadEmbedded()

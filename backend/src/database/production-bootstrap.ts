@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { productTitle } from "../catalog/standalone-products";
 import { Pool } from "pg";
 import { Audit } from "../audit/audit";
 import { approvedPricing } from "../catalog/approved-pricing";
@@ -19,20 +20,13 @@ export async function productionBootstrap(pool: Pool) {
   try {
     await c.query("BEGIN");
     await verifyMigrations(c);
-    const names = ["اول", "دوم", "سوم", "چهارم", "پنجم", "ششم"];
     let products = 0;
     for (const { sku, grade } of approvedPricing.products)
       products += (
         await c.query(
           `INSERT INTO products(sku,grade,title_fa,publication_status,sale_enabled,trial_enabled,activation_enabled)
           VALUES($1,$2,$3,'hidden',false,false,false) ON CONFLICT DO NOTHING`,
-          [
-            sku,
-            grade,
-            grade === 0
-              ? "عددساز کوچولو"
-              : `یاریزان پایه ${names[grade - 1]} دبستان`,
-          ],
+          [sku, grade, productTitle(sku, grade)],
         )
       ).rowCount!;
     await seedAdminRoles(c);
@@ -239,7 +233,10 @@ export async function applyProductUpdate(pool: Pool, revision: string) {
       await c.query("COMMIT");
       return { pricing_revision: revision, changed, already_applied: true };
     }
-    for (const sku of ["YARIZAN-G1", "YARIZAN-S-NUMBER-BUILDER"]) {
+    const standalone: string[] = approvedPricing.products
+      .filter((p) => p.grade === 0)
+      .map((p) => p.sku);
+    for (const sku of ["YARIZAN-G1", ...standalone]) {
       const approved = approvedPricing.products.find((p) => p.sku === sku)!;
       const product = await c.query(
         "SELECT 1 FROM products WHERE sku=$1 FOR UPDATE",
@@ -286,15 +283,16 @@ export async function applyProductUpdate(pool: Pool, revision: string) {
         changed.push(sku);
       }
     }
-    const published = await c.query(
-      "UPDATE products SET publication_status='published',sale_enabled=true,trial_enabled=true,activation_enabled=true,revision=revision+1 WHERE sku='YARIZAN-S-NUMBER-BUILDER' AND (publication_status<>'published' OR NOT sale_enabled OR NOT trial_enabled OR NOT activation_enabled)",
+    const published = await c.query<{ sku: string }>(
+      "UPDATE products SET publication_status='published',sale_enabled=true,trial_enabled=true,activation_enabled=true,revision=revision+1 WHERE sku=ANY($1::text[]) AND (publication_status<>'published' OR NOT sale_enabled OR NOT trial_enabled OR NOT activation_enabled) RETURNING sku",
+      [standalone],
     );
-    if (published.rowCount)
+    for (const row of published.rows)
       await audit.append(
         c,
         { type: "SYSTEM", correlationId },
         "product.standalone_enabled",
-        "YARIZAN-S-NUMBER-BUILDER",
+        row.sku,
         { pricing_revision: revision },
       );
     await audit.append(

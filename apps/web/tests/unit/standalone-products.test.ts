@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { publicCatalog } from '../../shared/catalog-snapshot';
 import { productSchema, safeReturn, toman } from '../../shared/domain';
-import { productPath, productTitle } from '../../shared/products';
+import { existsSync } from 'node:fs';
+import { productPath, productTitle, standaloneProducts } from '../../shared/products';
 import { allowedBrowserRoute } from '../../shared/proxy-policy';
 import { brochureDecision } from '../../shared/site-mode';
 import { standaloneRelease } from '../../shared/standalone-releases';
@@ -31,5 +32,23 @@ describe('independent game products', () => {
   });
   it('does not advertise a download before its mirror release is published', () => {
     expect(standaloneRelease(sku)).toBeUndefined();
+    expect(standaloneRelease('YARIZAN-S-BUNDLE-BUILDER')).toBeUndefined();
+  });
+  it('lists the second game with its own route, price and screenshots', () => {
+    const bundle = publicCatalog('storefront').products.find(
+      (p) => p.sku === 'YARIZAN-S-BUNDLE-BUILDER',
+    )!;
+    expect(bundle.title_fa).toBe('دسته‌ساز کوچک');
+    expect(toman(bundle.price_irr!)).toBe('۱۹۹٬۰۰۰');
+    expect(productPath(bundle)).toBe('/special-products/bundle-builder');
+    expect(brochureDecision('GET', '/special-products/bundle-builder')).toBe('page');
+    for (const product of standaloneProducts) {
+      expect(product.shots.length).toBeGreaterThan(0);
+      for (const shot of product.shots) {
+        expect(shot.src).toMatch(new RegExp(`^/products/${product.slug}/screen-[0-9][.]webp$`));
+        expect(existsSync('public' + shot.src)).toBe(true);
+        expect(shot.alt.length).toBeGreaterThan(5);
+      }
+    }
   });
 });

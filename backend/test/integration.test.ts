@@ -355,7 +355,7 @@ test("Actual PostgreSQL 17 and six exact products/prices", async () => {
     /PostgreSQL 17/,
   );
   const r = (await ok<Record<string, unknown>[]>("/products")).body;
-  assert.equal(r.length, 7);
+  assert.equal(r.length, 8);
   assert.ok(
     r.every((p) => p.price_irr === (p.grade === 0 ? 1990000 : 14990000)),
   );
@@ -372,7 +372,7 @@ test("Seeds idempotent and preserve edited catalog", async () => {
   await seed(db);
   assert.equal(
     (await db.query("SELECT count(*) FROM products")).rows[0].count,
-    "7",
+    "8",
   );
 });
 test("Migration replay and hash drift detection", async () => {

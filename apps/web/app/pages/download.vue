@@ -87,7 +87,14 @@ const formatDate = (iso: string) =>
           :aria-current="selectedProduct?.sku === product.sku ? 'true' : undefined"
           :data-status="productStatus(product.sku)"
         >
-          <span class="grade-number" aria-hidden="true">{{ product.symbol }}</span>
+          <img
+            class="product-thumb"
+            :src="product.shots[0]!.src"
+            alt=""
+            width="1280"
+            height="720"
+            loading="lazy"
+          />
           <span class="grade-name">{{ product.title }}</span>
           <span class="grade-chip">{{
             productStatus(product.sku) === 'available' ? 'آمادهٔ دریافت' : 'به‌زودی'

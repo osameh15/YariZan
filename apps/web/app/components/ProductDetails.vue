@@ -13,6 +13,7 @@ useSeoMeta({
   title: () => (product.value ? `${product.value.title_fa} | یاریزان` : 'محصولات یاریزان'),
 });
 const assistance = ref(false);
+const activeShot = ref(0);
 const { publicOnly } = useSiteMode();
 // Public-only profiles have no API: commerce capabilities are never requested.
 const commerce = publicOnly.value
@@ -30,14 +31,36 @@ const commerce = publicOnly.value
     ><LoadState :loading="status === 'pending'" :error="!!error" @retry="refresh()"
       ><div v-if="product" class="product-detail">
         <div class="detail-art">
-          <div class="product-art" :data-grade="product.grade">
+          <div v-if="special" class="product-gallery">
+            <figure class="gallery-stage">
+              <img
+                :src="special.shots[activeShot]!.src"
+                :alt="special.shots[activeShot]!.alt"
+                width="1280"
+                height="720"
+                fetchpriority="high"
+              />
+            </figure>
+            <div class="gallery-thumbs" role="group" aria-label="تصاویر بازی">
+              <button
+                v-for="(shot, index) in special.shots"
+                :key="shot.src"
+                type="button"
+                class="gallery-thumb"
+                :aria-pressed="index === activeShot"
+                :aria-label="`نمایش تصویر ${index + 1}: ${shot.alt}`"
+                @click="activeShot = index"
+              >
+                <img :src="shot.src" alt="" width="1280" height="720" loading="lazy" />
+              </button>
+            </div>
+          </div>
+          <div v-else class="product-art" :data-grade="product.grade">
             <span class="small-label">یاریزان</span
             ><span class="grade-number" aria-hidden="true">{{
-              special?.symbol ?? new Intl.NumberFormat('fa-IR').format(product.grade)
+              new Intl.NumberFormat('fa-IR').format(product.grade)
             }}</span
-            ><strong>{{
-              special ? product.title_fa : 'پایهٔ ' + gradeNames[product.grade - 1]
-            }}</strong
+            ><strong>{{ 'پایهٔ ' + gradeNames[product.grade - 1] }}</strong
             ><img src="/brand/symbol.webp" width="90" height="90" alt="" />
           </div>
         </div>
