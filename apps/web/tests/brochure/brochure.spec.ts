@@ -367,7 +367,8 @@ test('first deployment is noindex: robots.txt disallows all and every page sends
   for (const url of ['/', '/products', '/products/grade-1', '/support', '/checkout'])
     expect((await request.get(url)).headers()['x-robots-tag'], url).toBe('noindex, nofollow');
   const sitemap = await (await request.get('/sitemap.xml')).text();
-  expect(sitemap.match(/<loc>/g)).toHaveLength(9);
+  // Home, products, six grades, support, special products and its two games.
+  expect(sitemap.match(/<loc>/g)).toHaveLength(12);
   expect(sitemap).not.toMatch(/account|zanyari|checkout|payment|login/);
 });
 
