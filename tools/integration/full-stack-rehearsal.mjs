@@ -388,11 +388,11 @@ try {
     sql(
       "SELECT count(*) FROM product_prices WHERE source='BOOTSTRAP' AND ended_at IS NULL",
     ),
-    '7',
+    '8',
   );
   assert.equal(
     sql("SELECT count(*) FROM products WHERE publication_status='hidden' AND NOT sale_enabled"),
-    '7',
+    '8',
   );
   step(
     'Migrations (15) and production bootstrap: seven hidden products and audited approved prices',

@@ -19,7 +19,7 @@ test('Premium public layouts: RTL, five widths, keyboard navigation and accessib
   for (const width of [360, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
-    await expect(page.locator('.product-card')).toHaveCount(4);
+    await expect(page.locator('.product-card')).toHaveCount(5);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
