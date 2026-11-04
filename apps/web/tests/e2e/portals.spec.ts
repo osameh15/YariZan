@@ -223,7 +223,7 @@ test('MFA Admin dashboard, product edit and stale revision protection', async ({
   await adminLogin(page);
   await capture(page, '06-admin-dashboard');
   await page.goto('/zanyari/products');
-  await expect(page.locator('tbody tr')).toHaveCount(7);
+  await expect(page.locator('tbody tr')).toHaveCount(8);
   await capture(page, '07-admin-products');
   await page.getByRole('button', { name: 'مدیریت', exact: true }).first().click();
   await page.getByRole('button', { name: 'ویرایش محصول' }).first().click();

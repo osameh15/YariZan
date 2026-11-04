@@ -6938,6 +6938,28 @@ test("Standalone game: two independent trials, exact price, code and purchase li
   );
   const quote = (await ok("/discounts/quote", { sku }, browser)).body;
   assert.equal(quote.total_irr, 1990000);
+  // One coupon may cover every product, including both independent games.
+  const allSkus = (
+    await db.query<{ sku: string }>("SELECT sku FROM products ORDER BY sku")
+  ).rows.map((r) => r.sku);
+  assert.equal(allSkus.length, 8);
+  const fixture = await discountFixture();
+  const coupon = "TEST-" + randomBytes(6).toString("hex").toUpperCase();
+  await ok(
+    "/admin/commerce/coupons",
+    { ...fixture.body, ...mutation(), code: coupon, skus: allSkus },
+    admin,
+  );
+  assert.equal(
+    (
+      await ok<{ total_irr: number }>(
+        "/discounts/quote",
+        { sku, coupon },
+        browser,
+      )
+    ).body.total_irr,
+    1791000,
+  );
   const code = (
     await ok<{ activation_code: string }>(
       "/admin/activation-codes",

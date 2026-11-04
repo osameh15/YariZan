@@ -96,7 +96,10 @@ const commerce = publicOnly.value
             فعال‌سازی آن در دسترس نیست.
           </p>
           <template v-else-if="publicOnly">
-            <p class="notice">برای تهیه و فعال‌سازی این محصول با پشتیبانی یاریزان تماس بگیرید.</p>
+            <p class="notice">
+              برای تهیه و فعال‌سازی {{ special ? 'این بازی' : 'این پایه' }} با پشتیبانی یاریزان تماس
+              بگیرید.
+            </p>
             <a class="button primary phone" :href="'tel:' + PRIMARY_SUPPORT_PHONE.tel" dir="ltr">{{
               PRIMARY_SUPPORT_PHONE.display
             }}</a>
