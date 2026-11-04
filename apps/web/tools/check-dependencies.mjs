@@ -36,6 +36,10 @@ const all = audit([]),
     // Low, no patched release. deepmerge is a build-time dependency of @rollup/plugin-node-resolve,
     // merges only build configuration and is absent from the deployed server dependencies.
     'https://github.com/advisories/GHSA-gcqx-w48m-w2h4',
+    // Moderate, development tooling only (test utilities, lint, OpenAPI tooling); owner accepted
+    // on 2026-11-04. The runtime audit above reports no findings.
+    'https://github.com/advisories/GHSA-3g3m-2fjr-6pw4',
+    'https://github.com/advisories/GHSA-g3hv-75wg-m249',
   ]);
 const roots = [];
 for (const value of Object.values(all.vulnerabilities ?? {}))
