@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { productPath, productTitle, standaloneProducts } from '../../shared/products';
 import { allowedBrowserRoute } from '../../shared/proxy-policy';
 import { brochureDecision } from '../../shared/site-mode';
-import { standaloneRelease } from '../../shared/standalone-releases';
+import { standaloneDownloadUrl, standaloneRelease } from '../../shared/standalone-releases';
 
 describe('independent game products', () => {
   const sku = 'YARIZAN-S-NUMBER-BUILDER';
@@ -30,9 +30,14 @@ describe('independent game products', () => {
       expect(allowedBrowserRoute(method!, path!)).toBe(true);
     expect(brochureDecision('GET', '/special-products/number-builder')).toBe('page');
   });
-  it('does not advertise a download before its mirror release is published', () => {
-    expect(standaloneRelease(sku)).toBeUndefined();
-    expect(standaloneRelease('YARIZAN-S-BUNDLE-BUILDER')).toBeUndefined();
+  it('links each published installer to its own immutable mirror path', () => {
+    expect(standaloneDownloadUrl(standaloneRelease(sku)!)).toBe(
+      'https://dl.oarnova.games/downloads/windows/products/number-builder/1.0.0/YariZan-NumberBuilder-Setup-v1.0.0.exe',
+    );
+    expect(standaloneDownloadUrl(standaloneRelease('YARIZAN-S-BUNDLE-BUILDER')!)).toBe(
+      'https://dl.oarnova.games/downloads/windows/products/bundle-builder/1.0.0/YariZan-BundleBuilder-Setup-v1.0.0.exe',
+    );
+    expect(standaloneRelease('YARIZAN-S-UNKNOWN')).toBeUndefined();
   });
   it('lists the second game with its own route, price and screenshots', () => {
     const bundle = publicCatalog('storefront').products.find(

@@ -16,7 +16,7 @@ export const standaloneReleases: readonly StandaloneRelease[] = [
     filename: 'YariZan-NumberBuilder-Setup-v1.0.0.exe',
     sizeBytes: 94518290,
     sha256: 'e3c62a57511b0f53aa7f3df0a27683ecd54bd97f3af271db5b627ca19a77fb5f',
-    published: false,
+    published: true,
   },
   {
     sku: 'YARIZAN-S-BUNDLE-BUILDER',
@@ -24,7 +24,7 @@ export const standaloneReleases: readonly StandaloneRelease[] = [
     filename: 'YariZan-BundleBuilder-Setup-v1.0.0.exe',
     sizeBytes: 94541090,
     sha256: '8e4e371ddd2d412db3d7e38c9c337536502a5cbee5bad4c80aef26967ade2af0',
-    published: false,
+    published: true,
   },
 ];
 export function standaloneRelease(sku: string) {
