@@ -3199,7 +3199,7 @@
                   },
                   "skus": {
                     "minItems": 1,
-                    "maxItems": 6,
+                    "maxItems": 32,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -3451,7 +3451,7 @@
                   },
                   "skus": {
                     "minItems": 1,
-                    "maxItems": 6,
+                    "maxItems": 32,
                     "type": "array",
                     "items": {
                       "type": "string",

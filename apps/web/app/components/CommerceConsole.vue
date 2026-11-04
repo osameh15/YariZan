@@ -879,12 +879,14 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                 min="0"
                 label="حداکثر تخفیف درصدی (ریال؛ صفر بدون سقف)"
               /><NumberStepper v-model="form.min_order_irr" min="0" label="حداقل خرید (ریال)" />
-              <fieldset>
+              <fieldset data-testid="coupon-products">
                 <legend>محصولات مجاز</legend>
+                <p class="muted">دنیای پایه‌ها</p>
                 <label v-for="grade in 6" :key="grade" class="checkbox"
                   ><input v-model="form.skus" type="checkbox" :value="'YARIZAN-G' + grade" />پایهٔ
                   {{ persianDigits(grade) }}</label
                 >
+                <p class="muted">محصولات ویژه</p>
                 <label v-for="product in standaloneProducts" :key="product.sku" class="checkbox">
                   <input v-model="form.skus" type="checkbox" :value="product.sku" />{{
                     product.title

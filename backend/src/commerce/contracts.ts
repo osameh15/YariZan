@@ -36,7 +36,7 @@ export const codeInput = mutationSchema
     enabled: z.boolean(),
     max_redemptions: z.number().int().min(1).max(1000000).nullable(),
     max_per_customer: z.number().int().min(1).max(1000).nullable(),
-    skus: z.array(sku).min(1).max(6),
+    skus: z.array(sku).min(1).max(32),
   })
   .refine((v) => v.type !== "percent" || v.value <= 100);
 export const filters = z.object({
