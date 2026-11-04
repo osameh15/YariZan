@@ -104,7 +104,7 @@ describe('Brochure route allowlist', () => {
 
 describe('Reviewed brochure catalog snapshot', () => {
   it('lists six grades with nothing purchasable, activatable or trialable', () => {
-    expect(catalogSnapshot.products).toHaveLength(7);
+    expect(catalogSnapshot.products).toHaveLength(8);
     expect(catalogSnapshot.products.map((p) => p.sku)).toEqual([
       'YARIZAN-G1',
       'YARIZAN-G2',
@@ -112,6 +112,7 @@ describe('Reviewed brochure catalog snapshot', () => {
       'YARIZAN-G4',
       'YARIZAN-G5',
       'YARIZAN-G6',
+      'YARIZAN-S-BUNDLE-BUILDER',
       'YARIZAN-S-NUMBER-BUILDER',
     ]);
     for (const p of catalogSnapshot.products) {

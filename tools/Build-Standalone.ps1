@@ -1,13 +1,19 @@
-param([ValidateSet('number-builder')][string]$Product = 'number-builder')
+param([ValidateSet('number-builder', 'bundle-builder')][string]$Product = 'number-builder')
 $ErrorActionPreference = 'Stop'
 $repoPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $repoPath
 try {
     $version = '1.0.0'
-    $name = 'YariZan-NumberBuilder'
+    # Mirrors src/YariZan.Core/V2/StandaloneCatalog.cs.
+    $catalog = @{
+        'number-builder' = @{ Name = 'YariZan-NumberBuilder'; Sku = 'YARIZAN-S-NUMBER-BUILDER' }
+        'bundle-builder' = @{ Name = 'YariZan-BundleBuilder'; Sku = 'YARIZAN-S-BUNDLE-BUILDER' }
+    }
+    $name = $catalog[$Product].Name
+    $sku = $catalog[$Product].Sku
     $stageRoot = Join-Path $repoPath ('publish/.standalone-build-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $stageRoot | Out-Null
-    $bundle = Join-Path $repoPath 'publish/bundles/number-builder'
+    $bundle = Join-Path $repoPath "publish/bundles/$Product"
     $compiler = @('C:/Program Files/Inno Setup 7/ISCC.exe','C:/Program Files (x86)/Inno Setup 6/ISCC.exe') | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if (-not $compiler) { throw 'Inno Setup 6 or 7 is required.' }
     dotnet run --project src/YariZan.ReleaseCheck -c Release -p:NuGetAudit=false -- --commercial $repoPath
@@ -16,20 +22,20 @@ try {
     if ($LASTEXITCODE) { throw 'Standalone packing failed.' }
     foreach ($rid in @('win-x64','win-x86')) {
         $outputPath = Join-Path $stageRoot "$name-$rid"
-        dotnet publish src/YariZan.App/YariZan.App.csproj -c Release -r $rid --self-contained true -m:1 -p:NuGetAudit=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishReadyToRun=false -p:CommercialRelease=true -p:StandaloneProductSku=YARIZAN-S-NUMBER-BUILDER "-p:GameBundleRoot=$bundle" "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version" '-p:Product=YariZan Number Builder' -p:DebugType=none -p:DebugSymbols=false -o $outputPath
+        dotnet publish src/YariZan.App/YariZan.App.csproj -c Release -r $rid --self-contained true -m:1 -p:NuGetAudit=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishReadyToRun=false -p:CommercialRelease=true "-p:StandaloneProductSku=$sku" "-p:GameBundleRoot=$bundle" "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version" '-p:Product=YariZan Number Builder' -p:DebugType=none -p:DebugSymbols=false -o $outputPath
         if ($LASTEXITCODE) { throw "Publish failed for $rid" }
         Rename-Item -LiteralPath (Join-Path $outputPath 'YariZan.exe') -NewName "$name.exe"
         & "$PSScriptRoot/release/Test-WindowsBinary.ps1" -Path (Join-Path $outputPath "$name.exe") -Version $version -Kind app
         if ($LASTEXITCODE) { throw "Binary check failed for $rid" }
     }
-    & $compiler "/DMyAppVersion=$version" "/DMyPublishDir=$stageRoot/$name-win-x64" "/DMyPublishDirX86=$stageRoot/$name-win-x86" "/DOutputRoot=$stageRoot" 'YariZan-Standalone-Setup.iss'
+    & $compiler "/DFileStem=$name" "/DMyAppVersion=$version" "/DMyPublishDir=$stageRoot/$name-win-x64" "/DMyPublishDirX86=$stageRoot/$name-win-x86" "/DOutputRoot=$stageRoot" 'YariZan-Standalone-Setup.iss'
     if ($LASTEXITCODE) { throw 'Installer compilation failed.' }
     $installer = Join-Path $stageRoot "$name-Setup-v$version.exe"
     & "$PSScriptRoot/release/Test-WindowsBinary.ps1" -Path $installer -Version $version -Kind installer
     if ($LASTEXITCODE) { throw 'Installer binary check failed.' }
     $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer).Hash.ToLowerInvariant()
     [IO.File]::WriteAllText($installer + '.sha256', "$digest  $([IO.Path]::GetFileName($installer))`n", (New-Object Text.UTF8Encoding $false))
-    $backupRoot = Join-Path ([IO.Path]::GetTempPath()) ('YariZan-NumberBuilder-build-' + [Guid]::NewGuid().ToString('N'))
+    $backupRoot = Join-Path ([IO.Path]::GetTempPath()) ("$name-build-" + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $backupRoot | Out-Null
     foreach ($artifact in Get-ChildItem -LiteralPath $stageRoot) {
         $destination = [IO.Path]::GetFullPath((Join-Path $repoPath ('publish/' + $artifact.Name)))

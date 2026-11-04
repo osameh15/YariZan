@@ -1,10 +1,32 @@
+export type StandaloneShot = { src: string; alt: string };
+
+// Reviewed independent games. The backend copy of the titles is backend/src/catalog/standalone-products.ts;
+// the desktop copy is src/YariZan.Core/V2/StandaloneCatalog.cs. Screenshots are 1280×720 WebP.
 export const standaloneProducts = [
   {
     sku: 'YARIZAN-S-NUMBER-BUILDER',
     slug: 'number-builder',
     title: 'عددساز کوچولو',
-    description: 'یک بازی مستقل برای کشف عددها و یادگیری با بازی.',
+    description: 'با دسته‌ها عدد بساز و ارزش رقم‌ها را بشناس؛ یکان، دهگان، صدگان و هزارگان.',
     symbol: '۱۲۳',
+    shots: [
+      { src: '/products/number-builder/screen-1.webp', alt: 'صفحهٔ آغاز بازی عددساز کوچولو' },
+      {
+        src: '/products/number-builder/screen-2.webp',
+        alt: 'ساختن عدد با دسته‌های یکان، دهگان، صدگان و هزارگان',
+      },
+    ] as readonly StandaloneShot[],
+  },
+  {
+    sku: 'YARIZAN-S-BUNDLE-BUILDER',
+    slug: 'bundle-builder',
+    title: 'دسته‌ساز کوچک',
+    description: 'با شکل‌ها دسته بساز، عدد بساز و بازی کن؛ عددهای دو، سه و چهار رقمی.',
+    symbol: '۱۰',
+    shots: [
+      { src: '/products/bundle-builder/screen-1.webp', alt: 'صفحهٔ آغاز بازی دسته‌ساز کوچک' },
+      { src: '/products/bundle-builder/screen-2.webp', alt: 'ساختن عدد با دسته‌ها و مکعب‌ها' },
+    ] as readonly StandaloneShot[],
   },
 ] as const;
 

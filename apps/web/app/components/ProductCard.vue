@@ -12,25 +12,31 @@ defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
     :data-grade="product.grade"
     :class="{ 'coming-soon': product.publication_status === 'coming_soon' }"
   >
-    <div class="product-art" :data-grade="product.grade">
-      <template v-if="standaloneProduct(product.sku)">
-        <span class="grade-number" aria-hidden="true">{{
-          standaloneProduct(product.sku)?.symbol
-        }}</span>
-        <span class="small-label">بازی مستقل · محصولات ویژه</span>
-        <strong>{{ product.title_fa }}</strong>
-        <span class="book-lines" aria-hidden="true"></span>
-        <img src="/brand/symbol.webp" alt="" width="42" height="42" />
-      </template>
-      <template v-else
-        ><span class="grade-number" aria-hidden="true">{{
-          new Intl.NumberFormat('fa-IR').format(product.grade)
-        }}</span
-        ><span class="small-label">دفتر بازی و یادگیری</span
-        ><strong>پایهٔ {{ gradeNames[product.grade - 1] }}</strong
-        ><span class="book-lines" aria-hidden="true"></span
-        ><img src="/brand/symbol.webp" alt="" width="42" height="42"
-      /></template>
+    <NuxtLink
+      v-if="standaloneProduct(product.sku)"
+      class="product-shot"
+      :to="productPath(product)"
+      tabindex="-1"
+      aria-hidden="true"
+    >
+      <img
+        :src="standaloneProduct(product.sku)!.shots[0]!.src"
+        alt=""
+        width="1280"
+        height="720"
+        loading="lazy"
+        decoding="async"
+      />
+      <span class="shot-badge">بازی مستقل</span>
+    </NuxtLink>
+    <div v-else class="product-art" :data-grade="product.grade">
+      <span class="grade-number" aria-hidden="true">{{
+        new Intl.NumberFormat('fa-IR').format(product.grade)
+      }}</span>
+      <span class="small-label">دفتر بازی و یادگیری</span>
+      <strong>پایهٔ {{ gradeNames[product.grade - 1] }}</strong>
+      <span class="book-lines" aria-hidden="true"></span>
+      <img src="/brand/symbol.webp" alt="" width="42" height="42" />
     </div>
     <div class="product-info">
       <span

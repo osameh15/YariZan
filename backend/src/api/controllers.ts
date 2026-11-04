@@ -111,7 +111,7 @@ export class PublicController {
         `SELECT p.*,price.amount_irr price_irr,promo.id promo_id,promo.promo_price_irr,promo.discount_percent,promo.starts_at promo_starts_at,promo.ends_at promo_ends_at
         FROM products p JOIN product_prices price ON price.sku=p.sku AND price.ended_at IS NULL
         LEFT JOIN LATERAL (SELECT * FROM product_promotions q WHERE p.publication_status='published' AND ${activePromotionSql.replace(/q\.sku=r\.sku/g, "q.sku=price.sku").replace(/r\.amount_irr/g, "price.amount_irr")} ORDER BY q.starts_at DESC LIMIT 1) promo ON true
-        WHERE publication_status<>'hidden' ORDER BY (grade=0),grade`,
+        WHERE publication_status<>'hidden' ORDER BY (grade=0),grade,p.sku`,
       )
     ).rows.map((row) => {
       const {

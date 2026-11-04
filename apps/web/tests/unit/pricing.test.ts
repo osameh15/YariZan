@@ -32,6 +32,7 @@ describe('public storefront catalog', () => {
     expect(storefront.products.map((p) => p.price_irr)).toEqual([
       ...Array(6).fill(14990000),
       1990000,
+      1990000,
     ]);
     expect(brochure.products.every((p) => p.price_irr === null)).toBe(true);
   });

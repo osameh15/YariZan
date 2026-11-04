@@ -14,6 +14,7 @@ export const sitemapPaths = [
   '/products',
   '/special-products',
   '/special-products/number-builder',
+  '/special-products/bundle-builder',
   ...[1, 2, 3, 4, 5, 6].map((g) => `/products/grade-${g}`),
   '/support',
 ];

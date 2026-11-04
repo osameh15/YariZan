@@ -14,6 +14,7 @@ export const approvedPricing = {
     { sku: 'YARIZAN-G4', grade: 4, price_irr: 14990000, launch: 'coming-soon' },
     { sku: 'YARIZAN-G5', grade: 5, price_irr: 14990000, launch: 'coming-soon' },
     { sku: 'YARIZAN-G6', grade: 6, price_irr: 14990000, launch: 'coming-soon' },
+    { sku: 'YARIZAN-S-BUNDLE-BUILDER', grade: 0, price_irr: 1990000, launch: 'launch-candidate' },
     { sku: 'YARIZAN-S-NUMBER-BUILDER', grade: 0, price_irr: 1990000, launch: 'launch-candidate' },
   ],
 } as const;

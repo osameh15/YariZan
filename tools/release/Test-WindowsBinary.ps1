@@ -30,7 +30,7 @@ $product = ("$($info.ProductVersion)".Trim() -split '\+')[0]
 if ($Candidate) { if ($product -ne "$Version$suffix") { $problems += "ProductVersion '$($info.ProductVersion)' is not $Version$suffix" } }
 elseif ($product -notin @($Version, "$Version.0")) { $problems += "ProductVersion '$($info.ProductVersion)' is not $Version" }
 if ($Kind -eq 'installer') {
-  if ($file.Name -notmatch "^YariZan-(?:G[1-6]|NumberBuilder)-Setup-v$([regex]::Escape($Version + $suffix))\.exe$") { $problems += "unexpected installer name $($file.Name)" }
+  if ($file.Name -notmatch "^YariZan-(?:G[1-6]|NumberBuilder|BundleBuilder)-Setup-v$([regex]::Escape($Version + $suffix))\.exe$") { $problems += "unexpected installer name $($file.Name)" }
 } else {
   # .NET string literals are UTF-16 in the binary; check both byte alignments.
   $bytes = [IO.File]::ReadAllBytes($file.FullName)

@@ -1,4 +1,5 @@
 import { approvedPricing } from "../catalog/approved-pricing";
+import { productTitle } from "../catalog/standalone-products";
 import { randomUUID } from "node:crypto";
 import { PoolClient } from "pg";
 import { Database } from "./database";
@@ -64,7 +65,6 @@ export async function seedAdminRoles(c: PoolClient) {
 }
 export async function seed(db: Database) {
   await db.transaction(async (c) => {
-    const names = ["اول", "دوم", "سوم", "چهارم", "پنجم", "ششم"];
     for (const approved of approvedPricing.products) {
       const { grade, sku } = approved;
       await c.query(
@@ -73,9 +73,7 @@ export async function seed(db: Database) {
         [
           sku,
           grade,
-          grade === 0
-            ? "عددساز کوچولو"
-            : `یاریزان پایه ${names[grade - 1]} دبستان`,
+          productTitle(sku, grade),
           approved.launch === "launch-candidate" ? "published" : "coming_soon",
           approved.launch === "launch-candidate",
         ],

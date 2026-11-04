@@ -82,6 +82,7 @@ test("Approved pricing contract: six SKUs, integer IRR, G1 launch candidate only
         14990000,
         g === 1 ? "launch-candidate" : "coming-soon",
       ]),
+      ["YARIZAN-S-BUNDLE-BUILDER", 0, 1990000, "launch-candidate"],
       ["YARIZAN-S-NUMBER-BUILDER", 0, 1990000, "launch-candidate"],
     ],
   );
@@ -92,7 +93,7 @@ test("Approved pricing contract: six SKUs, integer IRR, G1 launch candidate only
 });
 
 test("Fresh database: catalog bootstrap has no prices; pricing needs the exact revision", async () => {
-  assert.deepEqual(await productionBootstrap(fresh), { products_created: 7 });
+  assert.deepEqual(await productionBootstrap(fresh), { products_created: 8 });
   assert.equal(
     (await fresh.query("SELECT count(*)::int n FROM product_prices")).rows[0].n,
     0,
@@ -149,7 +150,7 @@ test("Fresh database: approved prices are recorded exactly, audited, and flags s
       "SELECT actor_type,actor_id,entity_id,metadata_redacted FROM audit_logs WHERE action='price.initialized' ORDER BY entity_id",
     )
   ).rows;
-  assert.equal(audits.length, 7);
+  assert.equal(audits.length, 8);
   assert.ok(
     audits.every(
       (a) =>
@@ -169,7 +170,7 @@ test("Duplicate pricing bootstrap changes nothing", async () => {
   ).rows;
   const result = await initializePricing(fresh, revision);
   assert.deepEqual(result.initialized, []);
-  assert.equal(result.unchanged.length, 7);
+  assert.equal(result.unchanged.length, 8);
   assert.deepEqual(
     (await fresh.query("SELECT * FROM product_prices ORDER BY sku")).rows,
     before,
@@ -180,7 +181,7 @@ test("Duplicate pricing bootstrap changes nothing", async () => {
         "SELECT count(*)::int n FROM audit_logs WHERE action='price.initialized'",
       )
     ).rows[0].n,
-    7,
+    8,
   );
 });
 
@@ -300,7 +301,7 @@ test("Existing database upgraded from 009 keeps legacy prices as unattributed", 
   await productionBootstrap(legacy);
   const result = await initializePricing(legacy, revision);
   assert.deepEqual(result.differing, ["YARIZAN-G1"]);
-  assert.equal(result.initialized.length, 6);
+  assert.equal(result.initialized.length, 7);
 });
 
 test("Approved catalog publication: G1 published, others coming soon, flags closed, never overwrites", async () => {
@@ -326,7 +327,7 @@ test("Approved catalog publication: G1 published, others coming soon, flags clos
   );
   const rows = (
     await pool.query(
-      "SELECT sku,publication_status,sale_enabled,trial_enabled,activation_enabled FROM products ORDER BY (grade=0),grade",
+      "SELECT sku,publication_status,sale_enabled,trial_enabled,activation_enabled FROM products ORDER BY (grade=0),grade,sku",
     )
   ).rows;
   assert.deepEqual(
@@ -363,7 +364,7 @@ test("Approved catalog publication: G1 published, others coming soon, flags clos
   const again = await publishApprovedCatalog(pool, revision);
   assert.deepEqual(again.published, []);
   assert.deepEqual(again.coming_soon, []);
-  assert.equal(again.unchanged.length, 7);
+  assert.equal(again.unchanged.length, 8);
   assert.equal(
     (
       await pool.query(
