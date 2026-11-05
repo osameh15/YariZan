@@ -2427,3 +2427,19 @@ textarea::placeholder {
     grid-template-columns: 1fr;
   }
 }
+
+/* Compact device ID chip inside device cards, checkout and the current-device line. */
+:is(.device-list, .checkout-device, .current-device, .device-choice) .device-username,
+.device-choice small[dir='ltr'] {
+  display: inline-block;
+  justify-self: start;
+  width: auto;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  font-family: monospace;
+  font-size: 12px;
+  text-align: start;
+  color: var(--muted);
+}
