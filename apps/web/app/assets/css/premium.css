@@ -20,6 +20,7 @@
   --accent: var(--teal-700);
   --radius-control: 12px;
   --radius-card: 20px;
+  --control-line-height: 24px;
   --shadow-card: 0 8px 28px #332b2608;
   --space-section: clamp(36px, 5vw, 64px);
   color: var(--ink);
@@ -72,7 +73,8 @@ p {
 .button {
   border-radius: var(--radius-control);
   min-height: 48px;
-  padding: 12px 22px;
+  padding: 11px 22px;
+  line-height: var(--control-line-height);
   transition:
     background 0.16s,
     box-shadow 0.16s;
@@ -102,6 +104,11 @@ textarea {
   background: var(--surface);
   border-color: #b7ab99;
   border-radius: var(--radius-control);
+}
+/* Single-line fields and adjacent actions share a height regardless of label typography. */
+input:not([type='checkbox']):not([type='radio']),
+select {
+  line-height: var(--control-line-height);
 }
 input:hover,
 select:hover,
@@ -1256,11 +1263,12 @@ td .button {
   min-height: 48px;
   border: 1px solid #b7ab99;
   border-radius: var(--radius-control);
-  padding: 10px 14px;
+  padding: 11px 14px;
   background: var(--surface);
   color: var(--ink);
   text-align: start;
   font-size: 14px;
+  line-height: var(--control-line-height);
 }
 .select-trigger > span:first-child,
 .date-trigger > span:first-child {
@@ -1426,9 +1434,6 @@ td .button {
   flex: 1;
   margin: 0;
   min-width: 160px;
-}
-.data-toolbar:has(.persian-calendar) {
-  align-items: start;
 }
 .data-toolbar .date-field:has(.persian-calendar) {
   flex-basis: 320px;
@@ -1953,9 +1958,22 @@ textarea::placeholder {
 .data-table-size {
   min-width: 150px;
 }
+.data-table-size .custom-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
 .data-table-size label {
   margin: 0;
   font-size: 12px;
+  white-space: nowrap;
+}
+.data-table-size .select-trigger {
+  width: auto;
+  min-height: 40px;
+  padding: 6px 14px;
+  line-height: var(--control-line-height);
 }
 .data-table-pager {
   display: flex;
@@ -2017,6 +2035,7 @@ textarea::placeholder {
 }
 .toolbar-row .search-input {
   flex: 1 1 260px;
+  min-width: 0;
 }
 .toolbar-row .button {
   margin: 0;
@@ -2032,7 +2051,8 @@ textarea::placeholder {
   border: 0;
   background: transparent;
   padding: 8px 14px;
-  min-height: 44px;
+  min-height: 46px;
+  line-height: var(--control-line-height);
   cursor: pointer;
   color: var(--muted);
 }
@@ -2285,6 +2305,7 @@ textarea::placeholder {
   display: grid;
   gap: 6px;
   flex: 1 1 260px;
+  margin: 0;
   font-weight: 700;
   font-size: 13px;
 }
