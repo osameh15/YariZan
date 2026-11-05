@@ -45,7 +45,10 @@ import {
   startSchema,
   redeemSchema,
   mutationSchema,
+  deviceLabel,
+  deviceUsername,
 } from "../common/schemas";
+import { DeviceLicenses } from "../licenses/device-licenses";
 import { requireCondition } from "../common/errors";
 import { Capabilities } from "../security/capabilities";
 
@@ -301,6 +304,7 @@ export class IdentityController {
 @Capabilities("CUSTOMER_AUTH")
 export class AccountsController {
   constructor(
+    private deviceLicenses: DeviceLicenses,
     private accounts: Accounts,
     private flows: AuthFlows,
     private security: Security,
@@ -389,7 +393,7 @@ export class AccountsController {
     const c = await this.security.customer(req);
     return (
       await this.db.query(
-        "SELECT id,username,device_id,generation FROM customers WHERE id=$1",
+        "SELECT id,username,device_label label,device_id,generation FROM customers WHERE id=$1",
         [c.id],
       )
     ).rows[0];
@@ -411,6 +415,44 @@ export class AccountsController {
         [c.id],
       )
     ).rows;
+  }
+  /** Devices of this verified mobile, with the names customers gave them. */
+  @Get("account/device-list") async deviceList(@Req() req: Request) {
+    const c = await this.security.customer(req);
+    return (await this.deviceLicenses.siblings(c.id)).map((d) => ({
+      username: d.username,
+      label: d.label,
+      current: d.current,
+      created_at: d.created_at,
+    }));
+  }
+  @Post("account/device-label") async deviceLabel(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const c = await this.security.customer(req);
+    const b = z.strictObject({ label: deviceLabel }).parse(body);
+    const label = b.label.trim();
+    return this.deviceLicenses.setLabel(c.id, label || null, actor(req));
+  }
+  @Get("account/movable-licenses") async movableLicenses(@Req() req: Request) {
+    const c = await this.security.customer(req);
+    return this.deviceLicenses.movable(c.id);
+  }
+  @Post("account/licenses/move") async moveLicense(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const c = await this.security.customer(req);
+    const b = z
+      .strictObject({ entitlement_id: uuid, target_username: deviceUsername })
+      .parse(body);
+    return this.deviceLicenses.move(
+      b.entitlement_id,
+      b.target_username,
+      userActor(req, c.id),
+      { customerId: c.id },
+    );
   }
   @Get("account/licenses") async licenses(@Req() req: Request) {
     const c = await this.security.customer(req);
@@ -699,6 +741,7 @@ export class DesktopController {
 @Capabilities("ADMIN_AUTH")
 export class AdminController {
   constructor(
+    private deviceLicenses: DeviceLicenses,
     private admin: Admin,
     private notes: Notes,
     private otp: Otp,
@@ -811,7 +854,7 @@ export class AdminController {
     return this.list(
       req,
       "licenses.read",
-      `SELECT l.id,l.device_id,l.issued_at,e.customer_id,e.generation,l.sku,l.state,l.license_revision,l.decision_version,e.state entitlement_state,d.username,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM licenses l JOIN entitlements e ON e.id=l.entitlement_id JOIN devices d ON d.id=l.device_id JOIN customers c ON c.id=e.customer_id LEFT JOIN entity_notes n ON n.entity_type='licenses' AND n.entity_id=l.id::text WHERE d.username ILIKE $3 OR l.id::text ILIKE $3 OR l.device_id::text ILIKE $3 OR l.sku ILIKE $3 OR e.customer_id::text ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 ORDER BY l.issued_at DESC,l.id LIMIT $1 OFFSET $2`,
+      `SELECT l.id,e.id entitlement_id,l.device_id,l.issued_at,e.customer_id,e.generation,l.sku,l.state,l.license_revision,l.decision_version,e.state entitlement_state,d.username,COALESCE(n.note,'') note,COALESCE(n.revision,0) note_revision FROM licenses l JOIN entitlements e ON e.id=l.entitlement_id JOIN devices d ON d.id=l.device_id JOIN customers c ON c.id=e.customer_id LEFT JOIN entity_notes n ON n.entity_type='licenses' AND n.entity_id=l.id::text WHERE d.username ILIKE $3 OR l.id::text ILIKE $3 OR l.device_id::text ILIKE $3 OR l.sku ILIKE $3 OR e.customer_id::text ILIKE $3 OR c.mobile_lookup=$4 OR n.note ILIKE $3 ORDER BY l.issued_at DESC,l.id LIMIT $1 OFFSET $2`,
     );
   }
   @Get("trials") trials(@Req() req: Request) {
@@ -1000,6 +1043,26 @@ export class AdminController {
       b,
       { id: uuid.parse(id) },
       (c, a) => this.admin.revoke(c, id, b, a),
+    );
+  }
+  @Capabilities("ADMIN_AUTH", "TRIALS_AND_LICENSES")
+  @Post("entitlements/:id/move")
+  moveEntitlement(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const { target_username, ...mutation } = mutationSchema
+      .extend({ target_username: deviceUsername })
+      .parse(body);
+    const target = { id: uuid.parse(id), target_username };
+    return this.admin.operation(
+      req,
+      "licenses.reissue",
+      mutation,
+      target,
+      (c, a) =>
+        this.deviceLicenses.move(target.id, target_username, a, undefined, c),
     );
   }
   @Capabilities("ADMIN_AUTH", "TRIALS_AND_LICENSES")

@@ -1731,7 +1731,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 15 });
+    assert.deepEqual(await verifyMigrations(c), { total: 16 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,
@@ -7053,5 +7053,165 @@ test("Standalone game: two independent trials, exact price, code and purchase li
       )
     ).rows[0].n,
     1,
+  );
+});
+
+test("Devices of one verified mobile: names, and a purchase moves once to another device", async () => {
+  const a = await buyer(),
+    b = await buyer(),
+    stranger = await buyer();
+  // a and b share one verified mobile; stranger has its own.
+  await db.query(
+    "UPDATE customers SET mobile_lookup=(SELECT mobile_lookup FROM customers WHERE id=$2),mobile_ciphertext=(SELECT mobile_ciphertext FROM customers WHERE id=$2),mobile_last4=(SELECT mobile_last4 FROM customers WHERE id=$2),mobile_verified_at=now() WHERE id=$1",
+    [b.customer_id, a.customer_id],
+  );
+  await db.query(
+    "UPDATE customers SET mobile_verified_at=now() WHERE id=$1 AND mobile_verified_at IS NULL",
+    [a.customer_id],
+  );
+  const named = await ok<{ label: string }>(
+    "/account/device-label",
+    { label: "  رایانهٔ خانه  " },
+    a.browser,
+  );
+  assert.equal(named.body.label, "رایانهٔ خانه");
+  await denied(
+    "/account/device-label",
+    { label: "x".repeat(41) },
+    "INVALID_REQUEST",
+    a.browser,
+  );
+  const list = (
+    await ok<{ username: string; label: string | null; current: boolean }[]>(
+      "/account/device-list",
+      undefined,
+      a.browser,
+    )
+  ).body;
+  assert.deepEqual(
+    list.map((d) => [d.username, d.label, d.current]).sort(),
+    [
+      [a.username, "رایانهٔ خانه", true],
+      [b.username, null, false],
+    ].sort(),
+  );
+  assert.equal(
+    (await ok<unknown[]>("/account/device-list", undefined, stranger.browser))
+      .body.length,
+    1,
+  );
+  // A paid Grade 1 purchase on device a.
+  const o = await saleOrder(a);
+  const p = await salePayment(a, o);
+  await ok(`/orders/${o.id}/simulate`, { outcome: "SUCCESS" }, a.browser);
+  await db.query("UPDATE commerce_jobs SET due_at=now() WHERE target_id=$1", [
+    p.attempt_id,
+  ]);
+  await app.get(Payments).work(20);
+  await recoverCommerce();
+  assert.equal(
+    (await ok<SaleOrder>(`/orders/${o.id}`, undefined, a.browser)).body.state,
+    "FULFILLED",
+  );
+  const movable = (
+    await ok<{ id: string; sku: string; customer_can_move: boolean }[]>(
+      "/account/movable-licenses",
+      undefined,
+      a.browser,
+    )
+  ).body;
+  assert.deepEqual(
+    movable.map((m) => [m.sku, m.customer_can_move]),
+    [["YARIZAN-G1", true]],
+  );
+  const source = movable[0]!.id;
+  // Only another device of the same verified mobile can receive it.
+  await denied(
+    "/account/licenses/move",
+    { entitlement_id: source, target_username: stranger.username },
+    "TARGET_DEVICE_INVALID",
+    a.browser,
+  );
+  await denied(
+    "/account/licenses/move",
+    { entitlement_id: source, target_username: a.username },
+    "TARGET_DEVICE_INVALID",
+    a.browser,
+  );
+  await denied(
+    "/account/licenses/move",
+    { entitlement_id: source, target_username: b.username },
+    "ENTITLEMENT_NOT_FOUND",
+    b.browser,
+  );
+  const moved = await ok<{ entitlement_id: string; target_username: string }>(
+    "/account/licenses/move",
+    { entitlement_id: source, target_username: b.username },
+    a.browser,
+  );
+  assert.equal(moved.body.target_username, b.username);
+  assert.deepEqual(
+    (
+      await db.query(
+        "SELECT e.state,l.state license_state FROM entitlements e LEFT JOIN licenses l ON l.entitlement_id=e.id WHERE e.id=$1",
+        [source],
+      )
+    ).rows[0],
+    { state: "REVOKED", license_state: "REVOKED" },
+  );
+  // The target device picks the license up through the normal purchased-license path.
+  const entitlements = (
+    await ok<{ sku: string; state: string }[]>(
+      "/desktop/entitlements",
+      undefined,
+      b.credential,
+    )
+  ).body;
+  assert.ok(
+    entitlements.some((e) => e.sku === "YARIZAN-G1" && e.state === "ACTIVE"),
+  );
+  await ok("/desktop/licenses/pickup", { sku: "YARIZAN-G1" }, b.credential);
+  await denied(
+    "/desktop/licenses/pickup",
+    { sku: "YARIZAN-G1" },
+    "ENTITLEMENT_REQUIRED",
+    a.credential,
+  );
+  // The customer moves each purchase only once; a moved license cannot be moved again by them.
+  const onB = (
+    await ok<{ id: string; customer_can_move: boolean }[]>(
+      "/account/movable-licenses",
+      undefined,
+      b.browser,
+    )
+  ).body;
+  assert.equal(onB[0]!.customer_can_move, false);
+  await denied(
+    "/account/licenses/move",
+    { entitlement_id: onB[0]!.id, target_username: a.username },
+    "MOVE_NOT_ALLOWED",
+    b.browser,
+  );
+  // An Admin can move it back for support; device a can then buy or receive it again.
+  await ok(
+    `/admin/entitlements/${onB[0]!.id}/move`,
+    { ...mutation(), target_username: a.username },
+    admin,
+  );
+  await ok("/desktop/licenses/pickup", { sku: "YARIZAN-G1" }, a.credential);
+  await denied(
+    "/desktop/licenses/pickup",
+    { sku: "YARIZAN-G1" },
+    "ENTITLEMENT_REQUIRED",
+    b.credential,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM audit_logs WHERE action='entitlement.moved' AND entity_id IN ($1,$2)",
+        [source, onB[0]!.id],
+      )
+    ).rows[0].n,
+    2,
   );
 });

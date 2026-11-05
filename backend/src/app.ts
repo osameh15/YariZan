@@ -28,6 +28,7 @@ import { AuthFlows } from "./accounts/auth-flows";
 import { Accounts } from "./accounts/accounts";
 import { Trials } from "./trials/trials";
 import { Licenses } from "./licenses/licenses";
+import { DeviceLicenses } from "./licenses/device-licenses";
 import { Activation } from "./activation/activation";
 import { Notes } from "./admin/notes";
 import { Admin } from "./admin/admin";
@@ -80,13 +81,17 @@ class FoundationModule {}
 @Module({ providers: [Identity], controllers: [IdentityController] })
 class IdentityModule {}
 @Module({
+  providers: [Licenses, DeviceLicenses],
+  exports: [Licenses, DeviceLicenses],
+})
+class LicensesModule {}
+@Module({
+  imports: [LicensesModule],
   providers: [Accounts],
   exports: [Accounts],
   controllers: [AccountsController],
 })
 class AccountsModule {}
-@Module({ providers: [Licenses], exports: [Licenses] })
-class LicensesModule {}
 @Module({
   imports: [LicensesModule],
   providers: [Activation],

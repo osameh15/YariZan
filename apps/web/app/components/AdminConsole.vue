@@ -227,6 +227,7 @@ const dialog = ref(false),
   reason = ref(''),
   evidence = ref(''),
   targetSku = ref('YARIZAN-G1'),
+  moveTarget = ref(''),
   secret = ref(''),
   feedback = ref(''),
   saving = ref(false),
@@ -251,6 +252,7 @@ const operationTitles: Record<string, string> = {
   cancel: 'لغو کد فعال‌سازی',
   revoke: 'لغو اعتبار مجوز',
   reissue: 'بازیابی مجوز خرید',
+  move: 'انتقال مجوز به دستگاه دیگر همین موبایل',
   remove: 'حذف دستگاه',
   restore: 'بازگرداندن دستگاه بایگانی‌شده',
 };
@@ -424,6 +426,13 @@ async function commit() {
         result = (await api.post('/api/v2/admin/activation-codes/{id}/cancel', body, {
           id: String(row.id),
         })) as Row;
+        break;
+      case 'move':
+        result = (await api.post(
+          '/api/v2/admin/entitlements/{id}/move',
+          { ...body, target_username: moveTarget.value.trim().toUpperCase() },
+          { id: String(row.entitlement_id) },
+        )) as Row;
         break;
       case 'revoke':
       case 'reissue':
@@ -937,7 +946,17 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                 class="button secondary"
                 @click="act('reissue', detail)"
               >
-                بازیابی مجوز خرید
+                بازیابی مجوز خرید</button
+              ><button
+                v-if="
+                  allowed('licenses.reissue') &&
+                  detail.state === 'ACTIVE' &&
+                  detail.entitlement_state === 'ACTIVE'
+                "
+                class="button secondary"
+                @click="act('move', detail)"
+              >
+                انتقال به دستگاه دیگر
               </button></template
             ><button
               v-if="section === 'trials' && allowed('trials.reset')"
@@ -1015,6 +1034,20 @@ const navigationGroups: { title: string; ids: string[] }[] = [
           یا مجوز) فقط بایگانی و از فهرست اصلی پنهان می‌شود؛ سوابق مالی و تاریخچه هرگز پاک نمی‌شوند.
           دستگاه دارای پروفایل یا مجوز فعال حذف نمی‌شود.
         </p>
+        <template v-else-if="kind === 'move'"
+          ><p class="notice">
+            مجوز روی این دستگاه لغو می‌شود و دستگاه مقصد آن را در بررسی بعدی برنامه دریافت می‌کند.
+            مقصد باید با همان شمارهٔ موبایل تأییدشده به حساب متصل باشد و این محصول را نداشته باشد.
+          </p>
+          <label
+            >شناسهٔ دستگاه مقصد<input
+              v-model="moveTarget"
+              dir="ltr"
+              required
+              pattern="YZ-([A-Fa-f0-9]{4}-){5}[A-Fa-f0-9]{4}"
+              placeholder="YZ-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+          /></label>
+        </template>
         <p v-else-if="kind === 'reissue'" class="notice">
           فقط بازیابی مجوز همان شناسه با نسخهٔ تصمیم تازه ممکن است. جایگزینی میان شناسه‌های متفاوت
           پشتیبانی نمی‌شود.

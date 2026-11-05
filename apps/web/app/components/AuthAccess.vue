@@ -15,7 +15,7 @@ const username = ref(''),
   done = ref(false),
   cooldown = ref(0),
   // A number that owns several devices: the customer picks one after the code is checked.
-  choices = ref<{ username: string; created_at: string }[]>([]),
+  choices = ref<{ username: string; label: string | null; created_at: string }[]>([]),
   chosen = ref(''),
   checkedCode = ref(''),
   api = useApi(props.mode === 'admin'),
@@ -206,8 +206,8 @@ function restart() {
         <legend>این شماره به چند دستگاه متصل است. حساب کدام دستگاه را باز کنیم؟</legend>
         <label v-for="c in choices" :key="c.username" class="device-choice"
           ><input v-model="chosen" type="radio" name="device" :value="c.username" /><span
-            dir="ltr"
-            >{{ c.username }}</span
+            ><strong>{{ c.label || 'دستگاه بدون نام' }}</strong
+            ><small dir="ltr">{{ c.username }}</small></span
           ><small>اتصال: {{ new Date(c.created_at).toLocaleDateString('fa-IR') }}</small></label
         >
       </fieldset>
