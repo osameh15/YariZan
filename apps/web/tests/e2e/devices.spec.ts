@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { customer, issue, password, sql } from '../../tools/test-fixtures.mjs';
 
 const images = path.resolve('.local/screenshots/devices');
@@ -19,9 +19,12 @@ test('customers name their devices, see every device of their mobile and the che
   const a = await customer(),
     b = await customer();
   // Two devices registered with the same verified mobile number.
-  const lookup = 'synthetic-shared-mobile-' + randomUUID();
+  // A complete synthetic mobile: lookup is a 64-hex digest, ciphertext and last four digits are set.
+  const lookup = createHash('sha256')
+    .update('synthetic-shared-mobile-' + randomUUID())
+    .digest('hex');
   await sql(
-    "UPDATE customers SET mobile_lookup=$1,mobile_last4='0000',mobile_verified_at=now() WHERE id=ANY($2::uuid[])",
+    "UPDATE customers SET mobile_lookup=$1,mobile_ciphertext='synthetic-ciphertext',mobile_last4='0000',mobile_verified_at=now() WHERE id=ANY($2::uuid[])",
     [lookup, [a.customer_id, b.customer_id]],
   );
   await issue(a);
