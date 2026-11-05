@@ -2203,27 +2203,13 @@ textarea::placeholder {
   margin: 0 0 16px;
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 .device-choices legend {
   margin-bottom: 8px;
 }
-.device-choice {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
-  cursor: pointer;
-}
-.device-choice:has(input:checked) {
-  border-color: var(--accent);
-  background: var(--teal-50);
-}
-.device-choice small {
-  color: var(--muted);
+.device-choices > .field-error:empty {
+  display: none;
 }
 
 /* Spacing for status badges and dialog content (Admin and account). Low specificity, so a
@@ -2377,15 +2363,18 @@ textarea::placeholder {
   margin: 0;
   padding: 0;
   border: 0;
+  min-width: 0;
 }
 .device-picker legend {
   font-weight: 700;
   margin-bottom: 8px;
 }
 .device-choice {
-  display: flex;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  gap: 4px 12px;
+  margin: 0;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -2399,8 +2388,11 @@ textarea::placeholder {
 .device-choice > span {
   display: grid;
   gap: 2px;
-  flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+.device-choice > small {
+  grid-column: 2;
 }
 .device-choice small {
   color: var(--muted);
@@ -2455,6 +2447,8 @@ textarea::placeholder {
   display: inline-block;
   justify-self: start;
   width: auto;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 2px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
