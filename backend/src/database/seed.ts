@@ -6,6 +6,7 @@ import { Database } from "./database";
 import { ConfigurationError } from "../config";
 
 export const permissions = [
+  "blog.manage",
   "commerce.read",
   "commerce.manage",
   "finance.read",

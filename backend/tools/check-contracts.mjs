@@ -47,7 +47,10 @@ const powProof = z
     counter: z.string().regex(/^[0-9]{1,15}$/),
   })
   .optional();
+const blog = await import("../dist/src/blog/blog.js");
 const requests = {
+  "/api/v2/admin/blog": blog.blogInput,
+  "/api/v2/admin/blog/{id}": blog.blogInput,
   "/api/v2/account/device-label": z.strictObject({
     label: schemas.deviceLabel,
   }),
@@ -223,6 +226,10 @@ const promotionView = z.strictObject({
   updated_at: z.iso.datetime(),
 });
 const responses = {
+  "/api/v2/blog": blog.blogPageResponse,
+  "/api/v2/blog/{slug}": blog.blogPostResponse,
+  "/api/v2/admin/blog": blog.blogPageResponse,
+  "/api/v2/admin/blog/{id}": blog.blogPostResponse,
   "/api/v2/admin/products/{sku}/promotions": z.union([
     promotionView,
     z.strictObject({
@@ -538,14 +545,16 @@ for (const r of routes.sort(
   const body =
     requests[r.path] ?? (mutation ? schemas.mutationSchema : undefined);
   const successful =
-    r.path === "/api/v2/orders" && r.method === "get"
-      ? json(commerce.commercePage)
-      : responses[r.path]
-        ? json(responses[r.path])
-        : {
-            description: "See the Phase 2 API guide for this operation",
-            type: "object",
-          };
+    r.path === "/api/v2/admin/blog" && r.method === "post"
+      ? json(blog.blogPostResponse)
+      : r.path === "/api/v2/orders" && r.method === "get"
+        ? json(commerce.commercePage)
+        : responses[r.path]
+          ? json(responses[r.path])
+          : {
+              description: "See the Phase 2 API guide for this operation",
+              type: "object",
+            };
   const parameters = [...r.path.matchAll(/\{([^}]+)\}/g)].map(([, name]) => ({
     name,
     in: "path",

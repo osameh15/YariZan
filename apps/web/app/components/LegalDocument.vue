@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { LEGAL_APPROVAL, legalStatusText } from '#shared/legal';
-const props = defineProps<{ title: string; intro: string; index?: boolean }>();
+defineProps<{ title: string; intro: string; index?: boolean }>();
 const router = useRouter();
 // Back goes to the previous page of this site only. Vue Router records the previous in-app path in
 // history.state.back; a direct visit (or one from another site) has none, so the link falls back to
@@ -14,7 +14,8 @@ function back(event: MouseEvent) {
 }
 const status = legalStatusText();
 const approved = LEGAL_APPROVAL.approved;
-useHead({ meta: props.index ? [] : [{ name: 'robots', content: approved ? 'index' : 'noindex' }] });
+// Approved legal copy inherits the global indexing policy, including noindex previews.
+useHead({ meta: approved ? [] : [{ name: 'robots', content: 'noindex, nofollow' }] });
 </script>
 <template>
   <section class="wrap section legal-document">

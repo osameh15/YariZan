@@ -1,3 +1,4 @@
+import { Blog, BlogController } from "./blog/blog";
 import "reflect-metadata";
 import { Global, Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
@@ -132,8 +133,8 @@ class CommerceModule {}
     AdminModule,
     CommerceModule,
   ],
-  controllers: [HealthController, PublicController],
+  controllers: [HealthController, PublicController, BlogController],
   // Every route declares its capabilities; undeclared or disabled ones are refused.
-  providers: [{ provide: APP_GUARD, useClass: CapabilityGuard }],
+  providers: [Blog, { provide: APP_GUARD, useClass: CapabilityGuard }],
 })
 export class AppModule {}

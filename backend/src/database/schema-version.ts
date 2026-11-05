@@ -1,4 +1,4 @@
-// Number of reviewed schema migrations in this release (001 … 016). /ready, the release
+// Number of reviewed schema migrations in this release (001 … 017). /ready, the release
 // manifest and the restore drill compare schema_migrations against this exact value.
-export const SCHEMA_MIGRATION_COUNT = 16;
+export const SCHEMA_MIGRATION_COUNT = 17;
 export const migrationFilePattern = /^\d{3}_[a-z_]+\.sql$/;

@@ -349,6 +349,85 @@ after(async () => {
   await db?.onApplicationShutdown();
 });
 
+test("Blog drafts need authorized publication, preserve URLs, and reject stale edits", async () => {
+  const all = (
+    await ok<{
+      posts: { id: string; slug: string; state: string; revision: string }[];
+    }>("/admin/blog", undefined, admin)
+  ).body.posts;
+  assert.equal(all.filter((p) => p.state === "DRAFT").length, 4);
+  assert.deepEqual((await ok<{ posts: unknown[] }>("/blog")).body.posts, []);
+  await denied("/blog/" + all[0].slug, undefined, "NOT_FOUND");
+  await denied("/admin/blog", undefined, "UNAUTHENTICATED");
+  const support = await adminLogin("support");
+  await denied("/admin/blog", undefined, "FORBIDDEN", support);
+  const post = all[0];
+  const stored = (
+    await db.query("SELECT * FROM blog_posts WHERE id=$1", [post.id])
+  ).rows[0];
+  const input = {
+    slug: stored.slug,
+    title: stored.title,
+    description: stored.description,
+    category: stored.category,
+    body: stored.body,
+    seo_title: "",
+    seo_description: "",
+    state: "PUBLISHED",
+    expected_revision: Number(post.revision),
+  };
+  await denied("/admin/blog/" + post.id, input, "FORBIDDEN", support, "PATCH");
+  const published = (
+    await ok<{ revision: string }>(
+      "/admin/blog/" + post.id,
+      input,
+      admin,
+      "PATCH",
+    )
+  ).body;
+  assert.equal(
+    (await ok<{ slug: string }>("/blog/" + post.slug)).body.slug,
+    post.slug,
+  );
+  await denied(
+    "/admin/blog/" + post.id,
+    input,
+    "STALE_REVISION",
+    admin,
+    "PATCH",
+  );
+  input.expected_revision = Number(published.revision);
+  await denied(
+    "/admin/blog/" + post.id,
+    { ...input, slug: "changed-url" },
+    "BLOG_SLUG_LOCKED",
+    admin,
+    "PATCH",
+  );
+  input.state = "DRAFT";
+  const draft = (
+    await ok<{ revision: string }>(
+      "/admin/blog/" + post.id,
+      input,
+      admin,
+      "PATCH",
+    )
+  ).body;
+  await denied("/blog/" + post.slug, undefined, "NOT_FOUND");
+  input.state = "ARCHIVED";
+  input.expected_revision = Number(draft.revision);
+  await ok("/admin/blog/" + post.id, input, admin, "PATCH");
+  await denied("/blog/" + post.slug, undefined, "NOT_FOUND");
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM audit_logs WHERE action LIKE 'blog.%'",
+      )
+    ).rows[0].count,
+    "3",
+  );
+});
+
 test("Actual PostgreSQL 17 and six exact products/prices", async () => {
   assert.match(
     (await db.query("SELECT version()")).rows[0].version,
@@ -1731,7 +1810,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 16 });
+    assert.deepEqual(await verifyMigrations(c), { total: 17 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,

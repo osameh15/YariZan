@@ -1,6 +1,10 @@
 import { productSkuSource as sku } from './products';
 
 export const browserRoutes = [
+  ['GET', /^blog(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/],
+  ['GET', /^admin\/blog$/],
+  ['POST', /^admin\/blog$/],
+  ['PATCH', /^admin\/blog\/[0-9a-f-]{36}$/],
   ['GET', /^commerce\/capabilities$/],
   ['POST', /^discounts\/quote$/],
   ['GET', /^orders(?:\/[0-9a-f-]{36})?$/],

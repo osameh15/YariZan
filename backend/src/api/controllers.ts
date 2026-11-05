@@ -1275,3 +1275,5 @@ export class AdminController {
 }
 
 export { CommerceController } from "../commerce/controller";
+
+export { BlogController } from "../blog/blog";

@@ -32,6 +32,7 @@ export default defineConfig({
         NUXT_WEB_ORIGIN: 'http://localhost:3200',
         NUXT_API_BASE: 'http://127.0.0.1:3100/api/v2/',
         YARIZAN_SITE_MODE: 'full',
+        YARIZAN_SEO_INDEXING: 'index',
       },
       reuseExistingServer: false,
       timeout: 45000,

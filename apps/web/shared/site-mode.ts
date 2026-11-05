@@ -3,6 +3,7 @@
 //  - storefront: public storefront; the same public-only boundary as brochure (no API, no
 //    accounts, no commerce, no Admin) plus owner-approved informational prices.
 //  - full: the complete application; stays behind the Backend production gates.
+
 export const siteModes = ['brochure', 'storefront', 'full'] as const;
 export type SiteMode = (typeof siteModes)[number];
 
@@ -42,6 +43,7 @@ export const brochurePages = [
   /^\/download$/,
   /^\/legal$/,
   /^\/legal\/(?:privacy|terms|refund|delivery|disputes|merchant-info)$/,
+  /^\/blog$/,
 ];
 const staticAsset = /^\/(?:_nuxt|brand|fonts)\/[A-Za-z0-9._\-/]+$/;
 // Functionality that exists in the full application and is deliberately unavailable.
