@@ -11,6 +11,7 @@ const profile = process.env.YARIZAN_PUBLIC_PROFILE === 'storefront' ? 'storefron
 const storefront = profile === 'storefront';
 const images = path.resolve('.local/screenshots/' + profile);
 const publicPages = [
+  '/blog',
   '/',
   '/products',
   '/products/grade-1',
@@ -34,6 +35,7 @@ const disabledPages = [
   '/zanyari',
   '/zanyari/login',
   '/zanyari/commerce',
+  '/zanyari/blog',
   '/checkout',
   '/checkout?sku=YARIZAN-G1',
   '/payment/result',
@@ -44,6 +46,8 @@ const disabledPages = [
   '/ACCOUNT',
 ];
 const disabledApi: [string, string][] = [
+  ['GET', '/api/v2/blog'],
+  ['GET', '/api/v2/admin/blog'],
   ['POST', '/api/v2/auth/login'],
   ['POST', '/api/v2/auth/claim'],
   ['POST', '/api/v2/auth/otp/request'],
@@ -367,8 +371,9 @@ test('first deployment is noindex: robots.txt disallows all and every page sends
   for (const url of ['/', '/products', '/products/grade-1', '/support', '/checkout'])
     expect((await request.get(url)).headers()['x-robots-tag'], url).toBe('noindex, nofollow');
   const sitemap = await (await request.get('/sitemap.xml')).text();
-  // Home, products, six grades, support, special products and its two games.
-  expect(sitemap.match(/<loc>/g)).toHaveLength(12);
+  // Public catalog, download, approved legal pages and the blog index; no draft articles.
+  expect(sitemap.match(/<loc>/g)).toHaveLength(21);
+  expect(sitemap).not.toContain('/blog/');
   expect(sitemap).not.toMatch(/account|zanyari|checkout|payment|login/);
 });
 

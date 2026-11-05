@@ -1,6 +1,5 @@
-// Search indexing policy. The first public deployment stays "noindex, nofollow" until the owner
-// accepts live TLS, content, mobile rendering, CDN behaviour, error pages and prices. Indexing is
-// opt-in through YARIZAN_SEO_INDEXING=index; anything else (including unset) is noindex.
+// Indexing is opt-in through the reviewed production configuration. Preview and rollback
+// profiles remain noindex unless explicitly enabled; private and unknown routes never index.
 // Protected and transactional routes are never indexable and never appear in the sitemap.
 export type Indexing = 'index' | 'noindex';
 export function parseIndexing(value: unknown): Indexing {
@@ -17,9 +16,22 @@ export const sitemapPaths = [
   '/special-products/bundle-builder',
   ...[1, 2, 3, 4, 5, 6].map((g) => `/products/grade-${g}`),
   '/support',
+  '/download',
+  '/legal',
+  ...['terms', 'privacy', 'refund', 'delivery', 'disputes', 'merchant-info'].map(
+    (page) => `/legal/${page}`,
+  ),
+  '/blog',
 ];
+export function canonicalPath(path: string): string | undefined {
+  const normalized = path === '/' ? '/' : path.replace(/\/$/, '').toLowerCase();
+  return (
+    sitemapPaths.find((page) => page === normalized) ??
+    (/^\/blog\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized) ? normalized : undefined)
+  );
+}
 export function robotsHeader(indexing: Indexing, path: string) {
-  return indexing === 'index' && !protectedRoute.test(path) ? 'index, follow' : 'noindex, nofollow';
+  return indexing === 'index' && canonicalPath(path) ? 'index, follow' : 'noindex, nofollow';
 }
 export function robotsTxt(indexing: Indexing, origin: string) {
   if (indexing !== 'index') return 'User-agent: *\nDisallow: /\n';
@@ -40,8 +52,11 @@ export function robotsTxt(indexing: Indexing, origin: string) {
     '',
   ].join('\n');
 }
-export function sitemapXml(origin: string) {
-  const urls = sitemapPaths.map((p) => `  <url><loc>${origin}${p === '/' ? '/' : p}</loc></url>`);
+export function sitemapXml(origin: string, publishedPaths: string[] = []) {
+  const urls = [
+    ...sitemapPaths,
+    ...publishedPaths.filter((p) => /^\/blog\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(p)),
+  ].map((p) => `  <url><loc>${origin}${p === '/' ? '/' : p}</loc></url>`);
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
 }
 // Canonical origin: only an https origin without path, or the local development origin.
@@ -50,4 +65,76 @@ export function canonicalOrigin(value: string) {
   if (url.pathname !== '/' || url.search || url.hash || url.username || url.password)
     throw new Error('Invalid canonical origin');
   return url.origin;
+}
+
+const defaultDescription =
+  'یاریزان؛ بازی‌های آموزشی فارسی برای شش پایهٔ دبستان. دو فرصت تجربه و دسترسی آفلاین پس از فعال‌سازی.';
+type PageMetadata = { title: string; description: string };
+const publicMetadata: Record<string, PageMetadata> = {
+  '/': { title: 'یاریزان | یادگیری با طعم بازی', description: defaultDescription },
+  '/products': {
+    title: 'دنیای پایه‌ها | یاریزان',
+    description:
+      'بازی‌های آموزشی فارسی یاریزان برای پایه‌های دبستان؛ وضعیت عرضه، قیمت هر پایه و مسیر دریافت برنامهٔ ویندوز را ببینید.',
+  },
+  '/special-products': {
+    title: 'محصولات ویژه | یاریزان',
+    description:
+      'بازی‌های مستقل یاریزان؛ با عددساز کوچولو و دسته‌ساز کوچک، شرایط آزمایش و مجوز جداگانهٔ هر بازی آشنا شوید.',
+  },
+  '/special-products/number-builder': {
+    title: 'عددساز کوچولو | یاریزان',
+    description:
+      'عددساز کوچولو، بازی مستقل یاریزان برای ویندوز؛ تصاویر بازی، قیمت جاری، شرایط آزمایش و مسیر دریافت و خرید مجوز را ببینید.',
+  },
+  '/special-products/bundle-builder': {
+    title: 'دسته‌ساز کوچک | یاریزان',
+    description:
+      'دسته‌ساز کوچک، بازی مستقل یاریزان برای ویندوز؛ با بازی آشنا شوید و تصاویر، قیمت جاری و شرایط دریافت و فعال‌سازی را بررسی کنید.',
+  },
+  '/support': {
+    title: 'همراه شما | پشتیبانی یاریزان',
+    description:
+      'پاسخ پرسش‌های دریافت برنامه، اتصال دستگاه و مجوز یاریزان؛ راه‌های تماس با پشتیبانی و مسیر بررسی درخواست‌ها را پیدا کنید.',
+  },
+  '/download': {
+    title: 'دریافت یاریزان برای ویندوز | یاریزان',
+    description:
+      'دریافت رسمی یاریزان برای ویندوز؛ پایه یا بازی مستقل را انتخاب کنید و نسخه، نیازمندی‌ها و کد بررسی فایل را ببینید.',
+  },
+  '/legal': {
+    title: 'قوانین و حریم خصوصی | یاریزان',
+    description:
+      'قوانین استفاده از یاریزان، حریم خصوصی، تحویل مجوز دیجیتال، بازپرداخت، اطلاعات فروشنده و مسیر رسیدگی به شکایت.',
+  },
+  '/blog': {
+    title: 'وبلاگ یاریزان | بازی، یادگیری و راهنمای خانواده',
+    description:
+      'راهنماهای کاربردی برای انتخاب بازی آموزشی، بازی با عددها در خانه و شروع استفاده از یاریزان در ویندوز؛ برای خانواده‌های همراه کودک.',
+  },
+};
+for (const [index, grade] of ['اول', 'دوم', 'سوم', 'چهارم', 'پنجم', 'ششم'].entries()) {
+  publicMetadata[`/products/grade-${index + 1}`] = {
+    title: `یاریزان پایه ${grade} دبستان | یاریزان`,
+    description: `معرفی یاریزان پایهٔ ${grade} دبستان برای ویندوز؛ وضعیت عرضه و قیمت این پایه را ببینید و راه دریافت برنامه و شرایط فعال‌سازی را بررسی کنید.`,
+  };
+}
+for (const [slug, title] of Object.entries({
+  terms: 'شرایط استفاده',
+  privacy: 'سیاست حریم خصوصی',
+  refund: 'سیاست لغو و بازپرداخت',
+  delivery: 'تحویل مجوز دیجیتال',
+  disputes: 'پشتیبانی و رسیدگی به شکایت',
+  'merchant-info': 'اطلاعات فروشنده',
+})) {
+  publicMetadata[`/legal/${slug}`] = {
+    title: `${title} | یاریزان`,
+    description: `${title} یاریزان؛ اطلاعات رسمی دربارهٔ استفاده از محصولات، حقوق کاربران و راه‌های پیگیری و تماس با پشتیبانی.`,
+  };
+}
+export function pageMetadata(path: string): PageMetadata {
+  return publicMetadata[canonicalPath(path) ?? '/'] ?? publicMetadata['/blog']!;
+}
+export function jsonLd(value: unknown) {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
 }

@@ -194,6 +194,7 @@ const tone = (value: unknown) =>
       : 'warn';
 const section = computed(() => String(route.params.section ?? 'dashboard'));
 const sections = [
+  ['blog', 'مدیریت وبلاگ', 'blog.manage'],
   ['dashboard', 'نمای کلی', 'audit.read'],
   ['products', 'محصولات و قیمت', 'products.manage'],
   ['customers', 'مشتریان', 'customers.read'],
@@ -520,7 +521,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
   { title: 'میز کار', ids: ['dashboard', 'products'] },
   { title: 'مشتریان و دستگاه‌ها', ids: ['customers', 'devices'] },
   { title: 'مجوزها و آزمایش', ids: ['licenses', 'trials', 'activation-codes'] },
-  { title: 'فروش و نظارت', ids: ['commerce', 'payment-readiness', 'audit'] },
+  { title: 'فروش و نظارت', ids: ['blog', 'commerce', 'payment-readiness', 'audit'] },
 ];
 </script>
 <template>
