@@ -162,6 +162,7 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
       </details>
     </div>
   </section>
+  <BlogHighlights :home="true" />
   <section class="wrap support-banner">
     <div>
       <p class="eyebrow">در این مسیر تنها نیستید</p>

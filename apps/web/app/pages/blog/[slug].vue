@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import { blogBlocks, blogDate, type BlogPost } from '#shared/blog-model';
 import { jsonLd } from '#shared/seo';
+definePageMeta({ key: (route) => route.path });
 const route = useRoute();
+const { data: feed } = await useBlogPosts();
+const position = computed(
+  () => feed.value?.posts.findIndex((p) => p.slug === String(route.params.slug)) ?? -1,
+);
+const previous = computed(() =>
+  position.value > 0 ? feed.value?.posts[position.value - 1] : undefined,
+);
+const next = computed(() =>
+  position.value >= 0 ? feed.value?.posts[position.value + 1] : undefined,
+);
 const { live } = useSiteMode();
 const request = useRequestFetch();
 const slug = String(route.params.slug);
@@ -21,6 +32,10 @@ useSeoMeta({
   ogTitle: () => post.value?.seo_title || post.value?.title,
   ogDescription: () => post.value?.seo_description || post.value?.description,
   ogType: 'article',
+  ogImage: () => (post.value?.cover_image ? origin.value + post.value.cover_image : undefined),
+  ogImageAlt: () => post.value?.cover_alt || post.value?.title,
+  twitterCard: 'summary_large_image',
+  twitterImage: () => (post.value?.cover_image ? origin.value + post.value.cover_image : undefined),
 });
 useHead(() => ({
   script: post.value
@@ -32,6 +47,15 @@ useHead(() => ({
             '@graph': [
               {
                 '@type': 'BlogPosting',
+                image: post.value.cover_image
+                  ? {
+                      '@type': 'ImageObject',
+                      url: origin.value + post.value.cover_image,
+                      width: post.value.cover_width,
+                      height: post.value.cover_height,
+                      caption: post.value.cover_alt,
+                    }
+                  : undefined,
                 headline: post.value.title,
                 description: post.value.description,
                 datePublished: post.value.published_at,
@@ -89,6 +113,16 @@ useHead(() => ({
         </p>
         <p class="hero-lead">{{ post.description }}</p>
       </header>
+      <img
+        v-if="post.cover_image"
+        class="blog-cover"
+        :src="post.cover_image"
+        :alt="post.cover_alt || post.title"
+        :width="post.cover_width ?? 1536"
+        :height="post.cover_height ?? 1024"
+        fetchpriority="high"
+        decoding="async"
+      />
       <nav v-if="headings.length" class="blog-toc" aria-label="در این نوشته">
         <strong>در این نوشته می‌خوانید</strong>
         <ul>
@@ -99,6 +133,20 @@ useHead(() => ({
       </nav>
       <BlogBody :body="post.body" />
     </article>
+    <nav class="blog-pagination" aria-label="نوشتهٔ قبلی و بعدی">
+      <NuxtLink v-if="previous" :to="'/blog/' + previous.slug" rel="prev"
+        ><span>→ نوشتهٔ قبلی</span><strong>{{ previous.title }}</strong></NuxtLink
+      >
+      <div v-else class="blog-pagination-boundary">
+        <span>نخستین نوشته</span><strong>از اینجا شروع کنید.</strong>
+      </div>
+      <NuxtLink v-if="next" :to="'/blog/' + next.slug" rel="next"
+        ><span>نوشتهٔ بعدی ←</span><strong>{{ next.title }}</strong></NuxtLink
+      >
+      <div v-else class="blog-pagination-boundary">
+        <span>همه را خواندید</span><strong>نوشته‌های تازه در راه‌اند.</strong>
+      </div>
+    </nav>
     <aside class="blog-resource-links">
       <NuxtLink class="text-link" to="/blog">بازگشت به نوشته‌ها ←</NuxtLink>
     </aside>

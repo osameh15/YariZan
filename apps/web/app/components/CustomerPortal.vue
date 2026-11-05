@@ -139,7 +139,7 @@ onMounted(load);
     <img src="/brand/logo.webp" alt="" width="118" height="78" />
     <span>در حال دریافت حساب…</span>
   </section>
-  <section v-else class="wrap section portal">
+  <section v-else class="wrap section portal customer-workspace">
     <aside v-if="account" class="portal-sidebar">
       <p class="eyebrow">خانهٔ یادگیری شما</p>
       <h2>حساب من</h2>
@@ -169,29 +169,11 @@ onMounted(load);
           <span class="device-username" dir="ltr">{{ account.username }}</span>
         </div>
         <template v-if="section === 'overview'"
-          ><div class="stat-grid">
-            <article class="panel">
-              <span>{{
-                new Intl.NumberFormat('fa-IR').format(
-                  owned.filter((o) => o.state === 'ACTIVE').length,
-                )
-              }}</span>
-              <p>محصول خریداری‌شده</p>
-            </article>
-            <article class="panel">
-              <span>{{ new Intl.NumberFormat('fa-IR').format(deviceList.length) }}</span>
-              <p>دستگاه با همین شمارهٔ موبایل</p>
-            </article>
-            <article class="panel">
-              <span>∞</span>
-              <p>مجوز خریداری‌شده، بدون انقضا</p>
-            </article>
-          </div>
-          <div class="panel">
-            <h2>پایهٔ مناسب فرزندتان را انتخاب کنید.</h2>
-            <p>هر پایه و هر بازی ویژه مستقل است. قیمت و وضعیت عرضه را در صفحهٔ محصولات ببینید.</p>
-            <NuxtLink class="button primary" to="/products">دیدن محصولات ←</NuxtLink>
-          </div></template
+          ><CustomerOverview
+            :owned="owned"
+            :licenses="licenses"
+            :device-count="deviceList.length"
+            :profile-count="devices.filter((p) => p.status === 'ACTIVE').length" /></template
         ><template v-else-if="section === 'devices'"
           ><article class="panel device-name-card">
             <h2>نام این دستگاه</h2>

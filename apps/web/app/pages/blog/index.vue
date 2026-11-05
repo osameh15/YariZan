@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { blogDate as persianPublishDate, type BlogPost } from '#shared/blog-model';
+import { type BlogSummary } from '#shared/blog-model';
 const blogPath = (slug: string) => '/blog/' + slug;
 const { live } = useSiteMode();
 const request = useRequestFetch();
 const { data, error, refresh } = await useAsyncData('public-blog', () =>
   live.value
-    ? request<{ posts: BlogPost[] }>('/api/v2/blog')
-    : Promise.resolve({ posts: [] as BlogPost[] }),
+    ? request<{ posts: BlogSummary[] }>('/api/v2/blog')
+    : Promise.resolve({ posts: [] as BlogSummary[] }),
 );
 const blogPosts = computed(() => data.value?.posts ?? []);
 import { jsonLd, pageMetadata } from '#shared/seo';
@@ -55,27 +55,7 @@ useHead(() => ({
       نوشته‌های تازه به‌زودی در این بخش منتشر می‌شوند.
     </p>
     <div class="blog-post-grid">
-      <article v-for="(post, index) in blogPosts" :key="post.slug" class="blog-post-card">
-        <div class="blog-post-kicker">
-          <span class="pill">{{ post.category }}</span>
-          <span class="blog-post-number" aria-hidden="true">{{
-            new Intl.NumberFormat('fa-IR').format(index + 1)
-          }}</span>
-        </div>
-        <h2>
-          <NuxtLink :to="blogPath(post.slug)">{{ post.title }}</NuxtLink>
-        </h2>
-        <p>{{ post.description }}</p>
-        <footer>
-          <time :datetime="post.published_at!">{{ persianPublishDate(post.published_at!) }}</time>
-          <NuxtLink
-            class="text-link"
-            :to="blogPath(post.slug)"
-            :aria-label="'خواندن مقاله: ' + post.title"
-            >خواندن مقاله <span aria-hidden="true">←</span></NuxtLink
-          >
-        </footer>
-      </article>
+      <BlogCard v-for="post in blogPosts" :key="post.slug" :post="post" />
     </div>
     <aside class="blog-next-step">
       <div>

@@ -26,11 +26,11 @@ const single = [
   [/y2Y8bAJfRaMrTmiR3giBPYylZqSIoUvX/, 'eNamad code', 'shared/contact.ts'],
 ];
 // The developer portfolio is an owner-approved footer link, not an obsolete support contact.
-// Check its exact URL and sole occurrence in the reviewed SOURCE layout, which is the authority
+// Check its exact URL and sole occurrence in the reviewed SOURCE footer component, which is the authority
 // for all generated output profiles. Build chunks duplicate/minify that same link, so a naive
 // global osameh.dev ban on built assets incorrectly rejects an approved production build.
 const portfolioDomain = /osameh\.dev/i;
-const portfolioSource = 'app/layouts/default.vue';
+const portfolioSource = 'app/components/SiteFooter.vue';
 const portfolioHref = 'href="https://osameh.dev"';
 
 async function* files(dir, exts) {

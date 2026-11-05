@@ -35,7 +35,9 @@ export default defineNuxtConfig({
     },
   },
   // Brochure builds never contain the browser API proxy or the payment return handler.
-  ignore: brochure ? ['server/api/**', 'server/routes/payment/**'] : [],
+  ignore: brochure
+    ? ['server/api/**', 'server/routes/payment/**', 'server/routes/blog-images/**']
+    : [],
   hooks: { 'pages:extend': (pages) => (brochure ? keepBrochurePages(pages) : undefined) },
   runtimeConfig: { apiBase: 'http://127.0.0.1:3100/api/v2/', webOrigin: 'http://localhost:3200' },
   app: {

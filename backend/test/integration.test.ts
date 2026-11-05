@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import sharp from "sharp";
 import { before, beforeEach, after, test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -426,6 +427,120 @@ test("Blog drafts need authorized publication, preserve URLs, and reject stale e
     ).rows[0].count,
     "3",
   );
+});
+
+test("Blog image migration preserves publication and owner edits", async () => {
+  const c = await db.pool.connect();
+  try {
+    await c.query("BEGIN");
+    const schema = "blog_upgrade_" + randomBytes(8).toString("hex");
+    await c.query("CREATE SCHEMA " + schema);
+    await c.query("SET LOCAL search_path TO " + schema + ",public");
+    await c.query(await readFile("migrations/017_blog_posts.sql", "utf8"));
+    await c.query(
+      "UPDATE blog_posts SET state='PUBLISHED',published_at=now(),title='Owner edited article title',body='Owner edited article body that must survive this migration and remain the authoritative content in the database.'",
+    );
+    await c.query(await readFile("migrations/018_blog_images.sql", "utf8"));
+    const posts = (await c.query("SELECT * FROM blog_posts")).rows;
+    assert.equal(posts.length, 4);
+    assert.ok(
+      posts.every(
+        (p) =>
+          p.state === "PUBLISHED" &&
+          p.title === "Owner edited article title" &&
+          p.body.startsWith("Owner edited") &&
+          p.cover_image.startsWith("/blog-covers/") &&
+          p.cover_width === 1536,
+      ),
+    );
+  } finally {
+    await c.query("ROLLBACK");
+    c.release();
+  }
+});
+
+test("Blog images authenticate before decoding, normalize media, and stay private until publication", async () => {
+  const encoded = (
+    await sharp(randomBytes(512 * 320 * 3), {
+      raw: { width: 512, height: 320, channels: 3 },
+    })
+      .webp({ quality: 70 })
+      .toBuffer()
+  ).toString("base64");
+  assert.ok(encoded.length > 32768);
+  await denied("/admin/blog/images", { data: encoded }, "UNAUTHENTICATED");
+  const support = await adminLogin("support");
+  await denied("/admin/blog/images", { data: encoded }, "FORBIDDEN", support);
+  await denied(
+    "/admin/blog/images",
+    {
+      data: Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg"><script>bad()</script></svg>',
+      ).toString("base64"),
+    },
+    "BLOG_IMAGE_INVALID",
+    admin,
+  );
+  const media = (
+    await ok<{ url: string; width: number; height: number }>(
+      "/admin/blog/images",
+      { data: encoded },
+      admin,
+    )
+  ).body;
+  assert.equal(media.width, 512);
+  assert.equal(media.height, 320);
+  const id = media.url.slice(13, -5);
+  await denied("/blog/images/" + id, undefined, "NOT_FOUND");
+  await denied("/admin/blog/images/" + id, undefined, "UNAUTHENTICATED");
+  const post = (
+    await db.query("SELECT * FROM blog_posts WHERE state='DRAFT' LIMIT 1")
+  ).rows[0];
+  const input = {
+    slug: post.slug,
+    title: post.title,
+    description: post.description,
+    category: post.category,
+    body: post.body,
+    seo_title: "",
+    seo_description: "",
+    state: "DRAFT",
+    expected_revision: Number(post.revision),
+    cover_image: media.url,
+    cover_alt: "A parent helping a child with a puzzle",
+  };
+  const saved = (
+    await ok<{ revision: string }>(
+      "/admin/blog/" + post.id,
+      input,
+      admin,
+      "PATCH",
+    )
+  ).body;
+  await denied("/blog/images/" + id, undefined, "NOT_FOUND");
+  input.state = "PUBLISHED";
+  input.expected_revision = Number(saved.revision);
+  const published = (
+    await ok<{ revision: string }>(
+      "/admin/blog/" + post.id,
+      input,
+      admin,
+      "PATCH",
+    )
+  ).body;
+  const publicImage = await fetch(base + "/blog/images/" + id);
+  assert.equal(publicImage.status, 200);
+  assert.ok(publicImage.headers.get("content-type")?.startsWith("image/webp"));
+  const image = Buffer.from(await publicImage.arrayBuffer());
+  assert.equal((await sharp(image).metadata()).format, "webp");
+  input.state = "DRAFT";
+  input.expected_revision = Number(published.revision);
+  await ok("/admin/blog/" + post.id, input, admin, "PATCH");
+  await denied("/blog/images/" + id, undefined, "NOT_FOUND");
+  const duplicate = (
+    await ok<{ url: string }>("/admin/blog/images", { data: encoded }, admin)
+  ).body;
+  assert.equal(duplicate.url, media.url);
 });
 
 test("Actual PostgreSQL 17 and six exact products/prices", async () => {
@@ -1810,7 +1925,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 17 });
+    assert.deepEqual(await verifyMigrations(c), { total: 18 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,

@@ -2,8 +2,8 @@ import { requireCondition } from "./errors";
 import { canonical } from "../signing/signing";
 
 // Validate before Express parses. Reject duplicate keys and non-integer lexical numbers.
-export function strictJson(text: string): unknown {
-  requireCondition(Buffer.byteLength(text) <= 32768, "INVALID_REQUEST");
+export function strictJson(text: string, maxBytes = 32768): unknown {
+  requireCondition(Buffer.byteLength(text) <= maxBytes, "INVALID_REQUEST");
   let offset = 0;
   const whitespace = () => {
     while (/[\x20\t\r\n]/.test(text[offset] ?? "!")) offset++;
