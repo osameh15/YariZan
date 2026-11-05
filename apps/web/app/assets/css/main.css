@@ -88,9 +88,14 @@ textarea {
   color: var(--ink);
   min-height: 48px;
 }
-input[type='checkbox'] {
+input[type='checkbox'],
+input[type='radio'] {
   width: 20px;
+  height: 20px;
   min-height: 20px;
+  padding: 0;
+  margin: 0;
+  flex-shrink: 0;
   accent-color: var(--green);
 }
 label {
