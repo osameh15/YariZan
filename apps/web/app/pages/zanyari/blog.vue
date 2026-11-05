@@ -191,22 +191,25 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
               :disabled="busy"
           /></label>
           <div class="blog-field-pair">
-            <label for="blog-slug"
-              >نشانی نوشته<input
-                id="blog-slug"
-                v-model="form.slug"
-                dir="ltr"
-                required
-                pattern="[a-z0-9]+(-[a-z0-9]+)*"
-                maxlength="100"
-                :readonly="!!selected?.published_at"
-                :disabled="busy"
-              /><small>{{
+            <div>
+              <label for="blog-slug"
+                >نشانی نوشته<input
+                  id="blog-slug"
+                  v-model="form.slug"
+                  dir="ltr"
+                  required
+                  pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                  maxlength="100"
+                  :readonly="!!selected?.published_at"
+                  :disabled="busy"
+                  aria-describedby="blog-slug-help" /></label
+              ><small id="blog-slug-help">{{
                 selected?.published_at
                   ? 'نشانی پس از اولین انتشار ثابت می‌ماند.'
                   : 'حروف کوچک انگلیسی، عدد و خط تیره؛ مانند number-games-at-home'
-              }}</small></label
-            ><label for="blog-category"
+              }}</small>
+            </div>
+            <label for="blog-category"
               >دسته‌بندی<input
                 id="blog-category"
                 v-model="form.category"

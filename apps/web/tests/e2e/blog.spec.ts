@@ -86,4 +86,14 @@ test('four drafts require approval; editor, publication, sitemap and responsive 
   expect(removed.status()).toBe(404);
   expect(removed.headers()['x-robots-tag']).toBe('noindex, nofollow');
   expect(await (await request.get('/sitemap.xml')).text()).not.toContain('/blog/' + slug);
+  await page.getByRole('button', { name: 'نوشتهٔ تازه', exact: true }).click();
+  await page.getByLabel('عنوان نوشته', { exact: true }).fill('پیش‌نویس تازه برای بررسی سردبیر');
+  await page.getByLabel('نشانی نوشته', { exact: true }).fill('review-only-new-draft');
+  await page.getByLabel('خلاصهٔ نوشته', { exact: true }).fill(drafts[0].description);
+  await page.getByLabel('متن نوشته', { exact: true }).fill(drafts[0].body);
+  await page.getByRole('button', { name: 'ذخیرهٔ پیش‌نویس', exact: true }).click();
+  await expect(page.locator('.blog-list-item')).toHaveCount(5);
+  expect((await request.get('/blog/review-only-new-draft')).status()).toBe(404);
+  await page.getByRole('button', { name: 'بایگانی', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'نوشته بایگانی شد' })).toBeVisible();
 });
