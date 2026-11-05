@@ -10,6 +10,7 @@ import { configuration, ConfigurationError } from "./config";
 import { ApiError, ErrorFilter } from "./common/errors";
 import { strictJson } from "./common/strict-json";
 import { Security } from "./security/security";
+import { Database } from "./database/database";
 
 export async function createApp() {
   const config = configuration();
@@ -39,6 +40,39 @@ export async function createApp() {
   });
   app.use(helmet());
   app.use(cookieParser());
+  const security = app.get(Security);
+  const parseImage = json({
+    limit: 524288,
+    strict: true,
+    verify: (_req, _res, buffer) => {
+      strictJson(buffer.toString("utf8"), 524288);
+    },
+  });
+  app.use(
+    "/api/v2/admin/blog/images",
+    async (req: Request, res: Response, next: NextFunction) => {
+      if (req.method !== "POST" || req.path !== "/") {
+        next();
+        return;
+      }
+      try {
+        await security.rate("global", 6000);
+        await app
+          .get(Database)
+          .transaction((c) => security.admin(req, "blog.manage", c));
+        res.locals.blogUploadAuthorized = true;
+        parseImage(req, res, next);
+      } catch (error) {
+        res.status(error instanceof ApiError ? error.getStatus() : 503).json({
+          error: {
+            code:
+              error instanceof ApiError ? error.code : "SERVICE_UNAVAILABLE",
+            request_id: res.locals.correlationId,
+          },
+        });
+      }
+    },
+  );
   app.use(
     json({
       limit: 32768,
@@ -48,12 +82,11 @@ export async function createApp() {
       },
     }),
   );
-  const security = app.get(Security);
   app.use(async (req: Request, res: Response, next: NextFunction) => {
     try {
       // No per-socket limit: behind the proxy chain the socket is a container, so it would be a
       // second, smaller global bucket that one client could exhaust for everyone (G5).
-      await security.rate("global", 6000);
+      if (!res.locals.blogUploadAuthorized) await security.rate("global", 6000);
       if (req.headers.authorization)
         await security.authenticatedRate(req.headers.authorization);
       next();

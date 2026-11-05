@@ -31,7 +31,13 @@ export function canonicalPath(path: string): string | undefined {
   );
 }
 export function robotsHeader(indexing: Indexing, path: string) {
-  return indexing === 'index' && canonicalPath(path) ? 'index, follow' : 'noindex, nofollow';
+  return indexing === 'index' &&
+    (canonicalPath(path) ||
+      /^\/blog-covers\/(?:choosing-an-educational-game|number-games-at-home|getting-started-with-yarizan|helping-without-giving-the-answer)\.webp$/.test(
+        path,
+      ))
+    ? 'index, follow'
+    : 'noindex, nofollow';
 }
 export function robotsTxt(indexing: Indexing, origin: string) {
   if (indexing !== 'index') return 'User-agent: *\nDisallow: /\n';
@@ -52,12 +58,21 @@ export function robotsTxt(indexing: Indexing, origin: string) {
     '',
   ].join('\n');
 }
-export function sitemapXml(origin: string, publishedPaths: string[] = []) {
+export function sitemapXml(
+  origin: string,
+  publishedPaths: string[] = [],
+  images: Record<string, string> = {},
+) {
   const urls = [
     ...sitemapPaths,
     ...publishedPaths.filter((p) => /^\/blog\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(p)),
-  ].map((p) => `  <url><loc>${origin}${p === '/' ? '/' : p}</loc></url>`);
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
+  ].map((p) => {
+    const image = images[p];
+    const valid =
+      image && /^\/(?:blog-covers\/[a-z0-9-]+|blog-images\/[0-9a-f-]{36})\.webp$/.test(image);
+    return `  <url><loc>${origin}${p === '/' ? '/' : p}</loc>${valid ? `<image:image><image:loc>${origin}${image}</image:loc></image:image>` : ''}</url>`;
+  });
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${urls.join('\n')}\n</urlset>\n`;
 }
 // Canonical origin: only an https origin without path, or the local development origin.
 export function canonicalOrigin(value: string) {

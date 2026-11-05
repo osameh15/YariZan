@@ -1,6 +1,8 @@
 import { productSkuSource as sku } from './products';
 
 export const browserRoutes = [
+  ['POST', /^admin\/blog\/images$/],
+  ['GET', /^admin\/blog\/images\/[0-9a-f-]{36}$/],
   ['GET', /^blog(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/],
   ['GET', /^admin\/blog$/],
   ['POST', /^admin\/blog$/],

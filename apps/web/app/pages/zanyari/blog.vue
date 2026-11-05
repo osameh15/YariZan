@@ -3,6 +3,21 @@ import { blogDate, type BlogPost } from '#shared/blog-model';
 import { errorMessage } from '#shared/domain';
 useSeoMeta({ title: 'مدیریت وبلاگ | یاریزان' });
 const api = useApi(true);
+const route = useRoute(),
+  imageBusy = ref(false);
+const articlePicker = computed({
+  get: () => selected.value?.id ?? '',
+  set: (id: string) => open(posts.value.find((p) => p.id === id)),
+});
+const pickerOptions = computed(() =>
+  posts.value.map((p) => ({ value: p.id!, label: p.title, description: p.slug })),
+);
+const filterOptions = [
+  { value: 'ALL', label: 'همهٔ نوشته‌ها' },
+  { value: 'DRAFT', label: 'پیش‌نویس‌ها' },
+  { value: 'PUBLISHED', label: 'منتشرشده‌ها' },
+  { value: 'ARCHIVED', label: 'بایگانی‌شده‌ها' },
+];
 const posts = ref<BlogPost[]>([]),
   busy = ref(false),
   message = ref(''),
@@ -11,6 +26,8 @@ const permitted = ref(false),
   preview = ref(false),
   publishing = ref(false);
 const empty = () => ({
+  cover_image: null as string | null,
+  cover_alt: '',
   slug: '',
   title: '',
   description: '',
@@ -27,14 +44,9 @@ const form = ref<
 const selected = ref<BlogPost>();
 const initial = ref('');
 const dirty = computed(() => JSON.stringify(form.value) !== initial.value);
-const filter = ref('ALL'),
-  search = ref('');
+const filter = ref('ALL');
 const visible = computed(() =>
-  posts.value.filter(
-    (p) =>
-      (filter.value === 'ALL' || p.state === filter.value) &&
-      (p.title + p.slug).includes(search.value),
-  ),
+  posts.value.filter((p) => filter.value === 'ALL' || p.state === filter.value),
 );
 const stateLabel = (state?: string) =>
   ({ DRAFT: 'پیش‌نویس', PUBLISHED: 'منتشرشده', ARCHIVED: 'بایگانی‌شده' })[state ?? 'DRAFT'];
@@ -43,6 +55,8 @@ function open(post?: BlogPost) {
   selected.value = post;
   form.value = post
     ? {
+        cover_image: post.cover_image ?? null,
+        cover_alt: post.cover_alt ?? post.title,
         slug: post.slug,
         title: post.title,
         description: post.description,
@@ -70,6 +84,10 @@ async function load() {
     }
     const response = (await api.get('/api/v2/admin/blog')) as { posts: BlogPost[] };
     posts.value = response.posts;
+    if (!selected.value && route.query.post) {
+      const target = posts.value.find((p) => p.id === route.query.post);
+      if (target) open(target);
+    }
   } catch (e) {
     message.value = errorMessage(e);
   } finally {
@@ -122,7 +140,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
 <template>
   <section class="wrap section blog-manager">
     <nav class="blog-breadcrumbs" aria-label="مسیر مدیریت">
-      <NuxtLink to="/zanyari/dashboard">میز کار</NuxtLink><span>/</span><span>مدیریت وبلاگ</span>
+      <NuxtLink to="/zanyari">میز کار</NuxtLink><span>/</span><span>مدیریت وبلاگ</span>
     </nav>
     <div class="blog-manager-heading">
       <div>
@@ -134,7 +152,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
         v-if="permitted"
         class="button secondary"
         type="button"
-        :disabled="busy"
+        :disabled="busy || imageBusy"
         @click="open()"
       >
         نوشتهٔ تازه
@@ -144,21 +162,19 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
     <p v-if="busy" role="status">در حال انجام…</p>
     <div v-if="permitted" class="blog-workspace">
       <aside class="blog-post-list" aria-label="نوشته‌ها">
-        <label for="blog-search"
-          >جست‌وجوی نوشته<input
-            id="blog-search"
-            v-model="search"
-            type="search"
-            placeholder="عنوان یا نشانی"
-        /></label>
-        <label for="blog-filter"
-          >وضعیت<select id="blog-filter" v-model="filter">
-            <option value="ALL">همهٔ نوشته‌ها</option>
-            <option value="DRAFT">پیش‌نویس‌ها</option>
-            <option value="PUBLISHED">منتشرشده‌ها</option>
-            <option value="ARCHIVED">بایگانی‌شده‌ها</option>
-          </select></label
-        >
+        <AppCombobox
+          v-model="articlePicker"
+          label="جست‌وجوی نوشته"
+          :options="pickerOptions"
+          placeholder="عنوان یا نشانی نوشته را بنویسید…"
+          :disabled="busy || imageBusy"
+        />
+        <AppSelect
+          v-model="filter"
+          label="وضعیت نوشته‌ها"
+          :options="filterOptions"
+          :disabled="busy || imageBusy"
+        />
         <p v-if="!visible.length">نوشته‌ای پیدا نشد.</p>
         <button
           v-for="post in visible"
@@ -166,7 +182,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
           type="button"
           :class="['blog-list-item', { active: selected?.id === post.id }]"
           :aria-pressed="selected?.id === post.id"
-          :disabled="busy"
+          :disabled="busy || imageBusy"
           @click="open(post)"
         >
           <span class="blog-list-state">{{ stateLabel(post.state) }}</span
@@ -188,7 +204,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
               required
               minlength="5"
               maxlength="160"
-              :disabled="busy"
+              :disabled="busy || imageBusy"
           /></label>
           <div class="blog-field-pair">
             <div>
@@ -201,7 +217,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
                   pattern="[a-z0-9]+(-[a-z0-9]+)*"
                   maxlength="100"
                   :readonly="!!selected?.published_at"
-                  :disabled="busy"
+                  :disabled="busy || imageBusy"
                   aria-describedby="blog-slug-help" /></label
               ><small id="blog-slug-help">{{
                 selected?.published_at
@@ -216,7 +232,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
                 required
                 minlength="2"
                 maxlength="60"
-                :disabled="busy"
+                :disabled="busy || imageBusy"
             /></label>
           </div>
           <label for="blog-description"
@@ -227,9 +243,24 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
               minlength="20"
               maxlength="320"
               rows="3"
-              :disabled="busy"
+              :disabled="busy || imageBusy"
             />
           </label>
+          <BlogImageUpload
+            :key="selected?.id ?? 'new'"
+            v-model="form.cover_image"
+            :disabled="busy"
+            @busy="imageBusy = $event"
+          />
+          <label v-if="form.cover_image" for="blog-cover-alt"
+            >توضیح تصویر برای دسترس‌پذیری و جست‌وجو<input
+              id="blog-cover-alt"
+              v-model="form.cover_alt"
+              maxlength="250"
+              required
+              :disabled="busy || imageBusy"
+              placeholder="آنچه در تصویر دیده می‌شود را کوتاه و روشن بنویسید."
+          /></label>
           <label for="blog-body"
             >متن نوشته<textarea
               id="blog-body"
@@ -238,7 +269,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
               minlength="100"
               maxlength="12000"
               rows="20"
-              :disabled="busy"
+              :disabled="busy || imageBusy"
               aria-describedby="blog-format"
             />
           </label>
@@ -254,7 +285,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
                 v-model="form.seo_title"
                 maxlength="160"
                 :placeholder="form.title"
-                :disabled="busy" /></label
+                :disabled="busy || imageBusy" /></label
             ><label for="blog-seo-description"
               >توضیح جست‌وجو (اختیاری)<textarea
                 id="blog-seo-description"
@@ -262,7 +293,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
                 maxlength="320"
                 rows="3"
                 :placeholder="form.description"
-                :disabled="busy"
+                :disabled="busy || imageBusy"
               />
             </label>
             <p class="muted">
@@ -271,14 +302,14 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
             </p>
           </details>
           <div class="actions">
-            <button class="button primary" type="submit" :disabled="busy">
+            <button class="button primary" type="submit" :disabled="busy || imageBusy">
               {{
                 form.state === 'PUBLISHED' ? 'ذخیرهٔ تغییرات منتشرشده' : 'ذخیرهٔ پیش‌نویس'
               }}</button
             ><button
               class="button secondary"
               type="button"
-              :disabled="busy || !form.title || !form.body"
+              :disabled="busy || imageBusy || !form.title || !form.body"
               @click="preview = true"
             >
               پیش‌نمایش</button
@@ -286,7 +317,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
               v-if="form.state !== 'PUBLISHED'"
               class="button secondary"
               type="button"
-              :disabled="busy || !form.title || !form.body"
+              :disabled="busy || imageBusy || !form.title || !form.body"
               @click="publishing = true"
             >
               بررسی و انتشار</button
@@ -294,7 +325,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
               v-if="selected && form.state === 'PUBLISHED'"
               class="button secondary"
               type="button"
-              :disabled="busy"
+              :disabled="busy || imageBusy"
               @click="save('DRAFT')"
             >
               برداشتن از انتشار</button
@@ -302,7 +333,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
               v-if="selected && form.state === 'DRAFT'"
               class="button secondary"
               type="button"
-              :disabled="busy"
+              :disabled="busy || imageBusy"
               @click="save('ARCHIVED')"
             >
               بایگانی
@@ -321,7 +352,11 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
             <h2>{{ form.title }}</h2>
             <p class="hero-lead">{{ form.description }}</p>
           </header>
-          <BlogBody :body="form.body" />
+          <BlogPrivateImage
+            v-if="form.cover_image"
+            :src="form.cover_image"
+            :alt="form.cover_alt"
+          /><BlogBody :body="form.body" />
         </article>
         <div
           v-if="publishing"
@@ -339,7 +374,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
               class="button primary"
               type="submit"
               form="blog-editor"
-              :disabled="busy"
+              :disabled="busy || imageBusy"
               @click.prevent="save('PUBLISHED')"
             >
               تأیید و انتشار</button

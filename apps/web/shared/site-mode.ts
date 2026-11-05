@@ -45,7 +45,7 @@ export const brochurePages = [
   /^\/legal\/(?:privacy|terms|refund|delivery|disputes|merchant-info)$/,
   /^\/blog$/,
 ];
-const staticAsset = /^\/(?:_nuxt|brand|fonts)\/[A-Za-z0-9._\-/]+$/;
+const staticAsset = /^\/(?:_nuxt|brand|fonts|blog-covers)\/[A-Za-z0-9._\-/]+$/;
 // Functionality that exists in the full application and is deliberately unavailable.
 const disabledPage =
   /^\/(?:account|login|connect|zanyari|checkout|payment|reset-password|support-reset)(?:\/|$)/i;

@@ -7,8 +7,12 @@ import { canonicalOrigin, sitemapXml } from '#shared/seo';
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Type', 'application/xml; charset=utf-8');
   setHeader(event, 'Cache-Control', 'no-store');
+  const posts = await publishedBlog();
   return sitemapXml(
     canonicalOrigin(useRuntimeConfig().webOrigin),
-    (await publishedBlog()).map((p) => '/blog/' + p.slug),
+    posts.map((p) => '/blog/' + p.slug),
+    Object.fromEntries(
+      posts.filter((p) => p.cover_image).map((p) => ['/blog/' + p.slug, p.cover_image!]),
+    ),
   );
 });

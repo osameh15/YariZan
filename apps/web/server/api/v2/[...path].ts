@@ -64,13 +64,15 @@ export default defineEventHandler(async (event) => {
     if (trust.length === 1) forwarded.push(trust[0]!);
   }
   if (forwarded.length) headers.Cookie = forwarded.join('; ');
+  const maxBody = route === 'admin/blog/images' ? 524288 : 32768;
+  if (route === 'admin/blog/images' && !forwarded.length) return fail(401, 'UNAUTHENTICATED');
   let body: string | undefined;
   if (mutating) {
     if (getHeader(event, 'transfer-encoding')) return fail(400, 'INVALID_REQUEST');
-    if (Number(getHeader(event, 'content-length') ?? 0) > 32768)
+    if (Number(getHeader(event, 'content-length') ?? 0) > maxBody)
       return fail(400, 'INVALID_REQUEST');
     body = (await readRawBody(event)) || undefined;
-    if (body && Buffer.byteLength(body) > 32768) return fail(400, 'INVALID_REQUEST');
+    if (body && Buffer.byteLength(body) > maxBody) return fail(400, 'INVALID_REQUEST');
   }
   try {
     const target = new URL(route, backendBase(config.apiBase));
@@ -82,6 +84,14 @@ export default defineEventHandler(async (event) => {
       redirect: 'error',
       signal: AbortSignal.timeout(15000),
     });
+    if (/^admin\/blog\/images\/[0-9a-f-]{36}$/.test(route) && response.ok) {
+      if (response.headers.get('content-type')?.split(';')[0] !== 'image/webp')
+        return fail(503, 'SERVICE_UNAVAILABLE');
+      const image = Buffer.from(await response.arrayBuffer());
+      if (image.length > 350000) return fail(503, 'SERVICE_UNAVAILABLE');
+      setHeader(event, 'Content-Type', 'image/webp');
+      return image;
+    }
     if (response.headers.get('content-type')?.split(';')[0] !== 'application/json')
       return fail(503, 'SERVICE_UNAVAILABLE');
     const text = await response.text();

@@ -593,6 +593,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
             />
           </div>
         </template>
+        <AdminBlogSummary v-if="allowed('blog.manage') && !busy" />
         <div class="panel dashboard-note">
           <h2>هر عملیات، با دلیل روشن.</h2>
           <p>

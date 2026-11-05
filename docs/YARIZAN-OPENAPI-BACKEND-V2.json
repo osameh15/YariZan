@@ -3132,6 +3132,21 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "cover_image": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\/(?:blog-covers\\/[a-z0-9-]+|blog-images\\/[0-9a-f-]{36})\\.webp$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cover_alt": {
+                    "type": "string",
+                    "maxLength": 250
+                  },
                   "slug": {
                     "type": "string",
                     "maxLength": 100,
@@ -3208,6 +3223,21 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "cover_image": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\/(?:blog-covers\\/[a-z0-9-]+|blog-images\\/[0-9a-f-]{36})\\.webp$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "cover_alt": {
+                            "type": "string",
+                            "maxLength": 250
+                          },
                           "slug": {
                             "type": "string",
                             "maxLength": 100,
@@ -3267,6 +3297,18 @@
                           },
                           "updated_at": {
                             "type": "string"
+                          },
+                          "cover_width": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "cover_height": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -3278,7 +3320,9 @@
                           "seo_title",
                           "seo_description",
                           "published_at",
-                          "updated_at"
+                          "updated_at",
+                          "cover_width",
+                          "cover_height"
                         ],
                         "additionalProperties": false
                       }
@@ -3398,6 +3442,21 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "cover_image": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\/(?:blog-covers\\/[a-z0-9-]+|blog-images\\/[0-9a-f-]{36})\\.webp$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cover_alt": {
+                    "type": "string",
+                    "maxLength": 250
+                  },
                   "slug": {
                     "type": "string",
                     "maxLength": 100,
@@ -3469,6 +3528,21 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "cover_image": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^\\/(?:blog-covers\\/[a-z0-9-]+|blog-images\\/[0-9a-f-]{36})\\.webp$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "cover_alt": {
+                      "type": "string",
+                      "maxLength": 250
+                    },
                     "slug": {
                       "type": "string",
                       "maxLength": 100,
@@ -3528,6 +3602,18 @@
                     },
                     "updated_at": {
                       "type": "string"
+                    },
+                    "cover_width": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "cover_height": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -3539,7 +3625,9 @@
                     "seo_title",
                     "seo_description",
                     "published_at",
-                    "updated_at"
+                    "updated_at",
+                    "cover_width",
+                    "cover_height"
                   ],
                   "additionalProperties": false
                 }
@@ -3664,6 +3752,21 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "cover_image": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\/(?:blog-covers\\/[a-z0-9-]+|blog-images\\/[0-9a-f-]{36})\\.webp$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cover_alt": {
+                    "type": "string",
+                    "maxLength": 250
+                  },
                   "slug": {
                     "type": "string",
                     "maxLength": 100,
@@ -3735,6 +3838,21 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "cover_image": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^\\/(?:blog-covers\\/[a-z0-9-]+|blog-images\\/[0-9a-f-]{36})\\.webp$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "cover_alt": {
+                      "type": "string",
+                      "maxLength": 250
+                    },
                     "slug": {
                       "type": "string",
                       "maxLength": 100,
@@ -3794,6 +3912,18 @@
                     },
                     "updated_at": {
                       "type": "string"
+                    },
+                    "cover_width": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "cover_height": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -3805,9 +3935,285 @@
                     "seo_title",
                     "seo_description",
                     "published_at",
-                    "updated_at"
+                    "updated_at",
+                    "cover_width",
+                    "cover_height"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/admin/blog/images": {
+      "post": {
+        "operationId": "post__api_v2_admin_blog_images",
+        "summary": "POST /api/v2/admin/blog/images",
+        "security": [
+          {
+            "AdminCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "data": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 460000,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                  }
+                },
+                "required": [
+                  "data"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "width": {
+                      "type": "number"
+                    },
+                    "height": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "width",
+                    "height"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/admin/blog/images/{id}": {
+      "get": {
+        "operationId": "get__api_v2_admin_blog_images__id_",
+        "summary": "GET /api/v2/admin/blog/images/{id}",
+        "security": [
+          {
+            "AdminCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -12684,6 +13090,21 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "cover_image": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\/(?:blog-covers\\/[a-z0-9-]+|blog-images\\/[0-9a-f-]{36})\\.webp$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "cover_alt": {
+                            "type": "string",
+                            "maxLength": 250
+                          },
                           "slug": {
                             "type": "string",
                             "maxLength": 100,
@@ -12703,11 +13124,6 @@
                             "type": "string",
                             "minLength": 2,
                             "maxLength": 60
-                          },
-                          "body": {
-                            "type": "string",
-                            "minLength": 100,
-                            "maxLength": 12000
                           },
                           "seo_title": {
                             "type": "string",
@@ -12743,6 +13159,18 @@
                           },
                           "updated_at": {
                             "type": "string"
+                          },
+                          "cover_width": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "cover_height": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -12750,11 +13178,12 @@
                           "title",
                           "description",
                           "category",
-                          "body",
                           "seo_title",
                           "seo_description",
                           "published_at",
-                          "updated_at"
+                          "updated_at",
+                          "cover_width",
+                          "cover_height"
                         ],
                         "additionalProperties": false
                       }
@@ -12874,6 +13303,21 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "cover_image": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^\\/(?:blog-covers\\/[a-z0-9-]+|blog-images\\/[0-9a-f-]{36})\\.webp$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "cover_alt": {
+                      "type": "string",
+                      "maxLength": 250
+                    },
                     "slug": {
                       "type": "string",
                       "maxLength": 100,
@@ -12933,6 +13377,18 @@
                     },
                     "updated_at": {
                       "type": "string"
+                    },
+                    "cover_width": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "cover_height": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -12944,9 +13400,122 @@
                     "seo_title",
                     "seo_description",
                     "published_at",
-                    "updated_at"
+                    "updated_at",
+                    "cover_width",
+                    "cover_height"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; no secrets or request bodies echoed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/blog/images/{id}": {
+      "get": {
+        "operationId": "get__api_v2_blog_images__id_",
+        "summary": "GET /api/v2/blog/images/{id}",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }

@@ -375,6 +375,40 @@ export interface paths {
     patch: operations['patch__api_v2_admin_blog__id_'];
     trace?: never;
   };
+  '/api/v2/admin/blog/images': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/v2/admin/blog/images */
+    post: operations['post__api_v2_admin_blog_images'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/admin/blog/images/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/v2/admin/blog/images/{id} */
+    get: operations['get__api_v2_admin_blog_images__id_'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v2/admin/commerce/{section}': {
     parameters: {
       query?: never;
@@ -1170,6 +1204,23 @@ export interface paths {
     };
     /** GET /api/v2/blog/{slug} */
     get: operations['get__api_v2_blog__slug_'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/blog/images/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/v2/blog/images/{id} */
+    get: operations['get__api_v2_blog_images__id_'];
     put?: never;
     post?: never;
     delete?: never;
@@ -3840,6 +3891,8 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': {
+          cover_image?: string | null;
+          cover_alt?: string;
           slug: string;
           title: string;
           description: string;
@@ -3862,6 +3915,8 @@ export interface operations {
         content: {
           'application/json': {
             posts: {
+              cover_image?: string | null;
+              cover_alt?: string;
               slug: string;
               title: string;
               description: string;
@@ -3875,6 +3930,8 @@ export interface operations {
               revision?: string | number;
               published_at: string | null;
               updated_at: string;
+              cover_width: number | null;
+              cover_height: number | null;
             }[];
           };
         };
@@ -3965,6 +4022,8 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': {
+          cover_image?: string | null;
+          cover_alt?: string;
           slug: string;
           title: string;
           description: string;
@@ -3986,6 +4045,8 @@ export interface operations {
         };
         content: {
           'application/json': {
+            cover_image?: string | null;
+            cover_alt?: string;
             slug: string;
             title: string;
             description: string;
@@ -3999,6 +4060,8 @@ export interface operations {
             revision?: string | number;
             published_at: string | null;
             updated_at: string;
+            cover_width: number | null;
+            cover_height: number | null;
           };
         };
       };
@@ -4090,6 +4153,8 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': {
+          cover_image?: string | null;
+          cover_alt?: string;
           slug: string;
           title: string;
           description: string;
@@ -4111,6 +4176,8 @@ export interface operations {
         };
         content: {
           'application/json': {
+            cover_image?: string | null;
+            cover_alt?: string;
             slug: string;
             title: string;
             description: string;
@@ -4124,7 +4191,209 @@ export interface operations {
             revision?: string | number;
             published_at: string | null;
             updated_at: string;
+            cover_width: number | null;
+            cover_height: number | null;
           };
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  post__api_v2_admin_blog_images: {
+    parameters: {
+      query?: never;
+      header: {
+        'X-CSRF-Token': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          data: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful operation */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            url: string;
+            width: number;
+            height: number;
+          };
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  get__api_v2_admin_blog_images__id_: {
+    parameters: {
+      query?: never;
+      header: {
+        'X-CSRF-Token': string;
+      };
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful operation */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'image/webp': string;
         };
       };
       /** @description Structured error; no secrets or request bodies echoed */
@@ -9341,11 +9610,12 @@ export interface operations {
         content: {
           'application/json': {
             posts: {
+              cover_image?: string | null;
+              cover_alt?: string;
               slug: string;
               title: string;
               description: string;
               category: string;
-              body: string;
               seo_title: string;
               seo_description: string;
               /** @enum {string} */
@@ -9354,6 +9624,8 @@ export interface operations {
               revision?: string | number;
               published_at: string | null;
               updated_at: string;
+              cover_width: number | null;
+              cover_height: number | null;
             }[];
           };
         };
@@ -9450,6 +9722,8 @@ export interface operations {
         };
         content: {
           'application/json': {
+            cover_image?: string | null;
+            cover_alt?: string;
             slug: string;
             title: string;
             description: string;
@@ -9463,7 +9737,103 @@ export interface operations {
             revision?: string | number;
             published_at: string | null;
             updated_at: string;
+            cover_width: number | null;
+            cover_height: number | null;
           };
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Structured error; no secrets or request bodies echoed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  get__api_v2_blog_images__id_: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful operation */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'image/webp': string;
         };
       };
       /** @description Structured error; no secrets or request bodies echoed */

@@ -1,4 +1,8 @@
 export type BlogPost = {
+  cover_image?: string | null;
+  cover_alt?: string;
+  cover_width?: number | null;
+  cover_height?: number | null;
   id?: string;
   slug: string;
   title: string;
@@ -41,3 +45,5 @@ export function blogDate(value: string) {
     new Date(value),
   );
 }
+
+export type BlogSummary = Omit<BlogPost, 'body'>;

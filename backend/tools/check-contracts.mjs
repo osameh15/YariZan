@@ -49,6 +49,7 @@ const powProof = z
   .optional();
 const blog = await import("../dist/src/blog/blog.js");
 const requests = {
+  "/api/v2/admin/blog/images": blog.blogImageInput,
   "/api/v2/admin/blog": blog.blogInput,
   "/api/v2/admin/blog/{id}": blog.blogInput,
   "/api/v2/account/device-label": z.strictObject({
@@ -226,7 +227,8 @@ const promotionView = z.strictObject({
   updated_at: z.iso.datetime(),
 });
 const responses = {
-  "/api/v2/blog": blog.blogPageResponse,
+  "/api/v2/admin/blog/images": blog.blogImageResponse,
+  "/api/v2/blog": blog.blogPublicPageResponse,
   "/api/v2/blog/{slug}": blog.blogPostResponse,
   "/api/v2/admin/blog": blog.blogPageResponse,
   "/api/v2/admin/blog/{id}": blog.blogPostResponse,
@@ -655,6 +657,10 @@ for (const r of routes.sort(
       503: error,
     },
   };
+  if (r.method === "get" && /\/blog\/images\/\{id\}$/.test(r.path))
+    paths[r.path][r.method].responses[200].content = {
+      "image/webp": { schema: { type: "string", format: "binary" } },
+    };
   if (
     [
       "/api/v2/devices/register",
