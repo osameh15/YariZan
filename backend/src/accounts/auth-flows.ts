@@ -44,7 +44,11 @@ export class AuthFlows {
   private async mobileAccounts(lookup: string, c?: PoolClient) {
     const sql =
       "SELECT c.* FROM customers c JOIN devices d ON d.id=c.device_id AND d.generation=c.generation WHERE c.state='ACTIVE' AND c.mobile_lookup=$1 ORDER BY c.claimed_at,c.id";
-    type Row = Customer & { username: string; claimed_at: Date };
+    type Row = Customer & {
+      username: string;
+      claimed_at: Date;
+      device_label: string | null;
+    };
     return (
       c
         ? await c.query<Row>(sql, [lookup])
@@ -161,6 +165,7 @@ export class AuthFlows {
         return {
           select: accounts.map((a) => ({
             username: a.username,
+            label: a.device_label ?? null,
             created_at: a.claimed_at,
           })),
         };

@@ -21,6 +21,24 @@ const special = standaloneProduct(sku);
 // Independent games have no grade: the wording and the cover follow the product type.
 const unit = special ? 'بازی' : 'پایه';
 const requestId = ref('');
+// The license binds to the device this browser session belongs to; say which one, before payment.
+const device = ref<{ username: string; label: string | null }>();
+async function loadDevice() {
+  try {
+    device.value = await api.get('/api/v2/account');
+  } catch {
+    /* The quote request handles a signed-out visitor. */
+  }
+}
+async function buyForAnotherDevice() {
+  try {
+    await api.post('/api/v2/auth/logout', undefined as never);
+  } catch {
+    /* Continue to the login page either way. */
+  }
+  api.clear();
+  await navigateTo('/login?return=' + encodeURIComponent('/checkout?sku=' + sku));
+}
 let quoteGeneration = 0;
 // The order always uses the last server-validated coupon (`quoted`), which is exactly the price
 // shown. Typing in the coupon box changes nothing until the customer asks for a check; a rejected
@@ -98,7 +116,10 @@ async function create() {
 // Payment wording follows the real mode: live, local sandbox or local simulator.
 const { test, sandbox } = useCommerceMode();
 const PAYMENT_PROVIDER = MERCHANT.paymentProviderFa;
-onMounted(load);
+onMounted(() => {
+  void load();
+  void loadDevice();
+});
 useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
 </script>
 <template>
@@ -130,6 +151,20 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
             >
           </div>
         </article>
+        <section v-if="device" class="checkout-device" data-testid="checkout-device">
+          <div>
+            <p class="eyebrow">مجوز برای این دستگاه ثبت می‌شود</p>
+            <strong>{{ device.label || 'دستگاه بدون نام' }}</strong>
+            <span class="device-username" dir="ltr">{{ device.username }}</span>
+          </div>
+          <button class="button secondary" type="button" @click="buyForAnotherDevice">
+            خرید برای دستگاه دیگر
+          </button>
+          <p class="muted">
+            اگر بازی را روی رایانهٔ دیگری نصب می‌کنید، با کد پیامکی وارد شوید و همان دستگاه را
+            انتخاب کنید. نام دستگاه‌ها را در «حساب من ← دستگاه‌های من» می‌توانید تغییر دهید.
+          </p>
+        </section>
         <section class="coupon-panel" aria-labelledby="coupon-title">
           <header>
             <h2 id="coupon-title">کد تخفیف دارید؟</h2>

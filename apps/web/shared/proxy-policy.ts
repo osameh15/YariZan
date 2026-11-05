@@ -21,7 +21,12 @@ export const browserRoutes = [
     'POST',
     /^auth\/(?:challenge|claim|login|logout|session\/rotate|password-reset\/(?:complete|otp)|otp\/(?:request|verify)|claim\/otp\/request)$/,
   ],
-  ['GET', /^account(?:\/(?:devices|licenses|entitlements|security))?$/],
+  [
+    'GET',
+    /^account(?:\/(?:devices|device-list|licenses|movable-licenses|entitlements|security))?$/,
+  ],
+  ['POST', /^account\/(?:device-label|licenses\/move)$/],
+  ['POST', /^admin\/entitlements\/[0-9a-f-]{36}\/move$/],
   ['POST', /^device-pairings\/[0-9a-f-]{36}\/(?:preview|confirm|cancel)$/],
   ['POST', /^admin\/auth\/(?:login|logout|sms\/verify)$/],
   ['POST', /^account\/security\/(?:otp|password|mobile)$/],

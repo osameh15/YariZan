@@ -279,7 +279,7 @@ export class CommerceAdministration {
     requireCondition(
       !(
         await c.query(
-          "SELECT 1 FROM entitlements WHERE device_id=$1 AND generation=$2 AND sku=$3",
+          "SELECT 1 FROM entitlements WHERE device_id=$1 AND generation=$2 AND sku=$3 AND NOT EXISTS(SELECT 1 FROM entitlements t WHERE t.transferred_from=entitlements.id)",
           [o.device_id, o.generation, o.sku],
         )
       ).rowCount,

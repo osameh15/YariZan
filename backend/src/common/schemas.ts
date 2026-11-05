@@ -53,3 +53,8 @@ export const mutationSchema = z.strictObject({
   evidence_ref: z.string().min(8).max(256).optional(),
 });
 export type Mutation = z.infer<typeof mutationSchema>;
+// A customer-chosen device name; empty clears it.
+export const deviceLabel = z.string().max(40);
+export const deviceUsername = z
+  .string()
+  .regex(/^YZ-([A-F0-9]{4}-){5}[A-F0-9]{4}$/);

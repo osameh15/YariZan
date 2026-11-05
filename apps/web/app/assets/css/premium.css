@@ -2205,3 +2205,241 @@ textarea::placeholder {
 .device-choice small {
   color: var(--muted);
 }
+
+/* Spacing for status badges and dialog content (Admin and account). Low specificity, so a
+   component's own layout still wins. */
+.pill {
+  padding: 3px 12px;
+}
+:where(.pill, .badge) + :where(.pill, .badge) {
+  margin-inline-start: 8px;
+}
+:where(td, li, dd) > :where(.pill, .badge) {
+  margin-block: 2px;
+}
+:where(.detail-section) > * {
+  margin-block: 0;
+}
+:where(.detail-section) > * + * {
+  margin-top: 12px;
+}
+:where(.detail-section) > h3:not(:first-child) {
+  margin-top: 28px;
+}
+.detail-grid {
+  gap: 16px 28px;
+}
+:where(.dialog) :where(form, .dialog-stack) {
+  display: grid;
+  gap: 16px;
+}
+:where(.dialog) :where(form, .dialog-stack) > * {
+  margin-block: 0;
+}
+:where(.dialog) :where(form, .dialog-stack) > label {
+  display: grid;
+  gap: 6px;
+}
+.action-grid {
+  gap: 10px;
+}
+.dialog .actions {
+  gap: 12px;
+}
+
+/* Account: device names, device list and license cards. */
+.current-device {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: -8px 0 24px;
+}
+.current-device-name {
+  font-weight: 700;
+  font-size: 16px;
+}
+.current-device .device-username,
+.device-list .device-username {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.portal-main > .panel + .panel,
+.portal-main > article + article {
+  margin-top: 20px;
+}
+.portal-main .panel > h2 {
+  margin: 0 0 8px;
+}
+.portal-main .panel > p {
+  margin: 0 0 16px;
+}
+.device-name-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px 16px;
+}
+.device-name-form label {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 260px;
+  font-weight: 700;
+  font-size: 13px;
+}
+.device-name-form .button {
+  margin: 0;
+}
+.device-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.device-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.device-list li.is-current {
+  border-color: #c5dacf;
+  background: var(--teal-50);
+}
+.device-list li div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.device-list-icon {
+  font-size: 22px;
+}
+.table-scroll {
+  overflow-x: auto;
+  margin: 0 0 16px;
+}
+.owned-card {
+  display: grid;
+  gap: 14px;
+}
+.owned-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.owned-card-head h2 {
+  margin: 0;
+}
+.owned-card .table-scroll {
+  margin: 0;
+}
+.owned-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.owned-card-actions .button,
+.owned-card-actions p {
+  margin: 0;
+}
+.device-picker {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.device-picker legend {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.device-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  background: var(--surface);
+}
+.device-choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--teal-50);
+}
+.device-choice > span {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.device-choice small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.checkout-device {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.checkout-device > div {
+  display: grid;
+  gap: 2px;
+}
+.checkout-device .eyebrow,
+.checkout-device .device-username {
+  margin: 0;
+}
+.checkout-device .device-username {
+  font-size: 12px;
+  color: var(--muted);
+}
+.checkout-device .button {
+  margin: 0;
+}
+.checkout-device .muted {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+}
+@media (max-width: 640px) {
+  .device-list li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .device-list li > :where(.pill, small) {
+    grid-column: 2;
+  }
+  .checkout-device {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Compact device ID chip inside device cards, checkout and the current-device line. */
+:is(.device-list, .checkout-device, .current-device, .device-choice) .device-username,
+.device-choice small[dir='ltr'] {
+  display: inline-block;
+  justify-self: start;
+  width: auto;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  font-family: monospace;
+  font-size: 12px;
+  text-align: start;
+  color: var(--muted);
+}

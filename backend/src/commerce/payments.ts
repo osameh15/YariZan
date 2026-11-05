@@ -687,7 +687,7 @@ export class Payments
       ).rows[0];
       let entitlement = (
         await c.query(
-          "SELECT * FROM entitlements WHERE device_id=$1 AND generation=$2 AND sku=$3 FOR UPDATE",
+          "SELECT * FROM entitlements WHERE device_id=$1 AND generation=$2 AND sku=$3 AND NOT EXISTS(SELECT 1 FROM entitlements t WHERE t.transferred_from=entitlements.id) FOR UPDATE",
           [d.device_id, d.generation, o.sku],
         )
       ).rows[0];

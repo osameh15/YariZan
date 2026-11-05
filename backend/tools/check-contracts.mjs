@@ -48,6 +48,16 @@ const powProof = z
   })
   .optional();
 const requests = {
+  "/api/v2/account/device-label": z.strictObject({
+    label: schemas.deviceLabel,
+  }),
+  "/api/v2/account/licenses/move": z.strictObject({
+    entitlement_id: schemas.uuid,
+    target_username: schemas.deviceUsername,
+  }),
+  "/api/v2/admin/entitlements/{id}/move": schemas.mutationSchema.extend({
+    target_username: schemas.deviceUsername,
+  }),
   "/api/v2/discounts/quote": commerce.quoteInput,
   "/api/v2/orders": commerce.orderInput,
   "/api/v2/orders/{id}/payments": commerce.paymentInput,
@@ -347,6 +357,7 @@ const responses = {
       select: z.array(
         z.strictObject({
           username: z.string(),
+          label: z.string().nullable(),
           created_at: z.iso.datetime(),
         }),
       ),
@@ -396,6 +407,34 @@ const responses = {
       created_at: z.iso.datetime(),
     }),
   ),
+  "/api/v2/account/device-list": z.array(
+    z.strictObject({
+      username: z.string(),
+      label: z.string().nullable(),
+      current: z.boolean(),
+      created_at: z.iso.datetime(),
+    }),
+  ),
+  "/api/v2/account/device-label": z.strictObject({
+    label: z.string().nullable(),
+  }),
+  "/api/v2/account/movable-licenses": z.array(
+    z.strictObject({
+      id: schemas.uuid,
+      sku: schemas.sku,
+      customer_can_move: z.boolean(),
+    }),
+  ),
+  "/api/v2/account/licenses/move": z.strictObject({
+    entitlement_id: schemas.uuid,
+    sku: schemas.sku,
+    target_username: z.string(),
+  }),
+  "/api/v2/admin/entitlements/{id}/move": z.strictObject({
+    entitlement_id: schemas.uuid,
+    sku: schemas.sku,
+    target_username: z.string(),
+  }),
   "/api/v2/account/licenses": z.array(
     z.strictObject({
       id: schemas.uuid,
@@ -451,6 +490,7 @@ const responses = {
   "/api/v2/account": z.strictObject({
     id: schemas.uuid,
     username: z.string(),
+    label: z.string().nullable(),
     device_id: schemas.uuid,
     generation: z.number().int(),
   }),
