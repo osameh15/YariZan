@@ -191,7 +191,9 @@ onMounted(load);
           <bdi dir="ltr">{{ new Date(report.generated_at).toLocaleString('fa-IR') }}</bdi>
         </p>
       </template>
-      <button class="button secondary" :disabled="busy" @click="load">تازه‌سازی گزارش</button>
+      <button class="button secondary" :disabled="busy" @click="load">
+        <AppIcon name="refresh" /> تازه‌سازی گزارش
+      </button>
     </div>
   </section>
 </template>

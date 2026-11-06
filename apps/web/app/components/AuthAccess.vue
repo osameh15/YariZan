@@ -21,8 +21,10 @@ const username = ref(''),
   api = useApi(props.mode === 'admin'),
   proofOfWork = useProofOfWork(),
   route = useRoute();
-// SMS login needs only the mobile number; the device ID is asked for password login and reset.
-const needsUsername = computed(() => props.mode !== 'customer' || method.value === 'password');
+// Recovery and SMS login start with the verified phone number.
+const needsUsername = computed(
+  () => props.mode === 'admin' || (props.mode === 'customer' && method.value === 'password'),
+);
 const digits = (s: string) =>
   s
     .replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 1776))
@@ -45,6 +47,20 @@ async function submit() {
   message.value = '';
   try {
     if (choices.value.length) {
+      if (props.mode === 'reset') {
+        await api.post('/api/v2/auth/password-reset/otp', {
+          challenge_id: challenge.value,
+          code: checkedCode.value,
+          username: chosen.value,
+          password: password.value,
+        });
+        api.clear();
+        done.value = true;
+        checkedCode.value = '';
+        password.value = '';
+        confirm.value = '';
+        return;
+      }
       await api.post('/api/v2/auth/otp/verify', {
         challenge_id: challenge.value,
         code: checkedCode.value,
@@ -88,9 +104,12 @@ async function submit() {
       await api.post('/api/v2/admin/auth/sms/verify', proof);
       await navigateTo('/zanyari');
     } else if (props.mode === 'reset') {
-      await api.post('/api/v2/auth/password-reset/otp', { ...proof, password: password.value });
-      api.clear();
-      done.value = true;
+      const r = await api.post('/api/v2/auth/password-reset/otp', proof);
+      if ('select' in r && r.select.length) {
+        choices.value = r.select;
+        chosen.value = r.select[0]!.username;
+        checkedCode.value = proof.code;
+      }
     } else {
       const r = await api.post('/api/v2/auth/otp/verify', proof);
       if ('select' in r && r.select.length) {
@@ -116,6 +135,7 @@ function restart() {
   message.value = '';
   code.value = '';
   password.value = '';
+  confirm.value = '';
 }
 </script>
 <template>
@@ -135,9 +155,9 @@ function restart() {
         با شمارهٔ همراهی که هنگام اتصال برنامه تأیید کردید و کد پیامکی وارد شوید. برای ورود با رمز
         عبور، شناسهٔ دستگاه را از صفحهٔ اطلاعات برنامهٔ ویندوز وارد کنید.
       </p>
-      <p v-else-if="mode !== 'admin'">
-        نام کاربری همان شناسه‌ای است که در برنامهٔ ویندوز می‌بینید. شمارهٔ همراه باید قبلاً برای
-        همین حساب تأیید شده باشد.
+      <p v-else-if="mode === 'reset'">
+        شمارهٔ همراه تأییدشدهٔ حساب را وارد کنید. پس از تأیید کد پیامکی، رمز عبور تازه را تعیین
+        می‌کنید.
       </p>
       <p v-else>
         پس از بررسی نام کاربری و رمز عبور، کد یک‌بارمصرف به شمارهٔ تأییدشدهٔ مدیر فرستاده می‌شود.
@@ -161,7 +181,9 @@ function restart() {
       ><h2>
         {{
           choices.length
-            ? 'دستگاه را انتخاب کنید'
+            ? mode === 'reset'
+              ? 'رمز عبور تازه را تعیین کنید'
+              : 'دستگاه را انتخاب کنید'
             : challenge
               ? 'کد پیامک را وارد کنید'
               : mode === 'admin'
@@ -202,8 +224,17 @@ function restart() {
           ورود با رمز عبور
         </button>
       </div>
-      <fieldset v-if="choices.length" class="device-choices">
-        <legend>این شماره به چند دستگاه متصل است. حساب کدام دستگاه را باز کنیم؟</legend>
+      <fieldset
+        v-if="choices.length && (mode !== 'reset' || choices.length > 1)"
+        class="device-choices"
+      >
+        <legend>
+          {{
+            mode === 'reset'
+              ? 'رمز عبور کدام حساب را تغییر می‌دهید؟'
+              : 'این شماره به چند دستگاه متصل است. حساب کدام دستگاه را باز کنیم؟'
+          }}
+        </legend>
         <label v-for="c in choices" :key="c.username" class="device-choice"
           ><input v-model="chosen" type="radio" name="device" :value="c.username" /><span
             ><strong>{{ c.label || 'دستگاه بدون نام' }}</strong
@@ -211,7 +242,7 @@ function restart() {
           ><small>اتصال: {{ new Date(c.created_at).toLocaleDateString('fa-IR') }}</small></label
         >
       </fieldset>
-      <template v-else-if="!challenge"
+      <template v-if="!choices.length && !challenge"
         ><label v-if="needsUsername"
           >نام کاربری{{ mode === 'admin' ? ' مدیریت' : ' دستگاه'
           }}<input
@@ -262,25 +293,26 @@ function restart() {
             data-label="کد تأیید"
             data-format-message="کد شش‌رقمی پیامک را وارد کنید."
         /></label>
-        <template v-if="mode === 'reset'"
-          ><label
-            >رمز عبور جدید<input
-              v-model="password"
-              name="password"
-              type="password"
-              autocomplete="new-password"
-              minlength="12"
-              maxlength="128"
-              required /></label
-          ><label
-            >تکرار رمز عبور<input
-              v-model="confirm"
-              type="password"
-              autocomplete="new-password"
-              data-match="password"
-              minlength="12"
-              maxlength="128"
-              required /></label></template
+      </template>
+      <template v-if="mode === 'reset' && choices.length"
+        ><label
+          >رمز عبور جدید<input
+            v-model="password"
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            minlength="12"
+            maxlength="128"
+            required /></label
+        ><label
+          >تکرار رمز عبور<input
+            v-model="confirm"
+            type="password"
+            autocomplete="new-password"
+            data-match="password"
+            minlength="12"
+            maxlength="128"
+            required /></label
       ></template>
       <ApiNotice :message="message" />
       <button class="button primary" :disabled="busy">
@@ -288,10 +320,12 @@ function restart() {
           busy
             ? 'در حال بررسی…'
             : choices.length
-              ? 'ورود به حساب این دستگاه'
+              ? mode === 'reset'
+                ? 'ثبت رمز عبور جدید'
+                : 'ورود به حساب این دستگاه'
               : challenge
                 ? mode === 'reset'
-                  ? 'ثبت رمز عبور جدید'
+                  ? 'تأیید کد بازیابی'
                   : 'تأیید کد و ورود'
                 : mode === 'admin' || method === 'otp' || mode === 'reset'
                   ? 'ارسال کد تأیید'

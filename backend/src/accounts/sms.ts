@@ -10,6 +10,7 @@ import {
   RenderedSms,
   renderOtp,
   renderSms,
+  liveTemplateAllowed,
 } from "./sms-templates";
 export interface SmsMessage {
   challengeId: string;
@@ -162,14 +163,14 @@ export class Sms {
     this.available();
     await this.provider!.send(m);
   }
-  /** True when a notice can leave this process now (fake mode, or a confirmed live template). */
+  /** True when a notice can leave this process now (fake mode, panel verification, or owner-authorized provider approval). */
   canNotify(event: NoticeEvent) {
     const c = this.security.config;
     if (c.SMS_PROVIDER === "fake") return true;
     return (
       c.SMS_PROVIDER === "melipayamak" &&
       c.SMS_ALLOW_LIVE === "true" &&
-      NOTICE_TEMPLATES[event].textConfirmed &&
+      liveTemplateAllowed(NOTICE_TEMPLATES[event]) &&
       // A purchase notice is never sent for a simulated or disabled commerce flow.
       (event !== "PURCHASE_CONFIRMED" || c.COMMERCE_MODE === "zarinpal")
     );

@@ -135,20 +135,21 @@ useHead(() => ({
     </article>
     <nav class="blog-pagination" aria-label="نوشتهٔ قبلی و بعدی">
       <NuxtLink v-if="previous" :to="'/blog/' + previous.slug" rel="prev"
-        ><span>→ نوشتهٔ قبلی</span><strong>{{ previous.title }}</strong></NuxtLink
+        ><span><AppIcon name="previous" /> نوشتهٔ قبلی</span
+        ><strong>{{ previous.title }}</strong></NuxtLink
       >
       <div v-else class="blog-pagination-boundary">
         <span>نخستین نوشته</span><strong>از اینجا شروع کنید.</strong>
       </div>
       <NuxtLink v-if="next" :to="'/blog/' + next.slug" rel="next"
-        ><span>نوشتهٔ بعدی ←</span><strong>{{ next.title }}</strong></NuxtLink
+        ><span>نوشتهٔ بعدی <AppIcon name="next" /></span><strong>{{ next.title }}</strong></NuxtLink
       >
       <div v-else class="blog-pagination-boundary">
         <span>همه را خواندید</span><strong>نوشته‌های تازه در راه‌اند.</strong>
       </div>
     </nav>
     <aside class="blog-resource-links">
-      <NuxtLink class="text-link" to="/blog">بازگشت به نوشته‌ها ←</NuxtLink>
+      <NuxtLink class="text-link" to="/blog">بازگشت به نوشته‌ها <AppIcon name="back" /></NuxtLink>
     </aside>
   </div>
 </template>

@@ -26,7 +26,9 @@ onBeforeUnmount(() => dialog.value?.close());
   >
     <div class="dialog-top">
       <h2 :id="titleId">{{ title }}</h2>
-      <button class="icon-button" aria-label="بستن پنجره" @click="model = false">×</button>
+      <button class="icon-button" aria-label="بستن پنجره" @click="model = false">
+        <AppIcon name="close" />
+      </button>
     </div>
     <slot />
   </dialog>

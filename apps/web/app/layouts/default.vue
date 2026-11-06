@@ -25,17 +25,17 @@ watch(
         ><NuxtLink to="/support">همراه شما</NuxtLink>
       </nav>
       <NuxtLink v-if="!publicOnly" class="button secondary desktop-login" to="/account"
-        >حساب من <span aria-hidden="true">↗</span></NuxtLink
+        >حساب من <span aria-hidden="true"><AppIcon name="external" /></span></NuxtLink
       ><NuxtLink v-else class="button secondary desktop-login" to="/support"
-        >پشتیبانی <span aria-hidden="true">↗</span></NuxtLink
-      >
+        >پشتیبانی <span aria-hidden="true"><AppIcon name="external" /></span
+      ></NuxtLink>
       <button
         class="menu-toggle button secondary"
         aria-label="باز کردن منو"
         :aria-expanded="open"
         @click="open = true"
       >
-        ☰
+        <AppIcon name="menu" />
       </button>
     </header>
     <BaseDialog v-model="open" title="به یاریزان خوش آمدید"
@@ -50,7 +50,7 @@ watch(
       </nav></BaseDialog
     >
     <div v-if="publicOnly" class="wrap brochure-notice" role="note">
-      <span aria-hidden="true">✦</span>
+      <span aria-hidden="true"><AppIcon name="book" /></span>
       <p v-if="storefront">
         قیمت‌ها رسمی و به تومان است. برای تهیه و فعال‌سازی برنامه با پشتیبانی تماس بگیرید.
       </p>

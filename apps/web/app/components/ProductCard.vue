@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { productIcon } from '#shared/icons';
 import type { PublicProduct } from '#shared/catalog-snapshot';
 import { gradeNames, availability } from '#shared/domain';
 import PriceBlock from './PriceBlock.vue';
@@ -45,6 +46,7 @@ defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
         >{{ availability(product, publicOnly) }}</span
       >
       <h3>
+        <AppIcon :name="productIcon(product.sku)" :size="24" class="product-feature-icon" />
         <NuxtLink :to="productPath(product)">{{ productTitle(product.sku) }}</NuxtLink>
       </h3>
       <p>
@@ -59,8 +61,8 @@ defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
           class="round-link"
           :to="productPath(product)"
           :aria-label="`آشنایی با ${product.title_fa}`"
-          >↖</NuxtLink
-        >
+          ><AppIcon name="arrow-up-left"
+        /></NuxtLink>
       </div>
     </div>
   </article>

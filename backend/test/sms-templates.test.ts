@@ -9,6 +9,7 @@ import {
   OtpPurpose,
   SmsTemplate,
   jalaliDate,
+  jalaliDateTime,
   renderOtp,
   renderSms,
 } from "../src/accounts/sms-templates";
@@ -129,13 +130,17 @@ test("a template promising another lifetime is never production-ready", () => {
   );
 });
 
-test("every pattern is one-argument and confirmed for live sending after its direct panel check", () => {
+test("every pattern has one argument; pending login patterns cannot claim live approval", () => {
   for (const t of [
     ...Object.values(OTP_TEMPLATES),
     ...Object.values(NOTICE_TEMPLATES),
   ]) {
     assert.equal(t!.variables.length, 1, t!.bodyId);
-    assert.equal(t!.textConfirmed, true, t!.bodyId);
+    assert.equal(
+      t!.textConfirmed,
+      !["578985", "578987"].includes(t!.bodyId),
+      t!.bodyId,
+    );
     // Every pattern carries exactly one {0} and a recorded transcription.
     assert.equal(t!.providerText.split("{0}").length - 1, 1, t!.bodyId);
     assert.ok(t!.providerText.startsWith("یاریزان: "), t!.bodyId);
@@ -154,11 +159,17 @@ test("a pattern is confirmed for live sending only together with a direct panel 
       ...Object.values(NOTICE_TEMPLATES),
     ]),
   ];
-  assert.equal(all.length, 7, "seven distinct patterns");
+  assert.equal(all.length, 9, "seven approved and two pending patterns");
   for (const t of all) {
     // All seven were checked directly in the provider panel (562281 on 2026-10-21, the rest on
     // 2026-10-23); an owner attestation alone can never confirm text for live sending.
-    assert.equal(t!.verification, "PANEL_VERIFIED", t!.bodyId);
+    assert.equal(
+      t!.verification,
+      ["578985", "578987"].includes(t!.bodyId)
+        ? "PROVIDER_ENFORCED"
+        : "PANEL_VERIFIED",
+      t!.bodyId,
+    );
     if (t!.textConfirmed)
       assert.equal(t!.verification, "PANEL_VERIFIED", t!.bodyId);
   }
@@ -201,7 +212,9 @@ test("confirmed templates render for live sending; an unconfirmed template never
   for (const p of ["CLAIM", "LOGIN", "RESET", "PASSWORD", "ADMIN"] as const)
     assert.deepEqual(renderOtp(p, "123456", strict).args, ["123456"], p);
   assert.equal(renderOtp("ADMIN", "123456", strict).bodyId, 562281);
-  for (const t of Object.values(NOTICE_TEMPLATES)) {
+  for (const t of Object.values(NOTICE_TEMPLATES).filter(
+    (t) => t.textConfirmed,
+  )) {
     const values: Record<string, string> =
       t.variables[0] === "date" ? { date: "1405/07/27" } : { order: ORDER };
     assert.equal(renderSms(t, values, strict).bodyId, Number(t.bodyId));
@@ -282,4 +295,63 @@ test("Sms.canNotify sends live notices only with confirmed text and, for purchas
     sms({ SMS_PROVIDER: "fake" }).canNotify("PURCHASE_CONFIRMED"),
     true,
   );
+});
+
+test("login notices defer approval to MeliPayamak without a deployment gate", () => {
+  for (const [event, bodyId] of [
+    ["CUSTOMER_LOGIN", 578985],
+    ["ADMIN_LOGIN", 578987],
+  ] as const) {
+    const template = NOTICE_TEMPLATES[event];
+    assert.equal(template.bodyId, String(bodyId));
+    assert.equal(template.textConfirmed, false);
+    assert.equal(template.verification, "PROVIDER_ENFORCED");
+    assert.deepEqual(renderSms(template, { date: "1405/08/15 13:25" }, loose), {
+      bodyId,
+      args: ["1405/08/15 13:25"],
+    });
+    assert.deepEqual(
+      renderSms(template, { date: "1405/08/15 13:25" }, strict),
+      { bodyId, args: ["1405/08/15 13:25"] },
+    );
+    const sms = new Sms({
+      config: {
+        SMS_PROVIDER: "melipayamak",
+        SMS_ALLOW_LIVE: "true",
+        MELIPAYAMAK_API_TOKEN: "ci-synthetic-token-0123456789",
+      },
+    } as unknown as Security);
+    assert.equal(sms.canNotify(event), true);
+    assert.equal(template.providerText.includes("http"), false);
+  }
+});
+test("Jalali notice timestamps use Tehran time, Latin digits and a 24-hour clock", () => {
+  assert.equal(
+    jalaliDateTime(new Date("2026-11-06T09:55:00Z")),
+    "1405/08/15 13:25",
+  );
+  assert.equal(
+    jalaliDateTime(new Date("2026-11-05T20:30:00Z")),
+    "1405/08/15 00:00",
+  );
+  assert.deepEqual(
+    renderSms(
+      NOTICE_TEMPLATES.PASSWORD_CHANGED,
+      { date: "۱۴۰۵/۰۸/۱۵ ۱۳:۲۵" },
+      strict,
+    ).args,
+    ["1405/08/15 13:25"],
+  );
+  for (const date of [
+    "1405/08/15 24:00",
+    "1405/08/15 12:60",
+    "1405/13/15 12:00",
+    "1405/08/15 13:25;extra",
+    "1405/08/15\n13:25",
+  ]) {
+    assert.throws(
+      () => renderSms(NOTICE_TEMPLATES.CUSTOMER_LOGIN, { date }, loose),
+      unavailable,
+    );
+  }
 });

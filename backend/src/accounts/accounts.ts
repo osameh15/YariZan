@@ -1,3 +1,4 @@
+import { queueLoginNotice } from "./login-notice";
 import { Injectable } from "@nestjs/common";
 import { hashPassword, verifyPassword } from "../security/passwords";
 import { randomUUID } from "node:crypto";
@@ -71,6 +72,7 @@ export class Accounts {
         "customer.login",
         row.id,
       );
+      await queueLoginNotice(c, "customer", row.id);
       return {
         ...session,
         trust: this.abuse.trustToken("customer", row.id, stamp),

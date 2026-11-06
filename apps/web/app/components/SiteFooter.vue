@@ -31,19 +31,7 @@ const { data } = await useBlogPosts();
       </div>
       <div class="footer-contact-grid" aria-label="راه‌های ارتباط با پشتیبانی">
         <div class="footer-contact-card">
-          <svg
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            aria-hidden="true"
-          >
-            <path
-              d="M7 3H4a1 1 0 0 0-1 1c0 9.4 7.6 17 17 17a1 1 0 0 0 1-1v-3l-5-2-2 2a14 14 0 0 1-7-7l2-2-2-5Z"
-            />
-          </svg>
+          <AppIcon name="phone" :size="24" />
           <div class="footer-contact-details">
             <span>تماس با پشتیبانی</span>
             <div class="footer-phone-links">
@@ -58,23 +46,11 @@ const { data } = await useBlogPosts();
           </div>
         </div>
         <a class="footer-contact-card footer-contact-email" :href="'mailto:' + SUPPORT_EMAIL"
-          ><svg
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            aria-hidden="true"
-          >
-            <rect x="3" y="5" width="18" height="14" rx="3" />
-            <path d="m4 7 8 6 8-6" />
-          </svg>
+          ><AppIcon name="mail" :size="24" />
           <div class="footer-contact-details">
             <span>ایمیل پشتیبانی</span><strong dir="ltr">{{ SUPPORT_EMAIL }}</strong
-            ><small>پرسش‌تان را برایمان بنویسید ↗</small>
-          </div></a
-        >
+            ><small>پرسش‌تان را برایمان بنویسید <AppIcon name="external" /></small></div
+        ></a>
       </div>
     </div>
     <div class="wrap footer-content">
@@ -90,12 +66,12 @@ const { data } = await useBlogPosts();
         <NuxtLink to="/support">راهنما و پشتیبانی</NuxtLink
         ><NuxtLink v-if="!publicOnly" to="/account">حساب من</NuxtLink
         ><NuxtLink to="/legal">قوانین و حریم خصوصی</NuxtLink
-        ><a href="https://oarnova.games">دربارهٔ استودیو اوآر نوآ ↗</a>
+        ><a href="https://oarnova.games">دربارهٔ استودیو اوآر نوآ <AppIcon name="external" /></a>
       </nav>
       <nav class="footer-reading" aria-label="نوشته‌های تازهٔ وبلاگ">
         <div class="footer-reading-heading">
           <h2>خواندنی‌های تازه</h2>
-          <NuxtLink to="/blog">همهٔ نوشته‌ها ←</NuxtLink>
+          <NuxtLink to="/blog">همهٔ نوشته‌ها <AppIcon name="arrow-left" /></NuxtLink>
         </div>
         <ul v-if="data?.posts.length">
           <li v-for="post in data.posts.slice(0, 4)" :key="post.slug">
@@ -120,7 +96,7 @@ const { data } = await useBlogPosts();
         >
         <div class="footer-fineprint">
           <p class="footer-copyright">حق مالکیت سایت برای یاریزان محفوظ است.</p>
-          <a href="https://osameh.dev">پورتفولیوی توسعه‌دهنده ↗</a>
+          <a href="https://osameh.dev">پورتفولیوی توسعه‌دهنده <AppIcon name="external" /></a>
         </div>
         <a
           v-if="!sealLoaded"
@@ -129,8 +105,8 @@ const { data } = await useBlogPosts();
           target="_blank"
           rel="noopener"
           referrerpolicy="origin"
-          >استعلام نماد اعتماد ↗</a
-        >
+          >استعلام نماد اعتماد <AppIcon name="external"
+        /></a>
         <a
           class="enamad-seal"
           :class="{ 'is-loaded': sealLoaded }"

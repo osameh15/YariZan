@@ -1,4 +1,4 @@
-import "reflect-metadata";
+﻿import "reflect-metadata";
 import sharp from "sharp";
 import { before, beforeEach, after, test } from "node:test";
 import assert from "node:assert/strict";
@@ -356,13 +356,13 @@ test("Blog drafts need authorized publication, preserve URLs, and reject stale e
       posts: { id: string; slug: string; state: string; revision: string }[];
     }>("/admin/blog", undefined, admin)
   ).body.posts;
-  assert.equal(all.filter((p) => p.state === "DRAFT").length, 4);
+  assert.equal(all.filter((p) => p.state === "DRAFT").length, 6);
   assert.deepEqual((await ok<{ posts: unknown[] }>("/blog")).body.posts, []);
   await denied("/blog/" + all[0].slug, undefined, "NOT_FOUND");
   await denied("/admin/blog", undefined, "UNAUTHENTICATED");
   const support = await adminLogin("support");
   await denied("/admin/blog", undefined, "FORBIDDEN", support);
-  const post = all[0];
+  const post = all.find((p) => p.slug === "choosing-an-educational-game")!;
   const stored = (
     await db.query("SELECT * FROM blog_posts WHERE id=$1", [post.id])
   ).rows[0];
@@ -1925,7 +1925,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 18 });
+    assert.deepEqual(await verifyMigrations(c), { total: 19 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,
@@ -4586,7 +4586,7 @@ test("Password change sends one notice from the durable outbox, never twice", as
     Number(
       (
         await db.query(
-          "SELECT count(*) FROM audit_logs WHERE action=$1 AND entity_id=$2",
+          "SELECT count(*) FROM audit_logs WHERE action=$1 AND entity_id=$2 AND metadata_redacted->>'event'='password.changed'",
           [action, e.customer_id],
         )
       ).rows[0].count,
@@ -4604,7 +4604,7 @@ test("Password change sends one notice from the durable outbox, never twice", as
   );
   const fake = app.get(Sms).fake;
   const notice = fake.notices.findLast((n) => n.event === "PASSWORD_CHANGED");
-  assert.match(notice!.values.date!, /^14\d\d\/\d\d\/\d\d$/);
+  assert.match(notice!.values.date!, /^14\d\d\/\d\d\/\d\d [0-2]\d:[0-5]\d$/);
   assert.equal(
     JSON.stringify(fake.notices).includes("Notified!Password"),
     false,
@@ -6441,12 +6441,6 @@ test("Mobile-only SMS login: one device signs in directly; several devices are l
     { challenge_id: issued.body.challenge_id, code, username: a.username },
     "OTP_INVALID",
   );
-  // Password reset still needs the device ID.
-  const reset = await request("/auth/otp/request", {
-    mobile,
-    purpose: "RESET",
-  });
-  assert.equal(reset.status, 400);
 });
 
 test("Reconciliation: only a repeated, spaced provider FAILED ends an attempt; the order fails once and grants nothing", async () => {
@@ -7408,4 +7402,192 @@ test("Devices of one verified mobile: names, and a purchase moves once to anothe
     ).rows[0].n,
     2,
   );
+});
+
+test("Successful customer and Admin logins queue one notice; failure and session rotation do not", async () => {
+  const e = await enroll(candidate());
+  const notifications = app.get(Notifications),
+    fake = app.get(Sms).fake;
+  // Ignore the initial claim in this check; each new sign-in is a separate security event.
+  await db.query(
+    "UPDATE outbox_events SET processed_at=now() WHERE type IN ('customer.login_notice','admin.login_notice')",
+  );
+  const browser = await login(e);
+  const event = (
+    await db.query(
+      "SELECT * FROM outbox_events WHERE type='customer.login_notice' AND aggregate_id=$1 AND processed_at IS NULL",
+      [e.customer_id],
+    )
+  ).rows;
+  assert.equal(event.length, 1);
+  const invalid = await request<ErrorBody>("/auth/login", {
+    username: e.username,
+    password: "Wrong!Password1234",
+  });
+  assert.equal(invalid.status, 401);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM outbox_events WHERE type='customer.login_notice' AND aggregate_id=$1",
+        [e.customer_id],
+      )
+    ).rows[0].count,
+    "2",
+  );
+  const customer = (
+    await db.query("SELECT mobile_last4 FROM customers WHERE id=$1", [
+      e.customer_id,
+    ])
+  ).rows[0];
+  const before = fake.notices.filter(
+    (n) => n.event === "CUSTOMER_LOGIN",
+  ).length;
+  await Promise.all([notifications.drain(50), notifications.drain(50)]);
+  const notice = fake.notices.filter((n) => n.event === "CUSTOMER_LOGIN")[
+    before
+  ];
+  assert.ok(notice);
+  assert.equal(notice.mobile.endsWith(customer.mobile_last4), true);
+  assert.deepEqual(Object.keys(notice.values), ["date"]);
+  assert.match(notice.values.date!, /^14\d{2}\/\d{2}\/\d{2} [0-2]\d:[0-5]\d$/);
+  await notifications.drain(50);
+  assert.equal(
+    fake.notices.filter((n) => n.event === "CUSTOMER_LOGIN").length,
+    before + 1,
+  );
+  await adminLogin();
+  const adminEvents = (
+    await db.query(
+      "SELECT * FROM outbox_events WHERE type='admin.login_notice' AND processed_at IS NULL",
+    )
+  ).rows;
+  assert.equal(adminEvents.length, 1);
+  await notifications.drain(50);
+  assert.ok(fake.notices.some((n) => n.event === "ADMIN_LOGIN"));
+  assert.equal(JSON.stringify(notice.values).includes(e.username), false);
+  await ok("/auth/session/rotate", {}, browser);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) FROM outbox_events WHERE type='customer.login_notice' AND aggregate_id=$1",
+        [e.customer_id],
+      )
+    ).rows[0].count,
+    "2",
+  );
+});
+
+test("Two new learning articles remain private drafts and migration replay preserves Admin edits", async () => {
+  const slugs = ["pattern-games-at-home", "more-less-and-equal-games"];
+  const posts = (
+    await db.query(
+      "SELECT * FROM blog_posts WHERE slug=ANY($1) ORDER BY slug",
+      [slugs],
+    )
+  ).rows;
+  assert.equal(posts.length, 2);
+  for (const post of posts) {
+    assert.equal(post.state, "DRAFT");
+    assert.equal(post.published_at, null);
+    assert.equal(post.cover_image, `/blog-covers/${post.slug}.webp`);
+    assert.ok(post.cover_alt.length > 10);
+    assert.equal(post.cover_width, 1536);
+    assert.equal((await request(`/blog/${post.slug}`)).status, 404);
+  }
+  await db.query(
+    "UPDATE blog_posts SET title='Owner revised learning article',revision=revision+1 WHERE slug=$1",
+    [slugs[0]],
+  );
+  await db.query(
+    await readFile("migrations/019_blog_learning_drafts.sql", "utf8"),
+  );
+  assert.equal(
+    (await db.query("SELECT title FROM blog_posts WHERE slug=$1", [slugs[0]]))
+      .rows[0].title,
+    "Owner revised learning article",
+  );
+});
+
+test("Phone-only password recovery verifies ownership and changes only the chosen account", async () => {
+  const a = await buyer(),
+    b = await buyer(),
+    other = await buyer();
+  const mobile = await mobileFor(a);
+  const sessionA = await login(a),
+    sessionB = await login(b);
+  const issue = async () => {
+    const r = await ok<{ challenge_id: string }>("/auth/otp/request", {
+      mobile,
+      purpose: "RESET",
+    });
+    return {
+      challenge_id: r.body.challenge_id,
+      code: await otpCode(r.body.challenge_id),
+    };
+  };
+  const single = await issue();
+  const listedSingle = await ok<{ select: { username: string }[] }>(
+    "/auth/password-reset/otp",
+    single,
+  );
+  assert.deepEqual(
+    listedSingle.body.select.map((v) => v.username),
+    [a.username],
+  );
+  assert.equal(listedSingle.headers.get("set-cookie"), null);
+  await ok("/auth/password-reset/otp", {
+    ...single,
+    password: "PhoneReset!Password123",
+  });
+  await denied("/account", undefined, "UNAUTHENTICATED", sessionA);
+  await login(a, "PhoneReset!Password123");
+  await denied("/auth/password-reset/otp", single, "OTP_INVALID");
+  await db.query(
+    "UPDATE customers SET mobile_lookup=(SELECT mobile_lookup FROM customers WHERE id=$2),mobile_ciphertext=(SELECT mobile_ciphertext FROM customers WHERE id=$2),mobile_last4=(SELECT mobile_last4 FROM customers WHERE id=$2),device_label='Family laptop' WHERE id=$1",
+    [b.customer_id, a.customer_id],
+  );
+  await db.query("DELETE FROM rate_buckets");
+  const multi = await issue();
+  await denied(
+    "/auth/password-reset/otp",
+    { ...multi, code: multi.code === "000000" ? "111111" : "000000" },
+    "OTP_INVALID",
+  );
+  const listed = await ok<{
+    select: { username: string; label: string | null }[];
+  }>("/auth/password-reset/otp", multi);
+  assert.deepEqual(
+    listed.body.select.map((v) => v.username).sort(),
+    [a.username, b.username].sort(),
+  );
+  assert.equal(
+    listed.body.select.find((v) => v.username === b.username)?.label,
+    "Family laptop",
+  );
+  await denied(
+    "/auth/password-reset/otp",
+    { ...multi, username: other.username, password: "WrongReset!Password123" },
+    "OTP_INVALID",
+  );
+  const stillA = await login(a, "PhoneReset!Password123");
+  await ok("/auth/password-reset/otp", {
+    ...multi,
+    username: b.username,
+    password: "ChosenReset!Password123",
+  });
+  await denied("/account", undefined, "UNAUTHENTICATED", sessionB);
+  await ok("/account", undefined, stillA);
+  await login(b, "ChosenReset!Password123");
+  await denied(
+    "/auth/password-reset/otp",
+    { ...multi, username: a.username, password: "ReplayReset!Password123" },
+    "OTP_INVALID",
+  );
+  await db.query("DELETE FROM rate_buckets");
+  const stale = await issue();
+  await db.query("UPDATE customers SET password_hash=$2 WHERE id=$1", [
+    a.customer_id,
+    await passwordHash("ChangedElsewhere!Password123"),
+  ]);
+  await denied("/auth/password-reset/otp", stale, "OTP_INVALID");
 });

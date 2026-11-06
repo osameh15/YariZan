@@ -249,6 +249,8 @@ export class Blog {
             "number-games-at-home",
             "getting-started-with-yarizan",
             "helping-without-giving-the-answer",
+            "pattern-games-at-home",
+            "more-less-and-equal-games",
           ].some((slug) => cover === `/blog-covers/${slug}.webp`),
           "BLOG_IMAGE_INVALID",
         );

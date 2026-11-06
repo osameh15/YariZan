@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { productIcon } from '#shared/icons';
+import { navigationIcon } from '#shared/icons';
 import { productTitle, standaloneProducts } from '#shared/products';
 import { persianDigits } from '#shared/digits';
 import { errorMessage, toman, gradeNames } from '#shared/domain';
@@ -210,12 +212,12 @@ const allowed = (permission: string) => permissions.value.includes(permission);
 // Dashboard: totals and 30-day daily counts from /admin/reports (counts only, no amounts).
 const count = (key: string) => Number(reports.value[key] ?? 0);
 const dashboardTiles = computed(() => [
-  { icon: '◉', label: 'حساب فعال', value: count('customers') },
-  { icon: '▣', label: 'دستگاه ثبت‌شده', value: count('devices') },
-  { icon: '✓', label: 'مجوز معتبر', value: count('licenses_active') },
-  { icon: '◆', label: 'سفارش پرداخت‌شده', value: count('paid_orders') },
-  { icon: '▶', label: 'شروع نوبت آزمایشی', value: count('trials') },
-  { icon: '⟳', label: 'رویداد در انتظار پردازش', value: count('outbox_pending') },
+  { icon: 'user', label: 'حساب فعال', value: count('customers') },
+  { icon: 'device', label: 'دستگاه ثبت‌شده', value: count('devices') },
+  { icon: 'shield', label: 'مجوز معتبر', value: count('licenses_active') },
+  { icon: 'receipt', label: 'سفارش پرداخت‌شده', value: count('paid_orders') },
+  { icon: 'play', label: 'شروع نوبت آزمایشی', value: count('trials') },
+  { icon: 'refresh', label: 'رویداد در انتظار پردازش', value: count('outbox_pending') },
 ]);
 function series(key: 'accounts' | 'trials' | 'paid_orders') {
   const daily = (reports.value.daily ?? []) as Record<string, unknown>[];
@@ -547,11 +549,13 @@ const navigationGroups: { title: string; ids: string[] }[] = [
             :key="id"
             :to="id === 'dashboard' ? '/zanyari' : `/zanyari/${id}`"
             :aria-current="section === id ? 'page' : undefined"
-            >{{ label }}</NuxtLink
+            ><AppIcon :name="navigationIcon(id)" />{{ label }}</NuxtLink
           >
         </template>
       </nav>
-      <button class="button secondary" @click="logout">خروج از مدیریت</button>
+      <button class="button secondary" @click="logout">
+        <AppIcon name="logout" />خروج از مدیریت
+      </button>
     </aside>
     <div class="portal-main" :aria-busy="busy">
       <header class="portal-heading">
@@ -559,7 +563,9 @@ const navigationGroups: { title: string; ids: string[] }[] = [
           <p class="eyebrow">تغییرات مسئولانه و قابل پیگیری</p>
           <h1>{{ title }}</h1>
         </div>
-        <NuxtLink to="/zanyari/login" class="text-link">ورود مجدد برای تأیید تازه ↗</NuxtLink>
+        <NuxtLink to="/zanyari/login" class="text-link"
+          >ورود مجدد برای تأیید تازه <AppIcon name="external"
+        /></NuxtLink>
       </header>
       <ApiNotice :message="message" :kind="noticeSuccess ? 'success' : 'error'" />
       <p v-if="busy" role="status" class="notice">در حال دریافت اطلاعات…</p>
@@ -567,7 +573,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
         ><template v-if="allowed('audit.read') && !busy">
           <div class="dashboard-stats">
             <article v-for="tile in dashboardTiles" :key="tile.label" class="panel stat-tile">
-              <span class="stat-tile-icon" aria-hidden="true">{{ tile.icon }}</span>
+              <span class="stat-tile-icon"><AppIcon :name="tile.icon" :size="28" /></span>
               <strong>{{ new Intl.NumberFormat('fa-IR').format(tile.value) }}</strong>
               <p>{{ tile.label }}</p>
             </article>
@@ -629,7 +635,9 @@ const navigationGroups: { title: string; ids: string[] }[] = [
             class="search-input"
             maxlength="128"
           /><button class="button secondary">جست‌وجو</button
-          ><button type="button" class="button secondary" @click="load">تازه‌سازی</button>
+          ><button type="button" class="button secondary" @click="load">
+            <AppIcon name="refresh" /> تازه‌سازی
+          </button>
           <div
             v-if="section === 'devices'"
             class="segmented"
@@ -737,7 +745,9 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                 ) + ' پایه'
               : 'ندارد'
           }}</template>
-          <template #cell-sku="{ row }">{{ grade(row.sku) }}</template>
+          <template #cell-sku="{ row }"
+            ><AppIcon :name="productIcon(row.sku)" /> {{ grade(row.sku) }}</template
+          >
           <template #cell-used="{ row }"
             >{{ fa.format(2 - Number(row.used)) }} از {{ fa.format(2) }}</template
           >
@@ -1125,13 +1135,15 @@ const navigationGroups: { title: string; ids: string[] }[] = [
         </button>
       </FormShell>
       <div v-else>
-        <span class="success-mark" aria-hidden="true">✓</span
+        <span class="success-mark" aria-hidden="true"><AppIcon name="check" /></span
         ><template v-if="secret"
           ><p class="danger-copy">
             این مقدار فقط همین یک بار نمایش داده می‌شود. پس از بستن پنجره قابل بازیابی نیست.
           </p>
           <p class="secret-once" dir="ltr" data-testid="one-time-secret">{{ secret }}</p>
-          <button class="button primary" @click="copy">کپی مقدار یک‌بارمصرف</button></template
+          <button class="button primary" @click="copy">
+            <AppIcon name="copy" /> کپی مقدار یک‌بارمصرف
+          </button></template
         >
       </div>
       <p v-if="feedback" class="notice" role="status">{{ feedback }}</p></BaseDialog

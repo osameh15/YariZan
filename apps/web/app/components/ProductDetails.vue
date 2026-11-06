@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { productIcon } from '#shared/icons';
 const { test } = useCommerceMode();
 import { PRIMARY_SUPPORT_PHONE, SUPPORT_PHONES } from '#shared/contact';
 import type { ApiResult } from '#shared/api';
@@ -70,7 +71,11 @@ const commerce = publicOnly.value
             :class="product.publication_status === 'coming_soon' ? 'neutral' : 'available'"
             >{{ availability(product, publicOnly) }}</span
           >
-          <h1>{{ product.title_fa }}</h1>
+          <h1>
+            <AppIcon :name="productIcon(product.sku)" :size="32" class="product-feature-icon" />{{
+              product.title_fa
+            }}
+          </h1>
           <p v-if="special" class="hero-lead">{{ special.description }}</p>
           <p v-else class="hero-lead">
             یک دنیای مستقل برای بازی و یادگیری در پایهٔ {{ gradeNames[product.grade - 1] }} دبستان.
@@ -121,7 +126,7 @@ const commerce = publicOnly.value
                 }}</NuxtLink
               >
               <button class="button secondary" @click="assistance = true">
-                راهنمای تهیهٔ این نسخه ↗
+                راهنمای تهیهٔ این نسخه <AppIcon name="external" />
               </button>
             </div>
             <p v-else class="notice">فروش این نسخه فعلاً متوقف است.</p>
@@ -130,9 +135,11 @@ const commerce = publicOnly.value
             </p>
           </template>
           <div class="detail-facts">
-            <p>✓ مجوز همیشگی، ویژهٔ همین محصول و دستگاه تأییدشده</p>
-            <p>✓ اجرای آفلاین پس از فعال‌سازی مجوز معتبر</p>
-            <p v-if="product.trial_enabled">✓ دو فرصت آزمایش؛ اینترنت فقط برای شروع</p>
+            <p><AppIcon name="check" /> مجوز همیشگی، ویژهٔ همین محصول و دستگاه تأییدشده</p>
+            <p><AppIcon name="check" /> اجرای آفلاین پس از فعال‌سازی مجوز معتبر</p>
+            <p v-if="product.trial_enabled">
+              <AppIcon name="check" /> دو فرصت آزمایش؛ اینترنت فقط برای شروع
+            </p>
             <p v-else>آزمایش این محصول فعلاً در دسترس نیست.</p>
             <p v-if="!product.activation_enabled">فعال‌سازی جدید این محصول فعلاً غیرفعال است.</p>
           </div>
@@ -143,7 +150,9 @@ const commerce = publicOnly.value
               :to="'/download?product=' + product.sku"
               >دریافت برنامهٔ ویندوز</NuxtLink
             >
-            <NuxtLink to="/support" class="text-link">راهنمای دریافت برنامه و پشتیبانی ←</NuxtLink>
+            <NuxtLink to="/support" class="text-link"
+              >راهنمای دریافت برنامه و پشتیبانی <AppIcon name="arrow-left"
+            /></NuxtLink>
           </div>
         </div>
       </div>
@@ -179,8 +188,8 @@ const commerce = publicOnly.value
       </div>
       <div class="actions dialog-support">
         <NuxtLink class="button primary" to="/support" @click="assistance = false"
-          >صفحهٔ پشتیبانی ←</NuxtLink
-        >
+          >صفحهٔ پشتیبانی <AppIcon name="arrow-left"
+        /></NuxtLink>
       </div>
     </BaseDialog>
   </section>

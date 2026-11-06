@@ -339,3 +339,30 @@ test("Real MeliPayamak answers: success is HTTP 200 with a 19-digit numeric recI
       `${status} ${body}`,
     );
 });
+
+test("Login pattern starts sending after provider approval with the same running instance", async () => {
+  let approved = false,
+    calls = 0;
+  const provider = new MeliPayamakSharedProvider(TOKEN, async (_url, init) => {
+    calls++;
+    assert.deepEqual(JSON.parse(String(init?.body)), {
+      bodyId: 578985,
+      to: message.mobile,
+      args: ["1405/08/15 13:25"],
+    });
+    return approved
+      ? accepted()
+      : new Response(JSON.stringify({ status: "Pattern awaiting approval" }), {
+          status: 400,
+        });
+  });
+  const notice = {
+    event: "CUSTOMER_LOGIN" as const,
+    mobile: message.mobile,
+    values: { date: "1405/08/15 13:25" },
+  };
+  await assert.rejects(provider.notify(notice), unavailable);
+  approved = true;
+  await provider.notify(notice);
+  assert.equal(calls, 2);
+});

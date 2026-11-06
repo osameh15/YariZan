@@ -174,7 +174,7 @@ watch(model, async () => {
           :disabled="year === 1 && month === 1"
           @click="changeMonth(-1)"
         >
-          →</button
+          <AppIcon name="arrow-right" /></button
         ><strong aria-live="polite">{{ persianMonths[month - 1] }} {{ number(year) }}</strong
         ><button
           type="button"
@@ -183,7 +183,7 @@ watch(model, async () => {
           :disabled="year === 2999 && month === 12"
           @click="changeMonth(1)"
         >
-          ←
+          <AppIcon name="arrow-left" />
         </button>
       </div>
       <NumberStepper v-model="year" label="سال شمسی" :min="1" :max="2999" />
