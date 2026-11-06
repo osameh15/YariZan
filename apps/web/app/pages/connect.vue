@@ -153,7 +153,7 @@ useSeoMeta({ title: 'اتصال برنامه به حساب | یاریزان' });
     </div>
     <div class="panel connect-card">
       <template v-if="done"
-        ><span class="success-mark" aria-hidden="true">✓</span>
+        ><span class="success-mark" aria-hidden="true"><AppIcon name="check" /></span>
         <h2>اتصال در مرورگر تأیید شد</h2>
         <p role="status">
           حساب شما در این مرورگر باز است. می‌توانید وارد پیشخوان شوید؛ برای تکمیل اتصال دستگاه، به

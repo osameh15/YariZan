@@ -32,8 +32,8 @@ defineProps<{ post: BlogSummary; compact?: boolean }>();
           blogDate(post.published_at)
         }}</time
         ><NuxtLink :to="'/blog/' + post.slug" class="text-link" :aria-label="'خواندن ' + post.title"
-          >خواندن <span aria-hidden="true">←</span></NuxtLink
-        >
+          >خواندن <span aria-hidden="true"><AppIcon name="arrow-left" /></span
+        ></NuxtLink>
       </footer>
     </div>
   </article>

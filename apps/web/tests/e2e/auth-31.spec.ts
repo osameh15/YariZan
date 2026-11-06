@@ -208,10 +208,12 @@ test('Password and OTP login designs, self-service reset and mobile validation',
   await page.getByLabel('شمارهٔ همراه').fill(mobile);
   await shot(page, '18-login-otp');
   await page.goto('/reset-password');
-  await page.getByLabel('نام کاربری دستگاه').fill(e.username);
+  await expect(page.getByLabel('نام کاربری دستگاه')).toHaveCount(0);
   await page.getByLabel('شمارهٔ همراه').fill(mobile);
   const id = await send(page, '/api/v2/auth/otp/request');
   await page.getByLabel('کد تأیید پیامکی').fill(await smsCode(id));
+  await page.getByRole('button', { name: 'تأیید کد بازیابی' }).click();
+  await expect(page.locator('.device-choices')).toHaveCount(0);
   await page.getByLabel('رمز عبور جدید', { exact: true }).fill('SelfReset!Password12345');
   await page.getByLabel('تکرار رمز عبور', { exact: true }).fill('SelfReset!Password12345');
   await page.getByRole('button', { name: 'ثبت رمز عبور جدید' }).click();
@@ -343,4 +345,43 @@ test('Security actions wait for verified account data instead of assuming an unv
   const requested = page.waitForRequest((r) => r.url().endsWith('/api/v2/account/security/otp'));
   await send(page, '/api/v2/account/security/otp');
   expect((await requested).postDataJSON().purpose).toBe('MOBILE_OLD');
+});
+
+test('Phone-only recovery shows named accounts after SMS and remains usable on mobile', async ({
+  page,
+}) => {
+  const a = await customer(),
+    b = await customer();
+  const row = (await sql('SELECT mobile_ciphertext FROM customers WHERE id=$1', [a.customer_id]))
+    .rows[0];
+  // The fixture helper exposes the verified phone through the same local encrypted outbox tooling.
+  const { unseal } = await import('../../../../backend/dist/src/security/crypto.js');
+  const mobile = unseal(row.mobile_ciphertext, '4'.repeat(64));
+  await sql(
+    'UPDATE customers SET mobile_lookup=(SELECT mobile_lookup FROM customers WHERE id=$2),mobile_ciphertext=(SELECT mobile_ciphertext FROM customers WHERE id=$2),mobile_last4=(SELECT mobile_last4 FROM customers WHERE id=$2),device_label=$3 WHERE id=$1',
+    [b.customer_id, a.customer_id, 'رایانهٔ خانه'],
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/reset-password');
+  await expect(page.getByLabel('نام کاربری دستگاه')).toHaveCount(0);
+  await expect(page.locator('.device-choices')).toHaveCount(0);
+  await page.getByLabel('شمارهٔ همراه').fill(mobile);
+  const id = await send(page, '/api/v2/auth/otp/request');
+  await page.getByLabel('کد تأیید پیامکی').fill(await smsCode(id));
+  await page.getByRole('button', { name: 'تأیید کد بازیابی' }).click();
+  await expect(page.locator('.device-choice')).toHaveCount(2);
+  await page.getByRole('radio', { name: /رایانهٔ خانه/ }).check();
+  await page.getByLabel('رمز عبور جدید', { exact: true }).fill('SharedPhone!Password123');
+  await page.getByLabel('تکرار رمز عبور', { exact: true }).fill('SharedPhone!Password123');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(
+    true,
+  );
+  await shot(page, 'phone-reset-multiple-mobile');
+  await page.getByRole('button', { name: 'ثبت رمز عبور جدید' }).click();
+  await expect(page.getByRole('heading', { name: 'رمز عبور تغییر کرد' })).toBeVisible();
+  const signedIn = await call('/auth/login', {
+    username: b.username,
+    password: 'SharedPhone!Password123',
+  });
+  expect(signedIn.status).toBe(201);
 });

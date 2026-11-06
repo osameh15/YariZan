@@ -192,16 +192,19 @@ onBeforeUnmount(() => {
     />
     <ApiNotice :message="message" :kind="noticeSuccess ? 'success' : 'error'" />
     <div v-if="order" class="panel order-receipt" :data-tone="statusTone">
-      <div class="order-status-symbol" aria-hidden="true">
-        {{
-          statusTone === 'ready'
-            ? '✓'
-            : statusTone === 'failed'
-              ? '×'
-              : statusTone === 'review'
-                ? '!'
-                : '…'
-        }}
+      <div class="order-status-symbol" :data-tone="statusTone">
+        <AppIcon
+          :name="
+            statusTone === 'ready'
+              ? 'check'
+              : statusTone === 'failed'
+                ? 'close'
+                : statusTone === 'review'
+                  ? 'warning'
+                  : 'clock'
+          "
+          :size="40"
+        />
       </div>
       <h2 class="order-state" aria-live="polite">
         <span class="pill" :data-tone="commerceTone(order)">{{ commerceState(order) }}</span>

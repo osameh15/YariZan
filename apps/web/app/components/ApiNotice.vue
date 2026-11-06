@@ -12,7 +12,7 @@ defineEmits<{ retry: [] }>();
     :class="kind"
     :role="kind === 'error' ? 'alert' : 'status'"
   >
-    <span aria-hidden="true">{{ kind === 'error' ? '!' : kind === 'success' ? '✓' : 'i' }}</span>
+    <AppIcon :name="kind === 'error' ? 'warning' : kind === 'success' ? 'check' : 'info'" />
     <div>
       <p>{{ message }}</p>
       <button v-if="retry" type="button" class="button secondary" @click="$emit('retry')">

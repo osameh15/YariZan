@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import { adminSession, sql } from '../../tools/test-fixtures.mjs';
 
-test('four drafts require approval; editor, publication, sitemap and responsive reading work', async ({
+test('six drafts require approval; editor, publication, sitemap and responsive reading work', async ({
   page,
   context,
   request,
@@ -11,7 +11,7 @@ test('four drafts require approval; editor, publication, sitemap and responsive 
   test.setTimeout(120000);
   await sql("UPDATE blog_posts SET state='DRAFT'");
   const drafts = (await sql('SELECT * FROM blog_posts ORDER BY slug')).rows;
-  expect(drafts).toHaveLength(4);
+  expect(drafts).toHaveLength(6);
   const slug = drafts[0].slug;
   expect((await request.get('/blog/' + slug)).status()).toBe(404);
   expect(await (await request.get('/sitemap.xml')).text()).not.toContain('/blog/' + slug);
@@ -27,7 +27,7 @@ test('four drafts require approval; editor, publication, sitemap and responsive 
     { name: 'yz_csrf_admin', value: session.csrf, url: 'http://localhost:3200', sameSite: 'Lax' },
   ]);
   await page.goto('/zanyari/blog');
-  await expect(page.locator('.blog-list-item')).toHaveCount(4);
+  await expect(page.locator('.blog-list-item')).toHaveCount(6);
   await page.getByRole('button', { name: new RegExp(drafts[0].title) }).click();
   await expect(page.getByLabel('عنوان نوشته', { exact: true })).toHaveValue(drafts[0].title);
   await mkdir('.local/screenshots/blog', { recursive: true });
@@ -92,7 +92,7 @@ test('four drafts require approval; editor, publication, sitemap and responsive 
   await page.getByLabel('خلاصهٔ نوشته', { exact: true }).fill(drafts[0].description);
   await page.getByLabel('متن نوشته', { exact: true }).fill(drafts[0].body);
   await page.getByRole('button', { name: 'ذخیرهٔ پیش‌نویس', exact: true }).click();
-  await expect(page.locator('.blog-list-item')).toHaveCount(5);
+  await expect(page.locator('.blog-list-item')).toHaveCount(7);
   expect((await request.get('/blog/review-only-new-draft')).status()).toBe(404);
   await page.getByRole('button', { name: 'بایگانی', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'نوشته بایگانی شد' })).toBeVisible();

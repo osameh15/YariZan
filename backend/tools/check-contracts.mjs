@@ -124,7 +124,8 @@ const requests = {
     archived: z.boolean(),
   }),
   "/api/v2/auth/password-reset/otp": schemas.otpProofSchema.extend({
-    password: schemas.password,
+    password: schemas.password.optional(),
+    username: z.string().min(1).max(64).optional(),
   }),
   "/api/v2/account/security/otp": z.strictObject({
     purpose: z.enum(["PASSWORD", "MOBILE_OLD", "MOBILE_NEW"]),
@@ -372,9 +373,18 @@ const responses = {
       ),
     }),
   ]),
-  "/api/v2/auth/password-reset/otp": z.strictObject({
-    password_changed: z.literal(true),
-  }),
+  "/api/v2/auth/password-reset/otp": z.union([
+    z.strictObject({ password_changed: z.literal(true) }),
+    z.strictObject({
+      select: z.array(
+        z.strictObject({
+          username: z.string(),
+          label: z.string().nullable(),
+          created_at: z.string(),
+        }),
+      ),
+    }),
+  ]),
   "/api/v2/account/security": z.strictObject({
     has_password: z.boolean(),
     mobile_masked: z.string().nullable(),

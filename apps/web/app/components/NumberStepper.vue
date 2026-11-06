@@ -63,7 +63,7 @@ function move(direction: number) {
         :disabled="disabled || model <= Number(min)"
         @click="move(-1)"
       >
-        −
+        <AppIcon name="minus" />
       </button>
       <input
         :id="id"
@@ -94,7 +94,7 @@ function move(direction: number) {
         :disabled="disabled || model >= Number(max)"
         @click="move(1)"
       >
-        +
+        <AppIcon name="plus" />
       </button>
     </div>
   </div>

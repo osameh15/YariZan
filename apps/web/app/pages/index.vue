@@ -13,15 +13,15 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
       </p>
       <div class="actions">
         <NuxtLink class="button primary" to="/products"
-          >کشف دنیای پایه‌ها <span aria-hidden="true">←</span></NuxtLink
+          >کشف دنیای پایه‌ها <span aria-hidden="true"><AppIcon name="arrow-left" /></span></NuxtLink
         ><NuxtLink v-if="desktop" class="text-link" to="/connect"
-          >برنامه را دارم؛ متصل می‌شوم ↗</NuxtLink
+          >برنامه را دارم؛ متصل می‌شوم <AppIcon name="external" /></NuxtLink
         ><NuxtLink v-else class="text-link" to="/support"
-          >پرسشی دارید؟ با ما تماس بگیرید ↗</NuxtLink
-        >
+          >پرسشی دارید؟ با ما تماس بگیرید <AppIcon name="external"
+        /></NuxtLink>
       </div>
       <div class="hero-footnote">
-        <span class="seal" aria-hidden="true">✦</span>
+        <span class="seal" aria-hidden="true"><AppIcon name="book" /></span>
         <p>
           دو فرصت تجربه، برای هر پایه<br /><small
             >پس از شروع، بدون نیاز به اینترنت بازی کنید.</small
@@ -31,13 +31,15 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
     </div>
     <div class="hero-scene" aria-hidden="true">
       <span class="orbit orbit-one">الف</span><span class="orbit orbit-two">۲ + ۱</span
-      ><span class="orbit orbit-three">✧</span>
+      ><span class="orbit orbit-three"><AppIcon name="blocks" /></span>
       <div class="book-shadow"></div>
       <div class="hero-book">
         <div class="spine"></div>
         <span class="book-edition">پایهٔ اول دبستان</span
         ><img src="/brand/logo.webp" width="220" height="170" alt="" />
-        <div class="cover-window"><span>۱</span><span>ب</span><span>✦</span></div>
+        <div class="cover-window">
+          <span>۱</span><span>ب</span><span><AppIcon name="book" /></span>
+        </div>
         <p>یک کتاب، پر از تجربه‌های تازه</p>
         <div class="cover-bottom">بازی کنیم · کشف کنیم · یاد بگیریم</div>
       </div>
@@ -69,7 +71,9 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
         <p class="eyebrow">هر پایه، شروع یک ماجرا</p>
         <h2>دنیای فرزند شما کدام است؟</h2>
       </div>
-      <NuxtLink class="text-link" to="/products">همهٔ پایه‌ها ←</NuxtLink>
+      <NuxtLink class="text-link" to="/products"
+        >همهٔ پایه‌ها <AppIcon name="arrow-left"
+      /></NuxtLink>
     </div>
     <LoadState
       :loading="status === 'pending'"
@@ -91,7 +95,9 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
         <p class="eyebrow">هر بازی، یک کشف تازه</p>
         <h2>محصولات ویژه</h2>
       </div>
-      <NuxtLink class="text-link" to="/special-products">همهٔ بازی‌های ویژه ←</NuxtLink>
+      <NuxtLink class="text-link" to="/special-products"
+        >همهٔ بازی‌های ویژه <AppIcon name="arrow-left"
+      /></NuxtLink>
     </div>
     <LoadState
       :loading="status === 'pending'"
@@ -114,7 +120,7 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
       <div class="learning-art" aria-hidden="true">
         <div class="tile">آ</div>
         <div class="tile">۳</div>
-        <div class="tile">✦</div>
+        <div class="tile"><AppIcon name="book" /></div>
         <span>کوچک آغاز می‌شود، بزرگ می‌ماند.</span>
       </div>
       <div>
@@ -131,7 +137,9 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
         <p>
           با فعال‌سازی مجوز خریداری‌شده، همان پایه روی دستگاه تأییدشده همیشگی و آفلاین در دسترس است.
         </p>
-        <NuxtLink class="text-link" to="/support#faq">بیشتر بدانید ←</NuxtLink>
+        <NuxtLink class="text-link" to="/support#faq"
+          >بیشتر بدانید <AppIcon name="arrow-left"
+        /></NuxtLink>
       </div>
     </div>
   </section>
@@ -139,7 +147,9 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
     <div>
       <p class="eyebrow">پیش از شروع</p>
       <h2>پرسش‌های کوچک،<br />پاسخ‌های روشن.</h2>
-      <NuxtLink class="text-link" to="/support">هنوز پرسشی دارید؟ ←</NuxtLink>
+      <NuxtLink class="text-link" to="/support"
+        >هنوز پرسشی دارید؟ <AppIcon name="arrow-left"
+      /></NuxtLink>
     </div>
     <div class="faq-list">
       <details>
@@ -168,6 +178,8 @@ useSeoMeta({ title: 'یاریزان | یادگیری با طعم بازی' });
       <p class="eyebrow">در این مسیر تنها نیستید</p>
       <h2>از اولین اتصال تا اولین بازی، کنار شماییم.</h2>
     </div>
-    <NuxtLink class="button primary" to="/support">گفت‌وگو با پشتیبانی ↗</NuxtLink>
+    <NuxtLink class="button primary" to="/support"
+      >گفت‌وگو با پشتیبانی <AppIcon name="external"
+    /></NuxtLink>
   </section>
 </template>

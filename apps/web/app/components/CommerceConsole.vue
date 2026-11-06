@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { navigationIcon } from '#shared/icons';
 import { productTitle, standaloneProducts } from '#shared/products';
 import { persianDigits } from '#shared/digits';
 import { errorMessage } from '#shared/domain';
@@ -396,7 +397,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
             :key="s[0]"
             :to="{ path: '/zanyari/commerce', query: { section: s[0] } }"
             :aria-current="section === s[0] ? 'page' : undefined"
-            >{{ s[1] }}</NuxtLink
+            ><AppIcon :name="navigationIcon(s[0])" />{{ s[1] }}</NuxtLink
           >
         </template>
       </nav>
@@ -439,6 +440,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
               { value: 'FAILED', label: 'ناموفق' },
             ]"
           /><button class="button secondary" :disabled="busy">
+            <AppIcon name="search" />
             جست‌وجو و تازه‌سازی
           </button></FormShell
         >

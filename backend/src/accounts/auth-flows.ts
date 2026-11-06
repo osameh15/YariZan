@@ -1,3 +1,4 @@
+import { queueLoginNotice } from "./login-notice";
 import { Injectable } from "@nestjs/common";
 import { Request } from "express";
 import { PoolClient } from "pg";
@@ -41,9 +42,10 @@ export class AuthFlows {
     return { session, csrf };
   }
   /** Active accounts (one per device) that share a verified mobile number, oldest first. */
-  private async mobileAccounts(lookup: string, c?: PoolClient) {
+  private async mobileAccounts(lookup: string, c?: PoolClient, lock = false) {
     const sql =
-      "SELECT c.* FROM customers c JOIN devices d ON d.id=c.device_id AND d.generation=c.generation WHERE c.state='ACTIVE' AND c.mobile_lookup=$1 ORDER BY c.claimed_at,c.id";
+      "SELECT c.* FROM customers c JOIN devices d ON d.id=c.device_id AND d.generation=c.generation WHERE c.state='ACTIVE' AND c.mobile_lookup=$1 ORDER BY c.claimed_at,c.id" +
+      (lock ? " FOR UPDATE OF c" : "");
     type Row = Customer & {
       username: string;
       claimed_at: Date;
@@ -72,7 +74,7 @@ export class AuthFlows {
     );
   }
   /**
-   * SMS login. With a username (device ID) the code is bound to that one account. Without one, the
+   * SMS login and password recovery. With a username (device ID) the code is bound to that one account. Without one, the
    * mobile number alone is enough: ownership of each device was proved with this number when it was
    * connected. When the number owns several devices the customer picks one after the code is checked.
    */
@@ -84,7 +86,6 @@ export class AuthFlows {
   ) {
     const lookup = this.otp.lookup(mobile);
     if (!username) {
-      requireCondition(purpose === "LOGIN", "INVALID_REQUEST", 400);
       const accounts = await this.mobileAccounts(lookup);
       const only = accounts.length === 1 ? accounts[0] : undefined;
       return this.otp.issue(
@@ -181,6 +182,7 @@ export class AuthFlows {
         r.id,
         { mobile_only: true },
       );
+      await queueLoginNotice(c, "customer", r.id);
       return {
         ...session,
         trust: this.abuse.trustToken(
@@ -242,6 +244,7 @@ export class AuthFlows {
         "customer.login_otp",
         r.id,
       );
+      await queueLoginNotice(c, "customer", r.id);
       return {
         ...session,
         trust: this.abuse.trustToken(
@@ -250,6 +253,63 @@ export class AuthFlows {
           hash(r.password_hash ?? ""),
         ),
       };
+    });
+  }
+  /** Phone ownership is checked before account names are disclosed; only the chosen account changes. */
+  async resetByMobile(
+    id: string,
+    code: string,
+    actor: Actor,
+    newPassword?: string,
+    username?: string,
+  ) {
+    const admitted = await this.otp.admit(id, "RESET", code);
+    const encoded =
+      newPassword === undefined ? undefined : await hashPassword(newPassword);
+    return this.db.transaction(async (c) => {
+      let accounts = await this.mobileAccounts(admitted.mobile_lookup, c, true);
+      if (admitted.principal_id) {
+        accounts = accounts.filter((a) => a.id === admitted.principal_id);
+        const a = accounts[0];
+        requireCondition(
+          a &&
+            a.generation === admitted.generation &&
+            hash((a.password_hash ?? "") + a.mobile_lookup) ===
+              admitted.principal_stamp,
+          "OTP_INVALID",
+          401,
+        );
+      } else {
+        requireCondition(
+          accounts.length > 1 &&
+            this.mobileStamp(accounts) === admitted.principal_stamp,
+          "OTP_INVALID",
+          401,
+        );
+      }
+      if (!encoded || (accounts.length > 1 && !username))
+        return {
+          select: accounts.map((a) => ({
+            username: a.username,
+            label: a.device_label ?? null,
+            created_at: a.claimed_at,
+          })),
+        };
+      const target = username
+        ? accounts.find((a) => a.username === username)
+        : accounts[0];
+      requireCondition(target, "OTP_INVALID", 401);
+      await this.otp.consume(c, id, "RESET", code, actor);
+      await c.query("UPDATE customers SET password_hash=$2 WHERE id=$1", [
+        target.id,
+        encoded,
+      ]);
+      await c.query(
+        "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1",
+        [target.id],
+      );
+      await this.audit.append(c, actor, "password.reset_mobile", target.id);
+      return { password_changed: true as const };
     });
   }
   /**
@@ -333,6 +393,7 @@ export class AuthFlows {
         "admin.login_sms",
         r.id,
       );
+      await queueLoginNotice(c, "admin", r.id);
       return {
         ...session,
         trust: this.abuse.trustToken("admin", r.id, hash(r.password_hash)),

@@ -109,7 +109,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', outside));
       @keydown="key"
     >
       <span>{{ selected?.label ?? 'انتخاب کنید' }}</span
-      ><span aria-hidden="true">⌄</span>
+      ><span aria-hidden="true"><AppIcon name="chevron-down" /></span>
     </button>
     <input
       ref="proxy"
@@ -142,7 +142,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', outside));
         @pointerdown.prevent
         @click="choose(index)"
       >
-        {{ option.label }}<span v-if="model === option.value" aria-hidden="true">✓</span>
+        {{ option.label
+        }}<span v-if="model === option.value" aria-hidden="true"><AppIcon name="check" /></span>
       </li>
       <li v-if="!options.length" class="muted" role="presentation">گزینه‌ای موجود نیست.</li>
     </ul>

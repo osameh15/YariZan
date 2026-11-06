@@ -125,8 +125,8 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
 <template>
   <section class="wrap section checkout-page">
     <NuxtLink class="text-link" :to="special ? '/special-products' : '/products'"
-      >{{ special ? 'بازگشت به محصولات ویژه' : 'بازگشت به پایه‌ها' }} ←</NuxtLink
-    >
+      >{{ special ? 'بازگشت به محصولات ویژه' : 'بازگشت به پایه‌ها' }} <AppIcon name="back"
+    /></NuxtLink>
     <header class="checkout-heading">
       <p class="eyebrow">یک قدم تا دنیای بازی و یادگیری</p>
       <h1>یک {{ unit }}، یک دنیای تازه</h1>
@@ -206,6 +206,7 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
               load();
             "
           >
+            <AppIcon name="trash" />
             حذف کد تخفیف
           </button>
         </section>
@@ -226,8 +227,8 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
           </div>
         </div>
         <NuxtLink class="text-link" to="/support"
-          >راهنمای خرید و شرایط درخواست بازپرداخت ↗</NuxtLink
-        >
+          >راهنمای خرید و شرایط درخواست بازپرداخت <AppIcon name="external"
+        /></NuxtLink>
       </div>
       <aside class="order-summary" aria-labelledby="summary-title" :aria-busy="busy">
         <p class="eyebrow">شفاف، پیش از ادامه</p>
@@ -285,7 +286,7 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
             </template>
           </div>
           <button class="button primary checkout-submit" :disabled="!canCreate" @click="create">
-            ثبت سفارش و بررسی پرداخت <span aria-hidden="true">←</span>
+            ثبت سفارش و بررسی پرداخت <span aria-hidden="true"><AppIcon name="arrow-left" /></span>
           </button>
           <p v-if="coupon.trim() && coupon.trim() !== quoted" class="muted" role="status">
             برای اعمال این کد، «بررسی کد تخفیف» را بزنید؛ مبلغ بالا با کد بررسی‌شدهٔ قبلی است.

@@ -4,7 +4,8 @@ import { ApiError } from "../common/errors";
  * Purpose-aware MeliPayamak pattern registry.
  *
  * Body IDs and texts come from the owner's MeliPayamak panel. A template is sent live only when it
- * is `textConfirmed: true` together with `verification: "PANEL_VERIFIED"`, set in a reviewed change
+ * is panel-verified, or is one of the two owner-authorized provider-enforced login notices.
+ * Panel confirmation is set in a reviewed change
  * that cites a direct panel check showing that neither the Body ID nor the wording changed.
  * Admin MFA (562281) was verified on 2026-10-21 with a real delivery; the owner checked the other
  * six patterns (559424, 559422, 559372, 562280, 559421, 559397) directly in the panel on 2026-10-23
@@ -18,13 +19,15 @@ export type OtpPurpose =
   | "MOBILE_OLD"
   | "MOBILE_NEW"
   | "ADMIN";
-export type NoticeEvent = "PASSWORD_CHANGED" | "PURCHASE_CONFIRMED";
+export type NoticeEvent =
+  "PASSWORD_CHANGED" | "PURCHASE_CONFIRMED" | "CUSTOMER_LOGIN" | "ADMIN_LOGIN";
 export type SmsEvent = OtpPurpose | NoticeEvent;
 
 /** Authoritative OTP lifetime. Provider OTP texts must state the same (three minutes). */
 export const OTP_VALIDITY_SECONDS = 180;
 
-export type TemplateVerification = "OWNER_ATTESTED" | "PANEL_VERIFIED";
+export type TemplateVerification =
+  "OWNER_ATTESTED" | "PANEL_VERIFIED" | "PROVIDER_ENFORCED";
 export interface SmsTemplate {
   bodyId: string;
   /** Who vouches for the text: the owner's attestation, or a direct panel check. */
@@ -106,6 +109,24 @@ export const PURCHASE_NOTICE: SmsTemplate = {
   textConfirmed: true,
 };
 
+// Owner requested automatic activation on provider approval (2026-11-06).
+// Approval is enforced by MeliPayamak on real login notices, never asserted locally.
+// Pattern IDs are public identifiers; neither a pattern URL nor a provider token belongs here.
+export const CUSTOMER_LOGIN_NOTICE: SmsTemplate = {
+  bodyId: "578985",
+  verification: "PROVIDER_ENFORCED",
+  variables: ["date"],
+  providerText: "یاریزان: شما در تاریخ {0} وارد حساب خود شده اید.",
+  textConfirmed: false,
+};
+export const ADMIN_LOGIN_NOTICE: SmsTemplate = {
+  bodyId: "578987",
+  verification: "PROVIDER_ENFORCED",
+  variables: ["date"],
+  providerText: "یاریزان: شما در تاریخ {0} وارد پنل ادمین شده اید.",
+  textConfirmed: false,
+};
+
 /**
  * `null` means no pattern exists. Every purpose has its own pattern: Admin MFA and the
  * password-change verification never reuse the customer login wording or the 559421 notice.
@@ -121,6 +142,8 @@ export const OTP_TEMPLATES: Readonly<Record<OtpPurpose, SmsTemplate | null>> = {
 };
 export const NOTICE_TEMPLATES: Readonly<Record<NoticeEvent, SmsTemplate>> = {
   PASSWORD_CHANGED: PASSWORD_CHANGE_NOTICE,
+  CUSTOMER_LOGIN: CUSTOMER_LOGIN_NOTICE,
+  ADMIN_LOGIN: ADMIN_LOGIN_NOTICE,
   PURCHASE_CONFIRMED: PURCHASE_NOTICE,
 };
 
@@ -137,7 +160,12 @@ const UNSAFE_VALUE = new RegExp("[;\u0000-\u001f\u007f\u2028\u2029]");
 function safeValue(name: string, value: string) {
   const v = latinDigits(value);
   if (name === "code" && !/^[0-9]{6}$/.test(v)) throw unavailable();
-  if (name === "date" && !/^[0-9]{4}\/[0-9]{2}\/[0-9]{2}$/.test(v))
+  if (
+    name === "date" &&
+    !/^[0-9]{4}\/(?:0[1-9]|1[0-2])\/(?:0[1-9]|[12][0-9]|3[01])(?: (?:[01][0-9]|2[0-3]):[0-5][0-9])?$/.test(
+      v,
+    )
+  )
     throw unavailable();
   // The customer-visible order number is the order UUID.
   if (
@@ -154,13 +182,25 @@ export interface RenderedSms {
   args: string[];
 }
 
+/** Only the two owner-authorized login notices defer approval to the provider. */
+export function liveTemplateAllowed(t: SmsTemplate) {
+  return (
+    (t.textConfirmed && t.verification === "PANEL_VERIFIED") ||
+    (t.verification === "PROVIDER_ENFORCED" &&
+      ["578985", "578987"].includes(t.bodyId) &&
+      t.variables.length === 1 &&
+      t.variables[0] === "date")
+  );
+}
+
 export function renderSms(
   template: SmsTemplate | null | undefined,
   values: Readonly<Record<string, string>>,
   options: { requireConfirmed: boolean },
 ): RenderedSms {
   if (!template || !/^[1-9][0-9]*$/.test(template.bodyId)) throw unavailable();
-  if (options.requireConfirmed && !template.textConfirmed) throw unavailable();
+  if (options.requireConfirmed && !liveTemplateAllowed(template))
+    throw unavailable();
   if (template.variables.length === 0) throw unavailable();
   const names = Object.keys(values);
   if (
@@ -200,4 +240,20 @@ export function jalaliDate(at: Date) {
   }).formatToParts(at);
   const get = (t: string) => parts.find((p) => p.type === t)!.value;
   return `${get("year")}/${get("month")}/${get("day")}`;
+}
+
+/** Exact event time in Tehran: Jalali calendar, Latin digits, 24-hour clock, no bidi controls. */
+export function jalaliDateTime(at: Date) {
+  const parts = new Intl.DateTimeFormat("en-u-ca-persian-nu-latn", {
+    timeZone: "Asia/Tehran",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)!.value;
+  return `${get("year")}/${get("month")}/${get("day")} ${get("hour")}:${get("minute")}`;
 }

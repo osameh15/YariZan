@@ -293,6 +293,7 @@ onMounted(load);
               class="button secondary"
               @click="reset('edit', p)"
             >
+              <AppIcon name="pencil" />
               ویرایش
             </button>
             <button
