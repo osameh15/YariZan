@@ -71,10 +71,15 @@ defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
       </div>
       <NuxtLink
         v-if="productDownloadPath(product.sku)"
-        class="button secondary"
+        class="button secondary product-download-button"
         :to="productDownloadPath(product.sku)!"
         >دریافت برنامهٔ ویندوز</NuxtLink
       >
     </div>
   </article>
 </template>
+<style scoped>
+.product-download-button {
+  margin-block-start: 20px;
+}
+</style>
