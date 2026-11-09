@@ -48,7 +48,7 @@ describe('independent game products', () => {
     expect(productPath(bundle)).toBe('/special-products/bundle-builder');
     expect(brochureDecision('GET', '/special-products/bundle-builder')).toBe('page');
     for (const product of standaloneProducts) {
-      if (product.slug !== 'combination-land') expect(product.shots.length).toBeGreaterThan(0);
+      expect(product.shots.length).toBeGreaterThan(0);
       for (const shot of product.shots) {
         expect(shot.src).toMatch(new RegExp(`^/products/${product.slug}/screen-[0-9][.]webp$`));
         expect(existsSync('public' + shot.src)).toBe(true);

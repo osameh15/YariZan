@@ -9,7 +9,7 @@ test('special product card, price, detail and download selection work on desktop
     await page.goto('/special-products');
     await expect(page.getByRole('heading', { name: 'محصولات ویژه', exact: true })).toBeVisible();
     await expect(page.locator('.product-card')).toHaveCount(3);
-    await expect(page.locator('.product-card .product-shot img')).toHaveCount(2);
+    await expect(page.locator('.product-card .product-shot img')).toHaveCount(3);
     await expect(page.locator('.product-card').nth(0)).toContainText('دسته‌ساز کوچک');
     const card = page.locator('.product-card').filter({ hasText: 'عددساز کوچولو' });
     await expect(card).toContainText('عددساز کوچولو');
@@ -34,6 +34,14 @@ test('special product card, price, detail and download selection work on desktop
     await expect(page.getByTestId('grade-picker')).toHaveCount(0);
     await expect(page.locator('.download-tab')).toHaveText(['دنیای پایه‌ها', 'محصولات ویژه']);
     await expect(page.getByTestId('product-picker').locator('.grade-card')).toHaveCount(3);
+    await page.goto('/special-products/combination-land');
+    await expect(page.locator('.gallery-thumb')).toHaveCount(2);
+    const gallery = page.locator('.gallery-stage img');
+    await expect(gallery).toHaveAttribute('src', '/products/combination-land/screen-1.webp');
+    await page.locator('.gallery-thumb').nth(1).click();
+    await expect(gallery).toHaveAttribute('src', '/products/combination-land/screen-2.webp');
+    await expect(gallery).toHaveJSProperty('complete', true);
+    await expect(gallery).toHaveJSProperty('naturalWidth', 1280);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);

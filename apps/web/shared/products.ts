@@ -35,7 +35,13 @@ export const standaloneProducts = [
     description:
       'سرزمین ترکیب‌ها؛ یک بازی مستقل در مجموعهٔ محصولات ویژهٔ یاریزان، با فعال‌سازی و مجوز اختصاصی.',
     symbol: '✦',
-    shots: [] as readonly StandaloneShot[],
+    shots: [
+      { src: '/products/combination-land/screen-1.webp', alt: 'صفحهٔ آغاز بازی سرزمین ترکیب‌ها' },
+      {
+        src: '/products/combination-land/screen-2.webp',
+        alt: 'تمرین ترکیب نشانه‌ها و صداها در سرزمین ترکیب‌ها',
+      },
+    ] as readonly StandaloneShot[],
   },
 ] as const;
 
