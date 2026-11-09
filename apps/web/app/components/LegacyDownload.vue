@@ -5,8 +5,6 @@ import {
   legacyWindowsUrl,
 } from '#shared/legacy-windows';
 import { productTitle } from '#shared/products';
-import { persianDigits } from '#shared/digits';
-import { formatSizeMb } from '#shared/windows-release';
 const props = defineProps<{ sku: string }>();
 const release = computed(() => legacyWindowsRelease(props.sku));
 </script>
@@ -18,26 +16,12 @@ const release = computed(() => legacyWindowsRelease(props.sku));
       این نسخه برای آزمایش سازگاری با ویندوز ۷ سرویس‌پک ۱ و ویندوز ۸.۱ تهیه شده است. بررسی اجرا روی
       این دو ویندوز هنوز تکمیل نشده است. برای ویندوز ۱۰ و ۱۱، نسخهٔ اصلی بالای صفحه را انتخاب کنید.
     </p>
-    <dl class="download-facts">
-      <div>
-        <dt>شمارهٔ نسخه</dt>
-        <dd>
-          <bdi dir="ltr">{{ persianDigits(release.version) }}</bdi> — آزمایشی
-        </dd>
-      </div>
-      <div>
-        <dt>حجم فایل</dt>
-        <dd>{{ persianDigits(formatSizeMb(release.sizeBytes)) }} مگابایت</dd>
-      </div>
-      <div>
-        <dt>معماری</dt>
-        <dd>۳۲ و ۶۴ بیتی در یک نصب‌کننده</dd>
-      </div>
-      <div class="download-hash">
-        <dt>کد <bdi dir="ltr">SHA-256</bdi></dt>
-        <dd class="mono" dir="ltr">{{ release.sha256 }}</dd>
-      </div>
-    </dl>
+    <DownloadFacts
+      :version="release.version"
+      :size-bytes="release.sizeBytes"
+      :sha256="release.sha256"
+      experimental
+    />
     <h3>نیازمندی‌های ویندوز ۷ و ۸.۱</h3>
     <ul>
       <li v-for="item in legacyWindowsRequirements" :key="item">{{ item }}</li>

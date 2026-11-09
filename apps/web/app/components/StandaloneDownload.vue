@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { standaloneProduct } from '#shared/products';
 import { standaloneRelease, standaloneDownloadUrl } from '#shared/standalone-releases';
-import { persianDigits } from '#shared/digits';
 const props = defineProps<{ sku: string }>();
 const product = computed(() => standaloneProduct(props.sku));
 const release = computed(() => standaloneRelease(props.sku));
@@ -12,18 +11,11 @@ const release = computed(() => standaloneRelease(props.sku));
       <span class="badge neutral">نسخهٔ اصلی برای ویندوز ۱۰ و ۱۱</span>
       <h2>دریافت {{ product.title }}</h2>
       <template v-if="release">
-        <dl class="download-facts">
-          <div>
-            <dt>شمارهٔ نسخه</dt>
-            <dd>
-              <bdi dir="ltr">{{ persianDigits(release.version) }}</bdi>
-            </dd>
-          </div>
-          <div class="download-hash">
-            <dt>کد <bdi dir="ltr">SHA-256</bdi></dt>
-            <dd class="mono" dir="ltr">{{ release.sha256 }}</dd>
-          </div>
-        </dl>
+        <DownloadFacts
+          :version="release.version"
+          :size-bytes="release.sizeBytes"
+          :sha256="release.sha256"
+        />
         <p class="notice">
           این نصب‌کننده امضای دیجیتال ناشر ندارد. پیش از اجرا، کد
           <bdi dir="ltr">SHA-256</bdi> فایل را با مقدار بالا مقایسه کنید.

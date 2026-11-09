@@ -7309,6 +7309,31 @@ test("Devices of one verified mobile: names, and a purchase moves once to anothe
     (await ok<SaleOrder>(`/orders/${o.id}`, undefined, a.browser)).body.state,
     "FULFILLED",
   );
+  // One phone can own many devices. Price previews remain readable on both,
+  // but only the device that already owns this SKU is blocked from buying again.
+  for (const [device, owned] of [
+    [a, true],
+    [b, false],
+  ] as const) {
+    const preview = (
+      await ok<{ already_owned: boolean; total_irr: number }>(
+        "/discounts/quote",
+        { sku: "YARIZAN-G1" },
+        device.browser,
+      )
+    ).body;
+    assert.equal(preview.already_owned, owned);
+    assert.ok(preview.total_irr > 0);
+  }
+  await denied(
+    "/orders",
+    { request_id: randomUUID(), sku: "YARIZAN-G1" },
+    "ALREADY_OWNED",
+    a.browser,
+  );
+  const otherDeviceOrder = await saleOrder(b);
+  assert.equal(otherDeviceOrder.state, "PENDING");
+  await ok(`/orders/${otherDeviceOrder.id}/cancel`, {}, b.browser);
   const movable = (
     await ok<{ id: string; sku: string; customer_can_move: boolean }[]>(
       "/account/movable-licenses",

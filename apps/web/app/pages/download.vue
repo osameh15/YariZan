@@ -3,7 +3,6 @@ import { persianDigits } from '#shared/digits';
 import { standaloneProduct, standaloneProducts } from '#shared/products';
 import { standaloneRelease } from '#shared/standalone-releases';
 import {
-  formatSizeMb,
   gradeStatus,
   gradeTitles,
   grades,
@@ -144,28 +143,13 @@ const formatDate = (iso: string) =>
             یاریزان پایهٔ {{ gradeTitles[selected] }}، نسخهٔ
             <span dir="ltr">{{ persianDigits(release.version) }}</span>
           </h2>
-          <dl class="download-facts">
-            <div>
-              <dt>شمارهٔ نسخه</dt>
-              <dd dir="ltr">{{ persianDigits(release.version) }}</dd>
-            </div>
-            <div>
-              <dt>تاریخ انتشار</dt>
-              <dd>{{ formatDate(release.releasedAt) }}</dd>
-            </div>
-            <div>
-              <dt>حجم فایل</dt>
-              <dd>{{ persianDigits(formatSizeMb(release.sizeBytes)) }} مگابایت</dd>
-            </div>
-            <div>
-              <dt>قالب نصب‌کننده</dt>
-              <dd dir="ltr">{{ release.format.toUpperCase() }}</dd>
-            </div>
-            <div class="download-hash">
-              <dt>کد <bdi dir="ltr">SHA-256</bdi></dt>
-              <dd dir="ltr" class="mono">{{ release.sha256 }}</dd>
-            </div>
-          </dl>
+          <DownloadFacts
+            :version="release.version"
+            :size-bytes="release.sizeBytes"
+            :sha256="release.sha256"
+            :released-at="formatDate(release.releasedAt)"
+            :format="release.format"
+          />
           <div
             v-if="release.approval.signature === 'unsigned-owner-approved'"
             class="notice"

@@ -31,6 +31,18 @@ test('all released products show modern and experimental legacy downloads with c
       );
       await expect(legacy.locator('code')).toContainText('certutil -hashfile');
       await expect(page.getByText('نسخهٔ اصلی برای ویندوز ۱۰ و ۱۱', { exact: true })).toBeVisible();
+      for (const panel of [legacy, page.locator('.download-status').first()]) {
+        for (const label of ['شمارهٔ نسخه', 'حجم فایل', 'معماری', 'قالب نصب‌کننده']) {
+          await expect(panel.locator('dt', { hasText: label })).toBeVisible();
+        }
+        await expect(panel.getByTestId('download-version')).toHaveAttribute('dir', 'ltr');
+        expect(
+          await panel
+            .getByTestId('download-version')
+            .evaluate((node) => getComputedStyle(node).direction),
+        ).toBe('ltr');
+        await expect(panel).toContainText('۳۲ و ۶۴ بیتی در یک نصب‌کننده');
+      }
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);

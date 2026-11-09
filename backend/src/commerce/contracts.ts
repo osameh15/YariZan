@@ -133,6 +133,8 @@ export const orderView = z.object({
 export const quoteView = z.strictObject({
   sku,
   title_fa: z.string(),
+  // Ownership belongs to the selected device/generation, never the entire account.
+  already_owned: z.boolean(),
   currency: z.literal("IRR"),
   subtotal_irr: money,
   discount_irr: money,

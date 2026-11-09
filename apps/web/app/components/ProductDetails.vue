@@ -6,6 +6,7 @@ import type { ApiResult } from '#shared/api';
 import { gradeNames, availability } from '#shared/domain';
 import PriceBlock from '~/components/PriceBlock.vue';
 import { standaloneProduct } from '#shared/products';
+import { productDownloadPath } from '#shared/product-download';
 const props = defineProps<{ sku: string }>();
 const special = computed(() => standaloneProduct(props.sku));
 const { data: products, status, error, refresh } = await useCatalog();
@@ -145,9 +146,9 @@ const commerce = publicOnly.value
           </div>
           <div class="detail-links">
             <NuxtLink
-              v-if="special"
+              v-if="productDownloadPath(product.sku)"
               class="button secondary"
-              :to="'/download?product=' + product.sku"
+              :to="productDownloadPath(product.sku)!"
               >دریافت برنامهٔ ویندوز</NuxtLink
             >
             <NuxtLink to="/support" class="text-link"
