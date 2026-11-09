@@ -49,7 +49,12 @@ export class Orders {
     requireCondition(session.rowCount, "UNAUTHENTICATED", 401);
     return r.rows[0];
   }
-  async eligible(c: PoolClient, u: CustomerContext, sku: string) {
+  async eligible(
+    c: PoolClient,
+    u: CustomerContext,
+    sku: string,
+    preview = false,
+  ) {
     await this.scope(c, u);
     const d = {
       device_id: u.device_id,
@@ -73,16 +78,13 @@ export class Orders {
     // List price and promotion are decided together on database time, with the promotion row
     // share-locked so a concurrent deactivation waits for this transaction.
     p.pricing = await this.promotions.pricing(c, sku, true);
-    requireCondition(
-      !(
-        await c.query(
-          "SELECT 1 FROM entitlements WHERE device_id=$1 AND generation=$2 AND sku=$3 AND NOT EXISTS(SELECT 1 FROM entitlements t WHERE t.transferred_from=entitlements.id)",
-          [u.device_id, u.generation, sku],
-        )
-      ).rowCount,
-      "ALREADY_OWNED",
-      409,
-    );
+    p.already_owned = !!(
+      await c.query(
+        "SELECT 1 FROM entitlements WHERE device_id=$1 AND generation=$2 AND sku=$3 AND NOT EXISTS(SELECT 1 FROM entitlements t WHERE t.transferred_from=entitlements.id)",
+        [u.device_id, u.generation, sku],
+      )
+    ).rowCount;
+    requireCondition(preview || !p.already_owned, "ALREADY_OWNED", 409);
     return p;
   }
   async coupon(
@@ -155,7 +157,7 @@ export class Orders {
     this.gateway.available();
     await this.security.rate("coupon-probe:" + u.id, 20, 300);
     return this.db.transaction(async (c) => {
-      const p = await this.eligible(c, u, input.sku),
+      const p = await this.eligible(c, u, input.sku, true),
         pricing: Pricing = p.pricing,
         amount = pricing.list_price_irr,
         promoDiscount = pricing.promotion?.discount_irr ?? 0;
@@ -177,6 +179,7 @@ export class Orders {
       return {
         sku: p.sku,
         title_fa: p.title_fa,
+        already_owned: p.already_owned,
         currency: "IRR",
         subtotal_irr: amount,
         discount_irr: promoDiscount + couponDiscount,

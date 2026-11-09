@@ -5,6 +5,7 @@ import { errorMessage, toman } from '#shared/domain';
 import { endsLabel } from '#shared/promotion';
 import type { ApiResult } from '#shared/api';
 import { MERCHANT } from '#shared/contact';
+import { productDownloadPath } from '#shared/product-download';
 const api = useApi(),
   route = useRoute(),
   coupon = ref(''),
@@ -43,7 +44,7 @@ let quoteGeneration = 0;
 // The order always uses the last server-validated coupon (`quoted`), which is exactly the price
 // shown. Typing in the coupon box changes nothing until the customer asks for a check; a rejected
 // code leaves the validated price and the payment button as they were.
-const canCreate = computed(() => !busy.value && !!quote.value);
+const canCreate = computed(() => !busy.value && !!quote.value && !quote.value.already_owned);
 // Editing makes any in-flight check obsolete, so a late answer for older text is ignored.
 watch(
   coupon,
@@ -96,6 +97,13 @@ async function create() {
     });
     await navigateTo('/account/orders/' + o.id);
   } catch (e) {
+    if (
+      quote.value &&
+      (e as { data?: { error?: { code?: string } } }).data?.error?.code === 'ALREADY_OWNED'
+    ) {
+      quote.value = { ...quote.value, already_owned: true };
+      return;
+    }
     // An unpaid invoice for this grade that never went to the bank: continue with it instead.
     if ((e as { data?: { error?: { code?: string } } }).data?.error?.code === 'ORDER_ALREADY_OPEN')
       try {
@@ -285,9 +293,37 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
               <small>درگاه: شبیه‌ساز زرین‌پال · پول واقعی دریافت نمی‌شود.</small>
             </template>
           </div>
-          <button class="button primary checkout-submit" :disabled="!canCreate" @click="create">
+          <p
+            v-if="quote.already_owned"
+            id="checkout-owned"
+            class="notice"
+            role="status"
+            data-testid="checkout-owned"
+          >
+            این نسخه از بازی {{ special ? productTitle : 'یاریزان' }} بر روی دستگاه شما فعال شده
+            است. خرید دوباره برای این دستگاه لازم نیست. برای خرید روی دستگاه دیگر، دستگاه موردنظر را
+            انتخاب کنید.
+          </p>
+          <button
+            class="button primary checkout-submit"
+            :disabled="!canCreate"
+            :aria-describedby="quote.already_owned ? 'checkout-owned' : undefined"
+            @click="create"
+          >
             ثبت سفارش و بررسی پرداخت <span aria-hidden="true"><AppIcon name="arrow-left" /></span>
           </button>
+          <div v-if="quote.already_owned" class="actions">
+            <NuxtLink
+              v-if="productDownloadPath(sku)"
+              class="button secondary"
+              :to="productDownloadPath(sku)!"
+              >دریافت برنامهٔ ویندوز</NuxtLink
+            >
+            <NuxtLink class="text-link" to="/account/licenses">مجوزهای من</NuxtLink>
+            <button class="button secondary" type="button" @click="buyForAnotherDevice">
+              خرید برای دستگاه دیگر
+            </button>
+          </div>
           <p v-if="coupon.trim() && coupon.trim() !== quoted" class="muted" role="status">
             برای اعمال این کد، «بررسی کد تخفیف» را بزنید؛ مبلغ بالا با کد بررسی‌شدهٔ قبلی است.
           </p>
@@ -296,7 +332,8 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
           </p>
         </template>
         <template v-else
-          ><p class="muted">برای ادامه، مبلغ سفارش باید از سرور دریافت شود.</p>
+          ><ApiNotice v-if="message" :message="message" />
+          <p v-else class="muted">برای ادامه، مبلغ سفارش باید از سرور دریافت شود.</p>
           <button class="button secondary" :disabled="busy" @click="load">
             تلاش دوباره
           </button></template

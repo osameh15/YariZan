@@ -16219,6 +16219,9 @@
                     "title_fa": {
                       "type": "string"
                     },
+                    "already_owned": {
+                      "type": "boolean"
+                    },
                     "currency": {
                       "type": "string",
                       "const": "IRR"
@@ -16302,6 +16305,7 @@
                   "required": [
                     "sku",
                     "title_fa",
+                    "already_owned",
                     "currency",
                     "subtotal_irr",
                     "discount_irr",

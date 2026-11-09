@@ -4,6 +4,7 @@ import type { PublicProduct } from '#shared/catalog-snapshot';
 import { gradeNames, availability } from '#shared/domain';
 import PriceBlock from './PriceBlock.vue';
 import { productPath, productTitle, standaloneProduct } from '#shared/products';
+import { productDownloadPath } from '#shared/product-download';
 // publicOnly: rendered by the public storefront/brochure, where nothing can be bought yet.
 defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
 </script>
@@ -68,6 +69,12 @@ defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
           ><AppIcon name="arrow-up-left"
         /></NuxtLink>
       </div>
+      <NuxtLink
+        v-if="productDownloadPath(product.sku)"
+        class="button secondary"
+        :to="productDownloadPath(product.sku)!"
+        >دریافت برنامهٔ ویندوز</NuxtLink
+      >
     </div>
   </article>
 </template>

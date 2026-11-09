@@ -173,6 +173,22 @@ test('Real checkout, coupon quote, simulated payment and one desktop license', a
   await page.getByRole('link', { name: 'جزئیات', exact: true }).click();
   await expect(page.locator('.order-state')).toContainText('مجوز خرید آماده است');
   await shot(page, '09-order-detail-license');
+  await page.goto('/checkout?sku=YARIZAN-G1');
+  await expect(page.locator('.payable-total')).toContainText('تومان');
+  await expect(page.getByTestId('checkout-owned')).toContainText('بر روی دستگاه شما فعال شده است');
+  await expect(page.locator('.checkout-submit')).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'تلاش دوباره', exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole('link', { name: 'دریافت برنامهٔ ویندوز', exact: true }),
+  ).toHaveAttribute('href', '/download?grade=1');
+  await shot(page, 'owned-grade-one-checkout');
+  await page
+    .locator('.order-summary')
+    .getByRole('button', { name: 'خرید برای دستگاه دیگر' })
+    .click();
+  await expect(page).toHaveURL(/\/login\?return=/);
+  // Selecting another device keeps the requested product in the return URL.
+  expect(new URL(page.url()).searchParams.get('return')).toBe('/checkout?sku=YARIZAN-G1');
 });
 
 test('Unknown outcome is not failure or another charge; safe callback and mobile pending state', async ({

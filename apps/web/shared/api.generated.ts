@@ -11540,6 +11540,7 @@ export interface operations {
           'application/json': {
             sku: string;
             title_fa: string;
+            already_owned: boolean;
             /** @constant */
             currency: 'IRR';
             subtotal_irr: number;
