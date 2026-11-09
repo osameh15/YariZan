@@ -7,7 +7,7 @@ public static class ActivationCode
     private const string Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
     public static string Normalize(string? input)
     {
-        if (string.IsNullOrWhiteSpace(input) || input.Length > MaxInputLength)
+        if (input is null || string.IsNullOrWhiteSpace(input) || input.Length > MaxInputLength)
             throw new ArgumentException("INVALID_ACTIVATION_CODE");
         // Only ASCII separators/case are accepted; Unicode lookalikes are not silently folded.
         string compact = input.Replace("-", "").Replace(" ", "").ToUpperInvariant();

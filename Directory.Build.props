@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup Condition="'$(LegacyWindows)' == 'true'">
+    <LangVersion>latest</LangVersion>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+    <LegacyArchitecture Condition="'$(PlatformTarget)' == ''">AnyCPU</LegacyArchitecture>
+    <LegacyArchitecture Condition="'$(PlatformTarget)' != ''">$(PlatformTarget)</LegacyArchitecture>
+    <BaseIntermediateOutputPath>obj\legacy\$(LegacyArchitecture)\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\legacy\$(LegacyArchitecture)\</BaseOutputPath>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+  </PropertyGroup>
+</Project>

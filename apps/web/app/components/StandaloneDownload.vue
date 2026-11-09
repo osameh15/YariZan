@@ -9,6 +9,7 @@ const release = computed(() => standaloneRelease(props.sku));
 <template>
   <template v-if="product">
     <article class="panel download-status">
+      <span class="badge neutral">نسخهٔ اصلی برای ویندوز ۱۰ و ۱۱</span>
       <h2>دریافت {{ product.title }}</h2>
       <template v-if="release">
         <dl class="download-facts">
@@ -33,19 +34,21 @@ const release = computed(() => standaloneRelease(props.sku));
       </p>
       <p class="actions">
         <a v-if="release" class="button" :href="standaloneDownloadUrl(release)" download
-          >دریافت مستقیم برای ویندوز</a
+          >دریافت برای ویندوز ۱۰ و ۱۱</a
         >
         <NuxtLink class="button secondary" :to="'/special-products/' + product.slug"
           >مشخصات و خرید بازی</NuxtLink
         >
       </p>
     </article>
+    <LegacyDownload :sku="sku" />
     <div class="support-grid">
       <article class="panel">
-        <h2>نیازمندی‌های سیستم</h2>
+        <h2>نیازمندی‌های نسخهٔ اصلی ویندوز ۱۰ و ۱۱</h2>
         <ul>
-          <li>ویندوز ۱۰ یا ۱۱، نسخهٔ ۳۲ یا ۶۴ بیتی</li>
+          <li>ویندوز ۱۰ (۳۲ یا ۶۴ بیتی) یا ویندوز ۱۱ (۶۴ بیتی)</li>
           <li>نصب‌کننده نسخهٔ مناسب رایانهٔ شما را انتخاب می‌کند.</li>
+          <li>نسخهٔ اصلی به نصب جداگانهٔ .NET Framework 4.8 نیاز ندارد.</li>
           <li>اتصال اینترنت برای دریافت، شروع نوبت آزمایش و دریافت مجوز</li>
         </ul>
       </article>

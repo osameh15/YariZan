@@ -18,7 +18,7 @@ public static class StrictJson
 
     public static void Fields(JsonElement element, params string[] names)
     {
-        if (element.ValueKind != JsonValueKind.Object || !element.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).SequenceEqual(names.Order(StringComparer.Ordinal)))
+        if (element.ValueKind != JsonValueKind.Object || !element.EnumerateObject().Select(p => p.Name).OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(names.OrderBy(x => x, StringComparer.Ordinal)))
             throw new InvalidDataException("Unexpected or missing fields.");
     }
 }
@@ -102,7 +102,7 @@ public static class Base64Url
     public static string Encode(byte[] data) => Convert.ToBase64String(data).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     public static byte[] Decode(string value)
     {
-        if (value.Length == 0 || value.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_')))
+        if (value.Length == 0 || value.Any(c => !((c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9') || c is '-' or '_')))
             throw new InvalidDataException("Invalid base64url.");
         var bytes = Convert.FromBase64String(value.Replace('-', '+').Replace('_', '/') + new string('=', (4 - value.Length % 4) % 4));
         if (Encode(bytes) != value) throw new InvalidDataException("Noncanonical base64url.");

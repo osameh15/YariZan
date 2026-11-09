@@ -59,11 +59,14 @@ public partial class MainWindow : Window
         _activation.Activated += OnPaidActivated;
         _loadGameKey = loadGameKey ?? AppKeys.LoadEmbeddedMasterKey;
         InitializeComponent();
-        Title = (IsStandalone ? _library.Manifest.ProductTitle ?? "YariZan" : $"YariZan G{Math.Clamp(_library.Manifest.SelectedGrade, 1, 6)}")
+        Title = (IsStandalone ? _library.Manifest.ProductTitle ?? "YariZan" : $"YariZan G{Math.Min(6, Math.Max(1, _library.Manifest.SelectedGrade))}")
             + (DesktopV2Client.LocalAcceptance ? " — LOCAL ACCEPTANCE BUILD (not for distribution)" : "")
 #if YARIZAN_ACCEPTANCE_CANDIDATE
             // Physical acceptance candidate: production root and API, but visibly not a release.
             + " — ACCEPTANCE CANDIDATE (not for distribution)"
+#endif
+#if YARIZAN_LEGACY_EXPERIMENTAL
+            + " — نسخهٔ آزمایشی ویندوز ۷ و ۸.۱"
 #endif
             ;
         // Must be set before the window appears; only the single product shows a modal-only launch.
@@ -192,7 +195,7 @@ public partial class MainWindow : Window
             await Task.Delay(ActivationEntryDelay);
             if (_closed || PageHost.Content != lockPage) return;
             lockPage.ShowEntering();
-            await Task.Delay(ActivationEntryDelay / 4);
+            await Task.Delay(TimeSpan.FromTicks(ActivationEntryDelay.Ticks / 4));
             if (_closed || PageHost.Content != lockPage) return;
         }
         else if (PageHost.Content is ActivationRecoveryPage recovery)
@@ -201,7 +204,7 @@ public partial class MainWindow : Window
             await Task.Delay(ActivationEntryDelay);
             if (_closed || PageHost.Content != recovery) return;
             recovery.ShowEntering();
-            await Task.Delay(ActivationEntryDelay / 4);
+            await Task.Delay(TimeSpan.FromTicks(ActivationEntryDelay.Ticks / 4));
             if (_closed || PageHost.Content != recovery) return;
         }
         // Never pull the customer out of a page they chose (information, library or a running game).

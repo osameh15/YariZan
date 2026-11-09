@@ -80,11 +80,11 @@ public sealed class DesktopV2Client : IDesktopV2Client, IDeviceRegistrationClien
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
         if ((int)response.StatusCode is >= 300 and < 400) throw new V2ApiException("REDIRECT_REJECTED", response.StatusCode);
         if (response.Content.Headers.ContentLength > StrictJson.MaxBytes) throw new InvalidDataException("Response too large.");
-        await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
+        using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
         using var bytes = new MemoryStream();
         byte[] buffer = new byte[4096];
         int count;
-        while ((count = await stream.ReadAsync(buffer, deadline.Token)) > 0)
+        while ((count = await stream.ReadAsync(buffer, 0, buffer.Length, deadline.Token)) > 0)
         {
             if (bytes.Length + count > StrictJson.MaxBytes) throw new InvalidDataException("Response too large.");
             bytes.Write(buffer, 0, count);
@@ -106,7 +106,7 @@ public sealed class DesktopV2Client : IDesktopV2Client, IDeviceRegistrationClien
         var header = response.Headers.RetryAfter;
         var delay = header?.Delta ?? (header?.Date is { } date ? date - DateTimeOffset.UtcNow : null);
         // Clamp so a hostile or broken header can neither spin the client nor stall it for hours.
-        return delay is { } value ? TimeSpan.FromSeconds(Math.Clamp(value.TotalSeconds, 1, 900)) : null;
+        return delay is { } value ? TimeSpan.FromSeconds(Math.Min(900, Math.Max(1, value.TotalSeconds))) : null;
     }
 
     public async Task<IReadOnlyList<DesktopEntitlement>> GetEntitlementsAsync(CancellationToken cancellation)
