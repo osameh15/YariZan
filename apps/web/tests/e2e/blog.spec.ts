@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import { adminSession, sql } from '../../tools/test-fixtures.mjs';
 
-test('six drafts require approval; editor, publication, sitemap and responsive reading work', async ({
+test('eight drafts require approval; editor, publication, sitemap and responsive reading work', async ({
   page,
   context,
   request,
@@ -11,7 +11,7 @@ test('six drafts require approval; editor, publication, sitemap and responsive r
   test.setTimeout(120000);
   await sql("UPDATE blog_posts SET state='DRAFT'");
   const drafts = (await sql('SELECT * FROM blog_posts ORDER BY slug')).rows;
-  expect(drafts).toHaveLength(6);
+  expect(drafts).toHaveLength(8);
   const slug = drafts[0].slug;
   expect((await request.get('/blog/' + slug)).status()).toBe(404);
   expect(await (await request.get('/sitemap.xml')).text()).not.toContain('/blog/' + slug);
