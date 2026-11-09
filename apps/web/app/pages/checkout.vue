@@ -275,11 +275,11 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
               <dd>{{ toman(quote.total_irr) }} <small>تومان</small></dd>
             </div>
           </dl>
-          <div v-if="!test" class="simulation-note">
+          <div v-if="!quote.already_owned && !test" class="simulation-note">
             <span class="badge">پرداخت امن</span>
             <p>پرداخت در صفحهٔ امن درگاه {{ PAYMENT_PROVIDER }} انجام می‌شود.</p>
           </div>
-          <div v-else class="simulation-note">
+          <div v-else-if="!quote.already_owned" class="simulation-note">
             <span class="badge">پرداخت آزمایشی</span>
             <template v-if="sandbox">
               <p>
@@ -301,8 +301,7 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
             data-testid="checkout-owned"
           >
             این نسخه از بازی {{ special ? productTitle : 'یاریزان' }} بر روی دستگاه شما فعال شده
-            است. خرید دوباره برای این دستگاه لازم نیست. برای خرید روی دستگاه دیگر، دستگاه موردنظر را
-            انتخاب کنید.
+            است. خرید دوباره برای این دستگاه لازم نیست.
           </p>
           <button
             class="button primary checkout-submit"
@@ -312,22 +311,19 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
           >
             ثبت سفارش و بررسی پرداخت <span aria-hidden="true"><AppIcon name="arrow-left" /></span>
           </button>
-          <div v-if="quote.already_owned" class="actions">
+          <div v-if="quote.already_owned" class="checkout-owned-actions">
             <NuxtLink
               v-if="productDownloadPath(sku)"
-              class="button secondary"
+              class="button primary"
               :to="productDownloadPath(sku)!"
               >دریافت برنامهٔ ویندوز</NuxtLink
             >
-            <NuxtLink class="text-link" to="/account/licenses">مجوزهای من</NuxtLink>
-            <button class="button secondary" type="button" @click="buyForAnotherDevice">
-              خرید برای دستگاه دیگر
-            </button>
+            <NuxtLink class="button secondary" to="/account/licenses">مجوزهای من</NuxtLink>
           </div>
           <p v-if="coupon.trim() && coupon.trim() !== quoted" class="muted" role="status">
             برای اعمال این کد، «بررسی کد تخفیف» را بزنید؛ مبلغ بالا با کد بررسی‌شدهٔ قبلی است.
           </p>
-          <p class="summary-footnote">
+          <p v-if="!quote.already_owned" class="summary-footnote">
             قیمت و تخفیف را سرور محاسبه می‌کند. مبلغ نهایی را پیش از شروع پرداخت دوباره خواهید دید.
           </p>
         </template>
@@ -342,3 +338,14 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
     </div>
   </section>
 </template>
+<style scoped>
+.checkout-owned-actions {
+  display: grid;
+  gap: 12px;
+  margin-block-start: 20px;
+}
+.checkout-owned-actions .button {
+  width: 100%;
+  margin: 0;
+}
+</style>
