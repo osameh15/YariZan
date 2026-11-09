@@ -124,14 +124,16 @@ test("Fresh database: approved prices are recorded exactly, audited, and flags s
   ).rows;
   assert.deepEqual(
     rows,
-    approvedPricing.products.map((p) => ({
-      sku: p.sku,
-      amount: String(p.price_irr),
-      source: "BOOTSTRAP",
-      changed_by: null,
-      pricing_revision: revision,
-      ended_at: null,
-    })),
+    [...approvedPricing.products]
+      .sort((a, b) => a.sku.localeCompare(b.sku))
+      .map((p) => ({
+        sku: p.sku,
+        amount: String(p.price_irr),
+        source: "BOOTSTRAP",
+        changed_by: null,
+        pricing_revision: revision,
+        ended_at: null,
+      })),
   );
   const flags = (
     await fresh.query(
@@ -182,7 +184,7 @@ test("Duplicate pricing bootstrap changes nothing", async () => {
         "SELECT count(*)::int n FROM audit_logs WHERE action='price.initialized'",
       )
     ).rows[0].n,
-    8,
+    9,
   );
 });
 
@@ -333,14 +335,16 @@ test("Approved catalog publication: G1 published, others coming soon, flags clos
   ).rows;
   assert.deepEqual(
     rows.map((r) => [r.sku, r.publication_status]),
-    approvedPricing.products.map((p) => [
-      p.sku,
-      p.grade === 0
-        ? "hidden"
-        : p.launch === "launch-candidate"
-          ? "published"
-          : "coming_soon",
-    ]),
+    [...approvedPricing.products]
+      .sort((a, b) => a.sku.localeCompare(b.sku))
+      .map((p) => [
+        p.sku,
+        p.grade === 0
+          ? "hidden"
+          : p.launch === "launch-candidate"
+            ? "published"
+            : "coming_soon",
+      ]),
   );
   assert.ok(
     rows.every(

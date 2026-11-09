@@ -574,7 +574,7 @@ test("Seeds idempotent and preserve edited catalog", async () => {
   await seed(db);
   assert.equal(
     (await db.query("SELECT count(*) FROM products")).rows[0].count,
-    "8",
+    "9",
   );
 });
 test("Migration replay and hash drift detection", async () => {
