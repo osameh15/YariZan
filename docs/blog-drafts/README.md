@@ -19,3 +19,8 @@ Two additional drafts are included in migration 019, with original covers and no
 
 5. [Pattern games at home](pattern-games-at-home.md)
 6. [More, less and equal](more-less-and-equal-games.md)
+
+Migration 021 adds two further original Persian drafts, each with a newly generated cover:
+
+- [Place value](place-value-with-household-objects.md)
+- [Shapes and colours](shape-and-colour-pattern-games.md)

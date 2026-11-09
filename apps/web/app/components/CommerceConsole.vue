@@ -197,7 +197,7 @@ const form = reactive({
   value: 10,
   max_discount_irr: 0,
   min_order_irr: 0,
-  skus: ['YARIZAN-G1'] as string[],
+  skus: [] as string[],
 });
 const campaigns = ref<Record<string, unknown>[]>([]),
   detail = ref<Record<string, unknown>>({});
@@ -236,7 +236,7 @@ async function open(action: string, row: Record<string, unknown> = {}) {
         enabled: row.enabled ?? true,
         max_redemptions: Number(row.max_redemptions ?? 100),
         max_per_customer: Number(row.max_per_customer ?? 1),
-        skus: (row.skus ?? ['YARIZAN-G1']) as string[],
+        skus: [...((row.skus as string[] | undefined) ?? [])],
       });
     }
     if (['detail', 'reconcile', 'void', 'reopen', 'archive', 'unarchive'].includes(action)) {
@@ -828,7 +828,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
           </li>
         </ul></template
       >
-      <FormShell v-else class="commerce-editor" @submit="save"
+      <FormShell v-else :key="requestId" class="commerce-editor" @submit="save"
         ><div class="commerce-editor-fields">
           <div v-if="['campaigns', 'coupons'].includes(kind)" class="editor-section-heading">
             <h3>مشخصات {{ kind === 'campaigns' ? 'طرح' : 'کد' }} تخفیف</h3>
@@ -970,3 +970,24 @@ const navigationGroups: { title: string; ids: string[] }[] = [
     </BaseDialog>
   </section>
 </template>
+
+<style scoped>
+[data-testid='coupon-products'] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+[data-testid='coupon-products'] > p {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+}
+[data-testid='coupon-products'] .checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #ddd5c5;
+  border-radius: 10px;
+  margin: 0;
+}
+</style>

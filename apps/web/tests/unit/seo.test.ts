@@ -43,7 +43,7 @@ describe('search indexing policy', () => {
     expect(sitemapPaths.some((p) => protectedRoute.test(p))).toBe(false);
     expect(sitemapPaths.every((p) => brochureDecision('GET', p) === 'page')).toBe(true);
     const xml = sitemapXml('https://yarizan.oarnova.games');
-    expect(xml.match(/<loc>/g)).toHaveLength(21);
+    expect(xml.match(/<loc>/g)).toHaveLength(22);
     expect(xml).not.toMatch(/account|zanyari|checkout|payment|login/);
     expect(() => canonicalOrigin('https://yarizan.oarnova.games/path')).toThrow();
     expect(canonicalOrigin('https://yarizan.oarnova.games')).toBe('https://yarizan.oarnova.games');

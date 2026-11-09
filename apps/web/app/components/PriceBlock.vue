@@ -29,7 +29,9 @@ defineProps<{
         ><span class="sr-only">قیمت ویژه: </span>{{ toman(promotion.price_irr) }}
         <small>تومان</small></span
       ><span class="discount-badge">{{ persianDigits(promotion.discount_percent) }}٪ تخفیف</span
-      ><small class="promo-ends">{{ endsLabel(promotion.ends_at) }}</small></template
+      ><small v-if="endsLabel(promotion.ends_at)" class="promo-ends">{{
+        endsLabel(promotion.ends_at)
+      }}</small></template
     >
     <span v-else class="price">{{ toman(list) }} <small>تومان</small></span
     ><span v-if="testPrice && list !== null" class="test-price-badge" data-testid="test-price"

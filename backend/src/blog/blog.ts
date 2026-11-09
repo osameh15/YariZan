@@ -249,6 +249,8 @@ export class Blog {
             "number-games-at-home",
             "getting-started-with-yarizan",
             "helping-without-giving-the-answer",
+            "place-value-with-household-objects",
+            "shape-and-colour-pattern-games",
             "pattern-games-at-home",
             "more-less-and-equal-games",
           ].some((slug) => cover === `/blog-covers/${slug}.webp`),

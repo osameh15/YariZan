@@ -1,6 +1,7 @@
 // Reviewed independent games (grade 0). Their prices live in approved-pricing.ts; this list holds
 // the Persian product title that bootstrap and seed write to new product rows.
 export const standaloneTitles: Readonly<Record<string, string>> = {
+  "YARIZAN-S-COMBINATION-LAND": "سرزمین ترکیب‌ها",
   "YARIZAN-S-BUNDLE-BUILDER": "دسته‌ساز کوچک",
   "YARIZAN-S-NUMBER-BUILDER": "عددساز کوچولو",
 };

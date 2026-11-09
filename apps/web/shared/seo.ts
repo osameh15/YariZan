@@ -14,6 +14,7 @@ export const sitemapPaths = [
   '/special-products',
   '/special-products/number-builder',
   '/special-products/bundle-builder',
+  '/special-products/combination-land',
   ...[1, 2, 3, 4, 5, 6].map((g) => `/products/grade-${g}`),
   '/support',
   '/download',
@@ -33,7 +34,7 @@ export function canonicalPath(path: string): string | undefined {
 export function robotsHeader(indexing: Indexing, path: string) {
   return indexing === 'index' &&
     (canonicalPath(path) ||
-      /^\/blog-covers\/(?:choosing-an-educational-game|number-games-at-home|getting-started-with-yarizan|helping-without-giving-the-answer|pattern-games-at-home|more-less-and-equal-games)\.webp$/.test(
+      /^\/blog-covers\/(?:choosing-an-educational-game|number-games-at-home|getting-started-with-yarizan|helping-without-giving-the-answer|pattern-games-at-home|more-less-and-equal-games|place-value-with-household-objects|shape-and-colour-pattern-games)\.webp$/.test(
         path,
       ))
     ? 'index, follow'
@@ -106,6 +107,11 @@ const publicMetadata: Record<string, PageMetadata> = {
     title: 'دسته‌ساز کوچک | یاریزان',
     description:
       'دسته‌ساز کوچک، بازی مستقل یاریزان برای ویندوز؛ با بازی آشنا شوید و تصاویر، قیمت جاری و شرایط دریافت و فعال‌سازی را بررسی کنید.',
+  },
+  '/special-products/combination-land': {
+    title: 'سرزمین ترکیب‌ها | یاریزان',
+    description:
+      'سرزمین ترکیب‌ها، بازی مستقل یاریزان برای ویندوز؛ قیمت جاری، دریافت نسخهٔ x86 و x64، دو فرصت آزمایش و فعال‌سازی مجوز اختصاصی را بررسی کنید.',
   },
   '/support': {
     title: 'همراه شما | پشتیبانی یاریزان',

@@ -379,20 +379,20 @@ try {
     'dist/src/database/production-bootstrap.js',
     `--initialize-prices=${approvedPricing.revision}`,
   );
-  assert.match(bootstrap, /"products_created":8/);
+  assert.match(bootstrap, /"products_created":9/);
   assert.match(
     bootstrap,
-    /"initialized":\["YARIZAN-G1","YARIZAN-G2","YARIZAN-G3","YARIZAN-G4","YARIZAN-G5","YARIZAN-G6","YARIZAN-S-BUNDLE-BUILDER","YARIZAN-S-NUMBER-BUILDER"\]/,
+    /"initialized":\["YARIZAN-G1","YARIZAN-G2","YARIZAN-G3","YARIZAN-G4","YARIZAN-G5","YARIZAN-G6","YARIZAN-S-BUNDLE-BUILDER","YARIZAN-S-NUMBER-BUILDER","YARIZAN-S-COMBINATION-LAND"\]/,
   );
   assert.equal(
     sql(
       "SELECT count(*) FROM product_prices WHERE source='BOOTSTRAP' AND ended_at IS NULL",
     ),
-    '8',
+    '9',
   );
   assert.equal(
     sql("SELECT count(*) FROM products WHERE publication_status='hidden' AND NOT sale_enabled"),
-    '8',
+    '9',
   );
   step(
     'Migrations (15) and production bootstrap: seven hidden products and audited approved prices',
@@ -508,6 +508,7 @@ try {
       ['YARIZAN-G1', 14990000, 'published', true],
       ...[2, 3, 4, 5, 6].map((g) => [`YARIZAN-G${g}`, 14990000, 'coming_soon', false]),
       ['YARIZAN-S-BUNDLE-BUILDER', 1990000, 'published', true],
+      ['YARIZAN-S-COMBINATION-LAND', 3990000, 'published', true],
       ['YARIZAN-S-NUMBER-BUILDER', 1990000, 'published', true],
     ],
   );

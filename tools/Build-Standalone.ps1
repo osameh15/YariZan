@@ -1,4 +1,4 @@
-param([ValidateSet('number-builder', 'bundle-builder')][string]$Product = 'number-builder')
+﻿param([ValidateSet('number-builder', 'bundle-builder', 'combination-land')][string]$Product = 'number-builder')
 $ErrorActionPreference = 'Stop'
 $repoPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $repoPath
@@ -9,6 +9,7 @@ try {
         'number-builder' = @{ Name = 'YariZan-NumberBuilder'; Sku = 'YARIZAN-S-NUMBER-BUILDER' }
         'bundle-builder' = @{ Name = 'YariZan-BundleBuilder'; Sku = 'YARIZAN-S-BUNDLE-BUILDER' }
     }
+    $catalog['combination-land'] = @{ Name = 'YariZan-CombinationLand'; Sku = 'YARIZAN-S-COMBINATION-LAND' }
     $name = $catalog[$Product].Name
     $sku = $catalog[$Product].Sku
     $stageRoot = Join-Path $repoPath ('publish/.standalone-build-' + [Guid]::NewGuid().ToString('N'))
@@ -22,7 +23,7 @@ try {
     if ($LASTEXITCODE) { throw 'Standalone packing failed.' }
     foreach ($rid in @('win-x64','win-x86')) {
         $outputPath = Join-Path $stageRoot "$name-$rid"
-        dotnet publish src/YariZan.App/YariZan.App.csproj -c Release -r $rid --self-contained true -m:1 -p:NuGetAudit=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishReadyToRun=false -p:CommercialRelease=true "-p:StandaloneProductSku=$sku" "-p:GameBundleRoot=$bundle" "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version" '-p:Product=YariZan Number Builder' -p:DebugType=none -p:DebugSymbols=false -o $outputPath
+        dotnet publish src/YariZan.App/YariZan.App.csproj -c Release -r $rid --self-contained true -m:1 -p:NuGetAudit=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishReadyToRun=false -p:CommercialRelease=true "-p:StandaloneProductSku=$sku" "-p:GameBundleRoot=$bundle" "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version" "-p:Product=$($name.Replace('-', ' '))" -p:DebugType=none -p:DebugSymbols=false -o $outputPath
         if ($LASTEXITCODE) { throw "Publish failed for $rid" }
         Rename-Item -LiteralPath (Join-Path $outputPath 'YariZan.exe') -NewName "$name.exe"
         & "$PSScriptRoot/release/Test-WindowsBinary.ps1" -Path (Join-Path $outputPath "$name.exe") -Version $version -Kind app

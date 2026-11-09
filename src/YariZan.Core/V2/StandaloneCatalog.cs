@@ -17,6 +17,7 @@ public static class StandaloneCatalog
 {
     public static IReadOnlyList<StandaloneProduct> All { get; } =
     [
+        new("combination-land", "YARIZAN-S-COMBINATION-LAND", "سرزمین ترکیب‌ها", "سرزمین ترکیب ها", "YariZan-CombinationLand", "YariZan Combination Land"),
         new("number-builder", "YARIZAN-S-NUMBER-BUILDER", "عددساز کوچولو", "عددساز کوچولو", "YariZan-NumberBuilder", "YariZan Number Builder"),
         new("bundle-builder", "YARIZAN-S-BUNDLE-BUILDER", "دسته‌ساز کوچک", "دسته ساز کوچک", "YariZan-BundleBuilder", "YariZan Bundle Builder"),
     ];

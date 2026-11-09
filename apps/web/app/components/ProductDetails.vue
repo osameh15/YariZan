@@ -32,7 +32,7 @@ const commerce = publicOnly.value
     ><LoadState :loading="status === 'pending'" :error="!!error" @retry="refresh()"
       ><div v-if="product" class="product-detail">
         <div class="detail-art">
-          <div v-if="special" class="product-gallery">
+          <div v-if="special?.shots.length" class="product-gallery">
             <figure class="gallery-stage">
               <img
                 :src="special.shots[activeShot]!.src"
@@ -59,9 +59,9 @@ const commerce = publicOnly.value
           <div v-else class="product-art" :data-grade="product.grade">
             <span class="small-label">یاریزان</span
             ><span class="grade-number" aria-hidden="true">{{
-              new Intl.NumberFormat('fa-IR').format(product.grade)
+              special?.symbol ?? new Intl.NumberFormat('fa-IR').format(product.grade)
             }}</span
-            ><strong>{{ 'پایهٔ ' + gradeNames[product.grade - 1] }}</strong
+            ><strong>{{ special?.title ?? gradeNames[product.grade - 1] }}</strong
             ><img src="/brand/symbol.webp" width="90" height="90" alt="" />
           </div>
         </div>

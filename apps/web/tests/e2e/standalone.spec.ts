@@ -8,7 +8,7 @@ test('special product card, price, detail and download selection work on desktop
     await page.setViewportSize({ width, height: 1000 });
     await page.goto('/special-products');
     await expect(page.getByRole('heading', { name: 'محصولات ویژه', exact: true })).toBeVisible();
-    await expect(page.locator('.product-card')).toHaveCount(2);
+    await expect(page.locator('.product-card')).toHaveCount(3);
     await expect(page.locator('.product-card .product-shot img')).toHaveCount(2);
     await expect(page.locator('.product-card').nth(0)).toContainText('دسته‌ساز کوچک');
     const card = page.locator('.product-card').filter({ hasText: 'عددساز کوچولو' });
@@ -33,7 +33,7 @@ test('special product card, price, detail and download selection work on desktop
     ).toBeVisible();
     await expect(page.getByTestId('grade-picker')).toHaveCount(0);
     await expect(page.locator('.download-tab')).toHaveText(['دنیای پایه‌ها', 'محصولات ویژه']);
-    await expect(page.getByTestId('product-picker').locator('.grade-card')).toHaveCount(2);
+    await expect(page.getByTestId('product-picker').locator('.grade-card')).toHaveCount(3);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);

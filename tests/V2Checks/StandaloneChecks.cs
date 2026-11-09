@@ -47,6 +47,32 @@ internal static partial class Program
 
     private static void StandaloneChecks(SigningFixture signing, DeviceIdentityV2 identity)
     {
+        var combination = new Product("YARIZAN-S-COMBINATION-LAND");
+        Check(StandaloneCatalog.BySku(combination.Sku)?.Slug == "combination-land", "Combination Land has its own reviewed catalog identity");
+        var combinationPayload = signing.LicensePayload(identity);
+        combinationPayload["sku"] = combination.Sku;
+        combinationPayload["grade"] = 0;
+        var combinationLicense = signing.Sign(combinationPayload, SignedArtifactVerifier.LicenseDomain);
+        var combinationStore = Store("combination-land");
+        combinationStore.WriteLicense(combination, combinationLicense);
+        using (var access = new DesktopAccessController(identity, combination, signing.Verifier, combinationStore,
+            new FakeServer(signing, identity), new TestEnrollmentProvider(Enrollment(identity))))
+            Check(access.IsPurchased && access.CanEnter, "Combination Land paid license permits offline play");
+        foreach (var other in new[] { G1, new Product("YARIZAN-S-NUMBER-BUILDER"), new Product("YARIZAN-S-BUNDLE-BUILDER") })
+            Check(Reject(() => signing.Verifier.VerifyLicense(combinationLicense, identity, other, Enrollment(identity))),
+                "Combination Land license cannot unlock " + other.Sku);
+        var combinationServer = new FakeServer(signing, identity);
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            using var trial = new DesktopAccessController(identity, combination, signing.Verifier,
+                Store("combination-trial"), combinationServer, new TestEnrollmentProvider(Enrollment(identity)));
+            if (attempt < 2)
+            {
+                Run(trial.StartTrialAsync());
+                Check(trial.CanEnter && trial.TrialRemaining == 1 - attempt, "Combination Land trial start " + (attempt + 1));
+            }
+            else Check(RejectAsync(() => trial.StartTrialAsync()) && !trial.CanEnter, "Combination Land refuses a third trial start");
+        }
         var product = new Product("YARIZAN-S-NUMBER-BUILDER");
         Check(product.Grade == 0 && product.IsStandalone, "Standalone identity is outside the six grades");
         Check(AppProduct.Resolve(new GameManifest { SelectedGrade = 1, ProductSku = product.Sku }).Sku == G1.Sku,

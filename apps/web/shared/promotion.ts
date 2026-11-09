@@ -68,6 +68,7 @@ const endFormat = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
 });
 /** «تا ۲۸ مهر ۱۴۰۵، ۱۸:۳۰» style end of a promotion, Tehran time. */
 export function endsLabel(iso: string) {
+  if (iso.startsWith('9999-12-31')) return '';
   return 'تا ' + endFormat.format(new Date(iso));
 }
 

@@ -50,6 +50,7 @@ const promotions = ref<Promotion[]>([]),
   startNow = ref(true),
   startsAt = ref(''),
   endsAt = ref(''),
+  noEnd = ref(false),
   reason = ref(''),
   confirm = ref(false),
   requestId = ref(crypto.randomUUID()),
@@ -72,8 +73,12 @@ const percent = computed(() =>
   validPrice.value ? percentOff(props.listPriceIrr, irr.value) : null,
 );
 const iso = (local: string) => new Date(local).toISOString();
-const ended = computed(() => !!endsAt.value && !Number.isNaN(new Date(endsAt.value).getTime()));
+const ended = computed(
+  () => noEnd.value || (!!endsAt.value && !Number.isNaN(new Date(endsAt.value).getTime())),
+);
+const offerEnd = () => (noEnd.value ? '9999-12-31T00:00:00Z' : iso(endsAt.value));
 const windowError = computed(() => {
+  if (noEnd.value) return '';
   if (!ended.value) return '';
   const end = new Date(endsAt.value).getTime();
   const start = startNow.value || !startsAt.value ? Date.now() : new Date(startsAt.value).getTime();
@@ -88,7 +93,7 @@ const preview = computed(() =>
         original_price_irr: props.listPriceIrr,
         discount_percent: percent.value!,
         starts_at: new Date().toISOString(),
-        ends_at: iso(endsAt.value),
+        ends_at: offerEnd(),
       }
     : null,
 );
@@ -139,6 +144,7 @@ function reset(next: 'create' | 'edit' | 'end' = 'create', row: Promotion | null
   startNow.value = !row || next === 'end';
   startsAt.value = '';
   endsAt.value = '';
+  noEnd.value = !!row?.ends_at.startsWith('9999-12-31');
   reason.value = '';
   confirm.value = false;
   requestId.value = crypto.randomUUID();
@@ -167,7 +173,7 @@ async function submit() {
           expected_revision: currentRevision.value,
           promo_price_irr: irr.value,
           ...(startNow.value || !startsAt.value ? {} : { starts_at: iso(startsAt.value) }),
-          ends_at: iso(endsAt.value),
+          ends_at: offerEnd(),
         },
         { sku: props.sku },
       );
@@ -183,7 +189,7 @@ async function submit() {
                 ...(startNow.value || !startsAt.value ? {} : { starts_at: iso(startsAt.value) }),
               }
             : {}),
-          ends_at: iso(endsAt.value),
+          ends_at: offerEnd(),
         },
         { id: editing.value!.id },
       );
@@ -241,13 +247,15 @@ async function decide(row: Promotion, action: 'deactivate' | 'restore') {
   }
 }
 const date = (value: string) =>
-  persianDigits(
-    new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-      timeZone: 'Asia/Tehran',
-    }).format(new Date(value)),
-  );
+  value.startsWith('9999-12-31')
+    ? 'بدون تاریخ پایان'
+    : persianDigits(
+        new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          timeZone: 'Asia/Tehran',
+        }).format(new Date(value)),
+      );
 const actionLabel: Record<string, string> = {
   CREATED: 'ثبت',
   UPDATED: 'ویرایش',
@@ -360,7 +368,16 @@ onMounted(load);
           >
           <PersianDatePicker v-if="!startNow" v-model="startsAt" label="شروع (زمان محلی)" time />
         </template>
-        <PersianDatePicker v-model="endsAt" label="پایان (زمان محلی، الزامی)" time required />
+        <label class="checkbox"
+          ><input v-model="noEnd" type="checkbox" />بدون تاریخ پایان؛ تا غیرفعال‌سازی</label
+        >
+        <PersianDatePicker
+          v-if="!noEnd"
+          v-model="endsAt"
+          label="پایان (زمان محلی، الزامی)"
+          time
+          required
+        />
         <p v-if="windowError" class="field-hint" role="alert">{{ windowError }}</p>
         <label
           >دلیل تغییر (برای گزارش فعالیت)

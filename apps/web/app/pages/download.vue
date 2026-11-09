@@ -88,6 +88,7 @@ const formatDate = (iso: string) =>
           :data-status="productStatus(product.sku)"
         >
           <img
+            v-if="product.shots.length"
             class="product-thumb"
             :src="product.shots[0]!.src"
             alt=""
@@ -95,6 +96,9 @@ const formatDate = (iso: string) =>
             height="720"
             loading="lazy"
           />
+          <span v-if="!product.shots.length" class="product-thumb" aria-hidden="true">{{
+            product.symbol
+          }}</span>
           <span class="grade-name">{{ product.title }}</span>
           <span class="grade-chip">{{
             productStatus(product.sku) === 'available' ? 'آمادهٔ دریافت' : 'به‌زودی'

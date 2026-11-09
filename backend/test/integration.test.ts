@@ -356,7 +356,7 @@ test("Blog drafts need authorized publication, preserve URLs, and reject stale e
       posts: { id: string; slug: string; state: string; revision: string }[];
     }>("/admin/blog", undefined, admin)
   ).body.posts;
-  assert.equal(all.filter((p) => p.state === "DRAFT").length, 6);
+  assert.equal(all.filter((p) => p.state === "DRAFT").length, 8);
   assert.deepEqual((await ok<{ posts: unknown[] }>("/blog")).body.posts, []);
   await denied("/blog/" + all[0].slug, undefined, "NOT_FOUND");
   await denied("/admin/blog", undefined, "UNAUTHENTICATED");
@@ -549,9 +549,17 @@ test("Actual PostgreSQL 17 and six exact products/prices", async () => {
     /PostgreSQL 17/,
   );
   const r = (await ok<Record<string, unknown>[]>("/products")).body;
-  assert.equal(r.length, 8);
+  assert.equal(r.length, 9);
   assert.ok(
-    r.every((p) => p.price_irr === (p.grade === 0 ? 1990000 : 14990000)),
+    r.every(
+      (p) =>
+        p.price_irr ===
+        (p.sku === "YARIZAN-S-COMBINATION-LAND"
+          ? 3990000
+          : p.grade === 0
+            ? 1990000
+            : 14990000),
+    ),
   );
   assert.equal(r[0].sale_enabled, true);
   assert.ok(
@@ -566,7 +574,7 @@ test("Seeds idempotent and preserve edited catalog", async () => {
   await seed(db);
   assert.equal(
     (await db.query("SELECT count(*) FROM products")).rows[0].count,
-    "8",
+    "9",
   );
 });
 test("Migration replay and hash drift detection", async () => {
@@ -1925,7 +1933,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 19 });
+    assert.deepEqual(await verifyMigrations(c), { total: 21 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,
@@ -7130,7 +7138,7 @@ test("Standalone game: two independent trials, exact price, code and purchase li
   const allSkus = (
     await db.query<{ sku: string }>("SELECT sku FROM products ORDER BY sku")
   ).rows.map((r) => r.sku);
-  assert.equal(allSkus.length, 8);
+  assert.equal(allSkus.length, 9);
   const fixture = await discountFixture();
   const coupon = "TEST-" + randomBytes(6).toString("hex").toUpperCase();
   await ok(

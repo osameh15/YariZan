@@ -234,9 +234,9 @@ export async function applyProductUpdate(pool: Pool, revision: string) {
       return { pricing_revision: revision, changed, already_applied: true };
     }
     const standalone: string[] = approvedPricing.products
-      .filter((p) => p.grade === 0)
+      .filter((p) => p.sku === "YARIZAN-S-COMBINATION-LAND")
       .map((p) => p.sku);
-    for (const sku of ["YARIZAN-G1", ...standalone]) {
+    for (const sku of standalone) {
       const approved = approvedPricing.products.find((p) => p.sku === sku)!;
       const product = await c.query(
         "SELECT 1 FROM products WHERE sku=$1 FOR UPDATE",

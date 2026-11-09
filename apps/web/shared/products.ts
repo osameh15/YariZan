@@ -28,6 +28,15 @@ export const standaloneProducts = [
       { src: '/products/bundle-builder/screen-2.webp', alt: 'ساختن عدد با دسته‌ها و مکعب‌ها' },
     ] as readonly StandaloneShot[],
   },
+  {
+    sku: 'YARIZAN-S-COMBINATION-LAND',
+    slug: 'combination-land',
+    title: 'سرزمین ترکیب‌ها',
+    description:
+      'سرزمین ترکیب‌ها؛ یک بازی مستقل در مجموعهٔ محصولات ویژهٔ یاریزان، با فعال‌سازی و مجوز اختصاصی.',
+    symbol: '✦',
+    shots: [] as readonly StandaloneShot[],
+  },
 ] as const;
 
 export function standaloneProduct(sku: string) {

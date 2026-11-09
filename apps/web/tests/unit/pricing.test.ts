@@ -14,7 +14,12 @@ describe('approved pricing contract', () => {
   it('prices are integer IRR and display as exact Persian Toman', () => {
     for (const p of approvedPricing.products) {
       expect(Number.isSafeInteger(p.price_irr)).toBe(true);
-      const expected = p.grade === 0 ? [1990000, '۱۹۹٬۰۰۰'] : [14990000, '۱٬۴۹۹٬۰۰۰'];
+      const expected =
+        p.sku === 'YARIZAN-S-COMBINATION-LAND'
+          ? [3990000, '۳۹۹٬۰۰۰']
+          : p.grade === 0
+            ? [1990000, '۱۹۹٬۰۰۰']
+            : [14990000, '۱٬۴۹۹٬۰۰۰'];
       expect(p.price_irr).toBe(expected[0]);
       expect(toman(p.price_irr)).toBe(expected[1]);
     }
@@ -33,6 +38,7 @@ describe('public storefront catalog', () => {
       ...Array(6).fill(14990000),
       1990000,
       1990000,
+      3990000,
     ]);
     expect(brochure.products.every((p) => p.price_irr === null)).toBe(true);
   });
