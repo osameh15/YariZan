@@ -2,7 +2,8 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <TargetFramework Condition="'$(LegacyWindows)' != 'true'">net9.0-windows</TargetFramework>
+    <TargetFramework Condition="'$(LegacyWindows)' == 'true'">net48</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -101,5 +102,18 @@
   </Target>
   <Target Name="ValidateV2CommercialPublish" BeforeTargets="PrepareForPublish" Condition="'$(FixtureOnlyBuild)' != 'true' and '$(CommercialRelease)' != 'true' and '$(LocalAcceptanceBuild)' != 'true' and '$(AcceptanceCandidate)' != 'true'">
     <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --commercial &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
+  </Target>
+  <ItemGroup Condition="'$(LegacyWindows)' == 'true'">
+    <Reference Include="System.Net.Http" />
+    <PackageReference Include="PolySharp" Version="1.15.0" PrivateAssets="all" />
+    <Compile Include="../YariZan.Core/Legacy/Aliases.cs" Link="Legacy/Aliases.cs" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(LegacyWindows)' == 'true'">
+    <AppConfig>Legacy.App.config</AppConfig>
+    <InformationalVersion>$(Version)-legacy-acceptance-candidate</InformationalVersion>
+  </PropertyGroup>
+  <Target Name="ValidateLegacyBuild" BeforeTargets="ValidateV2PublicRootInputs;ValidateV2CommercialBuild;ValidateAcceptanceCandidate;PrepareForBuild" Condition="'$(LegacyWindows)' == 'true'">
+    <Error Condition="'$(CommercialRelease)' == 'true'" Text="Legacy Windows has not passed Windows 7 SP1/8.1 acceptance; commercial release is disabled." />
+    <Error Condition="'$(FixtureOnlyBuild)' != 'true' and '$(AcceptanceCandidate)' != 'true' and '$(LocalAcceptanceBuild)' != 'true'" Text="Legacy Windows builds must explicitly be fixtures or acceptance candidates until legacy OS acceptance is complete." />
   </Target>
 </Project>

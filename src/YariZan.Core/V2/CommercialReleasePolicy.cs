@@ -25,6 +25,19 @@ public static class CommercialReleasePolicy
 
     public static string PublicKeyFingerprint(string pem)
     {
+#if NETFRAMEWORK
+        const string begin = "-----BEGIN PUBLIC KEY-----", end = "-----END PUBLIC KEY-----";
+        string value = pem.Trim();
+        if (!value.StartsWith(begin, StringComparison.Ordinal) || !value.EndsWith(end, StringComparison.Ordinal))
+            throw new InvalidDataException("V2_PUBLIC_SPKI_REQUIRED");
+        string body = value.Substring(begin.Length, value.Length - begin.Length - end.Length);
+        if (body.Contains("-----")) throw new InvalidDataException("V2_SINGLE_PUBLIC_KEY_REQUIRED");
+        var bytes = Convert.FromBase64String(body);
+        using var key = ECDsa.Create();
+        key.ImportSubjectPublicKeyInfo(bytes, out int read);
+        if (read != bytes.Length) throw new InvalidDataException("V2_P256_PUBLIC_KEY_REQUIRED");
+        return Convert.ToHexString(SHA256.HashData(key.ExportSubjectPublicKeyInfo()));
+#else
         // ImportFromPem alone also accepts private keys. Accept exactly one SPKI public block instead.
         if (!PemEncoding.TryFind(pem.AsSpan(), out var fields)
             || !pem.AsSpan()[fields.Label].SequenceEqual("PUBLIC KEY".AsSpan()))
@@ -38,6 +51,7 @@ public static class CommercialReleasePolicy
         if (read != bytes.Length || key.KeySize != 256 || key.ExportParameters(false).Curve.Oid.Value != "1.2.840.10045.3.1.7")
             throw new InvalidDataException("V2_P256_PUBLIC_KEY_REQUIRED");
         return Convert.ToHexString(SHA256.HashData(key.ExportSubjectPublicKeyInfo()));
+#endif
     }
 
     public static void ValidateConfiguration(string rootsJson, string approvedJson, string activationJson)

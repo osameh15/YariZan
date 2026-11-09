@@ -293,7 +293,7 @@ public sealed class PaidActivationCoordinator : IDisposable
             _ => Attempts <= _timing.FirstIntervalChecks ? _timing.FirstInterval : _timing.SteadyInterval
         };
         // Retry-After is a floor; jitter only spreads clients that would otherwise check in lockstep.
-        return baseDelay + TimeSpan.FromTicks((long)(_timing.Jitter.Ticks * Math.Clamp(_random(), 0, 1)));
+        return baseDelay + TimeSpan.FromTicks((long)(_timing.Jitter.Ticks * Math.Min(1, Math.Max(0, _random()))));
     }
 
     public static PaidActivationPhase Classify(Exception ex, out TimeSpan? retryAfter)

@@ -26,7 +26,7 @@ public sealed class GameLauncher : IDisposable
     {
         lock (_sync)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_disposed) throw new ObjectDisposedException(nameof(GameLauncher));
             return _generation;
         }
     }

@@ -8,6 +8,29 @@ on:
   workflow_dispatch:
 
 jobs:
+  legacy:
+    name: Legacy .NET Framework compatibility (current Windows runner)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Legacy x64/x86 crypto, licensing and WPF checks
+        shell: powershell
+        run: .\tests\Run-LegacyChecks.ps1
+      - name: Candidate-only release guard
+        shell: powershell
+        run: |
+          $output = dotnet build src/YariZan.App -c Release -p:LegacyWindows=true -p:CommercialRelease=true -p:IncludeGameBundle=false -p:IncludeGameKey=false 2>&1
+          $output | Write-Output
+          if ($LASTEXITCODE -eq 0) { throw 'Unaccepted legacy commercial release was allowed.' }
+          if (($output -join "`n") -notmatch 'Legacy Windows has not passed') { throw 'Build failed for a reason other than the legacy release guard.' }
+          exit 0
   build:
     name: Build (Windows / .NET 9)
     runs-on: windows-latest

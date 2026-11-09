@@ -9,7 +9,11 @@ public interface ILockDesktopActions
 {
     void CopyText(string text);
     void OpenProductPage(Uri destination);
+#if NETFRAMEWORK
+    void OpenConnectPage();
+#else
     void OpenConnectPage() => throw new InvalidOperationException("Connect browser action unavailable.");
+#endif
 }
 
 public sealed class WindowsLockDesktopActions : ILockDesktopActions
@@ -55,7 +59,7 @@ public sealed class StoreDestinations
                 throw new InvalidDataException("Store grade mismatch.");
             pages.Add(product.Sku, destination);
         }
-        if (operational && (string.IsNullOrWhiteSpace(review) || review.Length > 256 || pages.Count == 0))
+        if (operational && (review is null || string.IsNullOrWhiteSpace(review) || review.Length > 256 || pages.Count == 0))
             throw new InvalidDataException("Operational store requires reviewed product destinations.");
         return operational ? new(pages) : Unavailable;
     }

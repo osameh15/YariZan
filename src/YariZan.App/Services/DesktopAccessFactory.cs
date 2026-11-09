@@ -7,7 +7,11 @@ namespace YariZan.App.Services;
 
 public static class DesktopAccessFactory
 {
-    private static readonly HttpClient Http = new(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
+    private static readonly HttpClient Http = new(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false
+#if NETFRAMEWORK
+        , SslProtocols = System.Security.Authentication.SslProtocols.Tls12
+#endif
+    })
     { Timeout = Timeout.InfiniteTimeSpan };
     /// <summary>Per-profile wait marker beside the license store; a UX hint that never grants access.</summary>
     public static IActivationIntentStore CreateActivationIntentStore() => new FileActivationIntentStore();

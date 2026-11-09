@@ -36,7 +36,7 @@ public sealed class DeviceIdentityV2 : IDeviceIdentity
         foreach (string name in new[] { "uuid", "board", "bios", "cpu" })
         {
             var values = signals.TryGetValue(name, out var found) ? found : [];
-            foreach (string value in values.Select(Normalize).Where(v => v.Length > 0).Distinct().Order(StringComparer.Ordinal))
+            foreach (string value in values.Select(Normalize).Where(v => v.Length > 0).Distinct().OrderBy(x => x, StringComparer.Ordinal))
             {
                 seed.Append(name).Append(':').Append(value.Length).Append(':').Append(value).Append('\n');
                 any = true;
@@ -50,13 +50,13 @@ public sealed class DeviceIdentityV2 : IDeviceIdentity
         }
         FingerprintDigest = any ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(seed.ToString()))) : "";
         // 96 bits, grouped hex for support; server must detect collisions when enrolling.
-        Username = any ? "YZ-" + string.Join('-', Enumerable.Range(0, 6).Select(i => FingerprintDigest.Substring(i * 4, 4))) : "YZ-UNAVAILABLE";
+        Username = any ? "YZ-" + string.Join("-", Enumerable.Range(0, 6).Select(i => FingerprintDigest.Substring(i * 4, 4))) : "YZ-UNAVAILABLE";
     }
 
     public static string Normalize(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return "";
-        string normalized = string.Join(' ', value.Normalize(NormalizationForm.FormKC).Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
+        if (value is null || string.IsNullOrWhiteSpace(value)) return "";
+        string normalized = string.Join(" ", value.Normalize(NormalizationForm.FormKC).Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
         if (normalized is "UNKNOWN" or "NONE" or "N/A" or "DEFAULT STRING" or "TO BE FILLED BY O.E.M." or "SYSTEM SERIAL NUMBER" or "NOT SPECIFIED") return "";
         string significant = new(normalized.Where(char.IsLetterOrDigit).ToArray());
         if (significant.Length == 0 || significant.All(c => c == '0') || significant.All(c => c == 'F')) return "";

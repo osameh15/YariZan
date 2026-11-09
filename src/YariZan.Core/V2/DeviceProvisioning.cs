@@ -158,9 +158,9 @@ public sealed class DesktopProvisioningClient(HttpClient http, IDeviceIdentity i
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
         if ((int)response.StatusCode is >= 300 and < 400) throw new V2ApiException("REDIRECT_REJECTED", response.StatusCode);
         if (response.Content.Headers.ContentLength > StrictJson.MaxBytes) throw new InvalidDataException("Response too large.");
-        await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token); using var bytes = new MemoryStream();
+        using var stream = await response.Content.ReadAsStreamAsync(deadline.Token); using var bytes = new MemoryStream();
         var buffer = new byte[4096]; int count;
-        while ((count = await stream.ReadAsync(buffer, deadline.Token)) > 0) { if (bytes.Length + count > StrictJson.MaxBytes) throw new InvalidDataException("Response too large."); bytes.Write(buffer, 0, count); }
+        while ((count = await stream.ReadAsync(buffer, 0, buffer.Length, deadline.Token)) > 0) { if (bytes.Length + count > StrictJson.MaxBytes) throw new InvalidDataException("Response too large."); bytes.Write(buffer, 0, count); }
         var document = StrictJson.Parse(new UTF8Encoding(false, true).GetString(bytes.ToArray()));
         if (!response.IsSuccessStatusCode) { string? code = document.RootElement.GetProperty("error").GetProperty("code").GetString(); document.Dispose(); throw new V2ApiException(code is { Length: > 0 and <= 128 } ? code : "HTTP_ERROR", response.StatusCode); }
         return document;
