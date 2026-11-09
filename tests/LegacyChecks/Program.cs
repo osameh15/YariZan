@@ -79,6 +79,7 @@ internal static class Program
                 Check(!revoked.CanEnter && revoked.State == DesktopAccessState.Revoked, "persisted revocation blocks offline access");
             File.WriteAllText(Path.Combine(work, "license", Product.Sku + ".license.dat"), "corrupt");
             Check(store.ReadLicense(Product).Status == StoreReadStatus.Corrupt, "corrupt DPAPI file rejected");
+            ProductMatrixChecks(fixture, work, identity, enrollment, verifier);
 
             using (var signing = new ECDsaCng(256))
             {
@@ -110,6 +111,41 @@ internal static class Program
     }
 
     private static string PublicPem(byte[] bytes) => "-----BEGIN PUBLIC KEY-----\n" + System.Convert.ToBase64String(bytes) + "\n-----END PUBLIC KEY-----\n";
+    private static void ProductMatrixChecks(JsonElement fixture, string work, IDeviceIdentity identity, DeviceEnrollment enrollment, ILicenseVerifier verifier)
+    {
+        var rows = fixture.GetProperty("products").EnumerateArray().ToArray();
+        var expected = StandaloneCatalog.All.Select(p => p.Sku).Concat(new[] { "YARIZAN-G1" }).OrderBy(s => s).ToArray();
+        Check(rows.Select(p => Text(p, "sku")).OrderBy(s => s).SequenceEqual(expected), "legacy matrix covers every currently released product");
+        var store = new FileLicenseStore(Path.Combine(work, "all-products"));
+        foreach (var row in rows)
+        {
+            var product = new Product(Text(row, "sku"));
+            string envelope = Text(row, "license");
+            var paid = verifier.VerifyLicense(envelope, identity, product, enrollment);
+            Check(paid.Sku == product.Sku && paid.Grade == product.Grade, "legacy license verification: " + product.Sku);
+            foreach (var other in expected.Where(s => s != product.Sku))
+                Check(Reject(() => verifier.VerifyLicense(envelope, identity, new Product(other), enrollment)), product.Sku + " cannot unlock " + other);
+            store.WriteLicense(product, envelope);
+            using (var offline = new DesktopAccessController(identity, product, verifier, store, new Server { Offline = true }, new Enrollment(enrollment)))
+                Check(offline.CanEnter && offline.IsPurchased, "legacy offline paid access: " + product.Sku);
+            byte[] key = product.IsStandalone ? ProductGameKey.Derive(Bytes(fixture, "master"), product) : Bytes(fixture, "master");
+            Check(key.SequenceEqual(Bytes(row, "key")), "legacy game key: " + product.Sku);
+            string game = Path.Combine(work, product.Sku + ".yzg"); File.WriteAllBytes(game, Bytes(row, "blob"));
+            Check(GameCrypto.Decrypt(key, game).SequenceEqual(Bytes(fixture, "plain")), "legacy encrypted payload: " + product.Sku);
+            using var signing = new ECDsaCng(256);
+            var server = new Server { Signing = signing };
+            var trialVerifier = new SignedArtifactVerifier(new Dictionary<string, string> { ["disposable-legacy-test"] = PublicPem(signing.ExportSubjectPublicKeyInfo()) });
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                using var access = new DesktopAccessController(identity, product, trialVerifier, new FileLicenseStore(Path.Combine(work, "matrix-trials")), server, new Enrollment(enrollment));
+                try { access.StartTrialAsync().GetAwaiter().GetResult(); }
+                catch (TrialExhaustedException) when (attempt == 2) { }
+                Check(access.CanEnter == (attempt < 2), product.Sku + " legacy trial attempt " + (attempt + 1));
+            }
+        }
+        foreach (var row in rows)
+            Check(store.ReadLicense(new Product(Text(row, "sku"))).Envelope == Text(row, "license"), "license store retains separate product slot: " + Text(row, "sku"));
+    }
     private static void HttpChecks()
     {
         foreach (var test in new[] { "valid", "redirect", "oversized", "duplicate", "cancelled-read" })
@@ -214,7 +250,7 @@ internal static class Program
         public Task<TrialStartResponse> StartTrialAsync(TrialStartRequest request, CancellationToken cancellation)
         {
             if (Starts >= 2) throw new TrialExhaustedException();
-            using var document = StrictJson.Parse(JsonSerializer.Serialize(new { format = "YARIZAN-TRIAL-START-V2", kid = "disposable-legacy-test", issued_at = "2026-11-09T00:00:00Z", device_id = request.DeviceId, sku = request.Sku, grade = 0, client_nonce = request.ClientNonce, process_session_id = request.ProcessSessionId }));
+            using var document = StrictJson.Parse(JsonSerializer.Serialize(new { format = "YARIZAN-TRIAL-START-V2", kid = "disposable-legacy-test", issued_at = "2026-11-09T00:00:00Z", device_id = request.DeviceId, sku = request.Sku, grade = new Product(request.Sku).Grade, client_nonce = request.ClientNonce, process_session_id = request.ProcessSessionId }));
             var message = Encoding.UTF8.GetBytes(SignedArtifactVerifier.TrialDomain + CanonicalJson.Serialize(document.RootElement));
             string grant = JsonSerializer.Serialize(new { algorithm = "ES256-P1363", payload = document.RootElement, signature = Base64Url.Encode(Signing!.SignData(message, HashAlgorithmName.SHA256)) });
             Starts++; return Task.FromResult(new TrialStartResponse(grant, 2 - Starts, "2026-11-09T00:00:00Z"));

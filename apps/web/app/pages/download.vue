@@ -17,7 +17,8 @@ import {
 
 useSeoMeta({
   title: 'دریافت یاریزان برای ویندوز | یاریزان',
-  description: 'دریافت رسمی یاریزان برای ویندوز از خود سایت، با انتخاب پایه، مشخصات و کد SHA-256.',
+  description:
+    'دریافت یاریزان برای ویندوز ۱۰ و ۱۱ و نسخهٔ آزمایشی ویندوز ۷ SP1 و ۸.۱؛ نیازمندی‌ها، حجم و کد بررسی فایل.',
 });
 const route = useRoute();
 const requestedProduct = computed(() => standaloneProduct(String(route.query.product ?? '')));
@@ -40,7 +41,7 @@ const statusLabel = (grade: Grade) =>
       ? 'محتوا آماده است'
       : 'به‌زودی';
 const defaultRequirements = [
-  'ویندوز ۱۰ یا ۱۱ (۶۴ بیتی)',
+  'ویندوز ۱۰ (۳۲ یا ۶۴ بیتی) یا ویندوز ۱۱ (۶۴ بیتی)',
   'اتصال اینترنت برای دریافت برنامه، شروع نوبت آزمایش و دریافت مجوز',
 ];
 const formatDate = (iso: string) =>
@@ -138,6 +139,7 @@ const formatDate = (iso: string) =>
         aria-live="polite"
       >
         <template v-if="release">
+          <span class="badge neutral">نسخهٔ اصلی برای ویندوز ۱۰ و ۱۱</span>
           <h2>
             یاریزان پایهٔ {{ gradeTitles[selected] }}، نسخهٔ
             <span dir="ltr">{{ persianDigits(release.version) }}</span>
@@ -186,7 +188,7 @@ const formatDate = (iso: string) =>
             </p>
           </div>
           <p class="actions">
-            <a class="button" :href="latestUrl(selected)" download>دریافت مستقیم برای ویندوز</a>
+            <a class="button" :href="latestUrl(selected)" download>دریافت برای ویندوز ۱۰ و ۱۱</a>
             <a class="button secondary" :href="releaseUrl(release)" download>پیوند ثابت این نسخه</a>
           </p>
         </template>
@@ -206,14 +208,20 @@ const formatDate = (iso: string) =>
         </template>
       </article>
 
+      <LegacyDownload v-if="release" :sku="'YARIZAN-G' + selected" />
+
       <div class="support-grid">
         <article class="panel">
-          <h2>نیازمندی‌های سیستم</h2>
+          <h2>نیازمندی‌های نسخهٔ اصلی ویندوز ۱۰ و ۱۱</h2>
           <ul>
             <li v-for="item in release ? release.requirements : defaultRequirements" :key="item">
               {{ item }}
             </li>
           </ul>
+          <p>
+            نسخهٔ اصلی شامل فایل‌های اجرای برنامه است و به نصب جداگانهٔ .NET Framework 4.8 نیاز
+            ندارد.
+          </p>
         </article>
         <article class="panel">
           <h2>مجوز و فعال‌سازی</h2>

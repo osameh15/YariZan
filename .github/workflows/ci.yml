@@ -23,13 +23,15 @@ jobs:
       - name: Legacy x64/x86 crypto, licensing and WPF checks
         shell: powershell
         run: .\tests\Run-LegacyChecks.ps1
-      - name: Candidate-only release guard
+      - name: Stable legacy release and experimental-mode guards
         shell: powershell
         run: |
           $output = dotnet build src/YariZan.App -c Release -p:LegacyWindows=true -p:CommercialRelease=true -p:IncludeGameBundle=false -p:IncludeGameKey=false 2>&1
           $output | Write-Output
           if ($LASTEXITCODE -eq 0) { throw 'Unaccepted legacy commercial release was allowed.' }
           if (($output -join "`n") -notmatch 'Legacy Windows has not passed') { throw 'Build failed for a reason other than the legacy release guard.' }
+          $output = dotnet build src/YariZan.App -c Release -p:LegacyWindows=true -p:LegacyExperimental=true -p:FixtureOnlyBuild=true -p:IncludeGameBundle=false -p:IncludeGameKey=false 2>&1
+          if ($LASTEXITCODE -eq 0 -or ($output -join "`n") -notmatch 'LegacyExperimental cannot be combined') { throw 'Experimental fixture build was not refused correctly.' }
           exit 0
   build:
     name: Build (Windows / .NET 9)

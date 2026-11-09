@@ -2,7 +2,7 @@
 // source for the public download page. A grade is downloadable ONLY when a complete, explicitly
 // approved release record exists for it: a UI flag alone can never enable a download. The list is
 // empty until the owner approves a V2 installer for a grade (current Windows CI, real Windows test,
-// production licensing trust roots, signing policy, malware scan and provenance). The legacy G1
+// production licensing trust roots, signing policy, malware scan and provenance). The historical pre-V2 G1
 // installer on GitHub is not a V2 release and must never be listed here.
 // Files are served by the first-party release mirror under /downloads/windows/ on the direct-download
 // host (DNS-only, the CDN refuses files this large), never by GitHub.
@@ -76,7 +76,7 @@ export const windowsReleases: readonly WindowsRelease[] = [
       'نمایش شناسهٔ دستگاه در صفحهٔ اطلاعات پس از فعال‌سازی.',
     ],
     requirements: [
-      'ویندوز ۱۰ یا ۱۱ (۶۴ یا ۳۲ بیتی)',
+      'ویندوز ۱۰ (۳۲ یا ۶۴ بیتی) یا ویندوز ۱۱ (۶۴ بیتی)',
       'حدود ۲ گیگابایت فضای خالی دیسک',
       'اینترنت برای اتصال حساب، شروع فرصت تجربه و فعال‌سازی؛ پس از فعال‌سازی، بازی‌ها آفلاین اجرا می‌شوند.',
     ],

@@ -8,6 +8,41 @@ import path from 'node:path';
 const profile = process.env.YARIZAN_PUBLIC_PROFILE === 'storefront' ? 'storefront' : 'brochure';
 const images = path.resolve('.local/screenshots/' + profile);
 
+test('all released products show modern and experimental legacy downloads with clear requirements', async ({
+  page,
+}) => {
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const sku of [
+      'YARIZAN-G1',
+      'YARIZAN-S-NUMBER-BUILDER',
+      'YARIZAN-S-BUNDLE-BUILDER',
+      'YARIZAN-S-COMBINATION-LAND',
+    ]) {
+      await page.goto(sku === 'YARIZAN-G1' ? '/download' : '/download?product=' + sku);
+      const legacy = page.getByTestId('legacy-download');
+      await expect(legacy).toBeVisible();
+      await expect(legacy).toContainText('ویندوز ۷ SP1 و ۸.۱');
+      await expect(legacy).toContainText('Microsoft .NET Framework 4.8');
+      await expect(legacy).toContainText('هنوز تکمیل نشده');
+      await expect(legacy.locator('a[download]')).toHaveAttribute(
+        'href',
+        /\/windows\/legacy\/.+-beta\.exe$/,
+      );
+      await expect(legacy.locator('code')).toContainText('certutil -hashfile');
+      await expect(page.getByText('نسخهٔ اصلی برای ویندوز ۱۰ و ۱۱', { exact: true })).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+    }
+    await mkdir(images, { recursive: true });
+    await page.screenshot({
+      path: path.join(images, `legacy-download-${width}.png`),
+      fullPage: true,
+    });
+  }
+});
+
 test('six grade cards are shown, grade 1 is preselected and only grade 1 is downloadable', async ({
   page,
 }) => {

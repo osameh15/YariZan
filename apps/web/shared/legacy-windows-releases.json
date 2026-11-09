@@ -1,0 +1,42 @@
+[
+  {
+    "sku": "YARIZAN-G1",
+    "version": "2.1.0",
+    "filename": "YariZan-G1-Legacy-Setup-v2.1.0-beta.exe",
+    "sizeBytes": 1008204555,
+    "sha256": "c8fa829aacb8c11ca1dfb8a8ff36002ffac31657d2b7f7ec67d4071a20859ad9",
+    "published": true,
+    "channel": "experimental",
+    "osAcceptance": "pending"
+  },
+  {
+    "sku": "YARIZAN-S-NUMBER-BUILDER",
+    "version": "1.0.0",
+    "filename": "YariZan-NumberBuilder-Legacy-Setup-v1.0.0-beta.exe",
+    "sizeBytes": 21306918,
+    "sha256": "2b0f92a5b52cd1a48996fd0cda2646a54209ba56501820b4a2bab1bda257b666",
+    "published": true,
+    "channel": "experimental",
+    "osAcceptance": "pending"
+  },
+  {
+    "sku": "YARIZAN-S-BUNDLE-BUILDER",
+    "version": "1.0.0",
+    "filename": "YariZan-BundleBuilder-Legacy-Setup-v1.0.0-beta.exe",
+    "sizeBytes": 21332660,
+    "sha256": "a4811d16fddeba60ed5a968350bd40de00e07d2987d60d577c428c06a5db66d3",
+    "published": true,
+    "channel": "experimental",
+    "osAcceptance": "pending"
+  },
+  {
+    "sku": "YARIZAN-S-COMBINATION-LAND",
+    "version": "1.0.0",
+    "filename": "YariZan-CombinationLand-Legacy-Setup-v1.0.0-beta.exe",
+    "sizeBytes": 22663232,
+    "sha256": "92c70d90c22237bacdd8b6fdf61aad34a0d5674fec0dbf287970f4240d61db0d",
+    "published": true,
+    "channel": "experimental",
+    "osAcceptance": "pending"
+  }
+]

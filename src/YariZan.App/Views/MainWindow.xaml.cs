@@ -65,6 +65,9 @@ public partial class MainWindow : Window
             // Physical acceptance candidate: production root and API, but visibly not a release.
             + " — ACCEPTANCE CANDIDATE (not for distribution)"
 #endif
+#if YARIZAN_LEGACY_EXPERIMENTAL
+            + " — نسخهٔ آزمایشی ویندوز ۷ و ۸.۱"
+#endif
             ;
         // Must be set before the window appears; only the single product shows a modal-only launch.
         if (IsStandalone) AllowsTransparency = true;

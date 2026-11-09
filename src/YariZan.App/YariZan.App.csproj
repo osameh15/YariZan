@@ -112,8 +112,14 @@
     <AppConfig>Legacy.App.config</AppConfig>
     <InformationalVersion>$(Version)-legacy-acceptance-candidate</InformationalVersion>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(LegacyWindows)' == 'true' and '$(LegacyExperimental)' == 'true'">
+    <InformationalVersion>$(Version)-legacy-beta</InformationalVersion>
+    <DefineConstants>$(DefineConstants);YARIZAN_LEGACY_EXPERIMENTAL</DefineConstants>
+  </PropertyGroup>
   <Target Name="ValidateLegacyBuild" BeforeTargets="ValidateV2PublicRootInputs;ValidateV2CommercialBuild;ValidateAcceptanceCandidate;PrepareForBuild" Condition="'$(LegacyWindows)' == 'true'">
     <Error Condition="'$(CommercialRelease)' == 'true'" Text="Legacy Windows has not passed Windows 7 SP1/8.1 acceptance; commercial release is disabled." />
-    <Error Condition="'$(FixtureOnlyBuild)' != 'true' and '$(AcceptanceCandidate)' != 'true' and '$(LocalAcceptanceBuild)' != 'true'" Text="Legacy Windows builds must explicitly be fixtures or acceptance candidates until legacy OS acceptance is complete." />
+    <Error Condition="'$(LegacyExperimental)' == 'true' and ('$(FixtureOnlyBuild)' == 'true' or '$(AcceptanceCandidate)' == 'true' or '$(LocalAcceptanceBuild)' == 'true')" Text="LegacyExperimental cannot be combined with fixture/local/acceptance modes." />
+    <Error Condition="'$(FixtureOnlyBuild)' != 'true' and '$(AcceptanceCandidate)' != 'true' and '$(LocalAcceptanceBuild)' != 'true' and '$(LegacyExperimental)' != 'true'" Text="Legacy Windows builds must explicitly be fixtures, acceptance candidates or experimental releases until legacy OS acceptance is complete." />
+    <Exec Condition="'$(LegacyExperimental)' == 'true'" Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\YariZan.ReleaseCheck\YariZan.ReleaseCheck.csproj&quot; -c Release -- --acceptance-candidate &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
   </Target>
 </Project>

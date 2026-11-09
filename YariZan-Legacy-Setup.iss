@@ -1,5 +1,5 @@
-; Acceptance candidate only. Public legacy downloads require the real-OS matrix in
-; docs/LEGACY-WINDOWS.md. This installs beside the modern product.
+; Experimental/candidate setup. Stable legacy support requires the real-OS matrix
+; in docs/LEGACY-WINDOWS.md. This installs beside the modern product.
 #ifndef FileStem
   #error FileStem is required
 #endif
@@ -15,18 +15,21 @@
 #ifndef OutputRoot
   #error OutputRoot is required
 #endif
+#ifndef ReleaseChannel
+  #define ReleaseChannel "candidate"
+#endif
 
 [Setup]
-AppId={#FileStem}-Legacy-Candidate
-AppName={#FileStem} Legacy Windows (Acceptance Candidate)
+AppId={#FileStem}-Legacy-{#ReleaseChannel}
+AppName={#FileStem} Legacy Windows ({#ReleaseChannel})
 AppVersion={#MyAppVersion}
 AppPublisher=OAR NOVA GAMES STUDIO
 AppPublisherURL=https://oarnova.games/
 AppSupportURL=https://yarizan.oarnova.games/support
-DefaultDirName={autopf}\OARNOVA\{#FileStem} Legacy Candidate
-DefaultGroupName={#FileStem} Legacy Candidate
+DefaultDirName={autopf}\OARNOVA\{#FileStem} Legacy {#ReleaseChannel}
+DefaultGroupName={#FileStem} Legacy {#ReleaseChannel}
 OutputDir={#OutputRoot}
-OutputBaseFilename={#FileStem}-Legacy-Setup-v{#MyAppVersion}-candidate
+OutputBaseFilename={#FileStem}-Legacy-Setup-v{#MyAppVersion}-{#ReleaseChannel}
 SetupIconFile=src\YariZan.App\Resources\icon.ico
 UninstallDisplayIcon={app}\YariZan.exe
 MinVersion=6.1sp1
@@ -38,7 +41,7 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 VersionInfoVersion={#MyAppVersion}.0
-VersionInfoDescription=Legacy Windows acceptance candidate - not a public release
+VersionInfoDescription=Experimental Legacy Windows compatibility build
 LicenseFile=LICENSE.txt
 
 [Languages]
@@ -50,10 +53,10 @@ Source: "{#MyPublishDir}\*"; DestDir: "{app}"; Excludes: "games_encrypted\*"; Ch
 Source: "{#MyPublishDirX86}\*"; DestDir: "{app}"; Excludes: "games_encrypted\*"; Check: not Is64BitInstallMode; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#FileStem} Legacy Candidate"; Filename: "{app}\YariZan.exe"
+Name: "{group}\{#FileStem} Legacy {#ReleaseChannel}"; Filename: "{app}\YariZan.exe"
 
 [Run]
-Filename: "{app}\YariZan.exe"; Description: "Launch legacy acceptance candidate"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\YariZan.exe"; Description: "Launch experimental legacy version"; Flags: nowait postinstall skipifsilent
 
 [Code]
 function InitializeSetup(): Boolean;

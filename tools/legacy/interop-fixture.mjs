@@ -36,7 +36,19 @@ if (mode === 'verify') {
   const encrypted = Buffer.concat([cipher.update(plain), cipher.final()]);
   const p384 = generateKeyPairSync('ec', { namedCurve: 'secp384r1' }).publicKey.export({ type: 'spki', format: 'pem' }).toString();
   const k256 = generateKeyPairSync('ec', { namedCurve: 'secp256k1' }).publicKey.export({ type: 'spki', format: 'pem' }).toString();
-  writeFileSync(filename, JSON.stringify({ publicKey: pem, p384, k256, enrollment, license, revoked,
+  const products = ['YARIZAN-G1', sku, 'YARIZAN-S-NUMBER-BUILDER', 'YARIZAN-S-BUNDLE-BUILDER'].map((productSku, index) => {
+    const grade = productSku === 'YARIZAN-G1' ? 1 : 0;
+    const boundKey = grade ? master : createHmac('sha256', master).update('YariZan-Standalone-Game-Key-V1\n' + productSku).digest();
+    const productNonce = Buffer.from(nonce); productNonce[0] = index + 1;
+    const productCipher = createCipheriv('aes-256-gcm', boundKey, productNonce);
+    const ciphertext = Buffer.concat([productCipher.update(plain), productCipher.final()]);
+    return { sku: productSku, grade, key: boundKey.toString('base64'),
+      license: envelope({ format: 'YARIZAN-LICENSE-V2', license_id: `20000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+        customer_id: customer, device_id: device, sku: productSku, grade, device_fingerprint_version: 2,
+        device_fingerprint_digest: digest, expires_at: null, license_revision: 1 }, 'YariZan-License-V2\n'),
+      blob: Buffer.concat([Buffer.from('YZG1'), productNonce, productCipher.getAuthTag(), ciphertext]).toString('base64') };
+  });
+  writeFileSync(filename, JSON.stringify({ publicKey: pem, p384, k256, enrollment, license, revoked, products,
     fingerprint: createHash('sha256').update(publicKey.export({ type: 'spki', format: 'der' })).digest('hex').toUpperCase(),
     master: master.toString('base64'), gameKey: gameKey.toString('base64'), plain: plain.toString('base64'),
     blob: Buffer.concat([Buffer.from('YZG1'), nonce, cipher.getAuthTag(), encrypted]).toString('base64'),

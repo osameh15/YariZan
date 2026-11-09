@@ -1,11 +1,17 @@
-# Legacy Windows compatibility candidate
+# Legacy Windows experimental downloads
 
-Status (2026-11-09): **prototype, not approved for public download**. The modern
+Status (2026-11-09): **experimental; Windows 7/8.1 acceptance remains pending**. The owner
+requested separate legacy downloads for every released product and updated system
+requirements on the download page. These downloads are explicitly labeled beta;
+they must not be represented as verified stable old-Windows support. The modern
 .NET 9 build remains the default. `LegacyWindows=true` selects .NET Framework 4.8
 for the same launcher and core, retaining product SKUs, server API contracts,
 device identity/key names, per-user license storage and trial policy.
 
 Initial targets: updated **Windows 7 SP1** and **Windows 8.1**, x86 and x64.
+The compatibility target applies to **all four currently released products**: G1,
+Number Builder, Bundle Builder and Combination Land. G2-G6 do not yet have released
+game bundles; they must use the same target when their packages are introduced.
 Original Windows 8.0 is excluded. No Windows 7/8.1 test machines are currently
 available, so a successful build or current-Windows CI run is not old-OS acceptance.
 
@@ -23,9 +29,14 @@ available, so a successful build or current-Windows CI run is not old-OS accepta
 - Framework adapters cover stream reads, process-exit waiting and process-tree
   termination. The latter uses Windows' `taskkill.exe /T /F` for the game's PID.
 - The installer has a separate AppId and installation directory, detects .NET
-  Framework 4.8, refuses Windows 8.0 and carries an acceptance-candidate label.
-- `CommercialRelease=true` is refused for a legacy build. Candidates are kept
-  under `.local/legacy-candidates`, outside the public `publish` directory.
+  Framework 4.8, refuses Windows 8.0 and carries a candidate or beta label.
+- `CommercialRelease=true` is refused for a legacy build. `LegacyExperimental=true`
+  permits only clearly marked beta builds with reviewed production roots/configuration,
+  and refuses fixture/local/acceptance switches. The window and executable version
+  identify the beta channel. No TLS or license verification is relaxed.
+- Staging output is under `.local/legacy-candidates`. The reviewed beta installers,
+  SHA-256 files and x64 packages may be copied to `publish`; temporary x86 packages,
+  logs and other release evidence stay outside that folder.
 
 ## Build and automated checks
 
@@ -57,11 +68,30 @@ the reviewed production public roots/configuration, builds both architectures,
 and creates a combined installer with a SHA-256 sidecar. It never generates or
 copies a signing private key. Candidates are not uploaded or added to the site.
 
+Build the complete current product set in one command:
+
+```powershell
+.\tools\Build-AllLegacyWindows.ps1 -ModernPublishRoot 'C:\path\to\YariZan\publish'
+```
+
+For the explicitly labeled experimental public downloads, add `-Experimental`.
+The download records in `apps/web/shared/legacy-windows-releases.json` contain the
+exact beta installer sizes and hashes. They never claim completed OS acceptance.
+Infrastructure verifies the complete staged/published set before changing the app
+and publishes files into `/downloads/windows/legacy/` using the existing deploy
+lifecycle. Modern paths and `latest` pointers remain unchanged. Production rollout
+remains the owner's usual manual `scripts/deploy.sh yarizan-app` command.
+
+The all-products test matrix checks Node-signed licenses, cross-product rejection,
+separate storage, offline paid startup, encrypted payloads and the two-trial policy
+for each released SKU in both architectures. Every product still needs actual game
+and activation acceptance on all four OS/architecture combinations below.
+
 The customer must install Microsoft's .NET Framework 4.8 first when absent. This
 prototype installer detects it and provides the official download location; it
 does not silently download/install a runtime or modify machine trust settings.
 
-## Required acceptance before a separate Legacy Windows download
+## Required acceptance before claiming stable old-Windows support
 
 All four OS/architecture combinations remain **pending**:
 
@@ -78,9 +108,10 @@ All four OS/architecture combinations remain **pending**:
 Use clean, licensed OS images with the required Windows updates and trusted root
 certificates. Test a standard Windows account as well as an administrator. Check
 the original game executable independently to distinguish payload requirements
-from launcher requirements. Do not enable a public download, weaken TLS policy,
-remove candidate markers or lift the commercial guard until this matrix has
-recorded evidence and the product has been reviewed for release.
+from launcher requirements. Experimental downloads must keep their beta markers
+and pending-acceptance notice. Do not weaken TLS policy or lift the stable
+commercial guard until this matrix has recorded evidence and the product has
+been reviewed for a stable legacy release.
 
 References:
 
