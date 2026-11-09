@@ -372,7 +372,7 @@ test('first deployment is noindex: robots.txt disallows all and every page sends
     expect((await request.get(url)).headers()['x-robots-tag'], url).toBe('noindex, nofollow');
   const sitemap = await (await request.get('/sitemap.xml')).text();
   // Public catalog, download, approved legal pages and the blog index; no draft articles.
-  expect(sitemap.match(/<loc>/g)).toHaveLength(21);
+  expect(sitemap.match(/<loc>/g)).toHaveLength(22);
   expect(sitemap).not.toContain('/blog/');
   expect(sitemap).not.toMatch(/account|zanyari|checkout|payment|login/);
 });
