@@ -172,7 +172,9 @@ const formatDate = (iso: string) =>
             </p>
           </div>
           <p class="actions">
-            <a class="button" :href="latestUrl(selected)" download>دریافت برای ویندوز ۱۰ و ۱۱</a>
+            <a class="button primary" :href="latestUrl(selected)" download
+              >دریافت برای ویندوز ۱۰ و ۱۱</a
+            >
             <a class="button secondary" :href="releaseUrl(release)" download>پیوند ثابت این نسخه</a>
           </p>
         </template>

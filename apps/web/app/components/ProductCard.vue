@@ -79,7 +79,25 @@ defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
   </article>
 </template>
 <style scoped>
+.product-card,
+.product-info {
+  display: flex;
+  flex-direction: column;
+}
+.product-card > :first-child {
+  flex-shrink: 0;
+}
+.product-info {
+  flex: 1;
+}
+.product-info > .badge {
+  align-self: flex-start;
+}
+.card-bottom {
+  margin-block-start: auto;
+}
 .product-download-button {
   margin-block-start: 20px;
+  align-self: flex-start;
 }
 </style>

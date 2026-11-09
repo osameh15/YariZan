@@ -25,7 +25,7 @@ const release = computed(() => standaloneRelease(props.sku));
         نصب‌کنندهٔ این بازی پس از تکمیل بررسی و انتشار، از همین صفحه قابل دریافت خواهد بود.
       </p>
       <p class="actions">
-        <a v-if="release" class="button" :href="standaloneDownloadUrl(release)" download
+        <a v-if="release" class="button primary" :href="standaloneDownloadUrl(release)" download
           >دریافت برای ویندوز ۱۰ و ۱۱</a
         >
         <NuxtLink class="button secondary" :to="'/special-products/' + product.slug"

@@ -182,10 +182,13 @@ test('Real checkout, coupon quote, simulated payment and one desktop license', a
     page.getByRole('link', { name: 'دریافت برنامهٔ ویندوز', exact: true }),
   ).toHaveAttribute('href', '/download?grade=1');
   await shot(page, 'owned-grade-one-checkout');
-  await page
-    .locator('.order-summary')
-    .getByRole('button', { name: 'خرید برای دستگاه دیگر' })
-    .click();
+  await expect(page.locator('.checkout-owned-actions .button')).toHaveCount(2);
+  await expect(page.locator('.order-summary .simulation-note')).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await shot(page, 'owned-grade-one-checkout-mobile');
+  await expect(page.getByRole('button', { name: 'خرید برای دستگاه دیگر' })).toHaveCount(1);
+  await page.getByRole('button', { name: 'خرید برای دستگاه دیگر' }).click();
   await expect(page).toHaveURL(/\/login\?return=/);
   // Selecting another device keeps the requested product in the return URL.
   expect(new URL(page.url()).searchParams.get('return')).toBe('/checkout?sku=YARIZAN-G1');
