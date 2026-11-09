@@ -828,7 +828,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
           </li>
         </ul></template
       >
-      <FormShell v-else class="commerce-editor" @submit="save"
+      <FormShell v-else :key="requestId" class="commerce-editor" @submit="save"
         ><div class="commerce-editor-fields">
           <div v-if="['campaigns', 'coupons'].includes(kind)" class="editor-section-heading">
             <h3>مشخصات {{ kind === 'campaigns' ? 'طرح' : 'کد' }} تخفیف</h3>
