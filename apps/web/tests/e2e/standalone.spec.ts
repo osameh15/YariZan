@@ -33,7 +33,7 @@ test('special product card, price, detail and download selection work on desktop
     ).toBeVisible();
     await expect(page.getByTestId('grade-picker')).toHaveCount(0);
     await expect(page.locator('.download-tab')).toHaveText(['دنیای پایه‌ها', 'محصولات ویژه']);
-    await expect(page.getByTestId('product-picker').locator('.grade-card')).toHaveCount(2);
+    await expect(page.getByTestId('product-picker').locator('.grade-card')).toHaveCount(3);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);

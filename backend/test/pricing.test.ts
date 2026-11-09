@@ -302,7 +302,7 @@ test("Existing database upgraded from 009 keeps legacy prices as unattributed", 
   await productionBootstrap(legacy);
   const result = await initializePricing(legacy, revision);
   assert.deepEqual(result.differing, ["YARIZAN-G1"]);
-  assert.equal(result.initialized.length, 7);
+  assert.equal(result.initialized.length, 8);
 });
 
 test("Approved catalog publication: G1 published, others coming soon, flags closed, never overwrites", async () => {
