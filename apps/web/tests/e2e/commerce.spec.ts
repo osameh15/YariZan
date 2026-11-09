@@ -241,16 +241,16 @@ test('Admin campaign/code creation, notes, finance and permission-bound reconcil
   const code = 'CLASS-' + randomBytes(3).toString('hex').toUpperCase();
   await page.getByLabel('کد تخفیف', { exact: true }).fill(code);
   await page.getByLabel('دلیل تغییر', { exact: true }).fill('ثبت کد محدود برای آزمون پرداخت');
+  await page.locator('[data-testid="coupon-products"] input[value="YARIZAN-G1"]').check();
+  await page
+    .locator('[data-testid="coupon-products"] input[value="YARIZAN-S-COMBINATION-LAND"]')
+    .check();
   await page.getByRole('dialog').evaluate((el) => {
     el.scrollTop = 0;
   });
   await page.locator('.commerce-editor-fields').evaluate((el) => {
     el.scrollTop = 0;
   });
-  await page.locator('[data-testid="coupon-products"] input[value="YARIZAN-G1"]').check();
-  await page
-    .locator('[data-testid="coupon-products"] input[value="YARIZAN-S-COMBINATION-LAND"]')
-    .check();
   await shot(page, '13-admin-coupon-editor');
   await page.getByRole('button', { name: 'ثبت تغییرات', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);

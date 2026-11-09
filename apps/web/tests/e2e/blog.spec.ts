@@ -27,7 +27,7 @@ test('eight drafts require approval; editor, publication, sitemap and responsive
     { name: 'yz_csrf_admin', value: session.csrf, url: 'http://localhost:3200', sameSite: 'Lax' },
   ]);
   await page.goto('/zanyari/blog');
-  await expect(page.locator('.blog-list-item')).toHaveCount(6);
+  await expect(page.locator('.blog-list-item')).toHaveCount(8);
   await page.getByRole('button', { name: new RegExp(drafts[0].title) }).click();
   await expect(page.getByLabel('عنوان نوشته', { exact: true })).toHaveValue(drafts[0].title);
   await mkdir('.local/screenshots/blog', { recursive: true });
@@ -92,7 +92,7 @@ test('eight drafts require approval; editor, publication, sitemap and responsive
   await page.getByLabel('خلاصهٔ نوشته', { exact: true }).fill(drafts[0].description);
   await page.getByLabel('متن نوشته', { exact: true }).fill(drafts[0].body);
   await page.getByRole('button', { name: 'ذخیرهٔ پیش‌نویس', exact: true }).click();
-  await expect(page.locator('.blog-list-item')).toHaveCount(7);
+  await expect(page.locator('.blog-list-item')).toHaveCount(9);
   expect((await request.get('/blog/review-only-new-draft')).status()).toBe(404);
   await page.getByRole('button', { name: 'بایگانی', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'نوشته بایگانی شد' })).toBeVisible();
