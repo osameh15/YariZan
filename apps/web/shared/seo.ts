@@ -34,7 +34,7 @@ export function canonicalPath(path: string): string | undefined {
 export function robotsHeader(indexing: Indexing, path: string) {
   return indexing === 'index' &&
     (canonicalPath(path) ||
-      /^\/blog-covers\/(?:choosing-an-educational-game|number-games-at-home|getting-started-with-yarizan|helping-without-giving-the-answer)\.webp$/.test(
+      /^\/blog-covers\/(?:choosing-an-educational-game|number-games-at-home|getting-started-with-yarizan|helping-without-giving-the-answer|pattern-games-at-home|more-less-and-equal-games|place-value-with-household-objects|shape-and-colour-pattern-games)\.webp$/.test(
         path,
       ))
     ? 'index, follow'

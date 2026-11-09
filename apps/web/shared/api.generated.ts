@@ -9408,7 +9408,8 @@ export interface operations {
         'application/json': {
           challenge_id: string;
           code: string;
-          password: string;
+          password?: string;
+          username?: string;
         };
       };
     };
@@ -9419,10 +9420,18 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': {
-            /** @constant */
-            password_changed: true;
-          };
+          'application/json':
+            | {
+                /** @constant */
+                password_changed: true;
+              }
+            | {
+                select: {
+                  username: string;
+                  label: string | null;
+                  created_at: string;
+                }[];
+              };
         };
       };
       /** @description Structured error; no secrets or request bodies echoed */

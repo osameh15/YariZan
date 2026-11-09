@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { productIcon } from '#shared/icons';
 import { productTitle } from '#shared/products';
 import { commerceState, commerceTone, financialToman } from '#shared/commerce';
 import { errorMessage } from '#shared/domain';
@@ -57,13 +58,16 @@ const orderState = (order: Record<string, unknown>) => ({
         <div class="actions">
           <NuxtLink class="button primary" :to="active.length ? '/download' : '/products'"
             >{{ active.length ? 'دریافت برنامه' : 'پیدا کردن بازی مناسب' }}
-            <span aria-hidden="true">←</span></NuxtLink
+            <span aria-hidden="true"><AppIcon name="arrow-left" /></span></NuxtLink
           ><NuxtLink class="text-link" :to="active.length ? '/account/licenses' : '/download'"
-            >{{ active.length ? 'محصولات و مجوزهای من' : 'برنامه را دریافت کنید' }} ↗</NuxtLink
-          >
+            >{{ active.length ? 'محصولات و مجوزهای من' : 'برنامه را دریافت کنید' }}
+            <AppIcon name="external"
+          /></NuxtLink>
         </div>
       </div>
-      <span class="dashboard-welcome-mark" aria-hidden="true">✦</span>
+      <span class="dashboard-welcome-mark" aria-hidden="true"
+        ><AppIcon name="book" :size="56"
+      /></span>
     </section>
     <dl class="customer-metrics">
       <div>
@@ -81,18 +85,18 @@ const orderState = (order: Record<string, unknown>) => ({
     </dl>
     <nav class="customer-shortcuts" aria-label="دسترسی سریع حساب">
       <NuxtLink to="/account/devices"
-        ><span class="shortcut-symbol" aria-hidden="true">▣</span>
+        ><span class="shortcut-symbol" aria-hidden="true"><AppIcon name="device" /></span>
         <div><strong>دستگاه‌های من</strong><small>نام‌گذاری و بررسی اتصال</small></div>
-        <span aria-hidden="true">←</span></NuxtLink
+        <span aria-hidden="true"><AppIcon name="arrow-left" /></span></NuxtLink
       ><NuxtLink to="/account/orders"
-        ><span class="shortcut-symbol" aria-hidden="true">≡</span>
+        ><span class="shortcut-symbol" aria-hidden="true"><AppIcon name="receipt" /></span>
         <div><strong>سفارش‌های من</strong><small>پیگیری پرداخت و خرید</small></div>
-        <span aria-hidden="true">←</span></NuxtLink
+        <span aria-hidden="true"><AppIcon name="arrow-left" /></span></NuxtLink
       ><NuxtLink to="/account/security"
-        ><span class="shortcut-symbol" aria-hidden="true">◇</span>
+        ><span class="shortcut-symbol" aria-hidden="true"><AppIcon name="shield" /></span>
         <div><strong>امنیت حساب</strong><small>رمز عبور و شمارهٔ همراه</small></div>
-        <span aria-hidden="true">←</span></NuxtLink
-      >
+        <span aria-hidden="true"><AppIcon name="arrow-left" /></span
+      ></NuxtLink>
     </nav>
     <section class="panel customer-library">
       <header class="section-heading">
@@ -100,11 +104,15 @@ const orderState = (order: Record<string, unknown>) => ({
           <p class="eyebrow">دنیای بازی‌های شما</p>
           <h2>محصولات من</h2>
         </div>
-        <NuxtLink class="text-link" to="/account/licenses">بررسی همهٔ مجوزها ←</NuxtLink>
+        <NuxtLink class="text-link" to="/account/licenses"
+          >بررسی همهٔ مجوزها <AppIcon name="arrow-left"
+        /></NuxtLink>
       </header>
       <div v-if="active.length" class="customer-library-grid">
         <article v-for="item in active" :key="String(item.id)">
-          <span class="library-product-symbol" aria-hidden="true">✦</span>
+          <span class="library-product-symbol"
+            ><AppIcon :name="productIcon(item.sku)" :size="44"
+          /></span>
           <h3>{{ productTitle(item.sku) }}</h3>
           <span class="pill" data-tone="ok">خریداری‌شده</span>
           <p>
@@ -114,22 +122,28 @@ const orderState = (order: Record<string, unknown>) => ({
                 : 'برنامه را روی این دستگاه باز کنید تا مجوز محصول دریافت شود.'
             }}
           </p>
-          <NuxtLink class="text-link" to="/account/licenses">دیدن جزئیات مجوز ←</NuxtLink>
+          <NuxtLink class="text-link" to="/account/licenses"
+            >دیدن جزئیات مجوز <AppIcon name="arrow-left"
+          /></NuxtLink>
         </article>
       </div>
       <div v-else class="customer-library-empty">
-        <span aria-hidden="true">✦</span>
+        <span aria-hidden="true"><AppIcon name="book" /></span>
         <div>
           <h3>جای اولین بازی شما اینجاست.</h3>
           <p>پس از خرید، محصول و وضعیت مجوز آن را همین‌جا خواهید دید.</p>
-          <NuxtLink class="text-link" to="/products">آشنایی با بازی‌ها ←</NuxtLink>
+          <NuxtLink class="text-link" to="/products"
+            >آشنایی با بازی‌ها <AppIcon name="arrow-left"
+          /></NuxtLink>
         </div>
       </div>
     </section>
     <section class="panel customer-recent-orders">
       <header class="section-heading">
         <h2>سفارش‌های اخیر</h2>
-        <NuxtLink class="text-link" to="/account/orders">همهٔ سفارش‌ها ←</NuxtLink>
+        <NuxtLink class="text-link" to="/account/orders"
+          >همهٔ سفارش‌ها <AppIcon name="arrow-left"
+        /></NuxtLink>
       </header>
       <p v-if="loading" role="status">در حال دریافت سفارش‌ها…</p>
       <p v-else-if="message" role="status">
@@ -147,7 +161,9 @@ const orderState = (order: Record<string, unknown>) => ({
           }}</span
           ><span class="order-summary-amount"
             >{{ financialToman(order.total_irr) }} <small>تومان</small></span
-          ><NuxtLink class="text-link" :to="'/account/orders/' + order.id">جزئیات ←</NuxtLink>
+          ><NuxtLink class="text-link" :to="'/account/orders/' + order.id"
+            >جزئیات <AppIcon name="arrow-left"
+          /></NuxtLink>
         </li>
       </ul>
       <p v-else class="muted">
@@ -160,7 +176,9 @@ const orderState = (order: Record<string, unknown>) => ({
         <h2>برای ادامهٔ مسیر کمکی می‌خواهید؟</h2>
         <p>راهنمای دریافت برنامه، اتصال دستگاه و مجوزها در دسترس شماست.</p>
       </div>
-      <NuxtLink class="button secondary" to="/support">راهنما و پشتیبانی ↗</NuxtLink>
+      <NuxtLink class="button secondary" to="/support"
+        >راهنما و پشتیبانی <AppIcon name="external"
+      /></NuxtLink>
     </aside>
   </div>
 </template>

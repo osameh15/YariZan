@@ -42,7 +42,7 @@ allowlists must include `combination-land`. No live upload or deployment is
 recorded by this document. Physical Windows x86/x64 activation/game acceptance
 and a real game screenshot are still needed; the web uses a title tile meanwhile.
 
-Migration 020 follows the blog migrations 017-019. The combined release has 20 migrations and preserves all six article drafts.
+Migration 020 follows the already-deployed blog migrations 017-019. Migration 021 adds the two new article drafts. The combined release has 21 migrations and preserves all eight article drafts.
 
 ## Validation and release state
 
@@ -57,7 +57,7 @@ MSBuild prerequisite test; focused standalone checks pass.
 
 The sibling infrastructure repository now allows the download namespace and checks
 its publication in mirror CI. Its deployment scripts select the new pricing revision
-for schema 20 and preserve `YARIZAN_OFFER_ADMIN_ID` from the existing application
+for schema 21 and preserve `YARIZAN_OFFER_ADMIN_ID` from the existing application
 `.env`. Set that field to the approving owner's UUID before rollout. The deployment
 runs the audited offer initialization before enabling the new product. The actual
 manifest image digests and public download availability have not been fabricated.

@@ -49,6 +49,10 @@ test('Support copy, action spacing and YZ username examples remain readable', as
     await page.goto(route);
     if (route === '/login')
       await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
+    if (route === '/reset-password') {
+      await expect(page.getByLabel('نام کاربری دستگاه', { exact: true })).toHaveCount(0);
+      continue;
+    }
     await expect(page.getByLabel('نام کاربری دستگاه', { exact: true })).toHaveAttribute(
       'placeholder',
       'YZ-...',

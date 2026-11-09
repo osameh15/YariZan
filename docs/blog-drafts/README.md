@@ -15,7 +15,12 @@ The editor accepts paragraphs separated by blank lines, `##` headings, `-` lists
 
 Production indexing is enabled only by the infrastructure configuration. Previews default to noindex; account, Admin, API and transactional pages remain noindex. After deployment, submit `https://yarizan.oarnova.games/sitemap.xml` in the existing `sc-domain:oarnova.games` Search Console property, which covers this subdomain. Submission helps discovery; Google decides whether and when to index.
 
-Two further original Persian drafts are added by migration 021, with generated covers and unique SEO descriptions. They remain DRAFT until reviewed and published in Admin:
+Two additional drafts are included in migration 019, with original covers and no automatic publication:
 
-5. [Place value with household objects](place-value-with-household-objects.md)
-6. [Shape and colour pattern games](shape-and-colour-pattern-games.md)
+5. [Pattern games at home](pattern-games-at-home.md)
+6. [More, less and equal](more-less-and-equal-games.md)
+
+Migration 021 adds two further original Persian drafts, each with a newly generated cover:
+
+- [Place value](place-value-with-household-objects.md)
+- [Shapes and colours](shape-and-colour-pattern-games.md)

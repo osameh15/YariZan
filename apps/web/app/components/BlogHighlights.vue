@@ -13,7 +13,7 @@ const { data, error, refresh } = await useBlogPosts();
         <p class="eyebrow">برای لحظه‌های کشف و یادگیری</p>
         <h2>از وبلاگ یاریزان</h2>
       </div>
-      <NuxtLink class="text-link" to="/blog">همهٔ نوشته‌ها ←</NuxtLink>
+      <NuxtLink class="text-link" to="/blog">همهٔ نوشته‌ها <AppIcon name="arrow-left" /></NuxtLink>
     </header>
     <p v-if="error" class="notice" role="status">
       دریافت نوشته‌ها ممکن نشد.

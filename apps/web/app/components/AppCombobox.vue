@@ -135,7 +135,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', outside));
         @input="open = true"
         @keydown="key"
         @blur="close"
-      /><span class="combobox-chevron" aria-hidden="true">⌄</span>
+      /><span class="combobox-chevron" aria-hidden="true"><AppIcon name="chevron-down" /></span>
     </div>
     <ul
       v-if="open"
@@ -160,7 +160,9 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', outside));
           <strong>{{ option.label }}</strong
           ><small v-if="option.description">{{ option.description }}</small>
         </div>
-        <span v-if="model === option.value" class="select-check" aria-hidden="true">✓</span>
+        <span v-if="model === option.value" class="select-check" aria-hidden="true"
+          ><AppIcon name="check"
+        /></span>
       </li>
       <li v-if="!filtered.length" role="presentation" class="combobox-empty">
         نوشته‌ای با این عبارت پیدا نشد.

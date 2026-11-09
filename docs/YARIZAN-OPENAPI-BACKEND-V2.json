@@ -12841,12 +12841,16 @@
                     "type": "string",
                     "minLength": 12,
                     "maxLength": 128
+                  },
+                  "username": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
                   }
                 },
                 "required": [
                   "challenge_id",
-                  "code",
-                  "password"
+                  "code"
                 ],
                 "additionalProperties": false
               }
@@ -12859,17 +12863,56 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "password_changed": {
-                      "type": "boolean",
-                      "const": true
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "password_changed": {
+                          "type": "boolean",
+                          "const": true
+                        }
+                      },
+                      "required": [
+                        "password_changed"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "select": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "username": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "created_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "username",
+                              "label",
+                              "created_at"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "select"
+                      ],
+                      "additionalProperties": false
                     }
-                  },
-                  "required": [
-                    "password_changed"
-                  ],
-                  "additionalProperties": false
+                  ]
                 }
               }
             }

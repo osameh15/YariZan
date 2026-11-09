@@ -7,11 +7,11 @@ const templates = parseRegistry(
   readFileSync(new URL('../../backend/src/accounts/sms-templates.ts', import.meta.url), 'utf8'),
 );
 
-test('parses all seven registry patterns with one placeholder each', () => {
-  assert.equal(templates.length, 7);
+test('parses all nine registry patterns with one placeholder each', () => {
+  assert.equal(templates.length, 9);
   assert.deepEqual(
     templates.map((t) => t.bodyId).sort(),
-    ['559372', '559397', '559421', '559422', '559424', '562280', '562281'],
+    ['559372', '559397', '559421', '559422', '559424', '562280', '562281', '578985', '578987'],
   );
   for (const t of templates) assert.equal(t.variables, 1);
 });

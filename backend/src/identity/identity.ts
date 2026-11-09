@@ -1,3 +1,4 @@
+import { queueLoginNotice } from "../accounts/login-notice";
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { PoolClient } from "pg";
@@ -367,6 +368,7 @@ export class Identity {
           "customer.login_claim",
           customer.id,
         );
+        await queueLoginNotice(c, "customer", customer.id);
       }
       const changed = await c.query(
         "UPDATE pairings SET status='BROWSER_CONFIRMED',authorized_customer_id=$2 WHERE id=$1 AND status='PENDING' AND expires_at>clock_timestamp() AND cancelled_at IS NULL RETURNING id",

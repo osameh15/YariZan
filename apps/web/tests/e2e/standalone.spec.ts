@@ -26,7 +26,7 @@ test('special product card, price, detail and download selection work on desktop
     await expect(page.locator('.gallery-thumb')).toHaveCount(2);
     await page.locator('.gallery-thumb').nth(1).click();
     await expect(page.locator('.gallery-thumb').nth(1)).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByText('✓ دو فرصت آزمایش؛ اینترنت فقط برای شروع')).toBeVisible();
+    await expect(page.getByText('دو فرصت آزمایش؛ اینترنت فقط برای شروع')).toBeVisible();
     await page.getByRole('link', { name: 'دریافت برنامهٔ ویندوز', exact: true }).click();
     await expect(
       page.getByRole('heading', { name: 'دریافت عددساز کوچولو', exact: true }),

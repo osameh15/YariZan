@@ -13,7 +13,7 @@ const { live } = useCommerceMode();
       <p>از اولین کشف‌ها تا قدم‌های بزرگ‌تر؛ همراه پایهٔ فرزندتان انتخاب کنید.</p>
     </div>
     <div class="catalog-note">
-      <span aria-hidden="true">✦</span>
+      <span aria-hidden="true"><AppIcon name="book" /></span>
       <p v-if="storefront">
         قیمت‌ها به تومان و برای هر پایه جداگانه است. پایهٔ اول نخستین عرضه است و پایه‌های دیگر
         به‌ترتیب عرضه می‌شوند. برای خرید و تهیهٔ برنامه کنار شما هستیم.

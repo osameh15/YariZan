@@ -9,7 +9,7 @@ import { Security } from "../security/security";
 import { Audit, Actor } from "../audit/audit";
 import { unseal } from "../security/crypto";
 import { Sms } from "./sms";
-import { NoticeEvent, jalaliDate } from "./sms-templates";
+import { NoticeEvent, jalaliDateTime } from "./sms-templates";
 
 interface Claimed {
   id: string;
@@ -18,6 +18,8 @@ interface Claimed {
   created_at: Date;
 }
 const EVENTS: Readonly<Record<string, NoticeEvent>> = {
+  "customer.login_notice": "CUSTOMER_LOGIN",
+  "admin.login_notice": "ADMIN_LOGIN",
   "password.changed": "PASSWORD_CHANGED",
   "password.reset_mobile": "PASSWORD_CHANGED",
   "password.reset_completed": "PASSWORD_CHANGED",
@@ -27,12 +29,13 @@ const MAX_AGE_HOURS = 24;
 const system = (): Actor => ({ type: "SYSTEM", correlationId: randomUUID() });
 
 /**
- * Sends customer notices from durable outbox events.
+ * Sends customer and Admin notices from durable outbox events.
  *
  * Delivery is at-most-once: an event is claimed (processed_at set) in its own transaction before
  * the provider call, so a crash or an ambiguous provider timeout never sends twice. A failed or
  * skipped notice is audited and never retried; a notice that cannot be sent yet (SMS disabled,
- * template not confirmed) stays pending untouched.
+ * template not enabled) stays pending untouched. The two provider-enforced login notices are
+ * attempted on new logins; provider rejection is audited and never retried.
  */
 @Injectable()
 export class Notifications
@@ -93,9 +96,13 @@ export class Notifications
           ).rows[0]?.customer_id
         : event.aggregate_id;
     if (!customerId) return undefined;
+    const recipientQuery =
+      event.type === "admin.login_notice"
+        ? "SELECT mobile_ciphertext FROM admins WHERE id=$1 AND disabled=false AND mobile_ciphertext IS NOT NULL"
+        : "SELECT mobile_ciphertext FROM customers WHERE id=$1 AND state='ACTIVE' AND mobile_ciphertext IS NOT NULL";
     const row = (
       await this.db.query<{ mobile_ciphertext: string | null }>(
-        "SELECT mobile_ciphertext FROM customers WHERE id=$1 AND state='ACTIVE' AND mobile_ciphertext IS NOT NULL",
+        recipientQuery,
         [customerId],
       )
     ).rows[0];
@@ -121,7 +128,7 @@ export class Notifications
           values:
             kind === "PURCHASE_CONFIRMED"
               ? { order: event.aggregate_id }
-              : { date: jalaliDate(event.created_at) },
+              : { date: jalaliDateTime(event.created_at) },
         });
     } catch {
       outcome = "sms.notice_unavailable"; // No provider payload, mobile or credential is recorded.

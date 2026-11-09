@@ -30,7 +30,9 @@ onMounted(load);
         <p class="eyebrow">صدای یاریزان</p>
         <h2>وبلاگ و نوشته‌ها</h2>
       </div>
-      <NuxtLink class="button secondary" to="/zanyari/blog">مدیریت وبلاگ ←</NuxtLink>
+      <NuxtLink class="button secondary" to="/zanyari/blog"
+        >مدیریت وبلاگ <AppIcon name="arrow-left"
+      /></NuxtLink>
     </header>
     <p v-if="loading" role="status">در حال دریافت نوشته‌ها…</p>
     <p v-else-if="message" role="status">
@@ -60,8 +62,7 @@ onMounted(load);
               alt=""
               width="80"
               height="56"
-              loading="lazy"
-            />
+              loading="lazy" />
             <div>
               <strong>{{ post.title }}</strong
               ><small
@@ -75,8 +76,8 @@ onMounted(load);
                 · {{ blogDate(post.updated_at) }}</small
               >
             </div>
-            <span aria-hidden="true">←</span></NuxtLink
-          >
+            <span aria-hidden="true"><AppIcon name="arrow-left" /></span
+          ></NuxtLink>
         </li>
       </ul>
       <p v-else class="muted">نخستین نوشته را در مدیریت وبلاگ بسازید.</p></template

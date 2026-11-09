@@ -724,12 +724,17 @@ form > .actions,
   gap: 16px;
 }
 .faq-list summary:after {
-  content: '+';
+  content: '';
+  width: 20px;
+  height: 24px;
+  flex: 0 0 20px;
+  background: url('/brand/icons/plus.webp') center / 20px 20px no-repeat;
   color: var(--gold);
   font-size: 22px;
 }
 .faq-list details[open] summary:after {
-  content: '−';
+  content: '';
+  background-image: url('/brand/icons/minus.webp');
 }
 .faq-list details p {
   margin: 13px 0 0;

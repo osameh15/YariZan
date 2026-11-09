@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { navigationIcon } from '#shared/icons';
 import { productTitle } from '#shared/products';
 import { errorMessage } from '#shared/domain';
 type Device = { username: string; label: string | null; current: boolean; created_at: string };
@@ -149,10 +150,12 @@ onMounted(load);
           :key="id"
           :to="to!"
           :aria-current="section === id ? 'page' : undefined"
-          >{{ title }}</NuxtLink
-        ><NuxtLink to="/support">پشتیبانی</NuxtLink>
+          ><AppIcon :name="navigationIcon(id)" />{{ title }}</NuxtLink
+        ><NuxtLink to="/support"><AppIcon name="headset" />پشتیبانی</NuxtLink>
       </nav>
-      <button class="button secondary" @click="logout">خروج از حساب</button>
+      <button class="button secondary" @click="logout">
+        <AppIcon name="logout" />خروج از حساب
+      </button>
     </aside>
     <div class="portal-main">
       <div v-if="message" class="notice" role="status">{{ message }}</div>
@@ -203,7 +206,7 @@ onMounted(load);
             </p>
             <ul class="device-list" role="list">
               <li v-for="d in deviceList" :key="d.username" :class="{ 'is-current': d.current }">
-                <span class="device-list-icon" aria-hidden="true">🖥</span>
+                <span class="device-list-icon" aria-hidden="true"><AppIcon name="device" /></span>
                 <div>
                   <strong>{{ deviceName(d) }}</strong>
                   <span class="device-username" dir="ltr">{{ d.username }}</span>
@@ -253,7 +256,9 @@ onMounted(load);
           </p>
           <div v-if="!owned.length" class="panel">
             <h2>هنوز محصولی به این دستگاه اضافه نشده است.</h2>
-            <NuxtLink class="text-link" to="/products">آشنایی با محصولات ←</NuxtLink>
+            <NuxtLink class="text-link" to="/products"
+              >آشنایی با محصولات <AppIcon name="arrow-left"
+            /></NuxtLink>
           </div>
           <article v-for="o in owned" :key="String(o.id)" class="panel owned-card">
             <header class="owned-card-head">
@@ -307,6 +312,7 @@ onMounted(load);
           </article></template
         ><template v-else-if="section === 'security'"
           ><AccountSecurity /><button class="button secondary" @click="rotate">
+            <AppIcon name="refresh" />
             تازه‌سازی ورود در این مرورگر
           </button></template
         >

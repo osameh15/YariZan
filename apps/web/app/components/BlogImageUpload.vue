@@ -119,7 +119,7 @@ onBeforeUnmount(() => {
         class="image-upload-preview"
       />
       <div class="image-upload-copy">
-        <span class="image-upload-symbol" aria-hidden="true">↥</span
+        <span class="image-upload-symbol" aria-hidden="true"><AppIcon name="upload" /></span
         ><strong>{{
           uploading
             ? 'در حال آماده‌سازی تصویر…'
@@ -144,6 +144,7 @@ onBeforeUnmount(() => {
             :disabled="disabled || uploading"
             @click="model = null"
           >
+            <AppIcon name="trash" />
             حذف تصویر
           </button>
         </div>

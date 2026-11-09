@@ -524,7 +524,7 @@ export class AccountsController {
   ) {
     this.origin(req);
     // SMS requests are bounded inside Otp.issue (admission budget, proof of work, per-mobile).
-    // The device ID is optional for LOGIN (mobile-only SMS login) and required for RESET.
+    // Phone-first login and recovery; legacy clients may still bind one device.
     const b = z
       .strictObject({
         username: z.string().min(1).max(64).optional(),
@@ -532,7 +532,6 @@ export class AccountsController {
         purpose: z.enum(["LOGIN", "RESET"]),
         pow: powSchema,
       })
-      .refine((v) => v.purpose === "LOGIN" || v.username, "username")
       .parse(body);
     await this.abuse.verifyPow(b.purpose, this.otp.lookup(b.mobile), b.pow);
     return this.flows.requestLogin(b.username, b.mobile, b.purpose, actor(req));
@@ -578,13 +577,18 @@ export class AccountsController {
   ) {
     this.origin(req);
     await this.abuse.budget("otp-verify");
-    const b = otpProofSchema.extend({ password }).parse(body);
-    return this.flows.verifyLogin(
+    const b = otpProofSchema
+      .extend({
+        password: password.optional(),
+        username: z.string().min(1).max(64).optional(),
+      })
+      .parse(body);
+    return this.flows.resetByMobile(
       b.challenge_id,
       b.code,
-      "RESET",
       actor(req),
       b.password,
+      b.username,
     );
   }
   @Get("account/security") async securityInfo(@Req() req: Request) {
