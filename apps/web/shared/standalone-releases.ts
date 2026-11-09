@@ -16,7 +16,7 @@ export const standaloneReleases: readonly StandaloneRelease[] = [
     filename: 'YariZan-CombinationLand-Setup-v1.0.0.exe',
     sizeBytes: 95886808,
     sha256: '527bd5db56be71702cc38476d9fa6ddb0cf7cdce93c6fe0103d93fcde2d68684',
-    published: false,
+    published: true,
   },
   {
     sku: 'YARIZAN-S-NUMBER-BUILDER',

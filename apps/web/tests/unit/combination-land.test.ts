@@ -24,7 +24,7 @@ describe('Combination Land product and ongoing offer', () => {
     expect(allowedBrowserRoute('PATCH', 'admin/products/' + sku)).toBe(true);
     expect(allowedBrowserRoute('GET', 'admin/products/' + sku + '/promotions')).toBe(true);
   });
-  it('does not advertise a download before the mirror contains the installer', () => {
-    expect(standaloneRelease(sku)).toBeUndefined();
+  it('maps the reviewed release used after the deployment mirror checksum guard', () => {
+    expect(standaloneRelease(sku)?.filename).toBe('YariZan-CombinationLand-Setup-v1.0.0.exe');
   });
 });

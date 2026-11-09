@@ -12,5 +12,8 @@
   "list_price_irr": 3990000,
   "offer_price_irr": 2990000,
   "offer_end": "until disabled",
-  "mirror_published": false
+  "mirror_published": false,
+  "server_staged": true,
+  "server_stage_path": "/home/oarnova/YariZan-CombinationLand-Setup-v1.0.0.exe",
+  "server_sha256_verified": true
 }

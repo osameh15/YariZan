@@ -12,14 +12,24 @@ import { approvedPricing } from "../dist/src/catalog/approved-pricing.js";
 import { Promotions } from "../dist/src/commerce/promotions.js";
 import { Audit } from "../dist/src/audit/audit.js";
 
-const adminId = process.argv.find((a) => a.startsWith("--admin="))?.slice(8);
-if (!adminId || !/^[0-9a-f-]{36}$/i.test(adminId))
+let adminId = process.argv.find((a) => a.startsWith("--admin="))?.slice(8);
+if (!adminId || (adminId !== "auto" && !/^[0-9a-f-]{36}$/i.test(adminId)))
   throw new Error("Use --admin=<owner UUID>");
 const pool = new Pool({
   connectionString: migrationConfiguration().url,
   max: 1,
 });
 try {
+  if (adminId === "auto") {
+    const owners = await pool.query(
+      "SELECT DISTINCT admin_id FROM admin_user_roles WHERE role='owner'",
+    );
+    if (owners.rowCount !== 1)
+      throw new Error(
+        "Multiple or missing owners: set an explicit YARIZAN_OFFER_ADMIN_ID",
+      );
+    adminId = owners.rows[0].admin_id;
+  }
   const owner = await pool.query(
     "SELECT 1 FROM admin_user_roles WHERE admin_id=$1 AND role='owner'",
     [adminId],

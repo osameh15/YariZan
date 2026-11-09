@@ -35,11 +35,11 @@ The script uses the existing promotion service and audit history. Re-running it
 preserves later Admin decisions and never restores a previously disabled offer.
 This revision's catalog update touches only the new standalone product.
 
-The installer record stays unpublished until the download mirror is verified.
-Publish it under `windows/products/combination-land/1.0.0`, verify the immutable
-URL/hash, then set its release record `published: true`. Infrastructure mirror
-allowlists must include `combination-land`. No live upload or deployment is
-recorded by this document. Physical Windows x86/x64 activation/game acceptance
+The reviewed installer metadata is enabled for this coordinated release. Before any
+application mutation, infrastructure verifies that the published mirror file exists
+and matches SHA-256 `527bd5db56be71702cc38476d9fa6ddb0cf7cdce93c6fe0103d93fcde2d68684`.
+Deploy downloads and publish the uploaded installer before deploying the application.
+No production application deployment is recorded here. Physical Windows x86/x64 activation/game acceptance
 and a real game screenshot are still needed; the web uses a title tile meanwhile.
 
 Migration 020 follows the already-deployed blog migrations 017-019. Migration 021 adds the two new article drafts. The combined release has 21 migrations and preserves all eight article drafts.
@@ -58,6 +58,6 @@ MSBuild prerequisite test; focused standalone checks pass.
 The sibling infrastructure repository now allows the download namespace and checks
 its publication in mirror CI. Its deployment scripts select the new pricing revision
 for schema 21 and preserve `YARIZAN_OFFER_ADMIN_ID` from the existing application
-`.env`. Set that field to the approving owner's UUID before rollout. The deployment
+`.env`. If exactly one owner exists, the rollout resolves that owner automatically; otherwise set the field to the approving owner's UUID before rollout. The deployment
 runs the audited offer initialization before enabling the new product. The actual
 manifest image digests and public download availability have not been fabricated.
