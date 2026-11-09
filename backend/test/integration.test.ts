@@ -551,7 +551,15 @@ test("Actual PostgreSQL 17 and six exact products/prices", async () => {
   const r = (await ok<Record<string, unknown>[]>("/products")).body;
   assert.equal(r.length, 9);
   assert.ok(
-    r.every((p) => p.price_irr === (p.sku === "YARIZAN-S-COMBINATION-LAND" ? 3990000 : p.grade === 0 ? 1990000 : 14990000)),
+    r.every(
+      (p) =>
+        p.price_irr ===
+        (p.sku === "YARIZAN-S-COMBINATION-LAND"
+          ? 3990000
+          : p.grade === 0
+            ? 1990000
+            : 14990000),
+    ),
   );
   assert.equal(r[0].sale_enabled, true);
   assert.ok(
