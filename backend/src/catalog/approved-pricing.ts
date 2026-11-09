@@ -5,8 +5,8 @@
 // The same object is kept in apps/web/shared/approved-pricing.ts; web unit tests fail if the
 // two copies differ. Change both together, with a new revision, after owner approval.
 export const approvedPricing = {
-  revision: "pricing-2026-11-02-r1",
-  approved: "2026-11-02",
+  revision: "pricing-2026-11-09-r1",
+  approved: "2026-11-09",
   currency: "IRR",
   products: [
     {
@@ -30,6 +30,12 @@ export const approvedPricing = {
       sku: "YARIZAN-S-NUMBER-BUILDER",
       grade: 0,
       price_irr: 1990000,
+      launch: "launch-candidate",
+    },
+    {
+      sku: "YARIZAN-S-COMBINATION-LAND",
+      grade: 0,
+      price_irr: 3990000,
       launch: "launch-candidate",
     },
   ],

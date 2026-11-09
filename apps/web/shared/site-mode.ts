@@ -38,7 +38,7 @@ export const brochurePages = [
   /^\/$/,
   /^\/products$/,
   /^\/products\/grade-[1-6]$/,
-  /^\/special-products(?:\/(?:number-builder|bundle-builder))?$/,
+  /^\/special-products(?:\/(?:number-builder|bundle-builder|combination-land))?$/,
   /^\/support$/,
   /^\/download$/,
   /^\/legal$/,

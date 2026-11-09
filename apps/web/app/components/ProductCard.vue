@@ -13,7 +13,7 @@ defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
     :class="{ 'coming-soon': product.publication_status === 'coming_soon' }"
   >
     <NuxtLink
-      v-if="standaloneProduct(product.sku)"
+      v-if="standaloneProduct(product.sku)?.shots.length"
       class="product-shot"
       :to="productPath(product)"
       tabindex="-1"
@@ -31,10 +31,14 @@ defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
     </NuxtLink>
     <div v-else class="product-art" :data-grade="product.grade">
       <span class="grade-number" aria-hidden="true">{{
+        standaloneProduct(product.sku)?.symbol ??
         new Intl.NumberFormat('fa-IR').format(product.grade)
       }}</span>
       <span class="small-label">دفتر بازی و یادگیری</span>
-      <strong>پایهٔ {{ gradeNames[product.grade - 1] }}</strong>
+      <strong v-if="standaloneProduct(product.sku)">{{
+        standaloneProduct(product.sku)!.title
+      }}</strong>
+      <strong v-else>پایهٔ {{ gradeNames[product.grade - 1] }}</strong>
       <span class="book-lines" aria-hidden="true"></span>
       <img src="/brand/symbol.webp" alt="" width="42" height="42" />
     </div>

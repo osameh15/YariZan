@@ -9,6 +9,11 @@ watch(model, async (value) => {
   if (value) {
     trigger = document.activeElement as HTMLElement;
     dialog.value?.showModal();
+    dialog.value?.querySelector<HTMLElement>('.dialog-top button')?.focus({ preventScroll: true });
+    dialog.value?.querySelectorAll<HTMLElement>('*').forEach((element) => {
+      if (element.scrollTop) element.scrollTop = 0;
+    });
+    if (dialog.value) dialog.value.scrollTop = 0;
   } else {
     dialog.value?.close();
     trigger?.focus();

@@ -5,7 +5,10 @@
 #ifndef FileStem
 #define FileStem "YariZan-NumberBuilder"
 #endif
-#if FileStem == "YariZan-BundleBuilder"
+#if FileStem == "YariZan-CombinationLand"
+#define AppTitle "سرزمین ترکیب‌ها"
+#define EnglishName "YariZan Combination Land"
+#elif FileStem == "YariZan-BundleBuilder"
 #define AppTitle "دسته‌ساز کوچک"
 #define EnglishName "YariZan Bundle Builder"
 #else

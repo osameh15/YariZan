@@ -31,6 +31,7 @@ COPY --chown=0:0 migrations ./migrations
 # The reviewed operator tool for the owner Admin enrollment (docs/YARIZAN-OWNER-ADMIN-ENROLLMENT.md).
 # Interactive TTY only; it runs as a one-off `docker compose run` and never at API startup.
 COPY --chown=0:0 tools/admin-enroll.mjs ./tools/admin-enroll.mjs
+COPY --chown=0:0 tools/launch-combination-land.mjs ./tools/launch-combination-land.mjs
 USER 1000:1000
 EXPOSE 3100
 STOPSIGNAL SIGTERM

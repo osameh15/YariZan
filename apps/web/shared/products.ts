@@ -4,6 +4,15 @@ export type StandaloneShot = { src: string; alt: string };
 // the desktop copy is src/YariZan.Core/V2/StandaloneCatalog.cs. Screenshots are 1280×720 WebP.
 export const standaloneProducts = [
   {
+    sku: 'YARIZAN-S-COMBINATION-LAND',
+    slug: 'combination-land',
+    title: 'سرزمین ترکیب‌ها',
+    description:
+      'سرزمین ترکیب‌ها؛ یک بازی مستقل در مجموعهٔ محصولات ویژهٔ یاریزان، با فعال‌سازی و مجوز اختصاصی.',
+    symbol: '✦',
+    shots: [] as readonly StandaloneShot[],
+  },
+  {
     sku: 'YARIZAN-S-NUMBER-BUILDER',
     slug: 'number-builder',
     title: 'عددساز کوچولو',
