@@ -14,3 +14,8 @@ The database is authoritative after migration: editing or unpublishing a post in
 The editor accepts paragraphs separated by blank lines, `##` headings, `-` lists, and standalone `[label](https://source.example)` or `[label](/products)` links. HTML is rendered as text. SEO title and description default to the article title and summary.
 
 Production indexing is enabled only by the infrastructure configuration. Previews default to noindex; account, Admin, API and transactional pages remain noindex. After deployment, submit `https://yarizan.oarnova.games/sitemap.xml` in the existing `sc-domain:oarnova.games` Search Console property, which covers this subdomain. Submission helps discovery; Google decides whether and when to index.
+
+Two further original Persian drafts are added by migration 019, with generated covers and unique SEO descriptions. They remain DRAFT until reviewed and published in Admin:
+
+5. [Place value with household objects](place-value-with-household-objects.md)
+6. [Shape and colour pattern games](shape-and-colour-pattern-games.md)

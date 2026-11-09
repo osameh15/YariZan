@@ -356,7 +356,7 @@ test("Blog drafts need authorized publication, preserve URLs, and reject stale e
       posts: { id: string; slug: string; state: string; revision: string }[];
     }>("/admin/blog", undefined, admin)
   ).body.posts;
-  assert.equal(all.filter((p) => p.state === "DRAFT").length, 4);
+  assert.equal(all.filter((p) => p.state === "DRAFT").length, 6);
   assert.deepEqual((await ok<{ posts: unknown[] }>("/blog")).body.posts, []);
   await denied("/blog/" + all[0].slug, undefined, "NOT_FOUND");
   await denied("/admin/blog", undefined, "UNAUTHENTICATED");
@@ -1925,7 +1925,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 18 });
+    assert.deepEqual(await verifyMigrations(c), { total: 19 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,
