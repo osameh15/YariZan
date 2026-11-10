@@ -4,7 +4,7 @@ import { PoolClient } from "pg";
 import { configuration } from "../config";
 import { Database } from "../database/database";
 import { requireCondition } from "../common/errors";
-import { equal, keyed } from "./crypto";
+import { equal, keyed, hash } from "./crypto";
 
 export interface DeviceContext {
   device_id: string;
@@ -19,6 +19,18 @@ export interface CustomerContext {
   device_id: string;
   generation: number;
   token_hash: string;
+}
+export interface CustomerSessionRow extends CustomerContext {
+  csrf_hash: string;
+  expires_at: Date;
+  mobile_lookup: string | null;
+  mobile_verified_at: Date | null;
+  password_hash: string | null;
+  auth_customer_id: string | null;
+  auth_generation: number | null;
+  auth_stamp: string | null;
+  auth_mobile_lookup: string | null;
+  auth_password_hash: string | null;
 }
 export interface AdminContext {
   id: string;
@@ -138,19 +150,57 @@ export class Security {
       "UNAUTHENTICATED",
       401,
     );
-    const sql = `SELECT c.id,c.device_id,c.generation,s.token_hash,s.csrf_hash FROM customer_sessions s
+    const row = await this.customerSession(this.tokenHash(raw), c);
+    if (!["GET", "HEAD"].includes(req.method)) {
+      this.csrf(req, row.csrf_hash);
+      const expected = req.headers["x-yarizan-device"];
+      const needsDevice =
+        !!row.auth_customer_id &&
+        ["/api/v2/orders", "/api/v2/discounts/quote"].includes(req.path);
+      requireCondition(
+        expected === row.device_id || (!needsDevice && expected === undefined),
+        "DEVICE_CONTEXT_CHANGED",
+        409,
+      );
+    }
+    return {
+      id: row.id,
+      device_id: row.device_id,
+      generation: row.generation,
+      token_hash: row.token_hash,
+    };
+  }
+  /** Re-check both the selected device and the sign-in that authorized a switch chain. */
+  async customerSession(
+    tokenHash: string,
+    c?: PoolClient,
+  ): Promise<CustomerSessionRow> {
+    const sql = `SELECT c.id,c.device_id,c.generation,c.mobile_lookup,c.mobile_verified_at,c.password_hash,
+      s.token_hash,s.csrf_hash,s.expires_at,s.auth_customer_id,s.auth_generation,s.auth_stamp,s.auth_mobile_lookup,
+      a.password_hash auth_password_hash FROM customer_sessions s
       JOIN customers c ON c.id=s.customer_id JOIN devices d ON d.id=c.device_id
-      WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND c.state='ACTIVE' AND c.generation=d.generation`;
+      LEFT JOIN customers a ON a.id=s.auth_customer_id LEFT JOIN devices ad ON ad.id=a.device_id
+      WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND c.state='ACTIVE' AND c.generation=d.generation
+      AND (s.auth_customer_id IS NULL OR (a.state='ACTIVE' AND a.generation=s.auth_generation AND ad.generation=a.generation
+        AND a.mobile_verified_at IS NOT NULL AND a.mobile_lookup=s.auth_mobile_lookup
+        AND c.mobile_verified_at IS NOT NULL AND c.mobile_lookup=s.auth_mobile_lookup))`;
     const r = c
-      ? await c.query<CustomerContext & { csrf_hash: string }>(sql, [
-          this.tokenHash(raw),
-        ])
-      : await this.db.query<CustomerContext & { csrf_hash: string }>(sql, [
-          this.tokenHash(raw),
-        ]);
+      ? await c.query<CustomerSessionRow>(sql, [tokenHash])
+      : await this.db.query<CustomerSessionRow>(sql, [tokenHash]);
     requireCondition(r.rows[0], "UNAUTHENTICATED", 401);
-    if (!["GET", "HEAD"].includes(req.method))
-      this.csrf(req, r.rows[0].csrf_hash);
+    requireCondition(
+      !r.rows[0].auth_customer_id ||
+        equal(
+          r.rows[0].auth_stamp!,
+          hash(
+            (r.rows[0].auth_password_hash ?? "") +
+              "\n" +
+              r.rows[0].auth_mobile_lookup,
+          ),
+        ),
+      "UNAUTHENTICATED",
+      401,
+    );
     return r.rows[0];
   }
   csrf(req: Request, csrfHash: string) {

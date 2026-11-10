@@ -27,18 +27,11 @@ const device = ref<{ username: string; label: string | null }>();
 async function loadDevice() {
   try {
     device.value = await api.get('/api/v2/account');
-  } catch {
-    /* The quote request handles a signed-out visitor. */
+  } catch (error) {
+    message.value = errorMessage(error);
+    if ((error as { status?: number }).status === 401)
+      await navigateTo('/login?return=' + encodeURIComponent('/checkout?sku=' + sku));
   }
-}
-async function buyForAnotherDevice() {
-  try {
-    await api.post('/api/v2/auth/logout', undefined as never);
-  } catch {
-    /* Continue to the login page either way. */
-  }
-  api.clear();
-  await navigateTo('/login?return=' + encodeURIComponent('/checkout?sku=' + sku));
 }
 let quoteGeneration = 0;
 // The order always uses the last server-validated coupon (`quoted`), which is exactly the price
@@ -66,6 +59,10 @@ async function load() {
   loading.value = true;
   message.value = '';
   try {
+    if (!device.value) {
+      await loadDevice();
+      if (!device.value) return;
+    }
     const result = await api.post('/api/v2/discounts/quote', {
       sku,
       coupon: submittedCoupon || undefined,
@@ -126,7 +123,6 @@ const { test, sandbox } = useCommerceMode();
 const PAYMENT_PROVIDER = MERCHANT.paymentProviderFa;
 onMounted(() => {
   void load();
-  void loadDevice();
 });
 useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
 </script>
@@ -165,12 +161,10 @@ useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
             <strong>{{ device.label || 'دستگاه بدون نام' }}</strong>
             <span class="device-username" dir="ltr">{{ device.username }}</span>
           </div>
-          <button class="button secondary" type="button" @click="buyForAnotherDevice">
-            خرید برای دستگاه دیگر
-          </button>
+          <DeviceSwitcher label="خرید برای دستگاه دیگر" :disabled="busy" />
           <p class="muted">
-            اگر بازی را روی رایانهٔ دیگری نصب می‌کنید، با کد پیامکی وارد شوید و همان دستگاه را
-            انتخاب کنید. نام دستگاه‌ها را در «حساب من ← دستگاه‌های من» می‌توانید تغییر دهید.
+            اگر بازی را برای رایانهٔ دیگری می‌خواهید، همان دستگاه را بدون خروج از حساب انتخاب کنید.
+            نام دستگاه‌ها را در «حساب من ← دستگاه‌های من» می‌توانید تغییر دهید.
           </p>
         </section>
         <section class="coupon-panel" aria-labelledby="coupon-title">

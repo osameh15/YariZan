@@ -170,6 +170,7 @@ onMounted(load);
         <div class="current-device">
           <span class="current-device-name">{{ deviceName(account) }}</span>
           <span class="device-username" dir="ltr">{{ account.username }}</span>
+          <DeviceSwitcher v-if="deviceList.length > 1" />
         </div>
         <template v-if="section === 'overview'"
           ><CustomerOverview
@@ -201,8 +202,8 @@ onMounted(load);
           <article class="panel">
             <h2>دستگاه‌های این شمارهٔ موبایل</h2>
             <p class="muted">
-              هر دستگاه مجوزهای خودش را دارد. برای خرید برای دستگاهی دیگر، با کد پیامکی وارد شوید و
-              همان دستگاه را انتخاب کنید.
+              هر دستگاه مجوزهای خودش را دارد. با «تغییر دستگاه» می‌توانید دستگاه دیگری از همین
+              شمارهٔ موبایل را بدون ورود دوباره انتخاب کنید.
             </p>
             <ul class="device-list" role="list">
               <li v-for="d in deviceList" :key="d.username" :class="{ 'is-current': d.current }">

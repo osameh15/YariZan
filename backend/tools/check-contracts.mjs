@@ -49,6 +49,9 @@ const powProof = z
   .optional();
 const blog = await import("../dist/src/blog/blog.js");
 const requests = {
+  "/api/v2/account/switch-device": z.strictObject({
+    username: schemas.deviceUsername,
+  }),
   "/api/v2/admin/blog/images": blog.blogImageInput,
   "/api/v2/admin/blog": blog.blogInput,
   "/api/v2/admin/blog/{id}": blog.blogInput,
@@ -435,6 +438,11 @@ const responses = {
     }),
   ),
   "/api/v2/account/device-label": z.strictObject({
+    label: z.string().nullable(),
+  }),
+  "/api/v2/account/switch-device": z.strictObject({
+    csrf_token: z.string(),
+    username: z.string(),
     label: z.string().nullable(),
   }),
   "/api/v2/account/movable-licenses": z.array(

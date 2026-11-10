@@ -35,6 +35,7 @@ import { Abuse, solvePow } from "../src/security/abuse";
 import { seal, unseal, hash } from "../src/security/crypto";
 
 import { Otp } from "../src/accounts/otp";
+import { Accounts } from "../src/accounts/accounts";
 import { Orders } from "../src/commerce/orders";
 import { Payments } from "../src/commerce/payments";
 import {
@@ -65,7 +66,7 @@ let app: Awaited<ReturnType<typeof createApp>>,
   security: Security,
   signing: Signing,
   base: string;
-type Browser = { cookie: string; csrf: string };
+type Browser = { cookie: string; csrf: string; device_id?: string };
 type Enrolled = {
   device_id: string;
   customer_id: string;
@@ -135,6 +136,7 @@ async function request<T = Record<string, unknown>>(
   else if (auth) {
     headers.Cookie = auth.cookie;
     headers["X-CSRF-Token"] = auth.csrf;
+    if (auth.device_id) headers["X-YariZan-Device"] = auth.device_id;
   }
   body = await withProof(route, body);
   const r = await fetch(base + route, {
@@ -1933,7 +1935,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 21 });
+    assert.deepEqual(await verifyMigrations(c), { total: 22 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,
@@ -7250,6 +7252,218 @@ test("Standalone game: two independent trials, exact price, code and purchase li
     ).rows[0].n,
     1,
   );
+});
+
+async function switchFixture() {
+  const a = await buyer(),
+    b = await buyer(),
+    stranger = await buyer();
+  await db.query(
+    `UPDATE customers SET mobile_lookup=$1,mobile_ciphertext='synthetic-ciphertext',
+    mobile_last4='0000',mobile_verified_at=clock_timestamp() WHERE id=ANY($2::uuid[])`,
+    [hash(randomUUID()).toLowerCase(), [a.customer_id, b.customer_id]],
+  );
+  return { a, b, stranger };
+}
+async function switchBrowser(browser: Browser, username: string) {
+  const result = await ok<{
+    csrf_token: string;
+    username: string;
+    label: string | null;
+  }>("/account/switch-device", { username }, browser);
+  const next = {
+    cookie: result.headers
+      .getSetCookie()
+      .find((v) => v.startsWith("yz_customer="))!
+      .split(";")[0]!,
+    csrf: result.body.csrf_token,
+  };
+  const current = await ok<{ device_id: string }>("/account", undefined, next);
+  return { ...next, device_id: current.body.device_id };
+}
+test("Browser device switch: same verified mobile, fixed expiry, rotated secrets and device-scoped orders", async () => {
+  const { a, b, stranger } = await switchFixture();
+  const before = (
+    await db.query(
+      "SELECT expires_at FROM customer_sessions WHERE token_hash=$1",
+      [security.tokenHash(a.browser.cookie.split("=")[1]!)],
+    )
+  ).rows[0].expires_at as Date;
+  const next = await switchBrowser(a.browser, b.username);
+  assert.notEqual(next.cookie, a.browser.cookie);
+  assert.notEqual(next.csrf, a.browser.csrf);
+  assert.equal(
+    (await ok("/account", undefined, next)).body.username,
+    b.username,
+  );
+  await denied("/account", undefined, "UNAUTHENTICATED", a.browser);
+  await denied(
+    "/account/switch-device",
+    { username: stranger.username },
+    "TARGET_DEVICE_INVALID",
+    next,
+  );
+  await denied(
+    "/account/switch-device",
+    { username: a.username },
+    "CSRF_REJECTED",
+    { ...next, csrf: a.browser.csrf },
+  );
+  const stale = await fetch(base + "/orders", {
+    method: "POST",
+    headers: {
+      Origin: origin,
+      "Content-Type": "application/json",
+      Cookie: next.cookie,
+      "X-CSRF-Token": next.csrf,
+      "X-YariZan-Device": a.device_id,
+    },
+    body: JSON.stringify({ request_id: randomUUID(), sku: "YARIZAN-G1" }),
+  });
+  assert.equal(stale.status, 409);
+  assert.equal(
+    ((await stale.json()) as ErrorBody).error.code,
+    "DEVICE_CONTEXT_CHANGED",
+  );
+  await denied(
+    "/orders",
+    { request_id: randomUUID(), sku: "YARIZAN-G1" },
+    "DEVICE_CONTEXT_CHANGED",
+    { cookie: next.cookie, csrf: next.csrf },
+  );
+  const order = await saleOrder({ ...b, browser: next });
+  assert.equal(
+    (await db.query("SELECT device_id FROM orders WHERE id=$1", [order.id]))
+      .rows[0].device_id,
+    b.device_id,
+  );
+  await denied(`/orders/${order.id}`, undefined, "NOT_FOUND", await login(a));
+  await ok("/desktop/entitlements", undefined, a.credential);
+  const back = await switchBrowser(next, a.username);
+  assert.equal(
+    (await ok("/account", undefined, back)).body.username,
+    a.username,
+  );
+  await denied("/account", undefined, "UNAUTHENTICATED", next);
+  const expiry = (
+    await db.query(
+      "SELECT expires_at,auth_customer_id FROM customer_sessions WHERE token_hash=$1",
+      [security.tokenHash(back.cookie.split("=")[1]!)],
+    )
+  ).rows[0];
+  assert.equal(expiry.expires_at.getTime(), before.getTime());
+  assert.equal(expiry.auth_customer_id, a.customer_id);
+  // Credential changes at the original sign-in invalidate descendants even on another device.
+  const away = await switchBrowser(back, b.username);
+  await db.transaction((c) =>
+    app
+      .get(Accounts)
+      .issueReset(c, a.customer_id, "synthetic-switch-origin-reset", {
+        type: "SYSTEM",
+        correlationId: randomUUID(),
+      }),
+  );
+  assert.ok(
+    (
+      await db.query(
+        "SELECT revoked_at FROM customer_sessions WHERE token_hash=$1",
+        [security.tokenHash(away.cookie.split("=")[1]!)],
+      )
+    ).rows[0].revoked_at,
+  );
+  await denied("/account", undefined, "UNAUTHENTICATED", away);
+});
+test("Browser device switch: expired, unverified and reassigned contexts cannot gain access", async () => {
+  const { a, b } = await switchFixture();
+  await denied(
+    "/account/switch-device",
+    { username: b.username },
+    "UNAUTHENTICATED",
+  );
+  await db.query(
+    "UPDATE customers SET mobile_ciphertext=NULL,mobile_lookup=NULL,mobile_last4=NULL,mobile_verified_at=NULL,mobile_setup_required=false WHERE id=$1",
+    [b.customer_id],
+  );
+  await denied(
+    "/account/switch-device",
+    { username: b.username },
+    "TARGET_DEVICE_INVALID",
+    a.browser,
+  );
+  await db.query(
+    `UPDATE customers SET mobile_ciphertext='synthetic-ciphertext',mobile_last4='0000',
+    mobile_verified_at=now(),mobile_lookup=(SELECT mobile_lookup FROM customers WHERE id=$2) WHERE id=$1`,
+    [b.customer_id, a.customer_id],
+  );
+  const next = await switchBrowser(a.browser, b.username);
+  await db.query("UPDATE customers SET mobile_lookup=$2 WHERE id=$1", [
+    a.customer_id,
+    hash(randomUUID()).toLowerCase(),
+  ]);
+  await denied("/account", undefined, "UNAUTHENTICATED", next);
+  const expired = await buyer();
+  await db.query(
+    "UPDATE customer_sessions SET expires_at=now()-interval '1 second' WHERE customer_id=$1",
+    [expired.customer_id],
+  );
+  await denied(
+    "/account/switch-device",
+    { username: b.username },
+    "UNAUTHENTICATED",
+    expired.browser,
+  );
+});
+test("Browser device switch: concurrent reuse creates only one successor and session rotation preserves scope", async () => {
+  const { a, b } = await switchFixture();
+  const results = await Promise.all([
+    request<{ csrf_token: string }>(
+      "/account/switch-device",
+      { username: b.username },
+      a.browser,
+    ),
+    request<{ csrf_token: string }>(
+      "/account/switch-device",
+      { username: b.username },
+      a.browser,
+    ),
+  ]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [201, 401]);
+  const winner = results.find((r) => r.status === 201)!;
+  const next = {
+    cookie: winner.headers
+      .getSetCookie()
+      .find((v) => v.startsWith("yz_customer="))!
+      .split(";")[0]!,
+    csrf: winner.body.csrf_token,
+  };
+  const row = (
+    await db.query(
+      "SELECT expires_at FROM customer_sessions WHERE token_hash=$1",
+      [security.tokenHash(next.cookie.split("=")[1]!)],
+    )
+  ).rows[0];
+  const rotated = await ok<{ csrf_token: string }>(
+    "/auth/session/rotate",
+    {},
+    next,
+  );
+  const fresh = {
+    cookie: rotated.headers
+      .getSetCookie()
+      .find((v) => v.startsWith("yz_customer="))!
+      .split(";")[0]!,
+    csrf: rotated.body.csrf_token,
+  };
+  const scoped = (
+    await db.query(
+      "SELECT expires_at,auth_customer_id FROM customer_sessions WHERE token_hash=$1",
+      [security.tokenHash(fresh.cookie.split("=")[1]!)],
+    )
+  ).rows[0];
+  assert.equal(scoped.expires_at.getTime(), row.expires_at.getTime());
+  assert.equal(scoped.auth_customer_id, a.customer_id);
+  await ok("/auth/logout", {}, fresh);
+  await denied("/account", undefined, "UNAUTHENTICATED", fresh);
 });
 
 test("Devices of one verified mobile: names, and a purchase moves once to another device", async () => {
