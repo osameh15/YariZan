@@ -2529,6 +2529,11 @@ textarea[aria-invalid='true'] {
   border-radius: 10px;
   margin-bottom: 8px;
 }
+@media (max-width: 760px) {
+  .product-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 @media (max-width: 900px) {
   .product-detail:has(.product-gallery) {
     grid-template-columns: 1fr;
