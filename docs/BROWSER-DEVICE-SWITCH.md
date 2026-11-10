@@ -29,6 +29,8 @@ Other tabs reload their device-bound views through a storage event containing on
 marker. Customer mutations also carry `X-YariZan-Device`, the device ID obtained from the loaded
 account. The API refuses a mismatch with `DEVICE_CONTEXT_CHANGED`; a stale tab cannot silently
 create an invoice for the newly selected device even if browser storage is unavailable.
+New invoice and quote requests from switched sessions require that device header, so an old
+website tab from before this feature cannot submit a purchase without the device binding.
 
 ## Validation
 

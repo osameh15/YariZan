@@ -66,7 +66,7 @@ let app: Awaited<ReturnType<typeof createApp>>,
   security: Security,
   signing: Signing,
   base: string;
-type Browser = { cookie: string; csrf: string };
+type Browser = { cookie: string; csrf: string; device_id?: string };
 type Enrolled = {
   device_id: string;
   customer_id: string;
@@ -136,6 +136,7 @@ async function request<T = Record<string, unknown>>(
   else if (auth) {
     headers.Cookie = auth.cookie;
     headers["X-CSRF-Token"] = auth.csrf;
+    if (auth.device_id) headers["X-YariZan-Device"] = auth.device_id;
   }
   body = await withProof(route, body);
   const r = await fetch(base + route, {
@@ -7270,13 +7271,15 @@ async function switchBrowser(browser: Browser, username: string) {
     username: string;
     label: string | null;
   }>("/account/switch-device", { username }, browser);
-  return {
+  const next = {
     cookie: result.headers
       .getSetCookie()
       .find((v) => v.startsWith("yz_customer="))!
       .split(";")[0]!,
     csrf: result.body.csrf_token,
   };
+  const current = await ok<{ device_id: string }>("/account", undefined, next);
+  return { ...next, device_id: current.body.device_id };
 }
 test("Browser device switch: same verified mobile, fixed expiry, rotated secrets and device-scoped orders", async () => {
   const { a, b, stranger } = await switchFixture();
@@ -7321,6 +7324,12 @@ test("Browser device switch: same verified mobile, fixed expiry, rotated secrets
   assert.equal(
     ((await stale.json()) as ErrorBody).error.code,
     "DEVICE_CONTEXT_CHANGED",
+  );
+  await denied(
+    "/orders",
+    { request_id: randomUUID(), sku: "YARIZAN-G1" },
+    "DEVICE_CONTEXT_CHANGED",
+    { cookie: next.cookie, csrf: next.csrf },
   );
   const order = await saleOrder({ ...b, browser: next });
   assert.equal(

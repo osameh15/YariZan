@@ -154,8 +154,11 @@ export class Security {
     if (!["GET", "HEAD"].includes(req.method)) {
       this.csrf(req, row.csrf_hash);
       const expected = req.headers["x-yarizan-device"];
+      const needsDevice =
+        !!row.auth_customer_id &&
+        ["/api/v2/orders", "/api/v2/discounts/quote"].includes(req.path);
       requireCondition(
-        expected === undefined || expected === row.device_id,
+        expected === row.device_id || (!needsDevice && expected === undefined),
         "DEVICE_CONTEXT_CHANGED",
         409,
       );

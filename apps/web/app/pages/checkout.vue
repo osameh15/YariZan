@@ -27,8 +27,10 @@ const device = ref<{ username: string; label: string | null }>();
 async function loadDevice() {
   try {
     device.value = await api.get('/api/v2/account');
-  } catch {
-    /* The quote request handles a signed-out visitor. */
+  } catch (error) {
+    message.value = errorMessage(error);
+    if ((error as { status?: number }).status === 401)
+      await navigateTo('/login?return=' + encodeURIComponent('/checkout?sku=' + sku));
   }
 }
 let quoteGeneration = 0;
@@ -57,6 +59,10 @@ async function load() {
   loading.value = true;
   message.value = '';
   try {
+    if (!device.value) {
+      await loadDevice();
+      if (!device.value) return;
+    }
     const result = await api.post('/api/v2/discounts/quote', {
       sku,
       coupon: submittedCoupon || undefined,
@@ -117,7 +123,6 @@ const { test, sandbox } = useCommerceMode();
 const PAYMENT_PROVIDER = MERCHANT.paymentProviderFa;
 onMounted(() => {
   void load();
-  void loadDevice();
 });
 useSeoMeta({ title: 'بررسی سفارش | یاریزان' });
 </script>
