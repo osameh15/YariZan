@@ -127,7 +127,7 @@ export class Admin {
       [customerId],
     );
     await c.query(
-      "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1",
+      "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1 OR auth_customer_id=$1",
       [customerId],
     );
     await c.query(

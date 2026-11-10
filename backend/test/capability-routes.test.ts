@@ -96,6 +96,7 @@ test("Core-only deployment refuses every disabled capability explicitly", async 
     ["POST", "/api/v2/admin/auth/login", { username: "x", password: "y" }],
     ["GET", "/api/v2/admin/customers"],
     ["GET", "/api/v2/account"],
+    ["POST", "/api/v2/account/switch-device", {}],
     ["POST", "/api/v2/devices/challenges", {}],
     ["POST", "/api/v2/device-pairings", {}],
     ["GET", "/api/v2/desktop/entitlements"],

@@ -39,6 +39,11 @@ export default defineEventHandler(async (event) => {
   if (mutating || admin) headers.Origin = origin;
   const csrf = getHeader(event, 'x-csrf-token');
   if (csrf) headers['X-CSRF-Token'] = csrf;
+  const deviceContext = getHeader(event, 'x-yarizan-device');
+  if (!admin && mutating && deviceContext) {
+    if (!/^[0-9a-f-]{36}$/.test(deviceContext)) return fail(400, 'INVALID_REQUEST');
+    headers['X-YariZan-Device'] = deviceContext;
+  }
   const name = admin ? 'yz_admin' : 'yz_customer';
   const cookie = (getHeader(event, 'cookie') ?? '')
     .split(';')

@@ -189,9 +189,12 @@ test('Real checkout, coupon quote, simulated payment and one desktop license', a
   await shot(page, 'owned-grade-one-checkout-mobile');
   await expect(page.getByRole('button', { name: 'خرید برای دستگاه دیگر' })).toHaveCount(1);
   await page.getByRole('button', { name: 'خرید برای دستگاه دیگر' }).click();
-  await expect(page).toHaveURL(/\/login\?return=/);
-  // Selecting another device keeps the requested product in the return URL.
-  expect(new URL(page.url()).searchParams.get('return')).toBe('/checkout?sku=YARIZAN-G1');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog')).toContainText(
+    'دستگاه دیگری به این شمارهٔ موبایل متصل نیست',
+  );
+  await expect(page).toHaveURL(/\/checkout\?sku=YARIZAN-G1$/);
+  await page.getByRole('button', { name: 'انصراف', exact: true }).click();
 });
 
 test('Unknown outcome is not failure or another charge; safe callback and mobile pending state', async ({

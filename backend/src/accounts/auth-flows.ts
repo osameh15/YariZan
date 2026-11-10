@@ -231,7 +231,7 @@ export class AuthFlows {
           encoded,
         ]);
         await c.query(
-          "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1",
+          "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1 OR auth_customer_id=$1",
           [r.id],
         );
         await this.audit.append(c, actor, "password.reset_mobile", r.id);
@@ -305,7 +305,7 @@ export class AuthFlows {
         encoded,
       ]);
       await c.query(
-        "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1",
+        "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1 OR auth_customer_id=$1",
         [target.id],
       );
       await this.audit.append(c, actor, "password.reset_mobile", target.id);
@@ -579,7 +579,7 @@ export class AuthFlows {
         );
       }
       await c.query(
-        "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1",
+        "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1 OR auth_customer_id=$1",
         [r.id],
       );
       await this.audit.append(

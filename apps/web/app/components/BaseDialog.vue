@@ -1,6 +1,10 @@
 <script setup lang="ts">
 const model = defineModel<boolean>({ required: true });
-defineProps<{ title: string }>();
+const props = withDefaults(defineProps<{ title: string; locked?: boolean }>(), { locked: false });
+function cancel(event: Event) {
+  if (props.locked) event.preventDefault();
+  else model.value = false;
+}
 const titleId = useId();
 const dialog = ref<HTMLDialogElement>();
 let trigger: HTMLElement | null = null;
@@ -26,12 +30,12 @@ onBeforeUnmount(() => dialog.value?.close());
     ref="dialog"
     :aria-labelledby="titleId"
     class="dialog"
-    @cancel="model = false"
+    @cancel="cancel"
     @close="model = false"
   >
     <div class="dialog-top">
       <h2 :id="titleId">{{ title }}</h2>
-      <button class="icon-button" aria-label="بستن پنجره" @click="model = false">
+      <button class="icon-button" aria-label="بستن پنجره" :disabled="locked" @click="model = false">
         <AppIcon name="close" />
       </button>
     </div>

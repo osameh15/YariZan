@@ -3,7 +3,7 @@ import { Injectable } from "@nestjs/common";
 import { hashPassword, verifyPassword } from "../security/passwords";
 import { randomUUID } from "node:crypto";
 import { Database } from "../database/database";
-import { Security } from "../security/security";
+import { Security, CustomerContext } from "../security/security";
 import { Audit, Actor } from "../audit/audit";
 import { requireCondition } from "../common/errors";
 import { hash, token } from "../security/crypto";
@@ -86,14 +86,117 @@ export class Accounts {
         [customerId],
       );
       requireCondition(current.rowCount, "UNAUTHENTICATED", 401);
+      const prior = await this.security.customerSession(tokenHash, c);
       const r = await c.query(
-        `UPDATE customer_sessions SET revoked_at=now() WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>now() RETURNING customer_id`,
-        [tokenHash],
+        `UPDATE customer_sessions SET revoked_at=now() WHERE token_hash=$1 AND customer_id=$2 AND revoked_at IS NULL AND expires_at>clock_timestamp() RETURNING customer_id`,
+        [tokenHash, customerId],
       );
       requireCondition(r.rowCount, "UNAUTHENTICATED", 401);
-      const session = await customerSession(c, this.security, customerId);
+      const session = await customerSession(
+        c,
+        this.security,
+        customerId,
+        prior.auth_customer_id
+          ? {
+              expires_at: prior.expires_at,
+              auth_customer_id: prior.auth_customer_id,
+              auth_generation: prior.auth_generation!,
+              auth_stamp: prior.auth_stamp!,
+              auth_mobile_lookup: prior.auth_mobile_lookup!,
+            }
+          : undefined,
+      );
       await this.audit.append(c, actor, "customer.session_rotated", customerId);
       return session;
+    });
+  }
+  /** Change browser context only; device credentials, orders and licenses never move. */
+  async switchDevice(u: CustomerContext, username: string, actor: Actor) {
+    await this.security.rate("device-switch:" + u.id, 20, 60);
+    return this.db.transaction(async (c) => {
+      const initial = await this.security.customerSession(u.token_hash, c);
+      const candidate = (
+        await c.query<{ id: string }>(
+          "SELECT id FROM customers WHERE username=$1 AND state='ACTIVE'",
+          [username],
+        )
+      ).rows[0];
+      requireCondition(
+        candidate && candidate.id !== u.id,
+        "TARGET_DEVICE_INVALID",
+        422,
+      );
+      const ids = [
+        ...new Set([u.id, candidate.id, initial.auth_customer_id ?? u.id]),
+      ].sort();
+      // Stable device/customer lock ordering serializes switches with device resets and password changes.
+      await c.query(
+        `SELECT d.id FROM devices d WHERE d.id IN
+        (SELECT device_id FROM customers WHERE id=ANY($1::uuid[])) ORDER BY d.id FOR SHARE`,
+        [ids],
+      );
+      const locked = await c.query<{
+        id: string;
+        device_id: string;
+        generation: number;
+        state: string;
+        mobile_verified_at: Date | null;
+        mobile_lookup: string | null;
+        device_label: string | null;
+      }>(
+        "SELECT * FROM customers WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE",
+        [ids],
+      );
+      await c.query(
+        "SELECT token_hash FROM customer_sessions WHERE token_hash=$1 FOR UPDATE",
+        [u.token_hash],
+      );
+      const current = await this.security.customerSession(u.token_hash, c);
+      requireCondition(
+        current.id === u.id &&
+          current.device_id === u.device_id &&
+          current.generation === u.generation,
+        "UNAUTHENTICATED",
+        401,
+      );
+      const target = locked.rows.find((r) => r.id === candidate.id)!;
+      requireCondition(
+        current.mobile_verified_at &&
+          current.mobile_lookup &&
+          target.state === "ACTIVE" &&
+          target.mobile_verified_at &&
+          target.mobile_lookup === current.mobile_lookup &&
+          (
+            await c.query(
+              "SELECT 1 FROM devices WHERE id=$1 AND generation=$2",
+              [target.device_id, target.generation],
+            )
+          ).rowCount,
+        "TARGET_DEVICE_INVALID",
+        422,
+      );
+      const scope = {
+        expires_at: current.expires_at,
+        auth_customer_id: current.auth_customer_id ?? current.id,
+        auth_generation: current.auth_generation ?? current.generation,
+        auth_stamp:
+          current.auth_stamp ??
+          hash((current.password_hash ?? "") + "\n" + current.mobile_lookup),
+        auth_mobile_lookup:
+          current.auth_mobile_lookup ?? current.mobile_lookup!,
+      };
+      const retired = await c.query(
+        `UPDATE customer_sessions SET revoked_at=clock_timestamp()
+        WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>clock_timestamp()`,
+        [u.token_hash],
+      );
+      requireCondition(retired.rowCount, "UNAUTHENTICATED", 401);
+      const next = await customerSession(c, this.security, target.id, scope);
+      await this.audit.append(c, actor, "customer.device_switched", target.id, {
+        from_device_id: current.device_id,
+        to_device_id: target.device_id,
+      });
+      return { ...next, username, label: target.device_label };
     });
   }
   async logout(tokenHash: string, actor: Actor) {
@@ -134,7 +237,7 @@ export class Accounts {
         encoded,
       ]);
       await c.query(
-        "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1",
+        "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1 OR auth_customer_id=$1",
         [p.customer_id],
       );
       await this.audit.append(
@@ -170,7 +273,7 @@ export class Accounts {
       [customerId],
     );
     await c.query(
-      "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1",
+      "UPDATE customer_sessions SET revoked_at=now() WHERE customer_id=$1 OR auth_customer_id=$1",
       [customerId],
     );
     const grant = token();

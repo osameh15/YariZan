@@ -435,6 +435,24 @@ export class AccountsController {
     const label = b.label.trim();
     return this.deviceLicenses.setLabel(c.id, label || null, actor(req));
   }
+  @Post("account/switch-device") async switchDevice(
+    @Body() body: unknown,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const current = await this.security.customer(req);
+    const b = z.strictObject({ username: deviceUsername }).parse(body);
+    const result = await this.accounts.switchDevice(
+      current,
+      b.username,
+      userActor(req, current.id),
+    );
+    return {
+      ...sessionCookies(res, this.security, result),
+      username: result.username,
+      label: result.label,
+    };
+  }
   @Get("account/movable-licenses") async movableLicenses(@Req() req: Request) {
     const c = await this.security.customer(req);
     return this.deviceLicenses.movable(c.id);

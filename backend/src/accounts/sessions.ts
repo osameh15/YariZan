@@ -24,26 +24,53 @@ export async function customerSession(
   c: PoolClient,
   security: Security,
   customerId: string,
+  scope?: {
+    expires_at: Date;
+    auth_customer_id: string;
+    auth_generation: number;
+    auth_stamp: string;
+    auth_mobile_lookup: string;
+  },
 ) {
   const session = token(),
     csrf = token();
-  await c.query(
-    "INSERT INTO customer_sessions(token_hash,customer_id,csrf_hash,expires_at) VALUES($1,$2,$3,now()+interval '8 hours')",
-    [security.tokenHash(session), customerId, security.tokenHash(csrf)],
+  const row = await c.query<{ expires_at: Date }>(
+    `INSERT INTO customer_sessions(token_hash,customer_id,csrf_hash,expires_at,auth_customer_id,auth_generation,auth_stamp,auth_mobile_lookup)
+     VALUES($1,$2,$3,COALESCE($4::timestamptz,now()+interval '8 hours'),$5,$6,$7,$8) RETURNING expires_at`,
+    [
+      security.tokenHash(session),
+      customerId,
+      security.tokenHash(csrf),
+      scope?.expires_at ?? null,
+      scope?.auth_customer_id ?? null,
+      scope?.auth_generation ?? null,
+      scope?.auth_stamp ?? null,
+      scope?.auth_mobile_lookup ?? null,
+    ],
   );
-  return { session, csrf };
+  return { session, csrf, expires_at: row.rows[0]!.expires_at };
 }
 
 export function sessionCookies(
   res: Response,
   security: Security,
-  result: { session: string; csrf: string },
+  result: { session: string; csrf: string; expires_at?: Date },
   admin = false,
 ) {
   const options = {
     sameSite: "strict" as const,
     secure: security.config.NODE_ENV === "production",
-    maxAge: admin ? 3600000 : 8 * 3600000,
+    maxAge: admin
+      ? 3600000
+      : Math.max(
+          0,
+          Math.min(
+            8 * 3600000,
+            result.expires_at
+              ? result.expires_at.getTime() - Date.now()
+              : 8 * 3600000,
+          ),
+        ),
   };
   res.cookie(admin ? "yz_admin" : "yz_customer", result.session, {
     ...options,
