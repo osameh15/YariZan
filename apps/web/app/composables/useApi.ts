@@ -27,6 +27,15 @@ export function useApi(admin = false) {
       retry: 0,
       credentials: 'same-origin',
     });
+    if (
+      !admin &&
+      method === 'post' &&
+      ['/api/v2/auth/login', '/api/v2/auth/otp/verify', '/api/v2/auth/claim'].includes(route) &&
+      result &&
+      typeof result === 'object' &&
+      'csrf_token' in result
+    )
+      deviceContext.value = undefined;
     if (!admin && method === 'get' && route === '/api/v2/account') {
       deviceContext.value = (result as { device_id: string }).device_id;
     }
