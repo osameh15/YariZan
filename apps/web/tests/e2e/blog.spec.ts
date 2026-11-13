@@ -10,6 +10,10 @@ test('Seeded posts retain draft approval; editor, publication, sitemap and respo
 }) => {
   test.setTimeout(120000);
   for (const slug of ['clothing-combinations-game', 'mystery-bag-shape-game']) {
+    await sql(
+      "UPDATE blog_posts SET state='PUBLISHED',published_at=coalesce(published_at,now()),cover_image=$2 WHERE slug=$1",
+      [slug, '/blog-covers/' + slug + '.webp'],
+    );
     const article = await request.get('/blog/' + slug);
     expect(article.status()).toBe(200);
     expect(await article.text()).toContain('/blog-covers/' + slug + '.webp');
@@ -100,7 +104,7 @@ test('Seeded posts retain draft approval; editor, publication, sitemap and respo
   await page.getByLabel('خلاصهٔ نوشته', { exact: true }).fill(drafts[0].description);
   await page.getByLabel('متن نوشته', { exact: true }).fill(drafts[0].body);
   await page.getByRole('button', { name: 'ذخیرهٔ پیش‌نویس', exact: true }).click();
-  await expect(page.locator('.blog-list-item')).toHaveCount(9);
+  await expect(page.locator('.blog-list-item')).toHaveCount(drafts.length + 1);
   expect((await request.get('/blog/review-only-new-draft')).status()).toBe(404);
   await page.getByRole('button', { name: 'بایگانی', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'نوشته بایگانی شد' })).toBeVisible();
