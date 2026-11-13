@@ -523,10 +523,14 @@ const navigationGroups: { title: string; ids: string[] }[] = [
         >
         <template v-else>
           <div v-if="['orders', 'coupons'].includes(section)" class="toolbar-row">
-            <div class="segmented" role="group" aria-label="نمایش سفارش‌ها">
+            <div
+              class="segmented"
+              role="group"
+              :aria-label="section === 'coupons' ? 'نمایش کدهای تخفیف' : 'نمایش سفارش‌ها'"
+            >
               <button
                 v-for="[mode, label] in [
-                  ['active', 'سفارش‌های جاری'],
+                  ['active', section === 'coupons' ? 'جاری' : 'سفارش‌های جاری'],
                   ['archived', 'بایگانی‌شده'],
                   ['all', 'همه'],
                 ] as const"
