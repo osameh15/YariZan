@@ -8,8 +8,8 @@ export interface LegacyWindowsRelease {
   sizeBytes: number;
   sha256: string;
   published: boolean;
-  channel: 'experimental';
-  osAcceptance: 'pending';
+  channel: 'stable';
+  osAcceptance: 'verified';
 }
 
 const stems: Record<string, string> = {
@@ -29,15 +29,15 @@ export function validateLegacyRelease(value: LegacyWindowsRelease): LegacyWindow
     value.sizeBytes <= 0 ||
     !/^[0-9a-f]{64}$/.test(value.sha256) ||
     typeof value.published !== 'boolean' ||
-    value.channel !== 'experimental' ||
-    value.osAcceptance !== 'pending'
+    value.channel !== 'stable' ||
+    value.osAcceptance !== 'verified'
   )
     throw new Error('INVALID_LEGACY_WINDOWS_RELEASE');
   return value;
 }
 
 // Enabled with the coordinated mirror handoff: infrastructure verifies and publishes
-// these exact four artifacts before the web image starts. Publication is not OS acceptance.
+// these exact four artifacts before the web image starts. Owner confirmed real-OS testing.
 export const legacyWindowsReleases = data.map((value) =>
   validateLegacyRelease(value as LegacyWindowsRelease),
 );

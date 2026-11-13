@@ -17,7 +17,7 @@ import {
 useSeoMeta({
   title: 'دریافت یاریزان برای ویندوز | یاریزان',
   description:
-    'دریافت یاریزان برای ویندوز ۱۰ و ۱۱ و نسخهٔ آزمایشی ویندوز ۷ SP1 و ۸.۱؛ نیازمندی‌ها، حجم و کد بررسی فایل.',
+    'دریافت یاریزان برای ویندوز ۱۰ و ۱۱ و نسخهٔ ویندوز ۷ SP1 و ۸.۱؛ نیازمندی‌ها، حجم و کد بررسی فایل.',
 });
 const route = useRoute();
 const requestedProduct = computed(() => standaloneProduct(String(route.query.product ?? '')));

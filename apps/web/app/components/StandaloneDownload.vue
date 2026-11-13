@@ -53,5 +53,6 @@ const release = computed(() => standaloneRelease(props.sku));
         </ul>
       </article>
     </div>
+    <StandaloneReleaseHistory :sku="sku" />
   </template>
 </template>
