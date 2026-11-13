@@ -195,6 +195,14 @@ test('Real checkout, coupon quote, simulated payment and one desktop license', a
   );
   await expect(page).toHaveURL(/\/checkout\?sku=YARIZAN-G1$/);
   await page.getByRole('button', { name: 'انصراف', exact: true }).click();
+  await manager(page);
+  await page.goto('/zanyari/commerce?section=redemptions');
+  await page.getByRole('textbox', { name: 'جست‌وجو', exact: true }).fill(code);
+  await page.getByRole('button', { name: 'جست‌وجو و تازه‌سازی' }).click();
+  await expect(page.locator('tbody')).toContainText(e.username);
+  await expect(page.locator('tbody')).toContainText(code);
+  await expect(page.locator('tbody')).toContainText('تخفیف');
+  await shot(page, 'coupon-user-report-mobile');
 });
 
 test('Unknown outcome is not failure or another charge; safe callback and mobile pending state', async ({
