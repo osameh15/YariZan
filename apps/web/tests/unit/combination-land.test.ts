@@ -25,6 +25,6 @@ describe('Combination Land product and ongoing offer', () => {
     expect(allowedBrowserRoute('GET', 'admin/products/' + sku + '/promotions')).toBe(true);
   });
   it('maps the reviewed release used after the deployment mirror checksum guard', () => {
-    expect(standaloneRelease(sku)?.filename).toBe('YariZan-CombinationLand-Setup-v1.0.0.exe');
+    expect(standaloneRelease(sku)?.filename).toBe('YariZan-CombinationLand-Setup-v1.0.1.exe');
   });
 });

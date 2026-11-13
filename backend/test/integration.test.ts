@@ -359,8 +359,12 @@ test("Blog drafts need authorized publication, preserve URLs, and reject stale e
     }>("/admin/blog", undefined, admin)
   ).body.posts;
   assert.equal(all.filter((p) => p.state === "DRAFT").length, 8);
-  assert.deepEqual((await ok<{ posts: unknown[] }>("/blog")).body.posts, []);
-  await denied("/blog/" + all[0].slug, undefined, "NOT_FOUND");
+  assert.equal((await ok<{ posts: unknown[] }>("/blog")).body.posts.length, 2);
+  await denied(
+    "/blog/" + all.find((p) => p.state === "DRAFT")!.slug,
+    undefined,
+    "NOT_FOUND",
+  );
   await denied("/admin/blog", undefined, "UNAUTHENTICATED");
   const support = await adminLogin("support");
   await denied("/admin/blog", undefined, "FORBIDDEN", support);
@@ -1935,7 +1939,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 22 });
+    assert.deepEqual(await verifyMigrations(c), { total: 23 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,
@@ -3853,6 +3857,22 @@ test("Forged callback cannot pay; verified synthetic capture fulfills exactly on
   const paid = (await ok<SaleOrder>(`/orders/${o.id}`, undefined, e.browser))
     .body;
   assert.equal(paid.state, "FULFILLED");
+  const usage = (
+    await ok<{
+      items: {
+        order_id: string;
+        username: string;
+        sku: string;
+        state: string;
+      }[];
+    }>("/admin/commerce/redemptions?search=" + o.id, undefined, admin)
+  ).body.items;
+  assert.equal(usage.length, 1);
+  assert.equal(usage[0].order_id, o.id);
+  assert.ok(usage[0].username);
+  assert.equal(usage[0].sku, "YARIZAN-G1");
+  assert.equal(usage[0].state, "REDEEMED");
+
   for (let n = 0; n < 3; n++)
     await ok(`/payments/zarinpal/return?Authority=${authority}&Status=NOK`);
   await recoverCommerce();
@@ -7837,4 +7857,45 @@ test("Phone-only password recovery verifies ownership and changes only the chose
     await passwordHash("ChangedElsewhere!Password123"),
   ]);
   await denied("/auth/password-reset/otp", stale, "OTP_INVALID");
+});
+
+test("Coupon archive hides only the coupon, disables use and preserves history on restore", async () => {
+  const d = await discountFixture();
+  const update = (archived: boolean, revision: number) =>
+    ok(
+      `/admin/commerce/coupons/${d.code.id}`,
+      { ...d.body, ...mutation(), expected_revision: revision, archived },
+      admin,
+      "PATCH",
+    );
+  await update(true, 1);
+  const stored = (
+    await db.query(
+      "SELECT enabled,archived_at,revision FROM discount_codes WHERE id=$1",
+      [d.code.id],
+    )
+  ).rows[0];
+  assert.equal(stored.enabled, false);
+  assert.ok(stored.archived_at);
+  const active = await ok<{ items: { id: string }[] }>(
+    "/admin/commerce/coupons?archived=active",
+    undefined,
+    admin,
+  );
+  assert.ok(!active.body.items.some((r) => r.id === d.code.id));
+  const archived = await ok<{ items: { id: string }[] }>(
+    "/admin/commerce/coupons?archived=archived",
+    undefined,
+    admin,
+  );
+  assert.ok(archived.body.items.some((r) => r.id === d.code.id));
+  await update(false, 2);
+  const restored = (
+    await db.query(
+      "SELECT enabled,archived_at FROM discount_codes WHERE id=$1",
+      [d.code.id],
+    )
+  ).rows[0];
+  assert.equal(restored.archived_at, null);
+  assert.equal(restored.enabled, false);
 });

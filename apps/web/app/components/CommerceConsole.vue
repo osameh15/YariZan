@@ -88,7 +88,9 @@ async function load() {
         search: snapshot.search,
         offset: snapshot.offset,
         limit: snapshot.limit,
-        ...(snapshot.section === 'orders' ? { archived: snapshot.archived } : {}),
+        ...(['orders', 'coupons'].includes(snapshot.section)
+          ? { archived: snapshot.archived }
+          : {}),
         ...(snapshot.state ? { state: snapshot.state } : {}),
         ...(snapshot.from ? { from: new Date(snapshot.from + 'T00:00:00').toISOString() } : {}),
         ...(snapshot.to ? { to: new Date(snapshot.to + 'T00:00:00').toISOString() } : {}),
@@ -189,6 +191,7 @@ const form = reactive({
   starts_at: '',
   ends_at: '',
   enabled: true,
+  archived: false,
   max_redemptions: 100,
   max_per_customer: 1,
   campaign_id: '',
@@ -223,6 +226,7 @@ async function open(action: string, row: Record<string, unknown> = {}) {
         max_redemptions: Number(row.max_redemptions ?? 100),
         max_per_customer: Number(row.max_per_customer ?? 1),
       });
+    form.archived = !!row.archived_at;
     if (action === 'coupons') {
       const c = await api.get('/api/v2/admin/commerce/{section}', { section: 'campaigns' });
       campaigns.value = c.items as Record<string, unknown>[];
@@ -309,6 +313,7 @@ async function save() {
         enabled: form.enabled,
         max_redemptions: form.max_redemptions || null,
         max_per_customer: form.max_per_customer || null,
+        archived: form.archived,
         skus: form.skus,
       };
       if (id) await api.patch('/api/v2/admin/commerce/coupons/{id}', body, { id });
@@ -517,7 +522,7 @@ const navigationGroups: { title: string; ids: string[] }[] = [
           </div></template
         >
         <template v-else>
-          <div v-if="section === 'orders'" class="toolbar-row">
+          <div v-if="['orders', 'coupons'].includes(section)" class="toolbar-row">
             <div class="segmented" role="group" aria-label="نمایش سفارش‌ها">
               <button
                 v-for="[mode, label] in [
@@ -599,11 +604,23 @@ const navigationGroups: { title: string; ids: string[] }[] = [
               }}</small></template
             >
             <template #cell-info="{ row }"
+              ><b v-if="row.username" dir="ltr">{{ row.username }}</b
+              ><small v-if="row.sku">{{ grade(row.sku) }}</small
+              ><small v-if="row.order_id" dir="ltr">{{ row.order_id }}</small
+              ><small v-if="row.created_at">{{ dateTime(row.created_at) }}</small
               ><small v-if="row.total_irr ?? row.amount_irr"
                 >{{ financialToman(row.total_irr ?? row.amount_irr) }} تومان</small
+              ><small v-if="row.discount_irr"
+                >تخفیف {{ financialToman(row.discount_irr) }} تومان</small
+              ><small v-if="row.campaign_name">{{ row.campaign_name }}</small
+              ><small v-if="Array.isArray(row.skus)">{{ row.skus.map(grade).join('، ') }}</small
               ><small v-if="row.type"
                 >{{ row.type === 'percent' ? 'درصدی' : 'مبلغ ثابت' }}:
-                {{ persianDigits(row.value) }}</small
+                {{
+                  row.type === 'percent'
+                    ? persianDigits(row.value) + '٪'
+                    : financialToman(row.value) + ' تومان'
+                }}</small
               ><small v-if="row.held !== undefined"
                 >رزروشده {{ persianDigits(row.held) }} · استفاده‌شده
                 {{ persianDigits(row.redeemed) }} · سقف
@@ -881,6 +898,10 @@ const navigationGroups: { title: string; ids: string[] }[] = [
                 min="0"
                 label="حداکثر تخفیف درصدی (ریال؛ صفر بدون سقف)"
               /><NumberStepper v-model="form.min_order_irr" min="0" label="حداقل خرید (ریال)" />
+              <label v-if="selected.id" class="checkbox"
+                ><input v-model="form.archived" type="checkbox" />بایگانی کد تخفیف (کد بایگانی‌شده
+                غیرفعال می‌شود)</label
+              >
               <fieldset data-testid="coupon-products">
                 <legend>محصولات مجاز</legend>
                 <p class="muted">دنیای پایه‌ها</p>

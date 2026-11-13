@@ -814,3 +814,29 @@ test('Editing Admin filters invalidates a held response and snapshots the next s
   await expect(page.locator('tbody tr')).toHaveCount(0);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
+
+test('Coupon archive and restore preserve a readable admin list on mobile', async ({ page }) => {
+  const code = await discount();
+  await manager(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/zanyari/commerce?section=coupons');
+  await page.getByRole('textbox', { name: 'جست‌وجو', exact: true }).fill(code);
+  await page.getByRole('button', { name: 'جست‌وجو و تازه‌سازی' }).click();
+  await expect(page.locator('tbody')).toContainText(code);
+  await page.getByRole('button', { name: 'ویرایش', exact: true }).click();
+  await page.getByRole('checkbox', { name: /بایگانی کد تخفیف/ }).check();
+  await page.getByLabel('دلیل تغییر').fill('Archive synthetic coupon after review');
+  await page.getByRole('button', { name: 'ثبت تغییرات', exact: true }).click();
+  await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+  await expect(page.locator('tbody')).not.toContainText(code);
+  await page.getByRole('button', { name: 'بایگانی‌شده', exact: true }).click();
+  await expect(page.locator('tbody')).toContainText(code);
+  await page.getByRole('button', { name: 'ویرایش', exact: true }).click();
+  await page.getByRole('checkbox', { name: /بایگانی کد تخفیف/ }).uncheck();
+  await page.getByLabel('دلیل تغییر').fill('Restore synthetic coupon after review');
+  await page.getByRole('button', { name: 'ثبت تغییرات', exact: true }).click();
+  await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'جاری', exact: true }).click();
+  await expect(page.locator('tbody')).toContainText(code);
+  await expect(page.locator('tbody')).toContainText('غیرفعال');
+});
