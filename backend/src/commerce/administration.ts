@@ -115,7 +115,7 @@ export class CommerceAdministration {
         b.max_per_customer,
       );
     await c.query(
-      "INSERT INTO discount_codes(id,campaign_id,code,type,value,max_discount_irr,min_order_irr,enabled,max_redemptions,max_per_customer) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(id) DO UPDATE SET code=EXCLUDED.code,type=EXCLUDED.type,value=EXCLUDED.value,max_discount_irr=EXCLUDED.max_discount_irr,min_order_irr=EXCLUDED.min_order_irr,enabled=EXCLUDED.enabled,max_redemptions=EXCLUDED.max_redemptions,max_per_customer=EXCLUDED.max_per_customer,revision=discount_codes.revision+1",
+      "INSERT INTO discount_codes(id,campaign_id,code,type,value,max_discount_irr,min_order_irr,enabled,max_redemptions,max_per_customer) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(id) DO UPDATE SET code=EXCLUDED.code,type=EXCLUDED.type,value=EXCLUDED.value,max_discount_irr=EXCLUDED.max_discount_irr,min_order_irr=EXCLUDED.min_order_irr,enabled=EXCLUDED.enabled AND discount_codes.archived_at IS NULL,max_redemptions=EXCLUDED.max_redemptions,max_per_customer=EXCLUDED.max_per_customer,revision=discount_codes.revision+1",
       [
         target,
         b.campaign_id,
@@ -124,11 +124,16 @@ export class CommerceAdministration {
         b.value,
         b.max_discount_irr,
         b.min_order_irr,
-        b.enabled,
+        b.enabled && !b.archived,
         b.max_redemptions,
         b.max_per_customer,
       ],
     );
+    if (b.archived !== undefined)
+      await c.query(
+        "UPDATE discount_codes SET archived_at=CASE WHEN $2 THEN COALESCE(archived_at,now()) ELSE NULL END,enabled=CASE WHEN $2 THEN false ELSE enabled END WHERE id=$1",
+        [target, b.archived],
+      );
     await c.query("DELETE FROM discount_products WHERE code_id=$1", [target]);
     for (const sku of new Set(b.skus))
       await c.query("INSERT INTO discount_products VALUES($1,$2)", [
@@ -160,10 +165,10 @@ export class CommerceAdministration {
         "SELECT x.*,o.sku,c.username FROM commerce_exceptions x JOIN orders o ON o.id=x.order_id JOIN customers c ON c.id=o.customer_id";
     else if (type === "reservations")
       sql =
-        "SELECT r.*,d.code FROM discount_reservations r JOIN discount_codes d ON d.id=r.code_id";
+        "SELECT r.*,d.code,c.username,o.sku,o.device_id,o.discount_irr,o.total_irr FROM discount_reservations r JOIN discount_codes d ON d.id=r.code_id JOIN customers c ON c.id=r.customer_id JOIN orders o ON o.id=r.order_id";
     else if (type === "redemptions")
       sql =
-        "SELECT r.*,d.code FROM discount_redemptions r JOIN discount_codes d ON d.id=r.code_id";
+        "SELECT r.*,d.code,c.username,o.sku,o.device_id,o.discount_irr,o.total_irr,'REDEEMED'::text state FROM discount_redemptions r JOIN discount_codes d ON d.id=r.code_id JOIN customers c ON c.id=r.customer_id JOIN orders o ON o.id=r.order_id";
     else if (type === "refunds")
       sql =
         "SELECT r.*,c.username FROM refund_requests r JOIN customers c ON c.id=r.customer_id";

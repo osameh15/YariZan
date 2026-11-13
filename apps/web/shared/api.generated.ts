@@ -4949,6 +4949,7 @@ export interface operations {
           enabled: boolean;
           max_redemptions: number | null;
           max_per_customer: number | null;
+          archived?: boolean;
           skus: string[];
         };
       };
@@ -5065,6 +5066,7 @@ export interface operations {
           enabled: boolean;
           max_redemptions: number | null;
           max_per_customer: number | null;
+          archived?: boolean;
           skus: string[];
         };
       };

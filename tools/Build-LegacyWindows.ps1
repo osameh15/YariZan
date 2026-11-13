@@ -10,7 +10,7 @@ $repoPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $bundlePath = (Resolve-Path -LiteralPath $GameBundleRoot).Path
 $manifest = Get-Content -Raw -LiteralPath (Join-Path $bundlePath 'manifest.json') | ConvertFrom-Json
 $catalog = @{
-    'combination-land' = @{ Name = 'YariZan-CombinationLand'; Sku = 'YARIZAN-S-COMBINATION-LAND'; Version = '1.0.0' }
+    'combination-land' = @{ Name = 'YariZan-CombinationLand'; Sku = 'YARIZAN-S-COMBINATION-LAND'; Version = '1.0.1' }
     'number-builder' = @{ Name = 'YariZan-NumberBuilder'; Sku = 'YARIZAN-S-NUMBER-BUILDER'; Version = '1.0.0' }
     'bundle-builder' = @{ Name = 'YariZan-BundleBuilder'; Sku = 'YARIZAN-S-BUNDLE-BUILDER'; Version = '1.0.0' }
     'grade-1' = @{ Name = 'YariZan-G1'; Sku = ''; Version = '' }

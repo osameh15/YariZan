@@ -3,15 +3,27 @@ import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import { adminSession, sql } from '../../tools/test-fixtures.mjs';
 
-test('eight drafts require approval; editor, publication, sitemap and responsive reading work', async ({
+test('Seeded posts retain draft approval; editor, publication, sitemap and responsive reading work', async ({
   page,
   context,
   request,
 }) => {
   test.setTimeout(120000);
+  for (const slug of ['clothing-combinations-game', 'mystery-bag-shape-game']) {
+    await sql(
+      "UPDATE blog_posts SET state='PUBLISHED',published_at=coalesce(published_at,now()),cover_image=$2 WHERE slug=$1",
+      [slug, '/blog-covers/' + slug + '.webp'],
+    );
+    const article = await request.get('/blog/' + slug);
+    expect(article.status()).toBe(200);
+    expect(await article.text()).toContain('/blog-covers/' + slug + '.webp');
+    const cover = await request.get('/blog-covers/' + slug + '.webp');
+    expect(cover.status()).toBe(200);
+    expect(cover.headers()['content-type']).toContain('image/webp');
+  }
   await sql("UPDATE blog_posts SET state='DRAFT'");
   const drafts = (await sql('SELECT * FROM blog_posts ORDER BY slug')).rows;
-  expect(drafts).toHaveLength(8);
+  expect(drafts).toHaveLength(10);
   const slug = drafts[0].slug;
   expect((await request.get('/blog/' + slug)).status()).toBe(404);
   expect(await (await request.get('/sitemap.xml')).text()).not.toContain('/blog/' + slug);
@@ -27,7 +39,7 @@ test('eight drafts require approval; editor, publication, sitemap and responsive
     { name: 'yz_csrf_admin', value: session.csrf, url: 'http://localhost:3200', sameSite: 'Lax' },
   ]);
   await page.goto('/zanyari/blog');
-  await expect(page.locator('.blog-list-item')).toHaveCount(8);
+  await expect(page.locator('.blog-list-item')).toHaveCount(10);
   await page.getByRole('button', { name: new RegExp(drafts[0].title) }).click();
   await expect(page.getByLabel('عنوان نوشته', { exact: true })).toHaveValue(drafts[0].title);
   await mkdir('.local/screenshots/blog', { recursive: true });
@@ -92,7 +104,7 @@ test('eight drafts require approval; editor, publication, sitemap and responsive
   await page.getByLabel('خلاصهٔ نوشته', { exact: true }).fill(drafts[0].description);
   await page.getByLabel('متن نوشته', { exact: true }).fill(drafts[0].body);
   await page.getByRole('button', { name: 'ذخیرهٔ پیش‌نویس', exact: true }).click();
-  await expect(page.locator('.blog-list-item')).toHaveCount(9);
+  await expect(page.locator('.blog-list-item')).toHaveCount(drafts.length + 1);
   expect((await request.get('/blog/review-only-new-draft')).status()).toBe(404);
   await page.getByRole('button', { name: 'بایگانی', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'نوشته بایگانی شد' })).toBeVisible();

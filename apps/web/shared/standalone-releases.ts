@@ -12,10 +12,10 @@ export interface StandaloneRelease {
 export const standaloneReleases: readonly StandaloneRelease[] = [
   {
     sku: 'YARIZAN-S-COMBINATION-LAND',
-    version: '1.0.0',
-    filename: 'YariZan-CombinationLand-Setup-v1.0.0.exe',
-    sizeBytes: 95886808,
-    sha256: '527bd5db56be71702cc38476d9fa6ddb0cf7cdce93c6fe0103d93fcde2d68684',
+    version: '1.0.1',
+    filename: 'YariZan-CombinationLand-Setup-v1.0.1.exe',
+    sizeBytes: 95882579,
+    sha256: '5895c3859e58348f9ec137a011adf07e793d0aa3ca3d5452f818f6e5da6bc000',
     published: true,
   },
   {
