@@ -47,3 +47,18 @@ export function blogDate(value: string) {
 }
 
 export type BlogSummary = Omit<BlogPost, 'body'>;
+
+// Parse links without accepting HTML or executable URL schemes.
+export function blogInline(text: string) {
+  const parts: { text: string; href?: string }[] = [];
+  let position = 0;
+  for (const match of text.matchAll(/\[([^\]\n]+)\]\(([^\s)]+)\)/g)) {
+    const href = match[2]!;
+    if (!/^https:\/\//.test(href) && !/^\/(?!\/)[a-z0-9/-]+$/.test(href)) continue;
+    if (match.index > position) parts.push({ text: text.slice(position, match.index) });
+    parts.push({ text: match[1]!, href });
+    position = match.index + match[0].length;
+  }
+  if (position < text.length) parts.push({ text: text.slice(position) });
+  return parts;
+}
