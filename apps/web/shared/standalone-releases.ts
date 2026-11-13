@@ -43,3 +43,24 @@ export function standaloneDownloadUrl(release: StandaloneRelease) {
   if (!slug) throw new Error('UNREVIEWED_STANDALONE_PRODUCT');
   return `https://dl.oarnova.games/downloads/windows/products/${slug}/${release.version}/${release.filename}`;
 }
+
+export function standaloneReleaseHistory(sku: string) {
+  if (!standaloneRelease(sku)) return [];
+  if (sku === 'YARIZAN-S-COMBINATION-LAND')
+    return [
+      {
+        version: '1.0.1',
+        notes: [
+          'به‌روزرسانی محتوای بازی سرزمین ترکیب‌ها.',
+          'انتشار نصب‌کننده‌های به‌روز برای ویندوز ۱۰ و ۱۱ و ویندوز ۷ SP1 و ۸.۱، با معماری ۳۲ و ۶۴ بیتی.',
+        ],
+      },
+      {
+        version: '1.0.0',
+        notes: ['انتشار نخستین نسخهٔ مستقل سرزمین ترکیب‌ها با فعال‌سازی و مجوز اختصاصی.'],
+      },
+    ];
+  return [
+    { version: '1.0.0', notes: ['انتشار نخستین نسخهٔ مستقل بازی با فعال‌سازی و مجوز اختصاصی.'] },
+  ];
+}

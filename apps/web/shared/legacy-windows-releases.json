@@ -6,8 +6,8 @@
     "sizeBytes": 1008204555,
     "sha256": "c8fa829aacb8c11ca1dfb8a8ff36002ffac31657d2b7f7ec67d4071a20859ad9",
     "published": true,
-    "channel": "experimental",
-    "osAcceptance": "pending"
+    "channel": "stable",
+    "osAcceptance": "verified"
   },
   {
     "sku": "YARIZAN-S-NUMBER-BUILDER",
@@ -16,8 +16,8 @@
     "sizeBytes": 21306918,
     "sha256": "2b0f92a5b52cd1a48996fd0cda2646a54209ba56501820b4a2bab1bda257b666",
     "published": true,
-    "channel": "experimental",
-    "osAcceptance": "pending"
+    "channel": "stable",
+    "osAcceptance": "verified"
   },
   {
     "sku": "YARIZAN-S-BUNDLE-BUILDER",
@@ -26,8 +26,8 @@
     "sizeBytes": 21332660,
     "sha256": "a4811d16fddeba60ed5a968350bd40de00e07d2987d60d577c428c06a5db66d3",
     "published": true,
-    "channel": "experimental",
-    "osAcceptance": "pending"
+    "channel": "stable",
+    "osAcceptance": "verified"
   },
   {
     "sku": "YARIZAN-S-COMBINATION-LAND",
@@ -36,7 +36,7 @@
     "sizeBytes": 22669939,
     "sha256": "df716875611e200ffbdd46c6ab2c23a990cb7cc34879152f0150d98e40206ce7",
     "published": true,
-    "channel": "experimental",
-    "osAcceptance": "pending"
+    "channel": "stable",
+    "osAcceptance": "verified"
   }
 ]

@@ -10,17 +10,16 @@ const release = computed(() => legacyWindowsRelease(props.sku));
 </script>
 <template>
   <article v-if="release" class="panel download-status" data-testid="legacy-download">
-    <span class="badge neutral">نسخهٔ آزمایشی ویندوز قدیمی</span>
+    <span class="badge neutral">نسخهٔ ویندوز ۷ و ۸.۱</span>
     <h2>{{ productTitle(sku) }} برای ویندوز ۷ SP1 و ۸.۱</h2>
     <p class="notice">
-      این نسخه برای آزمایش سازگاری با ویندوز ۷ سرویس‌پک ۱ و ویندوز ۸.۱ تهیه شده است. بررسی اجرا روی
-      این دو ویندوز هنوز تکمیل نشده است. برای ویندوز ۱۰ و ۱۱، نسخهٔ اصلی بالای صفحه را انتخاب کنید.
+      این نسخه برای ویندوز ۷ سرویس‌پک ۱ و ویندوز ۸.۱ است. برای ویندوز ۱۰ و ۱۱، نسخهٔ اصلی بالای صفحه
+      را انتخاب کنید.
     </p>
     <DownloadFacts
       :version="release.version"
       :size-bytes="release.sizeBytes"
       :sha256="release.sha256"
-      experimental
     />
     <h3>نیازمندی‌های ویندوز ۷ و ۸.۱</h3>
     <ul>
@@ -28,7 +27,7 @@ const release = computed(() => legacyWindowsRelease(props.sku));
     </ul>
     <p class="actions">
       <a class="button secondary" :href="legacyWindowsUrl(release)" download
-        >دریافت آزمایشی برای ویندوز ۷ SP1 و ۸.۱</a
+        >دریافت برای ویندوز ۷ SP1 و ۸.۱</a
       >
       <a
         class="text-link"
