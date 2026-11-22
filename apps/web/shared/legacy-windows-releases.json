@@ -31,12 +31,12 @@
   },
   {
     "sku": "YARIZAN-S-COMBINATION-LAND",
-    "version": "1.0.1",
-    "filename": "YariZan-CombinationLand-Legacy-Setup-v1.0.1-beta.exe",
-    "sizeBytes": 22669939,
-    "sha256": "df716875611e200ffbdd46c6ab2c23a990cb7cc34879152f0150d98e40206ce7",
+    "version": "1.0.2",
+    "filename": "YariZan-CombinationLand-Legacy-Setup-v1.0.2-beta.exe",
+    "sizeBytes": 22758741,
+    "sha256": "7f6512925acf5ab8fdfa2e4147bd525b5bdb620b801f02abd593108344dc25b1",
     "published": true,
-    "channel": "stable",
-    "osAcceptance": "verified"
+    "channel": "experimental",
+    "osAcceptance": "pending"
   }
 ]

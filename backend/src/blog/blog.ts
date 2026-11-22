@@ -253,6 +253,10 @@ export class Blog {
             "shape-and-colour-pattern-games",
             "pattern-games-at-home",
             "more-less-and-equal-games",
+            "number-bond-cafe",
+            "paper-fractions",
+            "measuring-with-clips",
+            "sorting-button-museum",
           ].some((slug) => cover === `/blog-covers/${slug}.webp`),
           "BLOG_IMAGE_INVALID",
         );

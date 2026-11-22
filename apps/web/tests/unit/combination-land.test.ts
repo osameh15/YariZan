@@ -15,9 +15,9 @@ describe('Combination Land product and ongoing offer', () => {
     expect(productSchema.parse(p).grade).toBe(0);
     expect(p.title_fa).toBe('سرزمین ترکیب‌ها');
     expect(productPath(p)).toBe('/special-products/combination-land');
-    expect(p.price_irr).toBe(3990000);
-    expect(p.effective_price_irr).toBe(2990000);
-    expect(p.promotion?.discount_percent).toBe(25);
+    expect(p.price_irr).toBe(5190000);
+    expect(p.effective_price_irr).toBe(3990000);
+    expect(p.promotion?.discount_percent).toBe(23);
     expect(endsLabel(p.promotion!.ends_at)).toBe('');
     expect(safeReturn('/checkout?sku=' + sku)).toBe('/checkout?sku=' + sku);
     expect(standaloneProduct(sku)?.sku).toBe(sku);
@@ -25,6 +25,6 @@ describe('Combination Land product and ongoing offer', () => {
     expect(allowedBrowserRoute('GET', 'admin/products/' + sku + '/promotions')).toBe(true);
   });
   it('maps the reviewed release used after the deployment mirror checksum guard', () => {
-    expect(standaloneRelease(sku)?.filename).toBe('YariZan-CombinationLand-Setup-v1.0.1.exe');
+    expect(standaloneRelease(sku)?.filename).toBe('YariZan-CombinationLand-Setup-v1.0.2.exe');
   });
 });

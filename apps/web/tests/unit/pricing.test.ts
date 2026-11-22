@@ -16,7 +16,7 @@ describe('approved pricing contract', () => {
       expect(Number.isSafeInteger(p.price_irr)).toBe(true);
       const expected =
         p.sku === 'YARIZAN-S-COMBINATION-LAND'
-          ? [3990000, '۳۹۹٬۰۰۰']
+          ? [5190000, '۵۱۹٬۰۰۰']
           : p.grade === 0
             ? [1990000, '۱۹۹٬۰۰۰']
             : [14990000, '۱٬۴۹۹٬۰۰۰'];
@@ -38,7 +38,7 @@ describe('public storefront catalog', () => {
       ...Array(6).fill(14990000),
       1990000,
       1990000,
-      3990000,
+      5190000,
     ]);
     expect(brochure.products.every((p) => p.price_irr === null)).toBe(true);
   });

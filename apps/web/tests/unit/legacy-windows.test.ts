@@ -8,13 +8,14 @@ import {
 import { standaloneProducts } from '../../shared/products';
 
 describe('legacy Windows downloads', () => {
-  it('covers every released product with a separate tested installer', () => {
+  it('covers every released product and identifies the new legacy candidate', () => {
     const skus = ['YARIZAN-G1', ...standaloneProducts.map((p) => p.sku)].sort();
     expect(legacyWindowsReleases.map((p) => p.sku).sort()).toEqual(skus);
     for (const sku of skus) {
       const record = legacyWindowsRelease(sku)!;
-      expect(record.channel).toBe('stable');
-      expect(record.osAcceptance).toBe('verified');
+      const isCandidate = sku === 'YARIZAN-S-COMBINATION-LAND';
+      expect(record.channel).toBe(isCandidate ? 'experimental' : 'stable');
+      expect(record.osAcceptance).toBe(isCandidate ? 'pending' : 'verified');
       expect(record.filename).toMatch(/-Legacy-Setup-v[0-9.]+-beta\.exe$/);
       const url = legacyWindowsUrl(record);
       expect(url).toMatch(/^https:\/\/dl\.oarnova\.games\/downloads\/windows\/legacy\//);

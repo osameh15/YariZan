@@ -9,7 +9,16 @@ test('Seeded posts retain draft approval; editor, publication, sitemap and respo
   request,
 }) => {
   test.setTimeout(120000);
-  for (const slug of ['clothing-combinations-game', 'mystery-bag-shape-game']) {
+  const newDrafts = [
+    'measuring-with-clips',
+    'number-bond-cafe',
+    'paper-fractions',
+    'sorting-button-museum',
+  ];
+  for (const slug of newDrafts) {
+    expect((await request.get('/blog/' + slug)).status()).toBe(404);
+  }
+  for (const slug of ['clothing-combinations-game', 'mystery-bag-shape-game', ...newDrafts]) {
     await sql(
       "UPDATE blog_posts SET state='PUBLISHED',published_at=coalesce(published_at,now()),cover_image=$2 WHERE slug=$1",
       [slug, '/blog-covers/' + slug + '.webp'],
@@ -23,7 +32,7 @@ test('Seeded posts retain draft approval; editor, publication, sitemap and respo
   }
   await sql("UPDATE blog_posts SET state='DRAFT'");
   const drafts = (await sql('SELECT * FROM blog_posts ORDER BY slug')).rows;
-  expect(drafts).toHaveLength(10);
+  expect(drafts).toHaveLength(14);
   const slug = drafts[0].slug;
   expect((await request.get('/blog/' + slug)).status()).toBe(404);
   expect(await (await request.get('/sitemap.xml')).text()).not.toContain('/blog/' + slug);
@@ -39,7 +48,7 @@ test('Seeded posts retain draft approval; editor, publication, sitemap and respo
     { name: 'yz_csrf_admin', value: session.csrf, url: 'http://localhost:3200', sameSite: 'Lax' },
   ]);
   await page.goto('/zanyari/blog');
-  await expect(page.locator('.blog-list-item')).toHaveCount(10);
+  await expect(page.locator('.blog-list-item')).toHaveCount(drafts.length);
   await page.getByRole('button', { name: new RegExp(drafts[0].title) }).click();
   await expect(page.getByLabel('عنوان نوشته', { exact: true })).toHaveValue(drafts[0].title);
   await mkdir('.local/screenshots/blog', { recursive: true });

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { PoolClient } from "pg";
 import { z } from "zod";
@@ -96,7 +96,7 @@ export const activePromotionSql = `q.sku=r.sku AND q.state='ENABLED' AND q.origi
 export class Promotions {
   constructor(
     private audit: Audit,
-    private security: Security,
+    @Inject(Security) private security: Security | null,
   ) {}
 
   /** Current list price and the active promotion, decided in one statement on database time. */
@@ -114,7 +114,7 @@ export class Promotions {
     // Local acceptance only (config refuses it outside development/test): Grade 1 is priced at the
     // configured test amount, no promotion applies, and everything downstream (quote, order snapshot,
     // payment, verification) uses that one amount and is labelled as a test price.
-    const testPrice = this.security.config.LOCAL_TEST_PRICE_G1_IRR;
+    const testPrice = this.security?.config.LOCAL_TEST_PRICE_G1_IRR;
     if (testPrice !== undefined && sku === "YARIZAN-G1")
       return {
         sku,

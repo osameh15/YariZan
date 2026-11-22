@@ -1,6 +1,6 @@
 import { standaloneProduct } from './products';
-// An installer becomes publicly downloadable only after its reviewed release has been
-// published on the mirror. Local builds alone must never create a broken download link.
+// The coordinated deployment publishes reviewed installers on the mirror before routing
+// traffic to the storefront that links to them.
 export interface StandaloneRelease {
   sku: string;
   version: string;
@@ -12,10 +12,10 @@ export interface StandaloneRelease {
 export const standaloneReleases: readonly StandaloneRelease[] = [
   {
     sku: 'YARIZAN-S-COMBINATION-LAND',
-    version: '1.0.1',
-    filename: 'YariZan-CombinationLand-Setup-v1.0.1.exe',
-    sizeBytes: 95882579,
-    sha256: '5895c3859e58348f9ec137a011adf07e793d0aa3ca3d5452f818f6e5da6bc000',
+    version: '1.0.2',
+    filename: 'YariZan-CombinationLand-Setup-v1.0.2.exe',
+    sizeBytes: 95953781,
+    sha256: 'fdeb3f0b2ffb64bed774498f767abe790cfdf3b29fa347502abaecc54a1fc0a0',
     published: true,
   },
   {
@@ -48,6 +48,10 @@ export function standaloneReleaseHistory(sku: string) {
   if (!standaloneRelease(sku)) return [];
   if (sku === 'YARIZAN-S-COMBINATION-LAND')
     return [
+      {
+        version: '1.0.2',
+        notes: ['به‌روزرسانی محتوای بازی و ساخت نصب‌کننده‌های جدید ۳۲ و ۶۴ بیتی.'],
+      },
       {
         version: '1.0.1',
         notes: [

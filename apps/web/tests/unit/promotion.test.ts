@@ -85,12 +85,12 @@ describe('a promotion is shown only while it is active', () => {
 describe('reviewed publication list for the public-only storefront', () => {
   it('publishes only the owner-approved ongoing Combination Land offer', () => {
     expect(publishedPromotions).toHaveLength(1);
-    const catalog = publicCatalog('storefront', new Date('2026-11-10T00:00:00Z'));
+    const catalog = publicCatalog('storefront', new Date('2026-11-23T00:00:00Z'));
     for (const p of catalog.products) {
       if (p.sku === 'YARIZAN-S-COMBINATION-LAND') {
-        expect(p.price_irr).toBe(3990000);
-        expect(p.effective_price_irr).toBe(2990000);
-        expect(p.promotion?.discount_percent).toBe(25);
+        expect(p.price_irr).toBe(5190000);
+        expect(p.effective_price_irr).toBe(3990000);
+        expect(p.promotion?.discount_percent).toBe(23);
       } else expect(p.promotion).toBeNull();
     }
     for (const p of publicCatalog('brochure').products) expect(p.promotion).toBeNull();

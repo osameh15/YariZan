@@ -9,10 +9,10 @@ import type { PublishedPromotion } from './promotion';
 export const publishedPromotions: readonly PublishedPromotion[] = [
   {
     sku: 'YARIZAN-S-COMBINATION-LAND',
-    original_price_irr: 3990000,
-    price_irr: 2990000,
-    starts_at: '2026-11-09T00:00:00Z',
+    original_price_irr: 5190000,
+    price_irr: 3990000,
+    starts_at: '2026-11-22T00:00:00Z',
     ends_at: '9999-12-31T00:00:00Z',
-    approval: 'Owner request 2026-11-09: 399000 list, 299000 offer until disabled',
+    approval: 'Owner request 2026-11-22: 519000 list, 399000 offer until disabled',
   },
 ];

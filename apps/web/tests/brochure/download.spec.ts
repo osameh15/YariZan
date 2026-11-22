@@ -8,7 +8,7 @@ import path from 'node:path';
 const profile = process.env.YARIZAN_PUBLIC_PROFILE === 'storefront' ? 'storefront' : 'brochure';
 const images = path.resolve('.local/screenshots/' + profile);
 
-test('all released products show modern and tested legacy downloads with clear requirements', async ({
+test('all released products show modern and legacy downloads with clear requirements', async ({
   page,
 }) => {
   for (const width of [1440, 390]) {
@@ -25,7 +25,8 @@ test('all released products show modern and tested legacy downloads with clear r
       await expect(legacy).toContainText('ویندوز ۷ SP1 و ۸.۱');
       await expect(legacy).toContainText('Microsoft .NET Framework 4.8');
       await expect(legacy).not.toContainText('هنوز تکمیل نشده');
-      await expect(legacy).not.toContainText('آزمایشی');
+      if (sku === 'YARIZAN-S-COMBINATION-LAND') await expect(legacy).toContainText('آزمایشی');
+      else await expect(legacy).not.toContainText('آزمایشی');
       await expect(legacy.locator('a[download]')).toHaveAttribute(
         'href',
         /\/windows\/legacy\/.+-beta\.exe$/,
@@ -213,7 +214,7 @@ test('screenshots of the grade selector at desktop and mobile widths', async ({ 
 test('special product release history follows the selected product', async ({ page }) => {
   await page.goto('/download?product=YARIZAN-S-COMBINATION-LAND');
   const history = page.getByTestId('special-release-history');
-  await expect(history.locator('h3 bdi')).toHaveText(['۱.۰.۱', '۱.۰.۰']);
+  await expect(history.locator('h3 bdi')).toHaveText(['۱.۰.۲', '۱.۰.۱', '۱.۰.۰']);
   await expect(history.locator('.release-history-latest')).toHaveCount(1);
   await expect(history.locator('h3 bdi').first()).toHaveAttribute('dir', 'ltr');
   await page.goto('/download?product=YARIZAN-S-NUMBER-BUILDER');

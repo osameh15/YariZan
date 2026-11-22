@@ -1,4 +1,4 @@
-﻿import "reflect-metadata";
+import "reflect-metadata";
 import sharp from "sharp";
 import { before, beforeEach, after, test } from "node:test";
 import assert from "node:assert/strict";
@@ -358,7 +358,7 @@ test("Blog drafts need authorized publication, preserve URLs, and reject stale e
       posts: { id: string; slug: string; state: string; revision: string }[];
     }>("/admin/blog", undefined, admin)
   ).body.posts;
-  assert.equal(all.filter((p) => p.state === "DRAFT").length, 8);
+  assert.equal(all.filter((p) => p.state === "DRAFT").length, 12);
   assert.equal((await ok<{ posts: unknown[] }>("/blog")).body.posts.length, 2);
   await denied(
     "/blog/" + all.find((p) => p.state === "DRAFT")!.slug,
@@ -561,7 +561,7 @@ test("Actual PostgreSQL 17 and six exact products/prices", async () => {
       (p) =>
         p.price_irr ===
         (p.sku === "YARIZAN-S-COMBINATION-LAND"
-          ? 3990000
+          ? 5190000
           : p.grade === 0
             ? 1990000
             : 14990000),
@@ -1939,7 +1939,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 23 });
+    assert.deepEqual(await verifyMigrations(c), { total: 24 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,
