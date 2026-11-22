@@ -508,7 +508,7 @@ try {
       ['YARIZAN-G1', 14990000, 'published', true],
       ...[2, 3, 4, 5, 6].map((g) => [`YARIZAN-G${g}`, 14990000, 'coming_soon', false]),
       ['YARIZAN-S-BUNDLE-BUILDER', 1990000, 'published', true],
-      ['YARIZAN-S-COMBINATION-LAND', 3990000, 'published', true],
+      ['YARIZAN-S-COMBINATION-LAND', 5190000, 'published', true],
       ['YARIZAN-S-NUMBER-BUILDER', 1990000, 'published', true],
     ],
   );
