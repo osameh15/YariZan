@@ -84,7 +84,7 @@ test("Approved pricing contract: six SKUs, integer IRR, G1 launch candidate only
       ]),
       ["YARIZAN-S-BUNDLE-BUILDER", 0, 1990000, "launch-candidate"],
       ["YARIZAN-S-NUMBER-BUILDER", 0, 1990000, "launch-candidate"],
-      ["YARIZAN-S-COMBINATION-LAND", 0, 3990000, "launch-candidate"],
+      ["YARIZAN-S-COMBINATION-LAND", 0, 5190000, "launch-candidate"],
     ],
   );
   for (const p of approvedPricing.products) {

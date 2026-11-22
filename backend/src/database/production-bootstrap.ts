@@ -3,6 +3,7 @@ import { productTitle } from "../catalog/standalone-products";
 import { Pool } from "pg";
 import { Audit } from "../audit/audit";
 import { approvedPricing } from "../catalog/approved-pricing";
+import { Promotions } from "../commerce/promotions";
 import { ConfigurationError, migrationConfiguration } from "../config";
 import { verifyMigrations } from "./migrate";
 import { seedAdminRoles } from "./seed";
@@ -212,7 +213,11 @@ export async function publishApprovedCatalog(
 
 // Explicit owner-approved rollout. Existing order/payment snapshots and ended prices remain
 // immutable. Run after catalog/price bootstrap, once the new API and web containers run.
-export async function applyProductUpdate(pool: Pool, revision: string) {
+export async function applyProductUpdate(
+  pool: Pool,
+  revision: string,
+  offerOwnerId?: string,
+) {
   if (revision !== approvedPricing.revision)
     throw new ConfigurationError(
       `PRICING_REVISION_MISMATCH: expected ${approvedPricing.revision}`,
@@ -225,9 +230,12 @@ export async function applyProductUpdate(pool: Pool, revision: string) {
     const audit = new Audit();
     const correlationId = randomUUID();
     await c.query("SELECT pg_advisory_xact_lock(748293002)");
+    const revisionAction = offerOwnerId
+      ? "catalog.revision_with_offer_applied"
+      : "catalog.revision_applied";
     const applied = await c.query(
-      "SELECT 1 FROM audit_logs WHERE action='catalog.revision_applied' AND entity_id=$1",
-      [revision],
+      "SELECT 1 FROM audit_logs WHERE action=$1 AND entity_id=$2",
+      [revisionAction, revision],
     );
     if (applied.rowCount) {
       await c.query("COMMIT");
@@ -238,6 +246,9 @@ export async function applyProductUpdate(pool: Pool, revision: string) {
       .map((p) => p.sku);
     for (const sku of standalone) {
       const approved = approvedPricing.products.find((p) => p.sku === sku)!;
+      const promotions = new Promotions(audit, null);
+      const offerReason =
+        "Owner approved 2026-11-22: 519000 toman list, 399000 offer until disabled";
       const product = await c.query(
         "SELECT 1 FROM products WHERE sku=$1 FOR UPDATE",
         [sku],
@@ -255,13 +266,29 @@ export async function applyProductUpdate(pool: Pool, revision: string) {
         BigInt(current.amount_irr) !== BigInt(approved.price_irr)
       ) {
         const promotion = await c.query(
-          "SELECT 1 FROM product_promotions WHERE sku=$1 AND state='ENABLED' AND ends_at>clock_timestamp()",
+          "SELECT id,revision,original_price_irr,promo_price_irr FROM product_promotions WHERE sku=$1 AND state='ENABLED' AND ends_at>clock_timestamp() FOR UPDATE",
           [sku],
         );
-        if (promotion.rowCount)
-          throw new ConfigurationError(
-            "ACTIVE_PROMOTION: deactivate before changing the list price",
+        for (const prior of promotion.rows) {
+          if (
+            !offerOwnerId ||
+            Number(prior.original_price_irr) !== 3990000 ||
+            Number(prior.promo_price_irr) !== 2990000
+          )
+            throw new ConfigurationError(
+              "ACTIVE_PROMOTION: review before changing the list price",
+            );
+          await promotions.deactivate(
+            c,
+            prior.id,
+            {
+              request_id: randomUUID(),
+              expected_revision: Number(prior.revision),
+              reason: offerReason,
+            },
+            { type: "ADMIN", id: offerOwnerId, correlationId },
           );
+        }
         await c.query(
           "UPDATE product_prices SET ended_at=transaction_timestamp() WHERE sku=$1 AND ended_at IS NULL",
           [sku],
@@ -282,6 +309,32 @@ export async function applyProductUpdate(pool: Pool, revision: string) {
         );
         changed.push(sku);
       }
+      if (offerOwnerId) {
+        const currentOffer = await c.query(
+          "SELECT 1 FROM product_promotions WHERE sku=$1 AND state='ENABLED' AND ends_at>clock_timestamp()",
+          [sku],
+        );
+        if (currentOffer.rowCount)
+          throw new ConfigurationError(
+            "ACTIVE_PROMOTION: review before applying the new offer",
+          );
+        const productRevision = await c.query(
+          "SELECT revision FROM products WHERE sku=$1",
+          [sku],
+        );
+        await promotions.create(
+          c,
+          sku,
+          {
+            request_id: randomUUID(),
+            expected_revision: Number(productRevision.rows[0].revision),
+            promo_price_irr: 3990000,
+            ends_at: "9999-12-31T00:00:00Z",
+            reason: offerReason,
+          },
+          { type: "ADMIN", id: offerOwnerId, correlationId },
+        );
+      }
     }
     const published = await c.query<{ sku: string }>(
       "UPDATE products SET publication_status='published',sale_enabled=true,trial_enabled=true,activation_enabled=true,revision=revision+1 WHERE sku=ANY($1::text[]) AND (publication_status<>'published' OR NOT sale_enabled OR NOT trial_enabled OR NOT activation_enabled) RETURNING sku",
@@ -298,7 +351,7 @@ export async function applyProductUpdate(pool: Pool, revision: string) {
     await audit.append(
       c,
       { type: "SYSTEM", correlationId },
-      "catalog.revision_applied",
+      revisionAction,
       revision,
       { changed },
     );
