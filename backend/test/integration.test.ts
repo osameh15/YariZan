@@ -358,7 +358,7 @@ test("Blog drafts need authorized publication, preserve URLs, and reject stale e
       posts: { id: string; slug: string; state: string; revision: string }[];
     }>("/admin/blog", undefined, admin)
   ).body.posts;
-  assert.equal(all.filter((p) => p.state === "DRAFT").length, 8);
+  assert.equal(all.filter((p) => p.state === "DRAFT").length, 12);
   assert.equal((await ok<{ posts: unknown[] }>("/blog")).body.posts.length, 2);
   await denied(
     "/blog/" + all.find((p) => p.state === "DRAFT")!.slug,
