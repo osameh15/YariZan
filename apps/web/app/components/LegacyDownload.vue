@@ -10,7 +10,9 @@ const release = computed(() => legacyWindowsRelease(props.sku));
 </script>
 <template>
   <article v-if="release" class="panel download-status" data-testid="legacy-download">
-    <span class="badge neutral">نسخهٔ ویندوز ۷ و ۸.۱</span>
+    <span class="badge neutral">{{
+      release.channel === 'experimental' ? 'نسخهٔ آزمایشی ویندوز ۷ و ۸.۱' : 'نسخهٔ ویندوز ۷ و ۸.۱'
+    }}</span>
     <h2>{{ productTitle(sku) }} برای ویندوز ۷ SP1 و ۸.۱</h2>
     <p class="notice">
       این نسخه برای ویندوز ۷ سرویس‌پک ۱ و ویندوز ۸.۱ است. برای ویندوز ۱۰ و ۱۱، نسخهٔ اصلی بالای صفحه

@@ -4,6 +4,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { Pool, PoolClient } from "pg";
 import { approvedPricing } from "../src/catalog/approved-pricing";
+import { Audit } from "../src/audit/audit";
+import { Promotions } from "../src/commerce/promotions";
 import { migrate } from "../src/database/migrate";
 import {
   initializePricing,
@@ -386,6 +388,57 @@ test("Approved catalog publication: G1 published, others coming soon, flags clos
     ).rows[0].publication_status,
     "published",
   );
+});
+
+test("Combination Land repricing replaces the prior offer and is safe to rerun", async () => {
+  const pool = await freshDatabase("yarizan_phase2_combination_reprice");
+  const sku = "YARIZAN-S-COMBINATION-LAND";
+  const owner = randomUUID();
+  const oldPrice = randomUUID();
+  await migrate(transactional(pool));
+  await productionBootstrap(pool);
+  await pool.query(
+    "INSERT INTO admins(id,username,password_hash,mfa_ciphertext) VALUES($1,'offer-test-owner','unused','unused')",
+    [owner],
+  );
+  await pool.query("INSERT INTO admin_user_roles VALUES($1,'owner')", [owner]);
+  await transactional(pool).transaction(async (c) => {
+    await c.query(
+      "INSERT INTO product_prices(id,sku,amount_irr,source,pricing_revision) VALUES($1,$2,3990000,'BOOTSTRAP','pricing-2026-11-09-r1')",
+      [oldPrice, sku],
+    );
+    const promotion = new Promotions(new Audit(), null);
+    await promotion.create(
+      c,
+      sku,
+      {
+        request_id: randomUUID(),
+        expected_revision: 1,
+        promo_price_irr: 2990000,
+        ends_at: "9999-12-31T00:00:00Z",
+        reason: "Previous owner-approved offer",
+      },
+      { type: "ADMIN", id: owner, correlationId: randomUUID() },
+    );
+  });
+  assert.deepEqual((await applyProductUpdate(pool, revision, owner)).changed, [
+    sku,
+  ]);
+  const pricing = new Promotions(new Audit(), null);
+  const result = await transactional(pool).transaction((c) =>
+    pricing.pricing(c, sku),
+  );
+  assert.equal(result.list_price_irr, 5190000);
+  assert.equal(result.effective_price_irr, 3990000);
+  assert.equal(
+    (await applyProductUpdate(pool, revision, owner)).already_applied,
+    true,
+  );
+  const previous = await pool.query(
+    "SELECT state FROM product_promotions WHERE base_price_id=$1",
+    [oldPrice],
+  );
+  assert.deepEqual(previous.rows, [{ state: "DISABLED" }]);
 });
 
 test("New product rollout preserves G1 prices, enables Combination Land, and is idempotent", async () => {
