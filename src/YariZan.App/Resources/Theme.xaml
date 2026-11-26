@@ -92,8 +92,13 @@
     </Style>
 
     <Style x:Key="ExitButton" TargetType="Button" BasedOn="{StaticResource GoldButton}">
+        <Setter Property="Content" Value="×" />
+        <Setter Property="Width" Value="46" />
+        <Setter Property="Margin" Value="2" />
+        <Setter Property="ToolTip" Value="بستن برنامه" />
+        <Setter Property="AutomationProperties.Name" Value="بستن برنامه" />
         <Setter Property="FontSize" Value="16" />
-        <Setter Property="Padding" Value="18,8" />
+        <Setter Property="Padding" Value="0" />
         <Setter Property="MinHeight" Value="38" />
         <Setter Property="Foreground" Value="#FFF1E2B7" />
         <Setter Property="Template">
@@ -134,11 +139,14 @@
     </Style>
 
     <Style x:Key="MinimizeButton" TargetType="Button" BasedOn="{StaticResource GoldButton}">
-        <Setter Property="Content" Value="کوچک نمایی" />
-        <Setter Property="FontSize" Value="14" />
-        <Setter Property="MinHeight" Value="36" />
-        <Setter Property="Padding" Value="14,6" />
+        <Setter Property="Content" Value="−" />
+        <Setter Property="Width" Value="46" />
+        <Setter Property="Margin" Value="2" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="MinHeight" Value="38" />
+        <Setter Property="Padding" Value="0" />
         <Setter Property="ToolTip" Value="کوچک‌نمایی پنجره" />
+        <Setter Property="AutomationProperties.Name" Value="کوچک‌نمایی پنجره" />
     </Style>
 
     <Style x:Key="GradeChip" TargetType="ToggleButton">

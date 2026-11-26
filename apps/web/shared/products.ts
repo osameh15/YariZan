@@ -35,18 +35,24 @@ export const standaloneProducts = [
     description:
       'سرزمین ترکیب‌ها؛ یک بازی مستقل در مجموعهٔ محصولات ویژهٔ یاریزان، با فعال‌سازی و مجوز اختصاصی.',
     symbol: '✦',
-    shots: [
-      { src: '/products/combination-land/screen-1.webp', alt: 'صفحهٔ آغاز بازی سرزمین ترکیب‌ها' },
-      {
-        src: '/products/combination-land/screen-2.webp',
-        alt: 'تمرین ترکیب نشانه‌ها و صداها در سرزمین ترکیب‌ها',
-      },
-    ] as readonly StandaloneShot[],
+    shots: Array.from({ length: 5 }, (_, index) => ({
+      src: `/products/combination-land/screen-${index + 1}.webp`,
+      alt: `نمای ${index + 1} از بازی سرزمین ترکیب‌ها`,
+    })),
   },
 ] as const;
 
 export function standaloneProduct(sku: string) {
   return standaloneProducts.find((p) => p.sku === sku);
+}
+
+const gradeOneShots: readonly StandaloneShot[] = Array.from({ length: 7 }, (_, index) => ({
+  src: `/products/grade-1/screen-${index + 1}.webp`,
+  alt: `نمای ${index + 1} از مجموعهٔ بازی‌های پایهٔ اول`,
+}));
+
+export function productShots(sku: string): readonly StandaloneShot[] {
+  return sku === 'YARIZAN-G1' ? gradeOneShots : (standaloneProduct(sku)?.shots ?? []);
 }
 
 export function productPath(product: { sku: string; grade: number }) {

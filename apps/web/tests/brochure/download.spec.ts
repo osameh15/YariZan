@@ -33,7 +33,9 @@ test('all released products show modern and legacy downloads with clear requirem
       );
       await expect(legacy.locator('code')).toContainText('certutil -hashfile');
       await expect(page.getByText('نسخهٔ اصلی برای ویندوز ۱۰ و ۱۱', { exact: true })).toBeVisible();
-      for (const panel of [legacy, page.locator('.download-status').first()]) {
+      const modern = page.getByTestId('modern-download');
+      await expect(page.locator('.download-status').first()).toContainText('ویندوز ۷ SP1 و ۸.۱');
+      for (const panel of [legacy, modern]) {
         for (const label of ['شمارهٔ نسخه', 'حجم فایل', 'معماری', 'قالب نصب‌کننده']) {
           await expect(panel.locator('dt', { hasText: label })).toBeVisible();
         }
@@ -78,6 +80,7 @@ test('six grade cards are shown, grade 1 is preselected and only grade 1 is down
   );
   await expect(page.getByTestId('download-unsigned-notice')).toBeVisible();
   const downloads = await panel
+    .getByTestId('modern-download')
     .locator('a[href]')
     .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));
   expect(downloads).toEqual([

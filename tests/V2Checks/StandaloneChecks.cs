@@ -38,7 +38,11 @@ internal static partial class Program
             Check(clock.Elapsed >= TimeSpan.FromMilliseconds(1900), "Studio splash remains visible for about two seconds");
             var page = (LockPage)Page(window)!;
             Check(((TextBlock)page.FindName("ActivationTitle")).Text.Contains("عددساز کوچولو"), "Activation identifies the independent game");
-            Check(((Button)page.FindName("TrialButton")).Content.ToString() == "آزمایش نسخه", "Independent activation exposes the trial action");
+            var trial = (Button)page.FindName("TrialButton");
+            Pump(() => trial.IsEnabled);
+            Check(Equals(trial.Content, "شروع بازی آزمایشی"), "Connected players see a clear action to start the trial");
+            Check(((Button)page.FindName("HelpButton")).IsVisible && ((Button)page.FindName("SupportButton")).IsVisible,
+                "Independent activation exposes Help and Support");
             Check(((Button)page.FindName("BackButton")).Visibility == Visibility.Collapsed, "Independent activation never offers the grade book navigation");
             Check(window.IsCompact, "Independent activation uses the compact G1 window layout");
         }

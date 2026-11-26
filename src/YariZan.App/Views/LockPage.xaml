@@ -28,24 +28,6 @@
             <Setter Property="Margin" Value="4" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
-        <Style x:Key="DialogMinimize" TargetType="Button" BasedOn="{StaticResource MinimizeButton}">
-            <Setter Property="Height" Value="42" />
-            <Setter Property="MinHeight" Value="42" />
-            <Setter Property="MinWidth" Value="118" />
-            <Setter Property="Padding" Value="16,0" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="Margin" Value="4" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style x:Key="DialogExit" TargetType="Button" BasedOn="{StaticResource ExitButton}">
-            <Setter Property="Height" Value="42" />
-            <Setter Property="MinHeight" Value="42" />
-            <Setter Property="MinWidth" Value="118" />
-            <Setter Property="Padding" Value="16,0" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="Margin" Value="4" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
         <Style x:Key="GuideStep" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14" />
             <Setter Property="TextWrapping" Value="Wrap" />
@@ -88,16 +70,31 @@
                 CornerRadius="14" BorderBrush="{StaticResource LeatherDarkBrush}" BorderThickness="3"
                 Background="{StaticResource ParchmentBrushGradient}" Padding="24,22">
             <StackPanel>
+                <DockPanel Margin="0,0,0,8" FlowDirection="LeftToRight">
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                        <Button x:Name="HelpButton" Style="{StaticResource GoldButton}" Width="46" Margin="2" Padding="0"
+                                Content="؟" FontSize="22" ToolTip="راهنما" AutomationProperties.Name="راهنما" Click="Help_Click" />
+                        <Button x:Name="SupportButton" Style="{StaticResource GoldButton}" Width="46" Margin="2" Padding="0"
+                                ToolTip="پشتیبانی" AutomationProperties.Name="پشتیبانی" Click="Support_Click">
+                            <Image Source="/YariZan;component/Resources/YariZan_Contact_Icon_128x128.png" Width="24" Height="24" />
+                        </Button>
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" FlowDirection="LeftToRight">
+                        <Button Style="{StaticResource MinimizeButton}" Click="Minimize_Click" />
+                        <Button Style="{StaticResource ExitButton}" Click="Exit_Click" />
+                    </StackPanel>
+                    <Border />
+                </DockPanel>
                 <Image Source="pack://application:,,,/YariZan;component/Resources/YariZan_Symbol_Only_256x256.png"
                        Width="54" Height="54" Stretch="Uniform" Margin="0,0,0,8" AutomationProperties.Name="یاریزان" />
                 <TextBlock x:Name="ActivationTitle" FontFamily="{DynamicResource ShabnamBoldFont}" FontSize="26"
                            Foreground="{StaticResource LeatherDarkBrush}" TextWrapping="Wrap" TextAlignment="Center" />
-                <TextBlock Text="برای شروع، نسخه خود را فعال کنید یا آن را رایگان امتحان کنید."
+                <TextBlock x:Name="IntroText" Text="برای شروع، نسخه خود را فعال کنید یا آن را رایگان امتحان کنید."
                            FontSize="16" TextWrapping="Wrap" TextAlignment="Center" Margin="0,10,0,16"
                            Foreground="{StaticResource InkBrush}" />
                 <TextBlock x:Name="IdentityLabel" Text="شناسه کاربری شما" FontFamily="{DynamicResource ShabnamBoldFont}"
                            FontSize="15" Foreground="{StaticResource LeatherDarkBrush}" Margin="0,0,0,6" />
-                <Border Background="#FAEFCF" BorderBrush="{StaticResource LeatherBrush}" BorderThickness="1"
+                <Border x:Name="IdentityBox" Background="#FAEFCF" BorderBrush="{StaticResource LeatherBrush}" BorderThickness="1"
                         CornerRadius="6" Padding="8">
                     <DockPanel FlowDirection="LeftToRight">
                         <Button x:Name="CopyHwidBtn" Content="کپی" DockPanel.Dock="Right" Style="{StaticResource SecondaryAction}"
@@ -120,6 +117,9 @@
                         BorderThickness="1" BorderBrush="{StaticResource GoldBrush}" Background="#26C9A45C"
                         AutomationProperties.Name="وضعیت فعال‌سازی خودکار">
                     <StackPanel>
+                        <Button x:Name="CloseActivationStatusButton" Visibility="Collapsed" Style="{StaticResource ExitButton}"
+                                HorizontalAlignment="Left" Click="CancelWait_Click"
+                                ToolTip="بستن وضعیت فعال‌سازی" AutomationProperties.Name="بستن وضعیت فعال‌سازی" />
                         <TextBlock x:Name="ActivationConnectedText" Text="دستگاه با موفقیت متصل شد" Visibility="Collapsed"
                                    FontSize="14" TextAlignment="Center" TextWrapping="Wrap" Margin="0,0,0,6"
                                    Foreground="{StaticResource LeatherBrush}" />
@@ -186,13 +186,9 @@
                     <Button x:Name="ManualCodeButton" Content="کد فعال‌سازی دارید؟" Style="{StaticResource DialogAction}" Click="ManualCode_Click" />
                     <Button x:Name="PurchaseButton" Content="راهنمای خرید" Style="{StaticResource DialogAction}" Click="Purchase_Click" />
                     <Button x:Name="ConnectButton" Content="اتصال به حساب" Style="{StaticResource DialogAction}" Click="Connect_Click" />
-                    <Button x:Name="SupportButton" Content="پشتیبانی" Style="{StaticResource DialogAction}" Click="Support_Click" />
                 </WrapPanel>
-                <WrapPanel HorizontalAlignment="Center" Margin="0,12,0,0">
-                    <Button x:Name="BackButton" Content="بازگشت" Style="{StaticResource DialogAction}" Click="Cancel_Click" />
-                    <Button Style="{StaticResource DialogMinimize}" Click="Minimize_Click" />
-                    <Button Content="خروج" Style="{StaticResource DialogExit}" Click="Exit_Click" />
-                </WrapPanel>
+                <Button x:Name="BackButton" Content="بازگشت" Style="{StaticResource DialogAction}" Click="Cancel_Click"
+                        HorizontalAlignment="Center" />
             </StackPanel>
         </Border>
     </ScrollViewer>
@@ -204,10 +200,10 @@
                 HorizontalAlignment="Stretch" VerticalAlignment="Center" BorderThickness="2"
                 BorderBrush="{StaticResource GoldBrush}" Background="{StaticResource ParchmentBrushGradient}">
             <Grid>
-                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                <TextBlock x:Name="ModalTitle" FontFamily="{DynamicResource ShabnamBoldFont}" FontSize="22"
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <TextBlock x:Name="ModalTitle" Grid.Row="1" FontFamily="{DynamicResource ShabnamBoldFont}" FontSize="22"
                            Foreground="{StaticResource LeatherDarkBrush}" TextWrapping="Wrap" Margin="0,0,0,12" />
-                <ScrollViewer x:Name="ModalScroll" Grid.Row="1" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"
+                <ScrollViewer x:Name="ModalScroll" Grid.Row="2" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"
                               CanContentScroll="False" PanningMode="VerticalOnly" IsManipulationEnabled="True" Focusable="False">
                     <StackPanel>
                         <TextBlock x:Name="ModalDescription" FontSize="15" TextWrapping="Wrap" Foreground="{StaticResource InkBrush}" Margin="0,0,0,12" />
@@ -236,6 +232,8 @@
                     <Button x:Name="CopyPairingCodeButton" Content="کپی کد اتصال" Style="{StaticResource DialogAction}" HorizontalAlignment="Center" Click="CopyPairingCode_Click" />
                     <Button x:Name="OpenConnectButton" Content="باز کردن صفحهٔ اتصال" Style="{StaticResource DialogAction}" HorizontalAlignment="Center" MinWidth="240" Click="OpenConnect_Click" Margin="0,12,0,0" />
                     <TextBlock x:Name="PairingFeedback" TextWrapping="Wrap" Margin="0,12,0,0" Foreground="{StaticResource InkBrush}" FontSize="14" />
+                    <Button x:Name="RetryPairingButton" Visibility="Collapsed" Content="تلاش دوباره" Style="{StaticResource SecondaryAction}"
+                            HorizontalAlignment="Center" Click="RetryPairing_Click" />
                     <ProgressBar x:Name="PairingProgress" Height="5" Margin="40,10,40,0" IsIndeterminate="True" Visibility="Collapsed"
                                  Foreground="{StaticResource GoldBrush}" Background="#305C2E1B" BorderThickness="0"
                                  AutomationProperties.Name="در انتظار تأیید در مرورگر" />
@@ -246,6 +244,19 @@
                             <TextBlock Style="{StaticResource GuideStep}" Text="۳. در سایت یاریزان (yarizan.oarnova.games) همین محصول را انتخاب کنید و فاکتور را در درگاه زرین‌پال پرداخت کنید. هر فاکتور ۱۵ دقیقه مهلت پرداخت دارد؛ اگر پرداخت لغو یا ناموفق شد، فاکتور تازه صادر کنید." />
                             <TextBlock Style="{StaticResource GuideStep}" Text="۴. برنامه را باز نگه دارید. پس از تأیید پرداخت، مجوز خودکار دریافت و نسخه فعال می‌شود. از آن پس بازی‌ها بدون اینترنت اجرا می‌شوند." />
                             <TextBlock Style="{StaticResource GuideStep}" Text="اگر کد فعال‌سازی گرفته‌اید، «کد فعال‌سازی دارید؟» را بزنید. برای خرید تلفنی، شمارهٔ تماس و هر سؤال دیگر، لطفاً از بخش «پشتیبانی» اطلاعات بیشتر را مطالعه کنید." />
+                  </StackPanel>
+                  <StackPanel x:Name="HelpPanel" Visibility="Collapsed">
+                            <TextBlock Style="{StaticResource GuideStep}" FontFamily="{DynamicResource ShabnamBoldFont}" Text="اگر بازی را خریده‌اید" />
+                            <TextBlock Style="{StaticResource GuideStep}" Text="۱. دکمهٔ فعال‌سازی را بزنید. اگر برنامه هنوز به حساب شما وصل نیست، «باز کردن صفحهٔ اتصال» را انتخاب کنید." />
+                            <TextBlock Style="{StaticResource GuideStep}" Text="۲. شناسهٔ درخواست و کد موقت اتصال را از برنامه کپی کنید و در صفحهٔ اتصال مرورگر وارد کنید." />
+                            <TextBlock Style="{StaticResource GuideStep}" Text="۳. با همان شمارهٔ همراهی وارد شوید که با آن بازی را خریده‌اید. اگر کد پیامکی دریافت کردید، آن را در مرورگر وارد کنید و اتصال را تأیید کنید." />
+                            <TextBlock Style="{StaticResource GuideStep}" Text="۴. به برنامه برگردید و آن را باز نگه دارید. پس از تأیید خرید، بازی خودکار فعال می‌شود. بعد از فعال‌سازی می‌توانید بدون اینترنت بازی کنید." />
+                            <TextBlock Style="{StaticResource GuideStep}" FontFamily="{DynamicResource ShabnamBoldFont}" Text="اگر هنوز بازی را نخریده‌اید" />
+                            <TextBlock Style="{StaticResource GuideStep}" Text="از دکمهٔ خرید یا راهنمای خرید استفاده کنید. پس از خرید، به برنامه برگردید و دکمهٔ فعال‌سازی یا «بررسی دوباره» را بزنید." />
+                            <TextBlock Style="{StaticResource GuideStep}" Text="برای امتحان بازی، دکمهٔ آزمایش را بزنید. اگر حساب وصل نیست، ابتدا اتصال را کامل کنید. پس از بازگشت، دکمهٔ آزمایش را بزنید تا بازی شروع شود." />
+                            <TextBlock Style="{StaticResource GuideStep}" FontFamily="{DynamicResource ShabnamBoldFont}" Text="اگر کد فعال‌سازی دارید" />
+                            <TextBlock Style="{StaticResource GuideStep}" Text="گزینهٔ کد فعال‌سازی را بزنید. اگر حساب وصل نیست، ابتدا اتصال را کامل کنید. بعد کد دریافتی را در برنامه وارد کنید و «ثبت کد و فعال‌سازی» را بزنید." />
+                            <TextBlock Style="{StaticResource GuideStep}" Text="اگر مهلت اتصال تمام شد یا اینترنت قطع شد، دوباره تلاش کنید. اگر پس از پرداخت بازی فعال نشد، شمارهٔ همراه حساب را بررسی کنید و از دکمهٔ «پشتیبانی» کمک بگیرید." />
                   </StackPanel>
                   <StackPanel x:Name="ContactPanel" Visibility="Collapsed">
                             <TextBlock Text="شماره پشتیبانی" FontSize="14" Foreground="{StaticResource LeatherDarkBrush}" />
@@ -262,10 +273,11 @@
                     </StackPanel>
                 </ScrollViewer>
                 <!-- Minimize keeps the dialog and its work (for example the pairing wait) running. -->
-                <StackPanel x:Name="ModalFooter" Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
-                    <Button x:Name="MinimizeModalButton" Style="{StaticResource DialogMinimize}"
-                            Click="Minimize_Click" KeyboardNavigation.TabIndex="2" AutomationProperties.Name="کوچک نمایی" />
-                    <Button x:Name="CloseModalButton" Content="بستن" Style="{StaticResource DialogAction}"
+                <StackPanel Grid.Row="0" Orientation="Horizontal" FlowDirection="LeftToRight"
+                            HorizontalAlignment="Left" Margin="0,0,0,4">
+                    <Button x:Name="MinimizeModalButton" Style="{StaticResource MinimizeButton}"
+                            Click="Minimize_Click" KeyboardNavigation.TabIndex="2" />
+                    <Button x:Name="CloseModalButton" Style="{StaticResource ExitButton}" ToolTip="بستن پنجره"
                             Click="CloseModal_Click" KeyboardNavigation.TabIndex="2"
                             AutomationProperties.Name="بستن پنجره" />
                 </StackPanel>

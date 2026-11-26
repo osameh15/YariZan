@@ -42,7 +42,8 @@ export function toman(irr: number) {
 }
 export function safeReturn(value: unknown, fallback = '/account') {
   return typeof value === 'string' &&
-    (/^\/account(?:\/[a-z-]+)?$/.test(value) ||
+    (value === '/connect?resume=1' ||
+      /^\/account(?:\/[a-z-]+)?$/.test(value) ||
       (value.startsWith('/checkout?sku=') &&
         productSkuPattern.test(value.slice('/checkout?sku='.length))))
     ? value

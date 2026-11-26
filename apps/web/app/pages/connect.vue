@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { errorMessage } from '#shared/domain';
+const pendingKey = 'yarizan:pending-owner-pairing';
 const api = useApi(),
+  route = useRoute(),
   proofOfWork = useProofOfWork(),
   id = ref(''),
   secret = ref(''),
@@ -12,17 +14,59 @@ const api = useApi(),
   noticeKind = ref<'error' | 'info'>('error'),
   cooldown = ref(0),
   done = ref(false),
+  ownerSignedIn = ref(false),
+  differentAccount = ref(false),
   preview = ref<{ username: string; requires_owner: boolean; expires_at: string } | null>(null);
+
+function clearPending() {
+  try {
+    sessionStorage.removeItem(pendingKey);
+  } catch {
+    // Storage can be unavailable in privacy-restricted browsers.
+  }
+}
+
+async function signInAsOwner() {
+  if (!preview.value) return;
+  try {
+    sessionStorage.setItem(
+      pendingKey,
+      JSON.stringify({
+        id: id.value.trim(),
+        secret: secret.value.trim(),
+        expiresAt: preview.value.expires_at,
+      }),
+    );
+  } catch {
+    message.value = 'مرورگر نمی‌تواند درخواست را نگه دارد. اجازهٔ ذخیره‌سازی سایت را بررسی کنید.';
+    noticeKind.value = 'error';
+    return;
+  }
+  await navigateTo({ path: '/login', query: { return: '/connect?resume=1' } });
+}
+
 async function inspect() {
   busy.value = true;
   message.value = '';
   noticeKind.value = 'error';
   try {
-    preview.value = await api.post(
+    const request = await api.post(
       '/api/v2/device-pairings/{id}/preview',
       { pairing_secret: secret.value.trim() },
       { id: id.value.trim() },
     );
+    ownerSignedIn.value = false;
+    differentAccount.value = false;
+    if (request.requires_owner) {
+      try {
+        const account = await api.get('/api/v2/account');
+        ownerSignedIn.value = account.username === request.username;
+        differentAccount.value = !ownerSignedIn.value;
+      } catch (e) {
+        if ((e as { status?: number }).status !== 401) throw e;
+      }
+    }
+    preview.value = request;
   } catch (e) {
     message.value = errorMessage(e);
   } finally {
@@ -30,6 +74,7 @@ async function inspect() {
   }
 }
 async function approve() {
+  if (preview.value?.requires_owner && !ownerSignedIn.value) return;
   busy.value = true;
   message.value = '';
   noticeKind.value = 'error';
@@ -58,19 +103,45 @@ async function approve() {
         : {}),
     });
     done.value = true;
+    clearPending();
     secret.value = '';
     code.value = '';
   } catch (e) {
+    if (preview.value?.requires_owner && (e as { status?: number }).status === 403) {
+      ownerSignedIn.value = false;
+    }
     message.value = errorMessage(e);
   } finally {
     busy.value = false;
   }
 }
 let retryClock: ReturnType<typeof setInterval>;
-onMounted(() => {
+onMounted(async () => {
   retryClock = setInterval(() => {
     if (cooldown.value > 0) cooldown.value--;
   }, 1000);
+  if (route.query.resume !== '1') {
+    clearPending();
+    return;
+  }
+  let saved: { id: string; secret: string; expiresAt: string } | null = null;
+  try {
+    saved = JSON.parse(sessionStorage.getItem(pendingKey) ?? 'null');
+  } catch {
+    clearPending();
+  }
+  if (!saved || !(Date.parse(saved.expiresAt) > Date.now())) {
+    clearPending();
+    message.value = 'درخواست اتصال دیگر در دسترس نیست. از برنامهٔ ویندوز درخواست تازه بگیرید.';
+    return;
+  }
+  id.value = saved.id;
+  secret.value = saved.secret;
+  await inspect();
+  if (!preview.value) {
+    clearPending();
+    id.value = secret.value = '';
+  }
 });
 async function resend() {
   busy.value = true;
@@ -101,6 +172,7 @@ async function cancel() {
       { id: id.value.trim() },
     );
     preview.value = null;
+    clearPending();
     secret.value = '';
     challenge.value = '';
     message.value = 'درخواست اتصال لغو شد.';
@@ -132,14 +204,14 @@ useSeoMeta({ title: 'اتصال برنامه به حساب | یاریزان' });
           <span>۱</span>
           <div>
             <strong>درخواست اتصال در ویندوز</strong>
-            <p>از دکمهٔ «اتصال به حساب» در برنامه استفاده کنید.</p>
+            <p>در برنامه، «فعال‌سازی بازی» یا «اتصال به حساب» را بزنید.</p>
           </div>
         </li>
         <li>
           <span>۲</span>
           <div>
-            <strong>بررسی نام کاربری و شمارهٔ همراه</strong>
-            <p>برای حساب تازه، شمارهٔ همراه را با پیامک تأیید کنید. انتخاب رمز عبور الزامی نیست.</p>
+            <strong>ورود یا تأیید شمارهٔ همراه</strong>
+            <p>اگر حساب دارید وارد شوید. برای حساب تازه، شمارهٔ همراه را با پیامک تأیید کنید.</p>
           </div>
         </li>
         <li>
@@ -205,11 +277,17 @@ useSeoMeta({ title: 'اتصال برنامه به حساب | یاریزان' });
         </h2>
         <p class="device-username" dir="ltr">{{ preview.username }}</p>
         <template v-if="preview.requires_owner"
-          ><p>
-            این دستگاه حساب دارد. فقط صاحب فعلی حساب می‌تواند پروفایل جدید ویندوز را تأیید کند.
-            خریدها و فرصت‌های آزمایشی دستگاه مشترک می‌مانند.
+          ><p v-if="ownerSignedIn">
+            وارد حساب صاحب دستگاه شده‌اید. درخواست را تأیید کنید و به برنامهٔ ویندوز برگردید.
           </p>
-          <NuxtLink class="text-link" to="/login">ورود صاحب حساب</NuxtLink></template
+          <p v-else>
+            {{
+              differentAccount
+                ? 'با حساب دیگری وارد شده‌اید. برای تأیید، با حساب همین دستگاه وارد شوید.'
+                : 'برای تأیید این درخواست، با شمارهٔ همراه حساب همین دستگاه وارد شوید.'
+            }}
+            بعد از ورود، به همین درخواست برمی‌گردید.
+          </p></template
         ><template v-else-if="!challenge"
           ><label
             >شمارهٔ همراه<PersianNumberInput
@@ -243,7 +321,16 @@ useSeoMeta({ title: 'اتصال برنامه به حساب | یاریزان' });
               data-label="کد تأیید" /></label
         ></template>
         <div class="actions">
-          <button class="button primary" :disabled="busy">
+          <button
+            v-if="preview.requires_owner && !ownerSignedIn"
+            type="button"
+            class="button primary"
+            :disabled="busy"
+            @click="signInAsOwner"
+          >
+            {{ differentAccount ? 'ورود با حساب صاحب دستگاه' : 'ورود به حساب برای تأیید' }}
+          </button>
+          <button v-else class="button primary" :disabled="busy">
             {{
               busy
                 ? 'در حال بررسی…'

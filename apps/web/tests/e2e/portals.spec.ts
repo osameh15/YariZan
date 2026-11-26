@@ -204,11 +204,28 @@ test('Additional profile requires existing owner and shares device and trials', 
       })
     ).status,
   ).toBe(403);
-  await customerLogin(page, e.username);
   await page.goto('/connect');
   await page.getByLabel('شناسهٔ درخواست', { exact: true }).fill(p.pairing_id);
   await page.getByLabel('کد موقت اتصال').fill(p.pairing_secret);
   await page.getByRole('button', { name: 'بررسی درخواست' }).click();
+  await expect(page.getByRole('button', { name: 'این دستگاه را تأیید می‌کنم' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'ورود به حساب برای تأیید' }).click();
+  await expect(page).toHaveURL(/\/login\?return=/);
+  expect(page.url()).not.toContain(p.pairing_secret);
+  await page.getByRole('button', { name: 'ورود با رمز عبور', exact: true }).click();
+  await page.getByLabel('نام کاربری دستگاه', { exact: true }).fill(e.username);
+  await page.getByLabel('رمز عبور', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'ورود به حساب', exact: true }).click();
+  await expect(page).toHaveURL(/\/connect\?resume=1$/);
+  await expect(page.getByText(e.username, { exact: true })).toBeVisible();
+  expect(
+    (
+      await call(
+        `/device-pairings/${p.pairing_id}/pickup`,
+        await proof(p.key, 'CONFIRM', p.pairing_id),
+      )
+    ).body.status,
+  ).toBe('PENDING');
   await page.getByRole('button', { name: 'این دستگاه را تأیید می‌کنم' }).click();
   await expect(page.getByRole('heading', { name: 'اتصال در مرورگر تأیید شد' })).toBeVisible();
   const pickup = await call(

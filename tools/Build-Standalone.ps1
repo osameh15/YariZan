@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 $repoPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $repoPath
 try {
-    $version = if ($Product -eq 'combination-land') { '1.0.2' } else { '1.0.0' }
+    $version = '1.1.0'
     # Mirrors src/YariZan.Core/V2/StandaloneCatalog.cs.
     $catalog = @{
         'number-builder' = @{ Name = 'YariZan-NumberBuilder'; Sku = 'YARIZAN-S-NUMBER-BUILDER' }

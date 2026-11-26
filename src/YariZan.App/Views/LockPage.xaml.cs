@@ -26,7 +26,7 @@ public partial class LockPage : UserControl
     private CancellationTokenSource? _pairingCancellation;
     private readonly ILockDesktopActions _desktopActions;
     private readonly StoreDestinations _storeDestinations;
-    private enum DialogKind { None, ManualCode, Purchase, Support, Pairing }
+    private enum DialogKind { None, ManualCode, Purchase, Support, Pairing, Help }
     private DialogKind _dialog;
     private Button? _dialogTrigger;
     private double _backgroundOffset;
@@ -38,12 +38,14 @@ public partial class LockPage : UserControl
     private bool _entering;
     private readonly bool _resumeWaiting;
     private readonly string _productTitle;
+    private readonly bool _standalone;
 
     public LockPage(DesktopAccessController access, ILockDesktopActions? desktopActions = null, StoreDestinations? storeDestinations = null,
         PaidActivationCoordinator? activation = null, bool resumeWaiting = true, string? productTitle = null)
     {
         _resumeWaiting = resumeWaiting;
         _access = access;
+        _standalone = access.Grade == 0;
         _productTitle = productTitle ?? $"یاریزان — پایه {AppBranding.GradeName(access.Grade)}";
         _desktopActions = desktopActions ?? new WindowsLockDesktopActions();
         _storeDestinations = storeDestinations ?? StoreDestinations.LoadEmbedded();
@@ -59,6 +61,17 @@ public partial class LockPage : UserControl
         HwidText.Text = access.Username;
         TrialCountText.Text = "در حال بررسی فرصت‌های آزمایشی…";
         TrialButton.IsEnabled = false;
+        if (_standalone)
+        {
+            IdentityLabel.Visibility = IdentityBox.Visibility =
+                ConnectButton.Visibility = Visibility.Collapsed;
+            ActivationTitle.Text = _productTitle;
+            IntroText.Text = "اگر بازی را خریده‌اید، آن را فعال کنید. می‌توانید بازی را دو بار رایگان هم امتحان کنید.";
+            TrialButton.Content = "آزمایش رایگان";
+            ActivateButton.Content = "فعال‌سازی بازی";
+            ManualCodeButton.Content = "کد فعال‌سازی دارم";
+            if (_storeDestinations.ForProduct(access.Sku) is not null) PurchaseButton.Content = "خرید بازی";
+        }
         Loaded += async (_, _) =>
         {
             _visible = new CancellationTokenSource();
@@ -93,13 +106,16 @@ public partial class LockPage : UserControl
 
     private void RenderState()
     {
-        TrialButton.IsEnabled = _access.State is DesktopAccessState.TrialAvailable or DesktopAccessState.ConnectionUnavailable;
+        UpdateTrialButton();
         TrialCountText.Text = _access.TrialRemaining is { } count ? $"{Persian(count)} فرصت باقی‌مانده" : "فرصت‌های آزمایشی هنوز بررسی نشده است.";
+        if (NeedsAccount)
+            TrialCountText.Text = "برای فعال‌سازی یا آزمایش، بازی را به حساب یاریزان وصل کنید.";
         Message(_access.State switch
         {
             DesktopAccessState.TrialExhausted => "فرصت‌های آزمایشی این نسخه به پایان رسیده است.",
             DesktopAccessState.ProductBlocked => BlockMessage,
             DesktopAccessState.ConnectionUnavailable => "ارتباط با سرور برقرار نشد. برای فعال‌سازی اولیه یا شروع آزمایش به اینترنت نیاز دارید.",
+            DesktopAccessState.EnrollmentRequired when NeedsAccount => "",
             DesktopAccessState.EnrollmentRequired => "اتصال امن این دستگاه کامل نشده است. لطفاً با پشتیبانی تماس بگیرید.",
             _ => ""
         }, _access.State is DesktopAccessState.ProductBlocked or DesktopAccessState.ConnectionUnavailable);
@@ -115,7 +131,17 @@ public partial class LockPage : UserControl
         ConnectButton.IsEnabled = !busy && _access.Provisioning is not null;
         ActivateButton.IsEnabled = RedeemButton.IsEnabled = !busy;
         ActivationCodeInput.IsEnabled = !busy || !lockCodeInput;
-        TrialButton.IsEnabled = !busy && (_access.State is DesktopAccessState.TrialAvailable or DesktopAccessState.ConnectionUnavailable);
+        UpdateTrialButton();
+    }
+
+    private bool NeedsAccount => _access.Provisioning is not null && !_access.HasLocalEnrollment;
+
+    private void UpdateTrialButton()
+    {
+        TrialButton.IsEnabled = !_busy && (_access.State is DesktopAccessState.TrialAvailable or DesktopAccessState.ConnectionUnavailable
+            || (NeedsAccount && _access.State != DesktopAccessState.ProductBlocked));
+        if (_standalone)
+            TrialButton.Content = _access.State == DesktopAccessState.TrialAvailable ? "شروع بازی آزمایشی" : "آزمایش رایگان";
     }
 
     private async Task RefreshTrialAsync()
@@ -154,13 +180,19 @@ public partial class LockPage : UserControl
         }
     }
 
-    private void ManualCode_Click(object sender, RoutedEventArgs e)
+    private async void ManualCode_Click(object sender, RoutedEventArgs e)
     {
         if (_dialog != DialogKind.None) return;
+        if (NeedsAccount)
+        {
+            await ConnectAsync(ManualCodeButton);
+            return;
+        }
         OpenDialog(DialogKind.ManualCode, ManualCodeButton);
     }
     private void Code_TextChanged(object sender, TextChangedEventArgs e) { if (CodeFeedback is not null) CodeFeedback.Text = ""; }
-    private void Support_Click(object sender, RoutedEventArgs e) { if (_dialog == DialogKind.None) OpenDialog(DialogKind.Support, SupportButton); }
+    private void Help_Click(object sender, RoutedEventArgs e) { if (_dialog == DialogKind.None) OpenDialog(DialogKind.Help, HelpButton); }
+    private void Support_Click(object sender, RoutedEventArgs e) { if (_dialog == DialogKind.None) OpenDialog(DialogKind.Support, (Button)sender); }
     private void Purchase_Click(object sender, RoutedEventArgs e)
     {
         if (_dialog != DialogKind.None) return;
@@ -172,7 +204,9 @@ public partial class LockPage : UserControl
         OpenDialog(DialogKind.Purchase, PurchaseButton);
     }
 
-    private async void Connect_Click(object sender, RoutedEventArgs e)
+    private async void Connect_Click(object sender, RoutedEventArgs e) => await ConnectAsync((Button)sender);
+
+    private async Task ConnectAsync(Button trigger)
     {
         if (_dialog != DialogKind.None || _access.Provisioning is null || _busy) return;
         SetBusy(true);
@@ -187,12 +221,12 @@ public partial class LockPage : UserControl
             {
                 ConnectingOverlay.Visibility = Visibility.Collapsed;
                 await _access.ReloadProvisionedIdentityAsync(cancellation); SetBusy(false); await RefreshTrialAsync();
-                Message("اتصال امن دستگاه آماده است."); BeginWaitingAfterConnect(); return;
+                FinishConnection(trigger); return;
             }
             var pair=await _access.Provisioning.BeginAsync(cancellation);
             cancellation.ThrowIfCancellationRequested();
             ConnectingOverlay.Visibility = Visibility.Collapsed;
-            OpenDialog(DialogKind.Pairing,ConnectButton);
+            OpenDialog(DialogKind.Pairing, trigger);
             PairingIdText.Text=pair.Id; PairingCodeText.Text=pair.BrowserCode;
             PairingProgress.Visibility = Visibility.Visible;
             PairingFeedback.Text="در انتظار تأیید در مرورگر… پس از تأیید، اتصال خودکار کامل می‌شود. کد پنج دقیقه اعتبار دارد.";
@@ -202,36 +236,75 @@ public partial class LockPage : UserControl
                 if(await _access.Provisioning.CompleteAsync(cancellation))
                 {
                     CloseDialog(); await _access.ReloadProvisionedIdentityAsync(_visible?.Token??CancellationToken.None);
-                    SetBusy(false); await RefreshTrialAsync(); Message(""); BeginWaitingAfterConnect(); return;
+                    SetBusy(false); await RefreshTrialAsync(); FinishConnection(trigger); return;
                 }
             }
-            PairingCodeText.Clear(); PairingFeedback.Text="درخواست منقضی شد. پنجره را ببندید و دوباره درخواست بگیرید.";
+            PairingCodeText.Clear(); PairingFeedback.Text="مهلت اتصال تمام شد. دوباره تلاش کنید.";
+            RetryPairingButton.Visibility = Visibility.Visible;
         }
         catch(OperationCanceledException) { }
-        catch(Exception ex) { if(_dialog==DialogKind.Pairing)PairingFeedback.Text="اتصال کامل نشد. پنجره را ببندید و دوباره تلاش کنید؛ مجوز آفلاین موجود تغییر نمی‌کند."; else ShowFailure(ex,false); }
+        catch(Exception ex)
+        {
+            if (_dialog == DialogKind.Pairing)
+            {
+                PairingFeedback.Text = "اتصال کامل نشد. اینترنت را بررسی کنید و دوباره تلاش کنید.";
+                RetryPairingButton.Visibility = Visibility.Visible;
+            }
+            else ShowFailure(ex, false);
+        }
         finally
         {
             ConnectingOverlay.Visibility = Visibility.Collapsed; PairingProgress.Visibility = Visibility.Collapsed;
-            SetBusy(false); if(_dialog==DialogKind.None && _visible is not null)ConnectButton.Focus();
+            SetBusy(false);
+            if (_dialog == DialogKind.None && _visible is not null && trigger.IsVisible && !_activation.IsRunning) trigger.Focus();
         }
+    }
+
+    private void FinishConnection(Button trigger)
+    {
+        if (_visible is null) return;
+        Message("حساب شما متصل شد.");
+        if (trigger == ManualCodeButton)
+        {
+            OpenDialog(DialogKind.ManualCode, ManualCodeButton);
+            return;
+        }
+        if (trigger != TrialButton || _access.State != DesktopAccessState.TrialAvailable) BeginWaitingAfterConnect();
+    }
+
+    private async void RetryPairing_Click(object sender, RoutedEventArgs e)
+    {
+        if (_dialog != DialogKind.Pairing || _busy || _dialogTrigger is not { } trigger) return;
+        CloseDialog(false);
+        await ConnectAsync(trigger);
     }
     private void CopyPairingId_Click(object sender,RoutedEventArgs e) { try { _desktopActions.CopyText(PairingIdText.Text); PairingFeedback.Text="شناسه کپی شد."; } catch { PairingFeedback.Text="کپی ممکن نشد؛ متن را انتخاب کنید."; } }
     private void CopyPairingCode_Click(object sender,RoutedEventArgs e) { try { _desktopActions.CopyText(PairingCodeText.Text); PairingFeedback.Text="کد کپی شد؛ فقط در صفحهٔ اتصال وارد کنید."; } catch { PairingFeedback.Text="کپی ممکن نشد؛ متن را انتخاب کنید."; } }
-    private void OpenConnect_Click(object sender,RoutedEventArgs e) { try { _desktopActions.OpenConnectPage(); } catch { PairingFeedback.Text="صفحه باز نشد. نشانی رسمی صفحهٔ اتصال را در مرورگر باز کنید."; } }
+    private void OpenConnect_Click(object sender,RoutedEventArgs e) { try { _desktopActions.OpenConnectPage(); PairingFeedback.Text = "اتصال را در مرورگر کامل کنید و سپس به بازی برگردید."; } catch { PairingFeedback.Text="صفحه باز نشد. نشانی رسمی صفحهٔ اتصال را در مرورگر باز کنید."; } }
 
     private void OpenDialog(DialogKind kind, Button trigger)
     {
         _backgroundOffset = LockScroll.VerticalOffset;
         _dialog = kind; _dialogTrigger = trigger;
         string productLabel = _access.Grade == 0 ? _productTitle : $"پایه {AppBranding.GradeName(_access.Grade)}";
-        ModalTitle.Text = kind switch { DialogKind.Pairing => "اتصال امن به حساب", DialogKind.ManualCode => "ثبت کد فعال‌سازی", DialogKind.Purchase => $"راهنمای خرید — {productLabel}", _ => _access.Grade == 0 ? $"پشتیبانی — {_productTitle}" : $"پشتیبانی یاریزان — {productLabel}" };
+        ModalTitle.Text = kind switch { DialogKind.Help => "راهنمای شروع بازی", DialogKind.Pairing => "اتصال به حساب یاریزان", DialogKind.ManualCode => "ثبت کد فعال‌سازی", DialogKind.Purchase => $"راهنمای خرید — {productLabel}", _ => _access.Grade == 0 ? $"پشتیبانی — {_productTitle}" : $"پشتیبانی یاریزان — {productLabel}" };
         ModalDescription.Text = kind switch
         {
+            DialogKind.Help => "",
+            DialogKind.Pairing when trigger == ManualCodeButton =>
+                "برای ثبت کد فعال‌سازی، ابتدا حساب خود را در مرورگر وصل کنید. پس از بازگشت، کد فعال‌سازی را همین‌جا وارد کنید.",
+            DialogKind.Pairing when trigger == TrialButton =>
+                "صفحهٔ اتصال را در مرورگر باز کنید و شناسه و کد زیر را وارد کنید. پس از تأیید شمارهٔ همراه، به برنامه برگردید و آزمایش را شروع کنید.",
+            DialogKind.Pairing when trigger == ActivateButton || _standalone =>
+                "صفحهٔ اتصال را در مرورگر باز کنید و شناسه و کد زیر را وارد کنید. با همان شمارهٔ همراهی وارد شوید که با آن خرید کرده‌اید.",
             DialogKind.Pairing => "شناسه و کد را فقط در صفحهٔ اتصال وارد کنید. مرورگر دستگاه را تأیید می‌کند؛ مجوز فقط در همین برنامه دریافت می‌شود.",
             DialogKind.ManualCode => "کد این نسخه را وارد کنید. ثبت کد به اتصال اینترنت نیاز دارد.",
             DialogKind.Purchase => "خرید و فعال‌سازی این نسخه در چهار قدم:",
             _ => "برای دریافت راهنمایی، شماره یا پیام آماده را کپی کنید و با پشتیبانی تماس بگیرید."
         };
+        ModalDescription.Visibility = kind == DialogKind.Help ? Visibility.Collapsed : Visibility.Visible;
+        HelpPanel.Visibility = kind == DialogKind.Help ? Visibility.Visible : Visibility.Collapsed;
+        RetryPairingButton.Visibility = Visibility.Collapsed;
         _preparedMessage = $"سلام\n{(kind == DialogKind.Purchase ? "درخواست خرید" : "درخواست پشتیبانی")} {_productTitle}\nشناسه کاربری: {_access.Username}\nسپاسگزارم";
         // Embed only the public username left-to-right (LRE ... PDF): WPF does not apply the newer
         // isolate marks, which showed the ID reversed in the right-to-left message.
@@ -246,10 +319,14 @@ public partial class LockPage : UserControl
         LockScroll.IsEnabled = false;
         ModalScroll.ScrollToTop();
         UpdateLayout();
-        FrameworkElement first = kind == DialogKind.ManualCode && ActivationCodeInput.IsEnabled ? ActivationCodeInput : CopyPhoneButton;
-        if (kind == DialogKind.ManualCode && !ActivationCodeInput.IsEnabled) first = CloseModalButton;
+        FrameworkElement first = kind switch
+        {
+            DialogKind.ManualCode when ActivationCodeInput.IsEnabled => ActivationCodeInput,
+            DialogKind.Support => CopyPhoneButton,
+            DialogKind.Pairing => OpenConnectButton,
+            _ => CloseModalButton
+        };
         FocusManager.SetFocusedElement(ModalOverlay, first);
-        if(kind==DialogKind.Pairing)first=OpenConnectButton;
         first.Focus();
     }
     private void CloseDialog(bool restoreFocus = true)
@@ -279,8 +356,6 @@ public partial class LockPage : UserControl
             ModalCard.Padding = new Thickness(compact ? 12 : 20);
             ModalTitle.FontSize = compact ? 20 : 22;
             ModalTitle.Margin = new Thickness(0, 0, 0, compact ? 8 : 12);
-            // Space above the whole footer row, so minimize and close stay on one line.
-            ModalFooter.Margin = new Thickness(0, compact ? 8 : 12, 0, 0);
         }
     }
 
@@ -366,6 +441,11 @@ public partial class LockPage : UserControl
         if (_dialog != DialogKind.None) return;
         if (_access.IsPurchased) { Activated?.Invoke(this, EventArgs.Empty); return; }
         if (_busy || _visible is null) return;
+        if (NeedsAccount)
+        {
+            await ConnectAsync(ActivateButton);
+            return;
+        }
         // A locally revoked license recovers only through the explicit authenticated decision request.
         if (_access.LocalLicenseState == DesktopAccessState.Revoked) { await ActivateAsync(false); return; }
         // One automatic path: check now, then keep waiting visibly until a signed license is stored.
@@ -463,11 +543,11 @@ public partial class LockPage : UserControl
         ActivationPhaseText.Foreground = final ? new SolidColorBrush(Color.FromRgb(139, 0, 0)) : (Brush)FindResource("LeatherDarkBrush");
         ActivationActions.Visibility = _entering ? Visibility.Collapsed : Visibility.Visible;
         // Without an operational store page the bottom «راهنمای خرید» is the only purchase action (no duplicate here).
-        WaitPurchaseButton.Visibility = (busy || recoverable) && _storeDestinations.ForProduct(_access.Sku) is not null ? Visibility.Visible : Visibility.Collapsed;
+        WaitPurchaseButton.Visibility = !_standalone && (busy || recoverable) && _storeDestinations.ForProduct(_access.Sku) is not null ? Visibility.Visible : Visibility.Collapsed;
         CheckNowButton.Visibility = final || startup ? Visibility.Collapsed : Visibility.Visible;
         CheckNowButton.IsEnabled = phase is not (PaidActivationPhase.Checking or PaidActivationPhase.RetrievingLicense);
-        CancelWaitButton.Visibility = startup ? Visibility.Collapsed : Visibility.Visible;
-        CancelWaitButton.Content = final ? "بستن" : "لغو انتظار";
+        CancelWaitButton.Visibility = startup || final ? Visibility.Collapsed : Visibility.Visible;
+        CloseActivationStatusButton.Visibility = !startup && final ? Visibility.Visible : Visibility.Collapsed;
         if (ActivationPhaseText.Text != title || ActivationDetailText.Text != detail)
         {
             ActivationPhaseText.Text = title; ActivationDetailText.Text = detail;
@@ -482,6 +562,11 @@ public partial class LockPage : UserControl
     private async void Trial_Click(object sender, RoutedEventArgs e)
     {
         if (_busy || _visible is null || _dialog != DialogKind.None) return;
+        if (NeedsAccount)
+        {
+            await ConnectAsync(TrialButton);
+            return;
+        }
         if (_access.State != DesktopAccessState.TrialAvailable) { await RefreshTrialAsync(); return; }
         SetBusy(true);
         try { await _access.StartTrialAsync(_visible.Token); if (_visible is not null) TrialStarted?.Invoke(this, EventArgs.Empty); }
