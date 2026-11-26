@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { sql } from '../../tools/test-fixtures.mjs';
+import { paymentReturnBucket, sql } from '../../tools/test-fixtures.mjs';
 
 // The Nuxt /payment/return handler against the real Backend. An authority that passes the web
 // validation is forwarded to the Backend (which counts the request in its rate bucket and answers
@@ -9,12 +9,11 @@ const forwarded = async () =>
   Number(
     (
       await sql('SELECT COALESCE(sum(count),0)::int n FROM rate_buckets WHERE key=$1', [
-        'budget:payment-return',
+        paymentReturnBucket,
       ])
     ).rows[0].n,
   );
-const resetForwarded = () =>
-  sql('DELETE FROM rate_buckets WHERE key=$1', ['budget:payment-return']);
+const resetForwarded = () => sql('DELETE FROM rate_buckets WHERE key=$1', [paymentReturnBucket]);
 const get = (request: import('@playwright/test').APIRequestContext, authority: string) =>
   request.get('/payment/return?Authority=' + encodeURIComponent(authority) + '&Status=OK', {
     maxRedirects: 0,

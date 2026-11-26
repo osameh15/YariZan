@@ -10,8 +10,13 @@ const { canonical } = await import(
 const { solvePow } = await import(
   new URL('../../../backend/dist/src/security/abuse.js', import.meta.url)
 );
-const { seal, unseal } = await import(
+const { keyed, seal, unseal } = await import(
   new URL('../../../backend/dist/src/security/crypto.js', import.meta.url)
+);
+export const paymentReturnBucket = keyed(
+  process.env.TOKEN_HMAC_KEY ?? '2'.repeat(64),
+  'YariZan-Rate-V2',
+  'budget:payment-return',
 );
 const base = 'http://127.0.0.1:3100/api/v2';
 export const nextMobile = () => '09' + String(100000000 + Math.floor(Math.random() * 899999999));
