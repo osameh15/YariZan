@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { productIcon } from '#shared/icons';
 import type { PublicProduct } from '#shared/catalog-snapshot';
 import { gradeNames, availability } from '#shared/domain';
 import PriceBlock from './PriceBlock.vue';
-import { productPath, productTitle, standaloneProduct } from '#shared/products';
+import { productPath, productShots, productTitle, standaloneProduct } from '#shared/products';
 import { productDownloadPath } from '#shared/product-download';
 // publicOnly: rendered by the public storefront/brochure, where nothing can be bought yet.
-defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
+const props = defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
+const cover = computed(() => productShots(props.product.sku)[0]);
+const downloadPath = computed(() => productDownloadPath(props.product.sku));
 </script>
 <template>
   <article
@@ -15,21 +18,14 @@ defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
     :class="{ 'coming-soon': product.publication_status === 'coming_soon' }"
   >
     <NuxtLink
-      v-if="standaloneProduct(product.sku)?.shots.length"
+      v-if="cover"
       class="product-shot"
       :to="productPath(product)"
       tabindex="-1"
       aria-hidden="true"
     >
-      <img
-        :src="standaloneProduct(product.sku)!.shots[0]!.src"
-        alt=""
-        width="1280"
-        height="720"
-        loading="lazy"
-        decoding="async"
-      />
-      <span class="shot-badge">بازی مستقل</span>
+      <img :src="cover.src" alt="" width="1280" height="720" loading="lazy" decoding="async" />
+      <span v-if="standaloneProduct(product.sku)" class="shot-badge">بازی مستقل</span>
     </NuxtLink>
     <div v-else class="product-art" :data-grade="product.grade">
       <span class="grade-number" aria-hidden="true">{{
@@ -70,11 +66,19 @@ defineProps<{ product: PublicProduct; publicOnly?: boolean }>();
         /></NuxtLink>
       </div>
       <NuxtLink
-        v-if="productDownloadPath(product.sku)"
+        v-if="downloadPath"
         class="button secondary product-download-button"
-        :to="productDownloadPath(product.sku)!"
+        :to="downloadPath"
         >دریافت برنامهٔ ویندوز</NuxtLink
       >
+      <button
+        v-else-if="product.grade > 0 && product.publication_status === 'coming_soon'"
+        class="button secondary is-disabled product-download-button"
+        type="button"
+        disabled
+      >
+        دریافت به‌زودی
+      </button>
     </div>
   </article>
 </template>

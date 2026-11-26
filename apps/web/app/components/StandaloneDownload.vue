@@ -8,51 +8,72 @@ const release = computed(() => standaloneRelease(props.sku));
 <template>
   <template v-if="product">
     <article class="panel download-status">
-      <span class="badge neutral">نسخهٔ اصلی برای ویندوز ۱۰ و ۱۱</span>
-      <h2>دریافت {{ product.title }}</h2>
-      <template v-if="release">
+      <header class="download-product-heading">
+        <h2>دریافت {{ product.title }}</h2>
+        <NuxtLink
+          class="button secondary download-product-link"
+          :to="'/special-products/' + product.slug"
+        >
+          مشخصات و خرید بازی
+          <AppIcon name="arrow-up-left" :size="18" />
+        </NuxtLink>
+      </header>
+      <WindowsDownloadOptions
+        v-if="release"
+        :sku="sku"
+        :modern-url="standaloneDownloadUrl(release)"
+      >
+        <ul>
+          <li>ویندوز ۱۰ (۳۲ یا ۶۴ بیتی) یا ویندوز ۱۱ (۶۴ بیتی)</li>
+          <li>نصب‌کننده نسخهٔ مناسب رایانهٔ شما را انتخاب می‌کند.</li>
+          <li>اینترنت برای اتصال حساب، شروع آزمایش و دریافت مجوز</li>
+        </ul>
         <DownloadFacts
           :version="release.version"
           :size-bytes="release.sizeBytes"
           :sha256="release.sha256"
         />
-        <p class="notice">
-          این نصب‌کننده امضای دیجیتال ناشر ندارد. پیش از اجرا، کد
-          <bdi dir="ltr">SHA-256</bdi> فایل را با مقدار بالا مقایسه کنید.
-        </p>
-      </template>
+        <UnsignedInstallerNotice />
+      </WindowsDownloadOptions>
       <p v-else class="notice">
         نصب‌کنندهٔ این بازی پس از تکمیل بررسی و انتشار، از همین صفحه قابل دریافت خواهد بود.
       </p>
-      <p class="actions">
-        <a v-if="release" class="button primary" :href="standaloneDownloadUrl(release)" download
-          >دریافت برای ویندوز ۱۰ و ۱۱</a
-        >
-        <NuxtLink class="button secondary" :to="'/special-products/' + product.slug"
-          >مشخصات و خرید بازی</NuxtLink
-        >
-      </p>
     </article>
-    <LegacyDownload :sku="sku" />
-    <div class="support-grid">
-      <article class="panel">
-        <h2>نیازمندی‌های نسخهٔ اصلی ویندوز ۱۰ و ۱۱</h2>
-        <ul>
-          <li>ویندوز ۱۰ (۳۲ یا ۶۴ بیتی) یا ویندوز ۱۱ (۶۴ بیتی)</li>
-          <li>نصب‌کننده نسخهٔ مناسب رایانهٔ شما را انتخاب می‌کند.</li>
-          <li>نسخهٔ اصلی به نصب جداگانهٔ .NET Framework 4.8 نیاز ندارد.</li>
-          <li>اتصال اینترنت برای دریافت، شروع نوبت آزمایش و دریافت مجوز</li>
-        </ul>
-      </article>
-      <article class="panel">
-        <h2>آزمایش و فعال‌سازی</h2>
-        <ul>
-          <li>برای دو نوبت آزمایش، برنامه را به حساب خود متصل کنید.</li>
-          <li>پس از خرید، مجوز خودکار دریافت می‌شود یا کد فعال‌سازی همین بازی را وارد کنید.</li>
-          <li>با مجوز معتبر، بازی در اجراهای بعدی مستقیم و آفلاین باز می‌شود.</li>
-        </ul>
-      </article>
-    </div>
+    <article class="panel">
+      <h2>آزمایش و فعال‌سازی</h2>
+      <ul>
+        <li>برای دو نوبت آزمایش، برنامه را به حساب خود متصل کنید.</li>
+        <li>
+          پس از خرید، مجوز خودکار دریافت می‌شود. اگر کد فعال‌سازی دارید، آن را در بازی وارد کنید.
+        </li>
+        <li>پس از فعال‌سازی، می‌توانید بازی را آفلاین باز کنید.</li>
+      </ul>
+    </article>
     <StandaloneReleaseHistory :sku="sku" />
   </template>
 </template>
+<style scoped>
+.download-product-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-block-end: 1rem;
+}
+.download-product-heading h2 {
+  margin: 0;
+}
+.download-product-link {
+  min-height: 48px;
+  gap: 0.6rem;
+  font-weight: 750;
+  border-color: var(--teal, #21665e);
+  color: var(--teal, #21665e);
+}
+@media (max-width: 520px) {
+  .download-product-link {
+    width: 100%;
+  }
+}
+</style>

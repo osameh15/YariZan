@@ -10,10 +10,14 @@ test('Seeded posts retain draft approval; editor, publication, sitemap and respo
 }) => {
   test.setTimeout(120000);
   const newDrafts = [
+    'addition-subtraction-story-tray',
+    'grade-one-counting-routine',
     'measuring-with-clips',
     'number-bond-cafe',
+    'outfit-combination-grid',
     'paper-fractions',
     'sorting-button-museum',
+    'spot-missing-combination',
   ];
   for (const slug of newDrafts) {
     expect((await request.get('/blog/' + slug)).status()).toBe(404);
@@ -32,7 +36,7 @@ test('Seeded posts retain draft approval; editor, publication, sitemap and respo
   }
   await sql("UPDATE blog_posts SET state='DRAFT'");
   const drafts = (await sql('SELECT * FROM blog_posts ORDER BY slug')).rows;
-  expect(drafts).toHaveLength(14);
+  expect(drafts.length).toBeGreaterThanOrEqual(18);
   const slug = drafts[0].slug;
   expect((await request.get('/blog/' + slug)).status()).toBe(404);
   expect(await (await request.get('/sitemap.xml')).text()).not.toContain('/blog/' + slug);

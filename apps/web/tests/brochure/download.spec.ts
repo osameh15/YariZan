@@ -27,13 +27,29 @@ test('all released products show modern and legacy downloads with clear requirem
       await expect(legacy).not.toContainText('هنوز تکمیل نشده');
       if (sku === 'YARIZAN-S-COMBINATION-LAND') await expect(legacy).toContainText('آزمایشی');
       else await expect(legacy).not.toContainText('آزمایشی');
-      await expect(legacy.locator('a[download]')).toHaveAttribute(
-        'href',
-        /\/windows\/legacy\/.+-beta\.exe$/,
+      const actions = page.getByTestId('download-action-row');
+      const buttons = actions.locator('a[download]');
+      await expect(buttons).toHaveCount(2);
+      if (sku !== 'YARIZAN-G1') {
+        const productLink = page.getByRole('link', { name: 'مشخصات و خرید بازی' });
+        await expect(productLink).toBeVisible();
+        expect((await productLink.boundingBox())!.height).toBeGreaterThanOrEqual(48);
+      }
+      const [modernButton, legacyButton] = await Promise.all([
+        buttons.nth(0).boundingBox(),
+        buttons.nth(1).boundingBox(),
+      ]);
+      expect(modernButton!.y === legacyButton!.y).toBe(width === 1440);
+      await expect(page.getByTestId('download-information').locator('a[download]')).toHaveCount(
+        sku === 'YARIZAN-G1' ? 1 : 0,
       );
+      await expect(buttons.nth(1)).toHaveAttribute('href', /\/windows\/legacy\/.+-beta\.exe$/);
       await expect(legacy.locator('code')).toContainText('certutil -hashfile');
       await expect(page.getByText('نسخهٔ اصلی برای ویندوز ۱۰ و ۱۱', { exact: true })).toBeVisible();
-      for (const panel of [legacy, page.locator('.download-status').first()]) {
+      const modern = page.getByTestId('modern-download');
+      await expect(modern.getByTestId('download-unsigned-notice')).toContainText('Authenticode');
+      await expect(page.locator('.download-status').first()).toContainText('ویندوز ۷ SP1 و ۸.۱');
+      for (const panel of [legacy, modern]) {
         for (const label of ['شمارهٔ نسخه', 'حجم فایل', 'معماری', 'قالب نصب‌کننده']) {
           await expect(panel.locator('dt', { hasText: label })).toBeVisible();
         }
@@ -78,12 +94,15 @@ test('six grade cards are shown, grade 1 is preselected and only grade 1 is down
   );
   await expect(page.getByTestId('download-unsigned-notice')).toBeVisible();
   const downloads = await panel
-    .locator('a[href]')
+    .locator('a[download]')
     .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));
-  expect(downloads).toEqual([
-    'https://dl.oarnova.games/downloads/windows/grade-1/latest',
-    'https://dl.oarnova.games/downloads/windows/grade-1/2.1.0/YariZan-G1-Setup-v2.1.0.exe',
-  ]);
+  expect(downloads).toEqual(
+    expect.arrayContaining([
+      'https://dl.oarnova.games/downloads/windows/grade-1/latest',
+      'https://dl.oarnova.games/downloads/windows/grade-1/2.1.0/YariZan-G1-Setup-v2.1.0.exe',
+    ]),
+  );
+  expect(downloads).toHaveLength(3);
   const hrefs = await page
     .locator('a[href]')
     .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));

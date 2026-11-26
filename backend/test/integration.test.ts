@@ -358,7 +358,7 @@ test("Blog drafts need authorized publication, preserve URLs, and reject stale e
       posts: { id: string; slug: string; state: string; revision: string }[];
     }>("/admin/blog", undefined, admin)
   ).body.posts;
-  assert.equal(all.filter((p) => p.state === "DRAFT").length, 12);
+  assert.equal(all.filter((p) => p.state === "DRAFT").length, 16);
   assert.equal((await ok<{ posts: unknown[] }>("/blog")).body.posts.length, 2);
   await denied(
     "/blog/" + all.find((p) => p.state === "DRAFT")!.slug,
@@ -1939,7 +1939,7 @@ test("Runtime role cannot edit audit, migration metadata or schema", async () =>
     // The single runtime DELETE used by the application stays permitted.
     await c.query("DELETE FROM discount_products WHERE false");
     // Read-only migration verification works with runtime privileges.
-    assert.deepEqual(await verifyMigrations(c), { total: 24 });
+    assert.deepEqual(await verifyMigrations(c), { total: 25 });
     await assert.rejects(
       c.query("UPDATE payment_inquiries SET status='FAILED'"),
       /permission denied/,
@@ -7671,10 +7671,13 @@ test("Devices of one verified mobile: names, and a purchase moves once to anothe
   );
 });
 
-test("Successful customer and Admin logins queue one notice; failure and session rotation do not", async () => {
-  const e = await enroll(candidate());
+test("Successful customer and Admin logins queue one notice; failure and session rotation do not", async (t) => {
   const notifications = app.get(Notifications),
     fake = app.get(Sms).fake;
+  // This test controls when notices are delivered so the background timer cannot consume them first.
+  await notifications.beforeApplicationShutdown();
+  t.after(() => notifications.onApplicationBootstrap());
+  const e = await enroll(candidate());
   // Ignore the initial claim in this check; each new sign-in is a separate security event.
   await db.query(
     "UPDATE outbox_events SET processed_at=now() WHERE type IN ('customer.login_notice','admin.login_notice')",

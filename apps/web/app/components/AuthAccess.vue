@@ -22,6 +22,9 @@ const username = ref(''),
   proofOfWork = useProofOfWork(),
   route = useRoute();
 // Recovery and SMS login start with the verified phone number.
+const returningToPairing = computed(
+  () => props.mode === 'customer' && safeReturn(route.query.return) === '/connect?resume=1',
+);
 const needsUsername = computed(
   () => props.mode === 'admin' || (props.mode === 'customer' && method.value === 'password'),
 );
@@ -151,7 +154,11 @@ function restart() {
               : 'خوش آمدید'
         }}
       </h1>
-      <p v-if="mode === 'customer'">
+      <p v-if="returningToPairing">
+        با شمارهٔ همراه حساب همین دستگاه وارد شوید. بعد از ورود، به درخواست اتصال برمی‌گردید تا آن
+        را تأیید کنید.
+      </p>
+      <p v-else-if="mode === 'customer'">
         با شمارهٔ همراهی که هنگام اتصال برنامه تأیید کردید و کد پیامکی وارد شوید. برای ورود با رمز
         عبور، شناسهٔ دستگاه را از صفحهٔ اطلاعات برنامهٔ ویندوز وارد کنید.
       </p>
@@ -162,7 +169,7 @@ function restart() {
       <p v-else>
         پس از بررسی نام کاربری و رمز عبور، کد یک‌بارمصرف به شمارهٔ تأییدشدهٔ مدیر فرستاده می‌شود.
       </p>
-      <NuxtLink v-if="mode === 'customer'" class="text-link" to="/connect"
+      <NuxtLink v-if="mode === 'customer' && !returningToPairing" class="text-link" to="/connect"
         >حساب ندارید؟ برنامه را متصل کنید</NuxtLink
       >
     </div>

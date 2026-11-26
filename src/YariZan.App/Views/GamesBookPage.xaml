@@ -94,9 +94,15 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Column="0" x:Name="GradeTitle" FontFamily="{DynamicResource ShabnamBoldFont}"
-                               FontSize="22" Foreground="{StaticResource GoldBrush}"
-                               VerticalAlignment="Center" Margin="8,0" />
+                    <DockPanel Grid.Column="0" FlowDirection="LeftToRight">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Style="{StaticResource MinimizeButton}" Click="Minimize_Click" />
+                            <Button Style="{StaticResource ExitButton}" Click="Exit_Click" />
+                        </StackPanel>
+                        <TextBlock x:Name="GradeTitle" FontFamily="{DynamicResource ShabnamBoldFont}"
+                                   FontSize="22" Foreground="{StaticResource GoldBrush}" FlowDirection="RightToLeft"
+                                   VerticalAlignment="Center" Margin="8,0" />
+                    </DockPanel>
 
 
 
@@ -107,7 +113,6 @@
                            VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"
                            AutomationProperties.Name="یاریزان" />
 
-                    <!-- RTL StackPanel: minimize before خروج in source = minimize visually right of خروج. -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
                         <Button Width="44" Height="44" Padding="3" Margin="4,0" Background="Transparent" BorderThickness="0" Cursor="Hand"
                                 VerticalAlignment="Center"
@@ -126,11 +131,6 @@
                         <Button Content="بازگشت" Style="{StaticResource GoldButton}"
                                 FontSize="14" MinHeight="36" Padding="14,6"
                                 Click="Back_Click" Margin="4,0" />
-                        <Button Style="{StaticResource MinimizeButton}"
-                                Click="Minimize_Click" Margin="4,0" />
-                        <Button Content="خروج" Style="{StaticResource ExitButton}"
-                                FontSize="14" MinHeight="36" Padding="14,6"
-                                Click="Exit_Click" Margin="4,0" />
                     </StackPanel>
                 </Grid>
 
@@ -194,9 +194,14 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" x:Name="InfoTitle" FontFamily="{DynamicResource ShabnamBoldFont}"
-                                   FontSize="26" Foreground="{StaticResource LeatherDarkBrush}"
-                                   TextAlignment="Center" />
+                        <DockPanel Grid.Row="0" FlowDirection="LeftToRight">
+                            <Button x:Name="InfoCloseButton" DockPanel.Dock="Right" Style="{StaticResource ExitButton}"
+                                    VerticalAlignment="Top" Click="InfoClose_Click"
+                                    ToolTip="بستن پنجره" AutomationProperties.Name="بستن پنجره" />
+                            <TextBlock x:Name="InfoTitle" FontFamily="{DynamicResource ShabnamBoldFont}"
+                                       FontSize="26" Foreground="{StaticResource LeatherDarkBrush}" FlowDirection="RightToLeft"
+                                       TextAlignment="Center" VerticalAlignment="Center" />
+                        </DockPanel>
 
                         <Border Grid.Row="1" Margin="0,12,0,0" Height="2" Background="{StaticResource GoldBrush}" Opacity="0.5" />
 
@@ -237,12 +242,8 @@
                                        Foreground="{StaticResource InkBrush}" AutomationProperties.LiveSetting="Polite" />
                         </StackPanel>
 
-                        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
-                            <Button x:Name="InfoLaunchButton" Content="اجرا" Style="{StaticResource GoldButton}" MinWidth="140"
-                                    Click="InfoLaunch_Click" Margin="6,0" />
-                            <Button x:Name="InfoCloseButton" Content="بستن" Style="{StaticResource ExitButton}" MinWidth="100"
-                                    Click="InfoClose_Click" Margin="6,0" />
-                        </StackPanel>
+                        <Button Grid.Row="3" x:Name="InfoLaunchButton" Content="اجرا" Style="{StaticResource GoldButton}" MinWidth="140"
+                                Click="InfoLaunch_Click" HorizontalAlignment="Center" Margin="6,24,6,0" />
                     </Grid>
                 </Border>
             </Grid>

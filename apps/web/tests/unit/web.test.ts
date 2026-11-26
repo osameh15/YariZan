@@ -51,7 +51,7 @@ describe('Catalog and commercial boundaries', () => {
       global: { stubs: { NuxtLink } },
     });
     expect(wrapper.text()).toContain('به‌زودی');
-    expect(wrapper.find('button').exists()).toBe(false);
+    expect(wrapper.get('button').attributes('disabled')).toBeDefined();
     expect(wrapper.html()).not.toContain('/checkout');
   });
 });

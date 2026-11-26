@@ -35,7 +35,7 @@ test('special product card, price, detail and download selection work on desktop
     await expect(page.locator('.download-tab')).toHaveText(['دنیای پایه‌ها', 'محصولات ویژه']);
     await expect(page.getByTestId('product-picker').locator('.grade-card')).toHaveCount(3);
     await page.goto('/special-products/combination-land');
-    await expect(page.locator('.gallery-thumb')).toHaveCount(2);
+    await expect(page.locator('.gallery-thumb')).toHaveCount(5);
     const gallery = page.locator('.gallery-stage img');
     await expect(gallery).toHaveAttribute('src', '/products/combination-land/screen-1.webp');
     await page.locator('.gallery-thumb').nth(1).click();
@@ -53,6 +53,16 @@ test('grades stay separate and G1 shows the newly approved price', async ({ page
   await expect(page.locator('.product-card')).toHaveCount(6);
   await expect(page.locator('.product-card').first()).toContainText('۱٬۴۹۹٬۰۰۰');
   await expect(page.locator('.product-grid')).not.toContainText('عددساز کوچولو');
+  const unavailable = page.getByRole('button', { name: 'دریافت به‌زودی' });
+  await expect(unavailable).toHaveCount(5);
+  for (const button of await unavailable.all()) await expect(button).toBeDisabled();
+  await page.goto('/products/grade-1');
+  await expect(page.locator('.gallery-thumb')).toHaveCount(7);
+  await page.locator('.gallery-thumb').last().click();
+  await expect(page.locator('.gallery-stage img')).toHaveAttribute(
+    'src',
+    '/products/grade-1/screen-7.webp',
+  );
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'محصولات ویژه', exact: true })).toBeVisible();
 });

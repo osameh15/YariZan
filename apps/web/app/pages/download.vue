@@ -39,10 +39,6 @@ const statusLabel = (grade: Grade) =>
     : status(grade) === 'content-ready'
       ? 'محتوا آماده است'
       : 'به‌زودی';
-const defaultRequirements = [
-  'ویندوز ۱۰ (۳۲ یا ۶۴ بیتی) یا ویندوز ۱۱ (۶۴ بیتی)',
-  'اتصال اینترنت برای دریافت برنامه، شروع نوبت آزمایش و دریافت مجوز',
-];
 const formatDate = (iso: string) =>
   persianDigits(
     new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
@@ -138,45 +134,24 @@ const formatDate = (iso: string) =>
         aria-live="polite"
       >
         <template v-if="release">
-          <span class="badge neutral">نسخهٔ اصلی برای ویندوز ۱۰ و ۱۱</span>
-          <h2>
-            یاریزان پایهٔ {{ gradeTitles[selected] }}، نسخهٔ
-            <span dir="ltr">{{ persianDigits(release.version) }}</span>
-          </h2>
-          <DownloadFacts
-            :version="release.version"
-            :size-bytes="release.sizeBytes"
-            :sha256="release.sha256"
-            :released-at="formatDate(release.releasedAt)"
-            :format="release.format"
-          />
-          <div
-            v-if="release.approval.signature === 'unsigned-owner-approved'"
-            class="notice"
-            data-testid="download-unsigned-notice"
-          >
-            <p>
-              این فایل نصب امضای دیجیتال ناشر (<bdi dir="ltr">Authenticode</bdi>) ندارد. ویندوز ممکن
-              است هنگام اجرا با پیام «<bdi dir="ltr">Windows protected your PC</bdi>» یا «ناشر
-              ناشناس» هشدار دهد.
-            </p>
-            <p>
-              پیش از اجرا، کد <bdi dir="ltr">SHA-256</bdi> فایل دریافتی را با مقدار بالا مقایسه
-              کنید. فقط اگر دقیقاً یکی بود، روی «<bdi dir="ltr">More info</bdi>» و سپس «<bdi
-                dir="ltr"
-                >Run anyway</bdi
-              >» بزنید. این فایل را فقط از همین صفحه دریافت کنید.
-            </p>
-            <p>
-              مجوزهای بازی همچنان با امضای رمزنگاری‌شدهٔ یاریزان صادر و در برنامه بررسی می‌شوند.
-            </p>
-          </div>
-          <p class="actions">
-            <a class="button primary" :href="latestUrl(selected)" download
-              >دریافت برای ویندوز ۱۰ و ۱۱</a
-            >
-            <a class="button secondary" :href="releaseUrl(release)" download>پیوند ثابت این نسخه</a>
-          </p>
+          <h2>دریافت یاریزان پایهٔ {{ gradeTitles[selected] }}</h2>
+          <WindowsDownloadOptions :sku="'YARIZAN-G' + selected" :modern-url="latestUrl(selected)">
+            <ul>
+              <li v-for="item in release.requirements" :key="item">{{ item }}</li>
+              <li>به نصب جداگانهٔ .NET Framework 4.8 نیاز ندارد.</li>
+            </ul>
+            <DownloadFacts
+              :version="release.version"
+              :size-bytes="release.sizeBytes"
+              :sha256="release.sha256"
+              :released-at="formatDate(release.releasedAt)"
+              :format="release.format"
+            />
+            <UnsignedInstallerNotice
+              v-if="release.approval.signature === 'unsigned-owner-approved'"
+            />
+            <a class="text-link" :href="releaseUrl(release)" download>پیوند ثابت این نسخه</a>
+          </WindowsDownloadOptions>
         </template>
         <template v-else>
           <h2>پایهٔ {{ gradeTitles[selected] }}: نسخهٔ ویندوز به‌زودی منتشر می‌شود</h2>
@@ -194,21 +169,7 @@ const formatDate = (iso: string) =>
         </template>
       </article>
 
-      <LegacyDownload v-if="release" :sku="'YARIZAN-G' + selected" />
-
-      <div class="support-grid">
-        <article class="panel">
-          <h2>نیازمندی‌های نسخهٔ اصلی ویندوز ۱۰ و ۱۱</h2>
-          <ul>
-            <li v-for="item in release ? release.requirements : defaultRequirements" :key="item">
-              {{ item }}
-            </li>
-          </ul>
-          <p>
-            نسخهٔ اصلی شامل فایل‌های اجرای برنامه است و به نصب جداگانهٔ .NET Framework 4.8 نیاز
-            ندارد.
-          </p>
-        </article>
+      <div v-if="release" class="support-grid">
         <article class="panel">
           <h2>مجوز و فعال‌سازی</h2>
           <p>

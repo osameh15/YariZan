@@ -5,10 +5,11 @@ import { PRIMARY_SUPPORT_PHONE, SUPPORT_PHONES } from '#shared/contact';
 import type { ApiResult } from '#shared/api';
 import { gradeNames, availability } from '#shared/domain';
 import PriceBlock from '~/components/PriceBlock.vue';
-import { standaloneProduct } from '#shared/products';
+import { productShots, standaloneProduct } from '#shared/products';
 import { productDownloadPath } from '#shared/product-download';
 const props = defineProps<{ sku: string }>();
 const special = computed(() => standaloneProduct(props.sku));
+const shots = computed(() => productShots(props.sku));
 const { data: products, status, error, refresh } = await useCatalog();
 const product = computed(() => products.value?.find((p) => p.sku === props.sku));
 useSeoMeta({
@@ -16,6 +17,12 @@ useSeoMeta({
 });
 const assistance = ref(false);
 const activeShot = ref(0);
+watch(
+  () => props.sku,
+  () => {
+    activeShot.value = 0;
+  },
+);
 const { publicOnly } = useSiteMode();
 // Public-only profiles have no API: commerce capabilities are never requested.
 const commerce = publicOnly.value
@@ -33,11 +40,11 @@ const commerce = publicOnly.value
     ><LoadState :loading="status === 'pending'" :error="!!error" @retry="refresh()"
       ><div v-if="product" class="product-detail">
         <div class="detail-art">
-          <div v-if="special?.shots.length" class="product-gallery">
+          <div v-if="shots.length" class="product-gallery">
             <figure class="gallery-stage">
               <img
-                :src="special.shots[activeShot]!.src"
-                :alt="special.shots[activeShot]!.alt"
+                :src="shots[activeShot]!.src"
+                :alt="shots[activeShot]!.alt"
                 width="1280"
                 height="720"
                 fetchpriority="high"
@@ -45,7 +52,7 @@ const commerce = publicOnly.value
             </figure>
             <div class="gallery-thumbs" role="group" aria-label="تصاویر بازی">
               <button
-                v-for="(shot, index) in special.shots"
+                v-for="(shot, index) in shots"
                 :key="shot.src"
                 type="button"
                 class="gallery-thumb"
