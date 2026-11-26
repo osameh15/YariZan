@@ -1,21 +1,13 @@
 <script setup lang="ts">
-import {
-  legacyWindowsRelease,
-  legacyWindowsRequirements,
-  legacyWindowsUrl,
-} from '#shared/legacy-windows';
+import { legacyWindowsRequirements, type LegacyWindowsRelease } from '#shared/legacy-windows';
 import { productTitle } from '#shared/products';
-const props = defineProps<{ sku: string }>();
-const release = computed(() => legacyWindowsRelease(props.sku));
+defineProps<{ release: LegacyWindowsRelease }>();
 </script>
 <template>
-  <section v-if="release" class="windows-download-option" data-testid="legacy-download">
-    <h3>ویندوز ۷ SP1 و ۸.۱</h3>
-    <a class="button secondary" :href="legacyWindowsUrl(release)" download
-      >دریافت برای ویندوز ۷ SP1 و ۸.۱</a
-    >
+  <section class="windows-download-option" data-testid="legacy-download">
+    <h4>ویندوز ۷ SP1 و ۸.۱</h4>
     <p v-if="release.channel === 'experimental'" class="muted">
-      نسخهٔ آزمایشی {{ productTitle(sku) }}
+      نسخهٔ آزمایشی {{ productTitle(release.sku) }}
     </p>
     <ul>
       <li v-for="item in legacyWindowsRequirements" :key="item">{{ item }}</li>
