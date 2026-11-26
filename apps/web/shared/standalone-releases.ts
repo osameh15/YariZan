@@ -11,27 +11,27 @@ export interface StandaloneRelease {
 }
 export const standaloneReleases: readonly StandaloneRelease[] = [
   {
-    sku: 'YARIZAN-S-COMBINATION-LAND',
-    version: '1.0.2',
-    filename: 'YariZan-CombinationLand-Setup-v1.0.2.exe',
-    sizeBytes: 95953781,
-    sha256: 'fdeb3f0b2ffb64bed774498f767abe790cfdf3b29fa347502abaecc54a1fc0a0',
-    published: true,
-  },
-  {
     sku: 'YARIZAN-S-NUMBER-BUILDER',
-    version: '1.0.0',
-    filename: 'YariZan-NumberBuilder-Setup-v1.0.0.exe',
-    sizeBytes: 94518290,
-    sha256: 'e3c62a57511b0f53aa7f3df0a27683ecd54bd97f3af271db5b627ca19a77fb5f',
+    version: '1.1.0',
+    filename: 'YariZan-NumberBuilder-Setup-v1.1.0.exe',
+    sizeBytes: 94512318,
+    sha256: '4d54015a3fe471221d39bf114fb3947056b4f07e1d1a8baf54bf93dcd4e37382',
     published: true,
   },
   {
     sku: 'YARIZAN-S-BUNDLE-BUILDER',
-    version: '1.0.0',
-    filename: 'YariZan-BundleBuilder-Setup-v1.0.0.exe',
-    sizeBytes: 94541090,
-    sha256: '8e4e371ddd2d412db3d7e38c9c337536502a5cbee5bad4c80aef26967ade2af0',
+    version: '1.1.0',
+    filename: 'YariZan-BundleBuilder-Setup-v1.1.0.exe',
+    sizeBytes: 94538307,
+    sha256: 'd6d61e5e27276a9545188a2b5a3de798d9704e811335e22b344ed5695296d966',
+    published: true,
+  },
+  {
+    sku: 'YARIZAN-S-COMBINATION-LAND',
+    version: '1.1.0',
+    filename: 'YariZan-CombinationLand-Setup-v1.1.0.exe',
+    sizeBytes: 95956008,
+    sha256: '417891d30cd91248d604011e975c4f8bd39905f166970465274f5640c3d11c08',
     published: true,
   },
 ];
@@ -46,8 +46,13 @@ export function standaloneDownloadUrl(release: StandaloneRelease) {
 
 export function standaloneReleaseHistory(sku: string) {
   if (!standaloneRelease(sku)) return [];
+  const current = {
+    version: '1.1.0',
+    notes: ['راهنمای تازهٔ اتصال به حساب، فعال‌سازی و شروع آزمایش در بازی.'],
+  };
   if (sku === 'YARIZAN-S-COMBINATION-LAND')
     return [
+      current,
       {
         version: '1.0.2',
         notes: ['به‌روزرسانی محتوای بازی و ساخت نصب‌کننده‌های جدید ۳۲ و ۶۴ بیتی.'],
@@ -65,6 +70,7 @@ export function standaloneReleaseHistory(sku: string) {
       },
     ];
   return [
+    current,
     { version: '1.0.0', notes: ['انتشار نخستین نسخهٔ مستقل بازی با فعال‌سازی و مجوز اختصاصی.'] },
   ];
 }

@@ -1,40 +1,40 @@
 [
   {
     "sku": "YARIZAN-G1",
-    "version": "2.1.0",
-    "filename": "YariZan-G1-Legacy-Setup-v2.1.0-beta.exe",
-    "sizeBytes": 1008204555,
-    "sha256": "c8fa829aacb8c11ca1dfb8a8ff36002ffac31657d2b7f7ec67d4071a20859ad9",
+    "version": "2.2.0",
+    "filename": "YariZan-G1-Legacy-Setup-v2.2.0-beta.exe",
+    "sizeBytes": 1008208859,
+    "sha256": "838aa358b840cbb67ee95936077db7c501b11bf95b109a9e59594829abdfcdf1",
     "published": true,
-    "channel": "stable",
-    "osAcceptance": "verified"
+    "channel": "experimental",
+    "osAcceptance": "pending"
   },
   {
     "sku": "YARIZAN-S-NUMBER-BUILDER",
-    "version": "1.0.0",
-    "filename": "YariZan-NumberBuilder-Legacy-Setup-v1.0.0-beta.exe",
-    "sizeBytes": 21306918,
-    "sha256": "2b0f92a5b52cd1a48996fd0cda2646a54209ba56501820b4a2bab1bda257b666",
+    "version": "1.1.0",
+    "filename": "YariZan-NumberBuilder-Legacy-Setup-v1.1.0-beta.exe",
+    "sizeBytes": 21308882,
+    "sha256": "e5cba0025affb71889177c8ac40a55f1436d98b4ad08ffcdf15e5800be7feeca",
     "published": true,
-    "channel": "stable",
-    "osAcceptance": "verified"
+    "channel": "experimental",
+    "osAcceptance": "pending"
   },
   {
     "sku": "YARIZAN-S-BUNDLE-BUILDER",
-    "version": "1.0.0",
-    "filename": "YariZan-BundleBuilder-Legacy-Setup-v1.0.0-beta.exe",
-    "sizeBytes": 21332660,
-    "sha256": "a4811d16fddeba60ed5a968350bd40de00e07d2987d60d577c428c06a5db66d3",
+    "version": "1.1.0",
+    "filename": "YariZan-BundleBuilder-Legacy-Setup-v1.1.0-beta.exe",
+    "sizeBytes": 21337625,
+    "sha256": "936cf31ad4c337e0ca8552d98e33b1df00eea22ab84a59fc4a6006a8ec4c2bd2",
     "published": true,
-    "channel": "stable",
-    "osAcceptance": "verified"
+    "channel": "experimental",
+    "osAcceptance": "pending"
   },
   {
     "sku": "YARIZAN-S-COMBINATION-LAND",
-    "version": "1.0.2",
-    "filename": "YariZan-CombinationLand-Legacy-Setup-v1.0.2-beta.exe",
-    "sizeBytes": 22758741,
-    "sha256": "7f6512925acf5ab8fdfa2e4147bd525b5bdb620b801f02abd593108344dc25b1",
+    "version": "1.1.0",
+    "filename": "YariZan-CombinationLand-Legacy-Setup-v1.1.0-beta.exe",
+    "sizeBytes": 22758826,
+    "sha256": "bcff993acb8045f4a3b141240959d58bd6861f8d9c81084cc7d3f4c3fc5048ee",
     "published": true,
     "channel": "experimental",
     "osAcceptance": "pending"
