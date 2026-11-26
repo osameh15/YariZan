@@ -32,10 +32,10 @@ describe('independent game products', () => {
   });
   it('links each published installer to its own immutable mirror path', () => {
     expect(standaloneDownloadUrl(standaloneRelease(sku)!)).toBe(
-      'https://dl.oarnova.games/downloads/windows/products/number-builder/1.0.0/YariZan-NumberBuilder-Setup-v1.0.0.exe',
+      'https://dl.oarnova.games/downloads/windows/products/number-builder/1.1.0/YariZan-NumberBuilder-Setup-v1.1.0.exe',
     );
     expect(standaloneDownloadUrl(standaloneRelease('YARIZAN-S-BUNDLE-BUILDER')!)).toBe(
-      'https://dl.oarnova.games/downloads/windows/products/bundle-builder/1.0.0/YariZan-BundleBuilder-Setup-v1.0.0.exe',
+      'https://dl.oarnova.games/downloads/windows/products/bundle-builder/1.1.0/YariZan-BundleBuilder-Setup-v1.1.0.exe',
     );
     expect(standaloneRelease('YARIZAN-S-UNKNOWN')).toBeUndefined();
   });

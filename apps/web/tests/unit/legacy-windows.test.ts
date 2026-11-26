@@ -13,9 +13,8 @@ describe('legacy Windows downloads', () => {
     expect(legacyWindowsReleases.map((p) => p.sku).sort()).toEqual(skus);
     for (const sku of skus) {
       const record = legacyWindowsRelease(sku)!;
-      const isCandidate = sku === 'YARIZAN-S-COMBINATION-LAND';
-      expect(record.channel).toBe(isCandidate ? 'experimental' : 'stable');
-      expect(record.osAcceptance).toBe(isCandidate ? 'pending' : 'verified');
+      expect(record.channel).toBe('experimental');
+      expect(record.osAcceptance).toBe('pending');
       expect(record.filename).toMatch(/-Legacy-Setup-v[0-9.]+-beta\.exe$/);
       const url = legacyWindowsUrl(record);
       expect(url).toMatch(/^https:\/\/dl\.oarnova\.games\/downloads\/windows\/legacy\//);
@@ -31,8 +30,8 @@ describe('legacy Windows downloads', () => {
       { filename: 'YariZan-G1-Setup-v2.1.0.exe' },
       { sha256: 'a'.repeat(63) },
       { sizeBytes: 0 },
-      { channel: 'experimental' },
-      { osAcceptance: 'pending' },
+      { channel: 'stable' },
+      { osAcceptance: 'verified' },
     ])
       expect(() => validateLegacyRelease({ ...record, ...changed } as typeof record)).toThrow();
   });

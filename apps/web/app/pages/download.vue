@@ -7,7 +7,6 @@ import {
   gradeTitles,
   grades,
   latestForGrade,
-  latestUrl,
   parseGrade,
   releaseUrl,
   releasesForGrade,
@@ -135,7 +134,7 @@ const formatDate = (iso: string) =>
       >
         <template v-if="release">
           <h2>دریافت یاریزان پایهٔ {{ gradeTitles[selected] }}</h2>
-          <WindowsDownloadOptions :sku="'YARIZAN-G' + selected" :modern-url="latestUrl(selected)">
+          <WindowsDownloadOptions :sku="'YARIZAN-G' + selected" :modern-url="releaseUrl(release)">
             <ul>
               <li v-for="item in release.requirements" :key="item">{{ item }}</li>
               <li>به نصب جداگانهٔ .NET Framework 4.8 نیاز ندارد.</li>
@@ -150,7 +149,6 @@ const formatDate = (iso: string) =>
             <UnsignedInstallerNotice
               v-if="release.approval.signature === 'unsigned-owner-approved'"
             />
-            <a class="text-link" :href="releaseUrl(release)" download>پیوند ثابت این نسخه</a>
           </WindowsDownloadOptions>
         </template>
         <template v-else>
