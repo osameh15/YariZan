@@ -7671,10 +7671,13 @@ test("Devices of one verified mobile: names, and a purchase moves once to anothe
   );
 });
 
-test("Successful customer and Admin logins queue one notice; failure and session rotation do not", async () => {
-  const e = await enroll(candidate());
+test("Successful customer and Admin logins queue one notice; failure and session rotation do not", async (t) => {
   const notifications = app.get(Notifications),
     fake = app.get(Sms).fake;
+  // This test controls when notices are delivered so the background timer cannot consume them first.
+  await notifications.beforeApplicationShutdown();
+  t.after(() => notifications.onApplicationBootstrap());
+  const e = await enroll(candidate());
   // Ignore the initial claim in this check; each new sign-in is a separate security event.
   await db.query(
     "UPDATE outbox_events SET processed_at=now() WHERE type IN ('customer.login_notice','admin.login_notice')",
